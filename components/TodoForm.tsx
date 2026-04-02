@@ -2,13 +2,14 @@
 
 import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Todo, Group, Category, Product } from './TodoView'
+import type { Todo, Group, Category, Product, Priority } from './TodoView'
 
 type Props = {
   productId?: string
   products: Product[]
   groups: Group[]
   categories: Category[]
+  priorities: Priority[]
   onClose: () => void
   onCreate: (todo: Todo) => void
 }
@@ -18,6 +19,7 @@ export default function TodoForm({
   products,
   groups,
   categories,
+  priorities,
   onClose,
   onCreate,
 }: Props) {
@@ -28,7 +30,7 @@ export default function TodoForm({
     title: '',
     description: '',
     status: 'open' as Todo['status'],
-    priority_value: null as number | null,
+    priority_value: 3 as number,
     product_id: defaultProductId,
     group_id: null as string | null,
     category_id: null as string | null,
@@ -145,16 +147,14 @@ export default function TodoForm({
               <label className="block text-xs font-medium text-zinc-500 mb-1">Priority</label>
               <select
                 className="w-full border border-zinc-200 rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-zinc-400"
-                value={form.priority_value ?? ''}
+                value={form.priority_value}
                 onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    priority_value: e.target.value === '' ? null : Number(e.target.value),
-                  }))
+                  setForm((f) => ({ ...f, priority_value: Number(e.target.value) }))
                 }
               >
-                <option value="">None</option>
-                <option value="1">P1</option>
+                {priorities.map((p) => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
               </select>
             </div>
           </div>

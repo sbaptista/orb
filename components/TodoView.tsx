@@ -30,6 +30,7 @@ export type Todo = {
 export type Group = { id: string; name: string; product_id: string }
 export type Category = { id: string; name: string; product_id: string }
 export type Product = { id: string; name: string; color: string | null; icon: string | null }
+export type Priority = { value: number; label: string }
 
 const STATUS_BORDER: Record<Status, string> = {
   open: 'bg-amber-500',
@@ -46,6 +47,7 @@ export default function TodoView({ productId }: { productId: string }) {
   const [groups, setGroups] = useState<Group[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [priorities, setPriorities] = useState<Priority[]>([])
   const [loading, setLoading] = useState(true)
 
   const [filterStatus, setFilterStatus] = useState('all')
@@ -74,17 +76,19 @@ export default function TodoView({ productId }: { productId: string }) {
       let catQuery = supabase.from('categories').select('id, name, product_id').order('sort_order')
       if (!isAll) catQuery = catQuery.eq('product_id', productId)
 
-      const [todosRes, groupsRes, catsRes, productsRes] = await Promise.all([
+      const [todosRes, groupsRes, catsRes, productsRes, prioritiesRes] = await Promise.all([
         todoQuery,
         groupQuery,
         catQuery,
         supabase.from('products').select('id, name, color, icon').order('sort_order'),
+        supabase.from('priorities').select('value, label').order('value'),
       ])
 
       setTodos((todosRes.data as Todo[]) ?? [])
       setGroups(groupsRes.data ?? [])
       setCategories(catsRes.data ?? [])
       setProducts(productsRes.data ?? [])
+      setPriorities(prioritiesRes.data ?? [])
       setLoading(false)
     }
 
@@ -110,6 +114,11 @@ export default function TodoView({ productId }: { productId: string }) {
       if (selectedTodo?.id === todo.id) setSelectedTodo(updated)
     }
   }
+
+  const priorityMap = useMemo(
+    () => new Map(priorities.map((p) => [p.value, p.label])),
+    [priorities]
+  )
 
   const filtered = todos.filter((t) => {
     if (filterStatus !== 'all' && t.status !== filterStatus) return false
@@ -242,9 +251,11 @@ export default function TodoView({ productId }: { productId: string }) {
                   )}
                 </div>
 
-                {/* P1 dot */}
-                {todo.priority_value === 1 && (
-                  <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" title="P1" />
+                {/* Priority badge */}
+                {todo.priority_value != null && priorityMap.has(todo.priority_value) && (
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600 shrink-0 font-medium whitespace-nowrap">
+                    {priorityMap.get(todo.priority_value)}
+                  </span>
                 )}
               </div>
             ))}
@@ -258,6 +269,7 @@ export default function TodoView({ productId }: { productId: string }) {
           groups={groups}
           categories={categories}
           products={products}
+          priorities={priorities}
           isAll={isAll}
           onClose={() => setSelectedTodo(null)}
           onSave={(updated) => {
@@ -277,6 +289,7 @@ export default function TodoView({ productId }: { productId: string }) {
           products={products}
           groups={groups}
           categories={categories}
+          priorities={priorities}
           onClose={() => setShowNewTodo(false)}
           onCreate={(todo) => {
             setTodos((prev) => [...prev, todo])

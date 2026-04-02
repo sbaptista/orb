@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Todo, Group, Category, Product } from './TodoView'
+import type { Todo, Group, Category, Product, Priority } from './TodoView'
 
 type Props = {
   todo: Todo
   groups: Group[]
   categories: Category[]
   products: Product[]
+  priorities: Priority[]
   isAll: boolean
   onClose: () => void
   onSave: (updated: Todo) => void
@@ -20,6 +21,7 @@ export default function TodoPanel({
   groups,
   categories,
   products,
+  priorities,
   isAll,
   onClose,
   onSave,
@@ -125,16 +127,14 @@ export default function TodoPanel({
               <label className="block text-xs font-medium text-zinc-500 mb-1">Priority</label>
               <select
                 className="w-full border border-zinc-200 rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-zinc-400"
-                value={form.priority_value ?? ''}
+                value={form.priority_value ?? 3}
                 onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    priority_value: e.target.value === '' ? null : Number(e.target.value),
-                  }))
+                  setForm((f) => ({ ...f, priority_value: Number(e.target.value) }))
                 }
               >
-                <option value="">None</option>
-                <option value="1">P1</option>
+                {priorities.map((p) => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -226,6 +226,15 @@ export default function TodoPanel({
               rows={3}
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 mb-1">Task ID</label>
+            <input
+              readOnly
+              className="w-full border border-zinc-100 rounded px-3 py-2 text-xs font-mono text-zinc-400 bg-zinc-50 cursor-text focus:outline-none"
+              value={todo.id}
             />
           </div>
         </div>
