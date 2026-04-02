@@ -15,6 +15,7 @@ export type Todo = {
   group_id: string | null
   category_id: string | null
   priority_value: number | null
+  todo_number: number | null
   title: string
   description: string | null
   resolution_notes: string | null
@@ -29,7 +30,7 @@ export type Todo = {
 
 export type Group = { id: string; name: string; product_id: string }
 export type Category = { id: string; name: string; product_id: string }
-export type Product = { id: string; name: string; color: string | null; icon: string | null }
+export type Product = { id: string; name: string; color: string | null; icon: string | null; code: string | null }
 export type Priority = { value: number; label: string }
 
 const STATUS_BORDER: Record<Status, string> = {
@@ -80,7 +81,7 @@ export default function TodoView({ productId }: { productId: string }) {
         todoQuery,
         groupQuery,
         catQuery,
-        supabase.from('products').select('id, name, color, icon').order('sort_order'),
+        supabase.from('products').select('id, name, color, icon, code').order('sort_order'),
         supabase.from('priorities').select('value, label').order('value'),
       ])
 
@@ -118,6 +119,11 @@ export default function TodoView({ productId }: { productId: string }) {
   const priorityMap = useMemo(
     () => new Map(priorities.map((p) => [p.value, p.label])),
     [priorities]
+  )
+
+  const productCodeMap = useMemo(
+    () => new Map(products.map((p) => [p.id, p.code])),
+    [products]
   )
 
   const filtered = todos.filter((t) => {
@@ -244,9 +250,15 @@ export default function TodoView({ productId }: { productId: string }) {
                   <p className={`text-sm truncate ${todo.status === 'done' ? 'line-through text-zinc-400' : 'text-zinc-800'}`}>
                     {todo.title}
                   </p>
-                  {(todo.groups?.name || todo.categories?.name) && (
+                  {(todo.todo_number != null || todo.groups?.name || todo.categories?.name) && (
                     <p className="text-xs text-zinc-400 mt-0.5">
-                      {[todo.groups?.name, todo.categories?.name].filter(Boolean).join(' · ')}
+                      {[
+                        todo.todo_number != null && productCodeMap.get(todo.product_id)
+                          ? `${productCodeMap.get(todo.product_id)}-${todo.todo_number}`
+                          : null,
+                        todo.groups?.name,
+                        todo.categories?.name,
+                      ].filter(Boolean).join(' · ')}
                     </p>
                   )}
                 </div>

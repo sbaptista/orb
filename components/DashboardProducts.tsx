@@ -11,6 +11,7 @@ type Product = {
   color: string | null
   icon: string | null
   sort_order: number
+  code: string | null
 }
 
 type ProductForm = {
@@ -19,6 +20,7 @@ type ProductForm = {
   color: string
   icon: string
   sort_order: string
+  code: string
 }
 
 const EMPTY_FORM: ProductForm = {
@@ -27,6 +29,7 @@ const EMPTY_FORM: ProductForm = {
   color: '#6366f1',
   icon: '',
   sort_order: '0',
+  code: '',
 }
 
 function InlineProductForm({
@@ -44,6 +47,8 @@ function InlineProductForm({
   submitLabel: string
   saving: boolean
 }) {
+  const [codeAutoSync, setCodeAutoSync] = useState(!form.code)
+
   return (
     <div className="px-4 py-4 bg-zinc-50 rounded-lg border border-zinc-200">
       <div className="grid grid-cols-2 gap-3 mb-3">
@@ -52,11 +57,30 @@ function InlineProductForm({
           <input
             className="w-full border border-zinc-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
             value={form.name}
-            onChange={e => onChange({ ...form, name: e.target.value })}
+            onChange={e => {
+              const name = e.target.value
+              const autoCode = name.slice(0, 4).toUpperCase()
+              onChange(codeAutoSync ? { ...form, name, code: autoCode } : { ...form, name })
+            }}
             autoFocus
             placeholder="Product name"
           />
         </div>
+        <div>
+          <label className="block text-xs text-zinc-500 mb-1">Code</label>
+          <input
+            className="w-full border border-zinc-200 rounded px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-zinc-400"
+            value={form.code}
+            onChange={e => {
+              setCodeAutoSync(false)
+              onChange({ ...form, code: e.target.value.toUpperCase() })
+            }}
+            placeholder="HELM"
+            maxLength={10}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
           <label className="block text-xs text-zinc-500 mb-1">Icon (emoji)</label>
           <input
@@ -154,6 +178,7 @@ export default function DashboardProducts() {
       color: p.color ?? '#6366f1',
       icon: p.icon ?? '',
       sort_order: String(p.sort_order),
+      code: p.code ?? '',
     })
     setShowAdd(false)
     setConfirmDeleteId(null)
@@ -172,6 +197,7 @@ export default function DashboardProducts() {
         color: editForm.color,
         icon: editForm.icon.trim() || null,
         sort_order: Number(editForm.sort_order) || 0,
+        code: editForm.code.trim() || null,
       })
       .eq('id', id)
       .select()
@@ -194,6 +220,7 @@ export default function DashboardProducts() {
         color: addForm.color,
         icon: addForm.icon.trim() || null,
         sort_order: Number(addForm.sort_order) || 0,
+        code: addForm.code.trim() || null,
       })
       .select()
       .single()
@@ -330,6 +357,9 @@ export default function DashboardProducts() {
               >
                 <span className="text-2xl">{p.icon ?? '📦'}</span>
                 <span className="font-medium text-sm mt-1">{p.name}</span>
+                {p.code && (
+                  <span className="text-xs text-zinc-400 font-mono">{p.code}</span>
+                )}
                 {p.description && (
                   <span className="text-xs text-zinc-500 line-clamp-2">{p.description}</span>
                 )}

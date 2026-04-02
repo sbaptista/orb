@@ -230,11 +230,14 @@ export default function TodoPanel({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1">Task ID</label>
+            <label className="block text-xs font-medium text-zinc-500 mb-1">ID</label>
             <input
               readOnly
               className="w-full border border-zinc-100 rounded px-3 py-2 text-xs font-mono text-zinc-400 bg-zinc-50 cursor-text focus:outline-none"
-              value={todo.id}
+              value={(() => {
+                const code = products.find(p => p.id === todo.product_id)?.code
+                return code && todo.todo_number != null ? `${code}-${todo.todo_number}` : todo.id
+              })()}
             />
           </div>
         </div>
