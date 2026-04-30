@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import AddProductModal from './AddProductModal'
 
 type Product = { id: string; name: string; code: string | null; icon: string | null }
 type Todo    = { id: string; status: string; priority_value: number | null }
@@ -61,6 +61,7 @@ export default function AmbientDashboard() {
   const [input, setInput]                 = useState('')
   const [loading, setLoading]             = useState(true)
   const [submitting, setSubmitting]       = useState(false)
+  const [showAddProduct, setShowAddProduct] = useState(false)
 
   // Load products, restore last selected
   useEffect(() => {
@@ -321,8 +322,8 @@ export default function AmbientDashboard() {
             {p.code ?? p.name}
           </button>
         ))}
-        <Link
-          href="/dashboard/classic"
+        <button
+          onClick={() => setShowAddProduct(true)}
           style={{
             fontFamily: 'var(--font-ui)',
             fontSize: 'var(--fs-xs)',
@@ -332,13 +333,13 @@ export default function AmbientDashboard() {
             borderRadius: '20px',
             border: '1px dashed var(--border)',
             color: 'var(--muted)',
-            textDecoration: 'none',
+            background: 'none',
             cursor: 'pointer',
             transition: 'all var(--transition)',
           }}
         >
           + product
-        </Link>
+        </button>
       </div>
 
       {/* Top right — sign out */}
@@ -380,20 +381,20 @@ export default function AmbientDashboard() {
           color: 'var(--muted)',
           letterSpacing: '0.05em',
         }}>
-          TODOS v0.2.14
+          TODOS v0.2.19
         </span>
-        <Link
-          href="/dashboard/classic"
-          style={{
-            fontSize: 'var(--fs-xs)',
-            color: 'var(--muted)',
-            letterSpacing: '0.04em',
-            textDecoration: 'none',
-          }}
-        >
-          classic view
-        </Link>
       </div>
+
+      {showAddProduct && (
+        <AddProductModal
+          onClose={() => setShowAddProduct(false)}
+          onCreated={product => {
+            setProducts(prev => [...prev, product])
+            setSelectedId(product.id)
+            setShowAddProduct(false)
+          }}
+        />
+      )}
 
       <style>{`
         @keyframes todos-breathe {

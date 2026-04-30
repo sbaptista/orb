@@ -8,11 +8,24 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   if (!user) redirect('/auth/login')
 
   return (
-    <div className="min-h-screen bg-zinc-50 flex flex-col sm:flex-row">
+    <div className="settings-layout">
       <SettingsSidebar />
-      <main className="flex-1 min-w-0 overflow-y-auto">
+      <main style={{ flex: 1, minWidth: 0, overflowY: 'auto' }}>
         {children}
       </main>
+      <style>{`
+        .settings-layout {
+          min-height: 100dvh;
+          background: var(--bg);
+          display: flex;
+          flex-direction: column;
+        }
+        @media (min-width: 640px) {
+          .settings-layout {
+            flex-direction: row;
+          }
+        }
+      `}</style>
     </div>
   )
 }

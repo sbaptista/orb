@@ -58,65 +58,156 @@ export default function SettingsAccount() {
     router.push('/auth/login')
   }
 
-  if (loading) return <div className="p-8 text-sm text-zinc-400">Loading…</div>
+  if (loading) return (
+    <div style={{ padding: 'var(--sp-3xl)', fontSize: 'var(--fs-sm)', color: 'var(--muted)' }}>
+      Loading…
+    </div>
+  )
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--r)',
+    padding: '10px var(--sp-md)',
+    fontSize: 'var(--fs-input)',
+    background: 'var(--bg)',
+    color: 'var(--text)',
+    outline: 'none',
+    boxSizing: 'border-box',
+    transition: 'border-color var(--transition)',
+  }
+
+  const readonlyStyle: React.CSSProperties = {
+    ...inputStyle,
+    background: 'var(--bg3)',
+    color: 'var(--muted)',
+    cursor: 'not-allowed',
+  }
+
+  const cardStyle: React.CSSProperties = {
+    background: 'var(--bg2)',
+    borderRadius: 'var(--r-lg)',
+    border: '1px solid var(--border)',
+    padding: 'var(--sp-xl)',
+    marginBottom: 'var(--sp-md)',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: 'var(--fs-xs)',
+    fontWeight: 'var(--fw-medium)',
+    color: 'var(--text3)',
+    marginBottom: 'var(--sp-xs)',
+  }
 
   return (
-    <div className="p-6 max-w-lg">
-      <h2 className="text-lg font-semibold mb-6">Account</h2>
+    <div style={{ padding: 'var(--sp-2xl)', maxWidth: '480px' }}>
+      <h2 style={{
+        fontSize: 'var(--fs-lg)',
+        fontWeight: 'var(--fw-bold)',
+        color: 'var(--text)',
+        margin: '0 0 var(--sp-2xl)',
+      }}>
+        Account
+      </h2>
 
-      <div className="bg-white rounded-lg border border-zinc-200 p-5 mb-4">
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3">
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-lg)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-md)' }}>
             <div>
-              <label className="block text-xs font-medium text-zinc-500 mb-1">First Name</label>
+              <label style={labelStyle}>First Name</label>
               <input
-                className="w-full border border-zinc-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
+                style={inputStyle}
                 value={firstName}
                 onChange={e => setFirstName(e.target.value)}
+                onFocus={e => (e.currentTarget.style.borderColor = 'var(--border-focus)')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'var(--border)')}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-500 mb-1">Last Name</label>
+              <label style={labelStyle}>Last Name</label>
               <input
-                className="w-full border border-zinc-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
+                style={inputStyle}
                 value={lastName}
                 onChange={e => setLastName(e.target.value)}
+                onFocus={e => (e.currentTarget.style.borderColor = 'var(--border-focus)')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'var(--border)')}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1">Email</label>
-            <input
-              className="w-full border border-zinc-100 rounded px-3 py-2 text-sm bg-zinc-50 text-zinc-400 cursor-not-allowed"
-              value={email}
-              readOnly
-            />
-            <p className="text-xs text-zinc-400 mt-1">Email cannot be changed here.</p>
+            <label style={labelStyle}>Email</label>
+            <input style={readonlyStyle} value={email} readOnly />
+            <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', margin: 'var(--sp-xs) 0 0' }}>
+              Email cannot be changed here.
+            </p>
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--error)', margin: 0 }}>{error}</p>
+          )}
 
-          <div className="flex items-center gap-3">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-md)' }}>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="text-sm bg-zinc-900 text-white px-4 py-1.5 rounded hover:bg-zinc-700 disabled:opacity-50"
+              style={{
+                background: 'var(--success)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 'var(--r)',
+                padding: '8px var(--sp-lg)',
+                fontSize: 'var(--fs-sm)',
+                fontWeight: 'var(--fw-medium)',
+                cursor: saving ? 'not-allowed' : 'pointer',
+                opacity: saving ? 0.6 : 1,
+                transition: 'opacity var(--transition)',
+              }}
             >
               {saving ? 'Saving…' : 'Save'}
             </button>
-            {saved && <span className="text-sm text-green-600">Saved.</span>}
+            {saved && (
+              <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--success)' }}>Saved.</span>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-zinc-200 p-5">
-        <h3 className="text-sm font-medium text-zinc-700 mb-1">Sign Out</h3>
-        <p className="text-xs text-zinc-400 mb-3">You will be redirected to the login page.</p>
+      <div style={cardStyle}>
+        <h3 style={{
+          fontSize: 'var(--fs-sm)',
+          fontWeight: 'var(--fw-medium)',
+          color: 'var(--text2)',
+          margin: '0 0 var(--sp-xs)',
+        }}>
+          Sign Out
+        </h3>
+        <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', margin: '0 0 var(--sp-md)' }}>
+          You will be redirected to the login page.
+        </p>
         <button
           onClick={handleLogout}
           disabled={loggingOut}
-          className="text-sm border border-zinc-200 px-3 py-1.5 rounded text-zinc-600 hover:border-red-300 hover:text-red-600 transition-colors disabled:opacity-50"
+          style={{
+            background: 'none',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r)',
+            padding: '8px var(--sp-md)',
+            fontSize: 'var(--fs-sm)',
+            color: 'var(--text2)',
+            cursor: loggingOut ? 'not-allowed' : 'pointer',
+            opacity: loggingOut ? 0.6 : 1,
+            transition: 'all var(--transition)',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.borderColor = 'rgba(139,32,32,0.4)'
+            e.currentTarget.style.color = 'var(--error)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.borderColor = 'var(--border)'
+            e.currentTarget.style.color = 'var(--text2)'
+          }}
         >
           {loggingOut ? 'Signing out…' : 'Sign Out'}
         </button>

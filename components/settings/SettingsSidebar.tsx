@@ -14,18 +14,43 @@ export default function SettingsSidebar() {
   return (
     <>
       {/* Mobile: horizontal tab bar */}
-      <nav className="sm:hidden bg-white border-b border-zinc-200 flex overflow-x-auto shrink-0">
+      <nav style={{
+        display: 'flex',
+        overflowX: 'auto',
+        borderBottom: '1px solid var(--border)',
+        background: 'var(--bg2)',
+        flexShrink: 0,
+      }}
+        className="sm-hide-flex"
+      >
+        <Link
+          href="/dashboard"
+          style={{
+            padding: '12px 16px',
+            fontSize: 'var(--fs-sm)',
+            color: 'var(--muted)',
+            textDecoration: 'none',
+            whiteSpace: 'nowrap',
+            borderBottom: '2px solid transparent',
+          }}
+        >
+          ← Back
+        </Link>
         {NAV.map(({ href, label }) => {
           const active = pathname === href
           return (
             <Link
               key={href}
               href={href}
-              className={`px-4 py-3 text-sm whitespace-nowrap border-b-2 transition-colors ${
-                active
-                  ? 'border-zinc-900 text-zinc-900 font-medium'
-                  : 'border-transparent text-zinc-500 hover:text-zinc-800'
-              }`}
+              style={{
+                padding: '12px 16px',
+                fontSize: 'var(--fs-sm)',
+                whiteSpace: 'nowrap',
+                textDecoration: 'none',
+                borderBottom: `2px solid ${active ? 'var(--pill-active-color)' : 'transparent'}`,
+                color: active ? 'var(--pill-active-color)' : 'var(--text3)',
+                fontWeight: active ? 'var(--fw-medium)' : 'var(--fw-normal)',
+              }}
             >
               {label}
             </Link>
@@ -34,28 +59,57 @@ export default function SettingsSidebar() {
       </nav>
 
       {/* Desktop: vertical sidebar */}
-      <aside className="hidden sm:flex flex-col w-60 shrink-0 bg-white border-r border-zinc-200 min-h-screen py-6">
-        <div className="px-4 mb-6">
+      <aside
+        style={{
+          width: '220px',
+          flexShrink: 0,
+          background: 'var(--bg2)',
+          borderRight: '1px solid var(--border)',
+          minHeight: '100dvh',
+          padding: 'var(--sp-2xl) 0',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+        className="sm-show-flex"
+      >
+        <div style={{ padding: '0 var(--sp-lg)', marginBottom: 'var(--sp-2xl)' }}>
           <Link
             href="/dashboard"
-            className="text-xs text-zinc-400 hover:text-zinc-700 transition-colors"
+            style={{
+              fontSize: 'var(--fs-xs)',
+              color: 'var(--muted)',
+              textDecoration: 'none',
+            }}
           >
             ← Dashboard
           </Link>
-          <h2 className="text-sm font-semibold text-zinc-900 mt-3">Settings</h2>
+          <h2 style={{
+            fontSize: 'var(--fs-sm)',
+            fontWeight: 'var(--fw-bold)',
+            color: 'var(--text)',
+            margin: 'var(--sp-md) 0 0',
+          }}>
+            Settings
+          </h2>
         </div>
-        <nav className="flex flex-col gap-0.5 px-2">
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '0 var(--sp-sm)' }}>
           {NAV.map(({ href, label }) => {
             const active = pathname === href
             return (
               <Link
                 key={href}
                 href={href}
-                className={`px-3 py-2 rounded text-sm transition-colors ${
-                  active
-                    ? 'bg-zinc-100 text-zinc-900 font-medium'
-                    : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'
-                }`}
+                style={{
+                  padding: 'var(--sp-sm) var(--sp-md)',
+                  borderRadius: 'var(--r)',
+                  fontSize: 'var(--fs-sm)',
+                  textDecoration: 'none',
+                  fontWeight: active ? 'var(--fw-medium)' : 'var(--fw-normal)',
+                  color: active ? 'var(--pill-active-color)' : 'var(--text2)',
+                  background: active ? 'var(--pill-active-bg)' : 'transparent',
+                  border: `1px solid ${active ? 'var(--pill-active-border)' : 'transparent'}`,
+                  transition: 'all var(--transition)',
+                }}
               >
                 {label}
               </Link>
@@ -63,6 +117,15 @@ export default function SettingsSidebar() {
           })}
         </nav>
       </aside>
+
+      <style>{`
+        .sm-hide-flex { display: flex; }
+        .sm-show-flex { display: none; }
+        @media (min-width: 640px) {
+          .sm-hide-flex { display: none; }
+          .sm-show-flex { display: flex; }
+        }
+      `}</style>
     </>
   )
 }

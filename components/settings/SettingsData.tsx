@@ -66,7 +66,6 @@ export default function SettingsData() {
     setExporting(false)
   }
 
-  // Derive columns from first audit row
   const auditColumns = auditLog.length > 0 ? Object.keys(auditLog[0]) : []
 
   function formatCell(value: unknown): string {
@@ -75,20 +74,59 @@ export default function SettingsData() {
     return String(value)
   }
 
+  const cardStyle: React.CSSProperties = {
+    background: 'var(--bg2)',
+    borderRadius: 'var(--r-lg)',
+    border: '1px solid var(--border)',
+    padding: 'var(--sp-xl)',
+  }
+
   return (
-    <div className="p-6 max-w-4xl">
-      <h2 className="text-lg font-semibold mb-6">Data</h2>
+    <div style={{ padding: 'var(--sp-2xl)', maxWidth: '960px' }}>
+      <h2 style={{
+        fontSize: 'var(--fs-lg)',
+        fontWeight: 'var(--fw-bold)',
+        color: 'var(--text)',
+        margin: '0 0 var(--sp-2xl)',
+      }}>
+        Data
+      </h2>
 
       {/* Export section */}
-      <div className="bg-white rounded-lg border border-zinc-200 p-5 mb-8">
-        <h3 className="text-sm font-medium text-zinc-700 mb-1">Export Data</h3>
-        <p className="text-xs text-zinc-400 mb-4">
+      <div style={{ ...cardStyle, marginBottom: 'var(--sp-3xl)' }}>
+        <h3 style={{
+          fontSize: 'var(--fs-sm)',
+          fontWeight: 'var(--fw-medium)',
+          color: 'var(--text2)',
+          margin: '0 0 var(--sp-xs)',
+        }}>
+          Export Data
+        </h3>
+        <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', margin: '0 0 var(--sp-lg)' }}>
           Download all your products, groups, categories, platforms, and todos as a single JSON file.
         </p>
         <button
           onClick={handleExport}
           disabled={exporting}
-          className="text-sm border border-zinc-200 px-3 py-1.5 rounded text-zinc-600 hover:border-zinc-400 hover:text-zinc-900 transition-colors disabled:opacity-50"
+          style={{
+            background: 'none',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r)',
+            padding: '8px var(--sp-md)',
+            fontSize: 'var(--fs-sm)',
+            color: 'var(--text2)',
+            cursor: exporting ? 'not-allowed' : 'pointer',
+            opacity: exporting ? 0.6 : 1,
+            transition: 'all var(--transition)',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.borderColor = 'var(--border-focus)'
+            e.currentTarget.style.color = 'var(--text)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.borderColor = 'var(--border)'
+            e.currentTarget.style.color = 'var(--text2)'
+          }}
         >
           {exporting ? 'Preparing…' : 'Download JSON'}
         </button>
@@ -96,41 +134,72 @@ export default function SettingsData() {
 
       {/* Audit log section */}
       <div>
-        <h3 className="text-sm font-medium text-zinc-700 mb-3">Audit Log</h3>
+        <h3 style={{
+          fontSize: 'var(--fs-sm)',
+          fontWeight: 'var(--fw-medium)',
+          color: 'var(--text2)',
+          margin: '0 0 var(--sp-md)',
+        }}>
+          Audit Log
+        </h3>
 
         {auditError && (
-          <p className="text-sm text-red-600 mb-3">{auditError}</p>
+          <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--error)', marginBottom: 'var(--sp-md)' }}>
+            {auditError}
+          </p>
         )}
 
         {auditLoading ? (
-          <div className="text-sm text-zinc-400">Loading…</div>
+          <div style={{ fontSize: 'var(--fs-sm)', color: 'var(--muted)' }}>Loading…</div>
         ) : auditLog.length === 0 ? (
-          <div className="bg-white rounded-lg border border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400">
+          <div style={{
+            ...cardStyle,
+            textAlign: 'center',
+            padding: 'var(--sp-3xl)',
+            fontSize: 'var(--fs-sm)',
+            color: 'var(--muted)',
+          }}>
             No audit log entries found.
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-zinc-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-zinc-50 border-b border-zinc-200">
-                  <tr>
+          <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', fontSize: 'var(--fs-xs)', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
                     {auditColumns.map(col => (
                       <th
                         key={col}
-                        className="text-left px-3 py-2 font-medium text-zinc-500 whitespace-nowrap"
+                        style={{
+                          textAlign: 'left',
+                          padding: '8px var(--sp-md)',
+                          fontWeight: 'var(--fw-medium)',
+                          color: 'var(--text3)',
+                          whiteSpace: 'nowrap',
+                        }}
                       >
                         {col}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-100">
+                <tbody>
                   {auditLog.map((row, i) => (
-                    <tr key={i} className="hover:bg-zinc-50">
+                    <tr
+                      key={i}
+                      style={{ borderBottom: '1px solid var(--border)' }}
+                    >
                       {auditColumns.map(col => (
                         <td
                           key={col}
-                          className="px-3 py-2 text-zinc-700 max-w-xs truncate"
+                          style={{
+                            padding: '8px var(--sp-md)',
+                            color: 'var(--text2)',
+                            maxWidth: '280px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
                           title={formatCell(row[col])}
                         >
                           {formatCell(row[col])}
@@ -142,22 +211,41 @@ export default function SettingsData() {
               </table>
             </div>
 
-            {/* Pagination */}
-            <div className="flex items-center justify-between px-4 py-2 border-t border-zinc-100">
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: 'var(--sp-sm) var(--sp-lg)',
+              borderTop: '1px solid var(--border)',
+            }}>
               <button
                 onClick={() => setAuditPage(p => Math.max(0, p - 1))}
                 disabled={auditPage === 0}
-                className="text-xs text-zinc-500 hover:text-zinc-800 disabled:opacity-30"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: 'var(--fs-xs)',
+                  color: 'var(--text3)',
+                  cursor: auditPage === 0 ? 'not-allowed' : 'pointer',
+                  opacity: auditPage === 0 ? 0.3 : 1,
+                }}
               >
                 ← Previous
               </button>
-              <span className="text-xs text-zinc-400">
+              <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)' }}>
                 Page {auditPage + 1}
               </span>
               <button
                 onClick={() => setAuditPage(p => p + 1)}
                 disabled={auditLog.length < PAGE_SIZE}
-                className="text-xs text-zinc-500 hover:text-zinc-800 disabled:opacity-30"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: 'var(--fs-xs)',
+                  color: 'var(--text3)',
+                  cursor: auditLog.length < PAGE_SIZE ? 'not-allowed' : 'pointer',
+                  opacity: auditLog.length < PAGE_SIZE ? 0.3 : 1,
+                }}
               >
                 Next →
               </button>

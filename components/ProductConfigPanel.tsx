@@ -3,68 +3,104 @@
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-type Group = { id: string; name: string; product_id: string | null; sort_order: number }
+type Group    = { id: string; name: string; product_id: string | null; sort_order: number }
 type Category = { id: string; name: string; product_id: string | null; sort_order: number }
 type Platform = { id: string; name: string; sort_order: number }
+type Form     = { name: string; sort_order: string }
 
-type GroupForm = { name: string; sort_order: string }
-type CatForm = { name: string; sort_order: string }
-type PlatformForm = { name: string; sort_order: string }
+const EMPTY: Form = { name: '', sort_order: '0' }
 
-const EMPTY_SHORT: GroupForm = { name: '', sort_order: '0' }
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--r)',
+  padding: '8px var(--sp-md)',
+  fontSize: 'var(--fs-sm)',
+  background: 'var(--bg)',
+  color: 'var(--text)',
+  outline: 'none',
+  boxSizing: 'border-box',
+  transition: 'border-color var(--transition)',
+}
 
-// --- Shared inline row form ---
-function RowForm({
-  nameLabel,
-  namePlaceholder,
-  form,
-  onChange,
-  onSubmit,
-  onCancel,
-  submitLabel,
-  saving,
-}: {
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 'var(--fs-xs)',
+  fontWeight: 'var(--fw-medium)',
+  color: 'var(--text3)',
+  marginBottom: 'var(--sp-xs)',
+}
+
+function RowForm({ nameLabel, namePlaceholder, form, onChange, onSubmit, onCancel, submitLabel, saving }: {
   nameLabel: string
   namePlaceholder: string
-  form: GroupForm
-  onChange: (f: GroupForm) => void
+  form: Form
+  onChange: (f: Form) => void
   onSubmit: () => void
   onCancel: () => void
   submitLabel: string
   saving: boolean
 }) {
   return (
-    <div className="px-4 py-3 bg-zinc-50 border-b border-zinc-100">
-      <div className="grid grid-cols-2 gap-3 mb-3">
+    <div style={{
+      padding: 'var(--sp-md) var(--sp-lg)',
+      background: 'var(--bg3)',
+      borderBottom: '1px solid var(--border)',
+    }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 'var(--sp-md)', marginBottom: 'var(--sp-md)' }}>
         <div>
-          <label className="block text-xs text-zinc-500 mb-1">{nameLabel} *</label>
+          <label style={labelStyle}>{nameLabel} *</label>
           <input
-            className="w-full border border-zinc-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
+            style={inputStyle}
             value={form.name}
             onChange={e => onChange({ ...form, name: e.target.value })}
             autoFocus
             placeholder={namePlaceholder}
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--border-focus)')}
+            onBlur={e => (e.currentTarget.style.borderColor = 'var(--border)')}
           />
         </div>
         <div>
-          <label className="block text-xs text-zinc-500 mb-1">Sort Order</label>
+          <label style={labelStyle}>Sort Order</label>
           <input
             type="number"
-            className="w-full border border-zinc-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
+            style={inputStyle}
             value={form.sort_order}
             onChange={e => onChange({ ...form, sort_order: e.target.value })}
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--border-focus)')}
+            onBlur={e => (e.currentTarget.style.borderColor = 'var(--border)')}
           />
         </div>
       </div>
-      <div className="flex gap-2">
+      <div style={{ display: 'flex', gap: 'var(--sp-sm)' }}>
         <button
           onClick={onSubmit}
           disabled={saving}
-          className="text-sm bg-zinc-900 text-white px-3 py-1.5 rounded hover:bg-zinc-700 disabled:opacity-50"
+          style={{
+            background: 'var(--success)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 'var(--r)',
+            padding: '7px var(--sp-md)',
+            fontSize: 'var(--fs-sm)',
+            fontWeight: 'var(--fw-medium)',
+            cursor: saving ? 'not-allowed' : 'pointer',
+            opacity: saving ? 0.6 : 1,
+          }}
         >
           {saving ? 'Saving…' : submitLabel}
         </button>
-        <button onClick={onCancel} className="text-sm text-zinc-500 hover:text-zinc-800 px-3 py-1.5">
+        <button
+          onClick={onCancel}
+          style={{
+            background: 'none',
+            border: 'none',
+            fontSize: 'var(--fs-sm)',
+            color: 'var(--text3)',
+            cursor: 'pointer',
+            padding: '7px var(--sp-sm)',
+          }}
+        >
           Cancel
         </button>
       </div>
@@ -72,18 +108,17 @@ function RowForm({
   )
 }
 
-// --- Groups section ---
-function GroupsSection({ productId, supabase }: { productId: string; supabase: ReturnType<typeof import('@/lib/supabase/client').createClient> }) {
-  const [groups, setGroups] = useState<Group[]>([])
-  const [todoCounts, setTodoCounts] = useState<Record<string, number>>({})
-  const [loading, setLoading] = useState(true)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<GroupForm>(EMPTY_SHORT)
-  const [showAdd, setShowAdd] = useState(false)
-  const [addForm, setAddForm] = useState<GroupForm>(EMPTY_SHORT)
+function GroupsSection({ productId, supabase }: { productId: string; supabase: ReturnType<typeof createClient> }) {
+  const [groups, setGroups]               = useState<Group[]>([])
+  const [todoCounts, setTodoCounts]       = useState<Record<string, number>>({})
+  const [loading, setLoading]             = useState(true)
+  const [editingId, setEditingId]         = useState<string | null>(null)
+  const [editForm, setEditForm]           = useState<Form>(EMPTY)
+  const [showAdd, setShowAdd]             = useState(false)
+  const [addForm, setAddForm]             = useState<Form>(EMPTY)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [saving, setSaving]               = useState(false)
+  const [error, setError]                 = useState('')
 
   useEffect(() => {
     async function load() {
@@ -93,9 +128,7 @@ function GroupsSection({ productId, supabase }: { productId: string; supabase: R
       ])
       setGroups(groupRes.data ?? [])
       const counts: Record<string, number> = {}
-      todoRes.data?.forEach(t => {
-        if (t.group_id) counts[t.group_id] = (counts[t.group_id] || 0) + 1
-      })
+      todoRes.data?.forEach(t => { if (t.group_id) counts[t.group_id] = (counts[t.group_id] || 0) + 1 })
       setTodoCounts(counts)
       setLoading(false)
     }
@@ -104,25 +137,20 @@ function GroupsSection({ productId, supabase }: { productId: string; supabase: R
 
   async function handleAdd() {
     if (!addForm.name.trim()) { setError('Name is required'); return }
-    setSaving(true)
-    setError('')
-    const { data, error: err } = await supabase
-      .from('groups')
+    setSaving(true); setError('')
+    const { data, error: err } = await supabase.from('groups')
       .insert({ name: addForm.name.trim(), product_id: productId, sort_order: Number(addForm.sort_order) || 0 })
       .select().single()
     setSaving(false)
     if (err) { setError(err.message); return }
     if (data) setGroups(prev => [...prev, data as Group])
-    setShowAdd(false)
-    setAddForm(EMPTY_SHORT)
+    setShowAdd(false); setAddForm(EMPTY)
   }
 
   async function handleSave(id: string) {
     if (!editForm.name.trim()) { setError('Name is required'); return }
-    setSaving(true)
-    setError('')
-    const { data, error: err } = await supabase
-      .from('groups')
+    setSaving(true); setError('')
+    const { data, error: err } = await supabase.from('groups')
       .update({ name: editForm.name.trim(), sort_order: Number(editForm.sort_order) || 0 })
       .eq('id', id).select().single()
     setSaving(false)
@@ -139,102 +167,76 @@ function GroupsSection({ productId, supabase }: { productId: string; supabase: R
     setConfirmDeleteId(null)
   }
 
-  if (loading) return <p className="text-sm text-zinc-400 py-4 px-4">Loading…</p>
+  if (loading) return <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--muted)', padding: 'var(--sp-lg)' }}>Loading…</p>
 
   return (
     <div>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100">
-        <span className="text-sm font-medium text-zinc-700">Groups</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--sp-md) var(--sp-lg)', borderBottom: '1px solid var(--border)' }}>
+        <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 'var(--fw-medium)', color: 'var(--text2)' }}>Groups</span>
         {!showAdd && (
           <button
-            onClick={() => { setShowAdd(true); setEditingId(null); setAddForm(EMPTY_SHORT); setError('') }}
-            className="text-xs text-zinc-500 hover:text-zinc-800 border border-zinc-200 px-2 py-1 rounded transition-colors"
+            onClick={() => { setShowAdd(true); setEditingId(null); setAddForm(EMPTY); setError('') }}
+            style={{ fontSize: 'var(--fs-xs)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '4px var(--sp-sm)', background: 'none', cursor: 'pointer' }}
           >
             + Add
           </button>
         )}
       </div>
 
-      {error && <p className="text-xs text-red-600 px-4 py-2">{error}</p>}
+      {error && <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--error)', padding: 'var(--sp-sm) var(--sp-lg)' }}>{error}</p>}
 
-      {showAdd && (
-        <RowForm
-          nameLabel="Name"
-          namePlaceholder="Group name"
-          form={addForm}
-          onChange={setAddForm}
-          onSubmit={handleAdd}
-          onCancel={() => { setShowAdd(false); setError('') }}
-          submitLabel="Add Group"
-          saving={saving}
-        />
-      )}
+      {showAdd && <RowForm nameLabel="Name" namePlaceholder="Group name" form={addForm} onChange={setAddForm} onSubmit={handleAdd} onCancel={() => { setShowAdd(false); setError('') }} submitLabel="Add Group" saving={saving} />}
 
       {groups.length === 0 && !showAdd ? (
-        <p className="text-xs text-zinc-400 px-4 py-4">No groups for this product.</p>
+        <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', padding: 'var(--sp-lg)' }}>No groups for this product.</p>
       ) : (
-        <div className="divide-y divide-zinc-100">
-          {groups.map(g =>
-            editingId === g.id ? (
-              <RowForm
-                key={g.id}
-                nameLabel="Name"
-                namePlaceholder="Group name"
-                form={editForm}
-                onChange={setEditForm}
-                onSubmit={() => handleSave(g.id)}
-                onCancel={() => { setEditingId(null); setError('') }}
-                submitLabel="Save"
-                saving={saving}
-              />
-            ) : confirmDeleteId === g.id ? (
-              <div key={g.id} className="flex items-center gap-3 px-4 py-3 bg-red-50">
-                <span className="text-sm flex-1">
-                  Delete <strong>{g.name}</strong>?
-                  {(todoCounts[g.id] ?? 0) > 0 && (
-                    <span className="text-zinc-500 ml-1">
-                      Cannot delete — {todoCounts[g.id]} todo{todoCounts[g.id] !== 1 ? 's' : ''} use this group.
-                    </span>
-                  )}
-                </span>
-                {(todoCounts[g.id] ?? 0) === 0 ? (
-                  <>
-                    <button onClick={() => handleDelete(g.id)} disabled={saving} className="text-sm text-red-600 hover:text-red-800 font-medium disabled:opacity-50">Confirm</button>
-                    <button onClick={() => setConfirmDeleteId(null)} className="text-sm text-zinc-500 hover:text-zinc-800">Cancel</button>
-                  </>
-                ) : (
-                  <button onClick={() => setConfirmDeleteId(null)} className="text-sm text-zinc-500 hover:text-zinc-800">OK</button>
+        <div>
+          {groups.map(g => editingId === g.id ? (
+            <RowForm key={g.id} nameLabel="Name" namePlaceholder="Group name" form={editForm} onChange={setEditForm} onSubmit={() => handleSave(g.id)} onCancel={() => { setEditingId(null); setError('') }} submitLabel="Save" saving={saving} />
+          ) : confirmDeleteId === g.id ? (
+            <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-md)', padding: 'var(--sp-md) var(--sp-lg)', borderBottom: '1px solid var(--border)', background: 'rgba(139,32,32,0.05)' }}>
+              <span style={{ fontSize: 'var(--fs-sm)', flex: 1, color: 'var(--text)' }}>
+                Delete <strong>{g.name}</strong>?
+                {(todoCounts[g.id] ?? 0) > 0 && (
+                  <span style={{ color: 'var(--text3)', marginLeft: 4 }}>
+                    Cannot delete — {todoCounts[g.id]} todo{todoCounts[g.id] !== 1 ? 's' : ''} use this group.
+                  </span>
                 )}
-              </div>
-            ) : (
-              <div key={g.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-50">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-zinc-800">{g.name}</p>
-                </div>
-                <span className="text-xs text-zinc-400 shrink-0">{todoCounts[g.id] ?? 0} todos</span>
-                <button onClick={() => { setEditingId(g.id); setEditForm({ name: g.name, sort_order: String(g.sort_order) }); setShowAdd(false); setConfirmDeleteId(null); setError('') }} className="text-xs text-zinc-400 hover:text-zinc-700 shrink-0">Edit</button>
-                <button onClick={() => { setConfirmDeleteId(g.id); setEditingId(null) }} className="text-xs text-zinc-400 hover:text-red-600 shrink-0">Delete</button>
-              </div>
-            )
-          )}
+              </span>
+              {(todoCounts[g.id] ?? 0) === 0 ? (
+                <>
+                  <button onClick={() => handleDelete(g.id)} disabled={saving} style={{ fontSize: 'var(--fs-sm)', color: 'var(--error)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'var(--fw-medium)' }}>Confirm</button>
+                  <button onClick={() => setConfirmDeleteId(null)} style={{ fontSize: 'var(--fs-sm)', color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+                </>
+              ) : (
+                <button onClick={() => setConfirmDeleteId(null)} style={{ fontSize: 'var(--fs-sm)', color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer' }}>OK</button>
+              )}
+            </div>
+          ) : (
+            <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-md)', padding: '10px var(--sp-lg)', borderBottom: '1px solid var(--border)' }}>
+              <span style={{ flex: 1, fontSize: 'var(--fs-sm)', color: 'var(--text)' }}>{g.name}</span>
+              <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', flexShrink: 0 }}>{todoCounts[g.id] ?? 0} todos</span>
+              <button onClick={() => { setEditingId(g.id); setEditForm({ name: g.name, sort_order: String(g.sort_order) }); setShowAdd(false); setConfirmDeleteId(null); setError('') }} style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>Edit</button>
+              <button onClick={() => { setConfirmDeleteId(g.id); setEditingId(null) }} style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>Delete</button>
+            </div>
+          ))}
         </div>
       )}
     </div>
   )
 }
 
-// --- Categories section ---
-function CategoriesSection({ productId, supabase }: { productId: string; supabase: ReturnType<typeof import('@/lib/supabase/client').createClient> }) {
-  const [categories, setCategories] = useState<Category[]>([])
-  const [todoCounts, setTodoCounts] = useState<Record<string, number>>({})
-  const [loading, setLoading] = useState(true)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<CatForm>(EMPTY_SHORT)
-  const [showAdd, setShowAdd] = useState(false)
-  const [addForm, setAddForm] = useState<CatForm>(EMPTY_SHORT)
+function CategoriesSection({ productId, supabase }: { productId: string; supabase: ReturnType<typeof createClient> }) {
+  const [categories, setCategories]       = useState<Category[]>([])
+  const [todoCounts, setTodoCounts]       = useState<Record<string, number>>({})
+  const [loading, setLoading]             = useState(true)
+  const [editingId, setEditingId]         = useState<string | null>(null)
+  const [editForm, setEditForm]           = useState<Form>(EMPTY)
+  const [showAdd, setShowAdd]             = useState(false)
+  const [addForm, setAddForm]             = useState<Form>(EMPTY)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [saving, setSaving]               = useState(false)
+  const [error, setError]                 = useState('')
 
   useEffect(() => {
     async function load() {
@@ -244,9 +246,7 @@ function CategoriesSection({ productId, supabase }: { productId: string; supabas
       ])
       setCategories(catRes.data ?? [])
       const counts: Record<string, number> = {}
-      todoRes.data?.forEach(t => {
-        if (t.category_id) counts[t.category_id] = (counts[t.category_id] || 0) + 1
-      })
+      todoRes.data?.forEach(t => { if (t.category_id) counts[t.category_id] = (counts[t.category_id] || 0) + 1 })
       setTodoCounts(counts)
       setLoading(false)
     }
@@ -255,25 +255,20 @@ function CategoriesSection({ productId, supabase }: { productId: string; supabas
 
   async function handleAdd() {
     if (!addForm.name.trim()) { setError('Name is required'); return }
-    setSaving(true)
-    setError('')
-    const { data, error: err } = await supabase
-      .from('categories')
+    setSaving(true); setError('')
+    const { data, error: err } = await supabase.from('categories')
       .insert({ name: addForm.name.trim(), product_id: productId, sort_order: Number(addForm.sort_order) || 0 })
       .select().single()
     setSaving(false)
     if (err) { setError(err.message); return }
     if (data) setCategories(prev => [...prev, data as Category])
-    setShowAdd(false)
-    setAddForm(EMPTY_SHORT)
+    setShowAdd(false); setAddForm(EMPTY)
   }
 
   async function handleSave(id: string) {
     if (!editForm.name.trim()) { setError('Name is required'); return }
-    setSaving(true)
-    setError('')
-    const { data, error: err } = await supabase
-      .from('categories')
+    setSaving(true); setError('')
+    const { data, error: err } = await supabase.from('categories')
       .update({ name: editForm.name.trim(), sort_order: Number(editForm.sort_order) || 0 })
       .eq('id', id).select().single()
     setSaving(false)
@@ -290,101 +285,75 @@ function CategoriesSection({ productId, supabase }: { productId: string; supabas
     setConfirmDeleteId(null)
   }
 
-  if (loading) return <p className="text-sm text-zinc-400 py-4 px-4">Loading…</p>
+  if (loading) return <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--muted)', padding: 'var(--sp-lg)' }}>Loading…</p>
 
   return (
     <div>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100">
-        <span className="text-sm font-medium text-zinc-700">Categories</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--sp-md) var(--sp-lg)', borderBottom: '1px solid var(--border)' }}>
+        <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 'var(--fw-medium)', color: 'var(--text2)' }}>Categories</span>
         {!showAdd && (
           <button
-            onClick={() => { setShowAdd(true); setEditingId(null); setAddForm(EMPTY_SHORT); setError('') }}
-            className="text-xs text-zinc-500 hover:text-zinc-800 border border-zinc-200 px-2 py-1 rounded transition-colors"
+            onClick={() => { setShowAdd(true); setEditingId(null); setAddForm(EMPTY); setError('') }}
+            style={{ fontSize: 'var(--fs-xs)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '4px var(--sp-sm)', background: 'none', cursor: 'pointer' }}
           >
             + Add
           </button>
         )}
       </div>
 
-      {error && <p className="text-xs text-red-600 px-4 py-2">{error}</p>}
+      {error && <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--error)', padding: 'var(--sp-sm) var(--sp-lg)' }}>{error}</p>}
 
-      {showAdd && (
-        <RowForm
-          nameLabel="Name"
-          namePlaceholder="Category name"
-          form={addForm}
-          onChange={setAddForm}
-          onSubmit={handleAdd}
-          onCancel={() => { setShowAdd(false); setError('') }}
-          submitLabel="Add Category"
-          saving={saving}
-        />
-      )}
+      {showAdd && <RowForm nameLabel="Name" namePlaceholder="Category name" form={addForm} onChange={setAddForm} onSubmit={handleAdd} onCancel={() => { setShowAdd(false); setError('') }} submitLabel="Add Category" saving={saving} />}
 
       {categories.length === 0 && !showAdd ? (
-        <p className="text-xs text-zinc-400 px-4 py-4">No categories for this product.</p>
+        <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', padding: 'var(--sp-lg)' }}>No categories for this product.</p>
       ) : (
-        <div className="divide-y divide-zinc-100">
-          {categories.map(c =>
-            editingId === c.id ? (
-              <RowForm
-                key={c.id}
-                nameLabel="Name"
-                namePlaceholder="Category name"
-                form={editForm}
-                onChange={setEditForm}
-                onSubmit={() => handleSave(c.id)}
-                onCancel={() => { setEditingId(null); setError('') }}
-                submitLabel="Save"
-                saving={saving}
-              />
-            ) : confirmDeleteId === c.id ? (
-              <div key={c.id} className="flex items-center gap-3 px-4 py-3 bg-red-50">
-                <span className="text-sm flex-1">
-                  Delete <strong>{c.name}</strong>?
-                  {(todoCounts[c.id] ?? 0) > 0 && (
-                    <span className="text-zinc-500 ml-1">
-                      Cannot delete — {todoCounts[c.id]} todo{todoCounts[c.id] !== 1 ? 's' : ''} use this category.
-                    </span>
-                  )}
-                </span>
-                {(todoCounts[c.id] ?? 0) === 0 ? (
-                  <>
-                    <button onClick={() => handleDelete(c.id)} disabled={saving} className="text-sm text-red-600 hover:text-red-800 font-medium disabled:opacity-50">Confirm</button>
-                    <button onClick={() => setConfirmDeleteId(null)} className="text-sm text-zinc-500 hover:text-zinc-800">Cancel</button>
-                  </>
-                ) : (
-                  <button onClick={() => setConfirmDeleteId(null)} className="text-sm text-zinc-500 hover:text-zinc-800">OK</button>
+        <div>
+          {categories.map(c => editingId === c.id ? (
+            <RowForm key={c.id} nameLabel="Name" namePlaceholder="Category name" form={editForm} onChange={setEditForm} onSubmit={() => handleSave(c.id)} onCancel={() => { setEditingId(null); setError('') }} submitLabel="Save" saving={saving} />
+          ) : confirmDeleteId === c.id ? (
+            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-md)', padding: 'var(--sp-md) var(--sp-lg)', borderBottom: '1px solid var(--border)', background: 'rgba(139,32,32,0.05)' }}>
+              <span style={{ fontSize: 'var(--fs-sm)', flex: 1, color: 'var(--text)' }}>
+                Delete <strong>{c.name}</strong>?
+                {(todoCounts[c.id] ?? 0) > 0 && (
+                  <span style={{ color: 'var(--text3)', marginLeft: 4 }}>
+                    Cannot delete — {todoCounts[c.id]} todo{todoCounts[c.id] !== 1 ? 's' : ''} use this category.
+                  </span>
                 )}
-              </div>
-            ) : (
-              <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-50">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-zinc-800">{c.name}</p>
-                </div>
-                <span className="text-xs text-zinc-400 shrink-0">{todoCounts[c.id] ?? 0} todos</span>
-                <button onClick={() => { setEditingId(c.id); setEditForm({ name: c.name, sort_order: String(c.sort_order) }); setShowAdd(false); setConfirmDeleteId(null); setError('') }} className="text-xs text-zinc-400 hover:text-zinc-700 shrink-0">Edit</button>
-                <button onClick={() => { setConfirmDeleteId(c.id); setEditingId(null) }} className="text-xs text-zinc-400 hover:text-red-600 shrink-0">Delete</button>
-              </div>
-            )
-          )}
+              </span>
+              {(todoCounts[c.id] ?? 0) === 0 ? (
+                <>
+                  <button onClick={() => handleDelete(c.id)} disabled={saving} style={{ fontSize: 'var(--fs-sm)', color: 'var(--error)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'var(--fw-medium)' }}>Confirm</button>
+                  <button onClick={() => setConfirmDeleteId(null)} style={{ fontSize: 'var(--fs-sm)', color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+                </>
+              ) : (
+                <button onClick={() => setConfirmDeleteId(null)} style={{ fontSize: 'var(--fs-sm)', color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer' }}>OK</button>
+              )}
+            </div>
+          ) : (
+            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-md)', padding: '10px var(--sp-lg)', borderBottom: '1px solid var(--border)' }}>
+              <span style={{ flex: 1, fontSize: 'var(--fs-sm)', color: 'var(--text)' }}>{c.name}</span>
+              <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', flexShrink: 0 }}>{todoCounts[c.id] ?? 0} todos</span>
+              <button onClick={() => { setEditingId(c.id); setEditForm({ name: c.name, sort_order: String(c.sort_order) }); setShowAdd(false); setConfirmDeleteId(null); setError('') }} style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>Edit</button>
+              <button onClick={() => { setConfirmDeleteId(c.id); setEditingId(null) }} style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>Delete</button>
+            </div>
+          ))}
         </div>
       )}
     </div>
   )
 }
 
-// --- Platforms section ---
-function PlatformsSection({ supabase }: { supabase: ReturnType<typeof import('@/lib/supabase/client').createClient> }) {
-  const [platforms, setPlatforms] = useState<Platform[]>([])
-  const [loading, setLoading] = useState(true)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<PlatformForm>(EMPTY_SHORT)
-  const [showAdd, setShowAdd] = useState(false)
-  const [addForm, setAddForm] = useState<PlatformForm>(EMPTY_SHORT)
+function PlatformsSection({ supabase }: { supabase: ReturnType<typeof createClient> }) {
+  const [platforms, setPlatforms]         = useState<Platform[]>([])
+  const [loading, setLoading]             = useState(true)
+  const [editingId, setEditingId]         = useState<string | null>(null)
+  const [editForm, setEditForm]           = useState<Form>(EMPTY)
+  const [showAdd, setShowAdd]             = useState(false)
+  const [addForm, setAddForm]             = useState<Form>(EMPTY)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [saving, setSaving]               = useState(false)
+  const [error, setError]                 = useState('')
 
   useEffect(() => {
     async function load() {
@@ -397,25 +366,20 @@ function PlatformsSection({ supabase }: { supabase: ReturnType<typeof import('@/
 
   async function handleAdd() {
     if (!addForm.name.trim()) { setError('Name is required'); return }
-    setSaving(true)
-    setError('')
-    const { data, error: err } = await supabase
-      .from('platforms')
+    setSaving(true); setError('')
+    const { data, error: err } = await supabase.from('platforms')
       .insert({ name: addForm.name.trim(), sort_order: Number(addForm.sort_order) || 0 })
       .select().single()
     setSaving(false)
     if (err) { setError(err.message); return }
     if (data) setPlatforms(prev => [...prev, data as Platform])
-    setShowAdd(false)
-    setAddForm(EMPTY_SHORT)
+    setShowAdd(false); setAddForm(EMPTY)
   }
 
   async function handleSave(id: string) {
     if (!editForm.name.trim()) { setError('Name is required'); return }
-    setSaving(true)
-    setError('')
-    const { data, error: err } = await supabase
-      .from('platforms')
+    setSaving(true); setError('')
+    const { data, error: err } = await supabase.from('platforms')
       .update({ name: editForm.name.trim(), sort_order: Number(editForm.sort_order) || 0 })
       .eq('id', id).select().single()
     setSaving(false)
@@ -433,87 +397,56 @@ function PlatformsSection({ supabase }: { supabase: ReturnType<typeof import('@/
     setConfirmDeleteId(null)
   }
 
-  if (loading) return <p className="text-sm text-zinc-400 py-4 px-4">Loading…</p>
+  if (loading) return <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--muted)', padding: 'var(--sp-lg)' }}>Loading…</p>
 
   return (
     <div>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100">
-        <span className="text-sm font-medium text-zinc-700">Platforms</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--sp-md) var(--sp-lg)', borderBottom: '1px solid var(--border)' }}>
+        <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 'var(--fw-medium)', color: 'var(--text2)' }}>Platforms</span>
         {!showAdd && (
           <button
-            onClick={() => { setShowAdd(true); setEditingId(null); setAddForm(EMPTY_SHORT); setError('') }}
-            className="text-xs text-zinc-500 hover:text-zinc-800 border border-zinc-200 px-2 py-1 rounded transition-colors"
+            onClick={() => { setShowAdd(true); setEditingId(null); setAddForm(EMPTY); setError('') }}
+            style={{ fontSize: 'var(--fs-xs)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '4px var(--sp-sm)', background: 'none', cursor: 'pointer' }}
           >
             + Add
           </button>
         )}
       </div>
 
-      {error && <p className="text-xs text-red-600 px-4 py-2">{error}</p>}
+      {error && <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--error)', padding: 'var(--sp-sm) var(--sp-lg)' }}>{error}</p>}
 
-      {showAdd && (
-        <RowForm
-          nameLabel="Name"
-          namePlaceholder="Platform name"
-          form={addForm}
-          onChange={setAddForm}
-          onSubmit={handleAdd}
-          onCancel={() => { setShowAdd(false); setError('') }}
-          submitLabel="Add Platform"
-          saving={saving}
-        />
-      )}
+      {showAdd && <RowForm nameLabel="Name" namePlaceholder="Platform name" form={addForm} onChange={setAddForm} onSubmit={handleAdd} onCancel={() => { setShowAdd(false); setError('') }} submitLabel="Add Platform" saving={saving} />}
 
       {platforms.length === 0 && !showAdd ? (
-        <p className="text-xs text-zinc-400 px-4 py-4">No platforms yet.</p>
+        <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', padding: 'var(--sp-lg)' }}>No platforms yet.</p>
       ) : (
-        <div className="divide-y divide-zinc-100">
-          {platforms.map(p =>
-            editingId === p.id ? (
-              <RowForm
-                key={p.id}
-                nameLabel="Name"
-                namePlaceholder="Platform name"
-                form={editForm}
-                onChange={setEditForm}
-                onSubmit={() => handleSave(p.id)}
-                onCancel={() => { setEditingId(null); setError('') }}
-                submitLabel="Save"
-                saving={saving}
-              />
-            ) : confirmDeleteId === p.id ? (
-              <div key={p.id} className="flex items-center gap-3 px-4 py-3 bg-red-50">
-                <span className="text-sm flex-1">
-                  Delete <strong>{p.name}</strong>? All todo associations will also be removed.
-                </span>
-                <button onClick={() => handleDelete(p.id)} disabled={saving} className="text-sm text-red-600 hover:text-red-800 font-medium disabled:opacity-50">{saving ? 'Deleting…' : 'Confirm'}</button>
-                <button onClick={() => setConfirmDeleteId(null)} className="text-sm text-zinc-500 hover:text-zinc-800">Cancel</button>
-              </div>
-            ) : (
-              <div key={p.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-50">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-zinc-800">{p.name}</p>
-                </div>
-                <button onClick={() => { setEditingId(p.id); setEditForm({ name: p.name, sort_order: String(p.sort_order) }); setShowAdd(false); setConfirmDeleteId(null); setError('') }} className="text-xs text-zinc-400 hover:text-zinc-700 shrink-0">Edit</button>
-                <button onClick={() => { setConfirmDeleteId(p.id); setEditingId(null) }} className="text-xs text-zinc-400 hover:text-red-600 shrink-0">Delete</button>
-              </div>
-            )
-          )}
+        <div>
+          {platforms.map(p => editingId === p.id ? (
+            <RowForm key={p.id} nameLabel="Name" namePlaceholder="Platform name" form={editForm} onChange={setEditForm} onSubmit={() => handleSave(p.id)} onCancel={() => { setEditingId(null); setError('') }} submitLabel="Save" saving={saving} />
+          ) : confirmDeleteId === p.id ? (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-md)', padding: 'var(--sp-md) var(--sp-lg)', borderBottom: '1px solid var(--border)', background: 'rgba(139,32,32,0.05)' }}>
+              <span style={{ fontSize: 'var(--fs-sm)', flex: 1, color: 'var(--text)' }}>
+                Delete <strong>{p.name}</strong>? All todo associations will also be removed.
+              </span>
+              <button onClick={() => handleDelete(p.id)} disabled={saving} style={{ fontSize: 'var(--fs-sm)', color: 'var(--error)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'var(--fw-medium)' }}>{saving ? 'Deleting…' : 'Confirm'}</button>
+              <button onClick={() => setConfirmDeleteId(null)} style={{ fontSize: 'var(--fs-sm)', color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+            </div>
+          ) : (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-md)', padding: '10px var(--sp-lg)', borderBottom: '1px solid var(--border)' }}>
+              <span style={{ flex: 1, fontSize: 'var(--fs-sm)', color: 'var(--text)' }}>{p.name}</span>
+              <button onClick={() => { setEditingId(p.id); setEditForm({ name: p.name, sort_order: String(p.sort_order) }); setShowAdd(false); setConfirmDeleteId(null); setError('') }} style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>Edit</button>
+              <button onClick={() => { setConfirmDeleteId(p.id); setEditingId(null) }} style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>Delete</button>
+            </div>
+          ))}
         </div>
       )}
     </div>
   )
 }
 
-// --- Main panel ---
 type Tab = 'groups' | 'categories' | 'platforms'
 
-export default function ProductConfigPanel({
-  productId,
-  productName,
-  productIcon,
-  onClose,
-}: {
+export default function ProductConfigPanel({ productId, productName, productIcon, onClose }: {
   productId: string
   productName: string
   productIcon: string | null
@@ -526,61 +459,78 @@ export default function ProductConfigPanel({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/20"
+        style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(42, 51, 42, 0.25)' }}
         onClick={onClose}
       />
 
       {/* Panel */}
-      <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[480px] bg-white shadow-xl flex flex-col">
+      <div style={{
+        position: 'fixed',
+        insetBlock: 0,
+        right: 0,
+        zIndex: 50,
+        width: '100%',
+        maxWidth: '480px',
+        background: 'var(--bg2)',
+        boxShadow: 'var(--shadow-lg)',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
         {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-zinc-200 shrink-0">
-          <span className="text-xl">{productIcon ?? '📦'}</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-zinc-900 truncate">{productName}</p>
-            <p className="text-xs text-zinc-400">Product configuration</p>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--sp-md)',
+          padding: 'var(--sp-lg) var(--sp-xl)',
+          borderBottom: '1px solid var(--border)',
+          flexShrink: 0,
+        }}>
+          <span style={{ fontSize: '20px' }}>{productIcon ?? '📦'}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 'var(--fs-sm)', fontWeight: 'var(--fw-bold)', color: 'var(--text)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{productName}</p>
+            <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', margin: 0 }}>Product configuration</p>
           </div>
           <button
             onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-700 transition-colors"
+            style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px', lineHeight: 1 }}
             aria-label="Close"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-zinc-200 shrink-0">
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           {(['groups', 'categories', 'platforms'] as Tab[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-2.5 text-sm capitalize transition-colors border-b-2 ${
-                activeTab === tab
-                  ? 'border-zinc-900 text-zinc-900 font-medium'
-                  : 'border-transparent text-zinc-500 hover:text-zinc-800'
-              }`}
+              style={{
+                flex: 1,
+                padding: '10px',
+                fontSize: 'var(--fs-sm)',
+                textTransform: 'capitalize',
+                background: 'none',
+                border: 'none',
+                borderBottom: `2px solid ${activeTab === tab ? 'var(--pill-active-color)' : 'transparent'}`,
+                color: activeTab === tab ? 'var(--pill-active-color)' : 'var(--text3)',
+                fontWeight: activeTab === tab ? 'var(--fw-medium)' : 'var(--fw-normal)',
+                cursor: 'pointer',
+                transition: 'all var(--transition)',
+              }}
             >
-              {tab}
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="bg-white rounded-b-lg border-x border-b border-zinc-100 overflow-hidden">
-            {activeTab === 'groups' && (
-              <GroupsSection productId={productId} supabase={supabase} />
-            )}
-            {activeTab === 'categories' && (
-              <CategoriesSection productId={productId} supabase={supabase} />
-            )}
-            {activeTab === 'platforms' && (
-              <PlatformsSection supabase={supabase} />
-            )}
-          </div>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {activeTab === 'groups'     && <GroupsSection productId={productId} supabase={supabase} />}
+          {activeTab === 'categories' && <CategoriesSection productId={productId} supabase={supabase} />}
+          {activeTab === 'platforms'  && <PlatformsSection supabase={supabase} />}
         </div>
       </div>
     </>
