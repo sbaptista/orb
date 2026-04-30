@@ -29,40 +29,66 @@ function VerifyOtpContent() {
       setError(error.message)
       setLoading(false)
     } else {
-      // Check if user exists in our users table
       const { data: { user } } = await supabase.auth.getUser()
-
       if (user) {
         const { data: existingUser } = await supabase
           .from('users')
           .select('id')
           .eq('id', user.id)
           .single()
-
-        if (!existingUser) {
-          router.push('/auth/create-account')
-        } else {
-          router.push('/dashboard')
-        }
+        router.push(existingUser ? '/dashboard' : '/auth/create-account')
       }
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50 px-4">
-      <div className="w-full max-w-sm">
-        <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-8">
-          <div className="mb-8 text-center">
-            <h1 className="text-2xl font-semibold text-zinc-900">Verify your email</h1>
-            <p className="mt-2 text-sm text-zinc-500">
+    <div style={{
+      minHeight: '100dvh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'var(--bg)',
+      padding: '0 var(--sp-lg)',
+    }}>
+      <div style={{ width: '100%', maxWidth: '360px' }}>
+
+        <div style={{
+          background: 'var(--bg2)',
+          borderRadius: 'var(--r-xl)',
+          border: '1px solid var(--border)',
+          boxShadow: 'var(--shadow-md)',
+          padding: 'var(--sp-3xl)',
+        }}>
+          <div style={{ marginBottom: 'var(--sp-3xl)', textAlign: 'center' }}>
+            <h1 style={{
+              fontSize: 'var(--fs-xl)',
+              fontWeight: 'var(--fw-bold)',
+              color: 'var(--text)',
+              margin: 0,
+            }}>
+              Check your email
+            </h1>
+            <p style={{
+              marginTop: 'var(--sp-sm)',
+              fontSize: 'var(--fs-sm)',
+              color: 'var(--text3)',
+              lineHeight: 1.5,
+            }}>
               Enter the 8-digit code sent to<br />
-              <span className="font-medium text-zinc-700">{email}</span>
+              <span style={{ fontWeight: 'var(--fw-medium)', color: 'var(--text2)' }}>{email}</span>
             </p>
           </div>
 
-          <form onSubmit={handleVerify} className="space-y-5">
-            <div>
-              <label htmlFor="otp" className="block text-sm font-medium text-zinc-700 mb-1.5">
+          <form onSubmit={handleVerify} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-xl)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-xs)' }}>
+              <label
+                htmlFor="otp"
+                style={{
+                  fontSize: 'var(--fs-sm)',
+                  fontWeight: 'var(--fw-medium)',
+                  color: 'var(--text2)',
+                }}
+              >
                 Verification code
               </label>
               <input
@@ -75,44 +101,85 @@ function VerifyOtpContent() {
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                 required
                 placeholder="12345678"
-                className="w-full px-3.5 py-2.5 rounded-lg border border-zinc-300 bg-white text-zinc-900 placeholder-zinc-400 text-center text-2xl tracking-[0.3em] font-medium focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent transition"
+                style={{
+                  width: '100%',
+                  padding: '12px var(--sp-md)',
+                  borderRadius: 'var(--r)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg)',
+                  color: 'var(--text)',
+                  fontSize: '24px',
+                  fontWeight: 'var(--fw-medium)',
+                  textAlign: 'center',
+                  letterSpacing: '0.3em',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  transition: 'border-color var(--transition)',
+                }}
+                onFocus={e => (e.currentTarget.style.borderColor = 'var(--border-focus)')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'var(--border)')}
               />
             </div>
 
             <button
               type="submit"
               disabled={loading || otp.length !== 8}
-              className="w-full bg-zinc-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              style={{
+                width: '100%',
+                background: 'var(--success)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 'var(--r)',
+                padding: '12px',
+                fontSize: 'var(--fs-base)',
+                fontWeight: 'var(--fw-medium)',
+                cursor: loading || otp.length !== 8 ? 'not-allowed' : 'pointer',
+                opacity: loading || otp.length !== 8 ? 0.6 : 1,
+                transition: 'opacity var(--transition)',
+              }}
             >
               {loading ? 'Verifying…' : 'Verify'}
             </button>
-
-            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-xs text-amber-700 text-center">
-                <strong>Dev mode:</strong> Enter <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono">87654321</code> to bypass OTP
-              </p>
-            </div>
           </form>
 
           {error && (
-            <div className="mt-5 p-3.5 rounded-lg bg-red-50 border border-red-200">
-              <p className="text-sm text-red-600">{error}</p>
+            <div style={{
+              marginTop: 'var(--sp-lg)',
+              padding: 'var(--sp-md)',
+              borderRadius: 'var(--r)',
+              background: 'rgba(139, 32, 32, 0.07)',
+              border: '1px solid rgba(139, 32, 32, 0.2)',
+            }}>
+              <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--error)', margin: 0 }}>{error}</p>
             </div>
           )}
         </div>
 
-        <div className="mt-6 text-center">
-          <button
-            onClick={() => router.push('/auth/login')}
-            className="text-sm text-zinc-500 hover:text-zinc-700 transition-colors cursor-pointer bg-transparent border-none"
-          >
-            ← Back to login
-          </button>
-        </div>
+        <button
+          onClick={() => router.push('/auth/login')}
+          style={{
+            display: 'block',
+            margin: 'var(--sp-xl) auto 0',
+            background: 'none',
+            border: 'none',
+            fontSize: 'var(--fs-sm)',
+            color: 'var(--muted)',
+            cursor: 'pointer',
+            padding: '4px 0',
+          }}
+        >
+          ← Back to login
+        </button>
 
-          <p className="mt-6 text-center text-xs text-zinc-400">
-            TODOS v0.2.13
-          </p>
+        <p style={{
+          marginTop: 'var(--sp-lg)',
+          textAlign: 'center',
+          fontSize: 'var(--fs-version)',
+          color: 'var(--muted)',
+        }}>
+          TODOS v0.2.15
+        </p>
+
       </div>
     </div>
   )
@@ -120,7 +187,17 @@ function VerifyOtpContent() {
 
 export default function VerifyOtpPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-zinc-400">Loading...</div>}>
+    <Suspense fallback={
+      <div style={{
+        minHeight: '100dvh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg)',
+      }}>
+        <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--muted)' }}>Loading…</p>
+      </div>
+    }>
       <VerifyOtpContent />
     </Suspense>
   )

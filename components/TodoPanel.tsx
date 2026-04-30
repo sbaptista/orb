@@ -33,35 +33,43 @@ export default function TodoPanel({
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [showDetails, setShowDetails] = useState(false)
+  const [idCopied, setIdCopied] = useState(false)
 
   useEffect(() => {
     setForm({ ...todo })
     setUrlInput((todo.urls ?? []).join('\n'))
     setConfirmDelete(false)
+    setShowDetails(false)
   }, [todo.id])
 
-  const filteredGroups = groups.filter((g) => g.product_id === form.product_id)
-  const filteredCategories = categories.filter((c) => c.product_id === form.product_id)
+  const filteredGroups     = groups.filter(g => g.product_id === form.product_id)
+  const filteredCategories = categories.filter(c => c.product_id === form.product_id)
+  const isDone             = form.status === 'done'
+
+  const todoRef = (() => {
+    const code = products.find(p => p.id === todo.product_id)?.code
+    return code && todo.todo_number != null ? `${code}-${todo.todo_number}` : null
+  })()
 
   async function handleSave() {
     setSaving(true)
-    const urls = urlInput.split('\n').map((u) => u.trim()).filter(Boolean)
+    const urls = urlInput.split('\n').map(u => u.trim()).filter(Boolean)
     const { data } = await supabase
       .from('todos')
       .update({
-        title: form.title,
-        description: form.description || null,
+        title:            form.title,
+        description:      form.description || null,
         resolution_notes: form.resolution_notes || null,
-        status: form.status,
-        priority_value: form.priority_value,
-        product_id: form.product_id,
-        group_id: form.group_id,
-        category_id: form.category_id,
+        status:           form.status,
+        priority_value:   form.priority_value,
+        product_id:       form.product_id,
+        group_id:         form.group_id,
+        category_id:      form.category_id,
         urls,
-        closed_at:
-          form.status === 'done'
-            ? (todo.closed_at ?? new Date().toISOString())
-            : null,
+        closed_at: form.status === 'done'
+          ? (todo.closed_at ?? new Date().toISOString())
+          : null,
       })
       .eq('id', todo.id)
       .select('*, groups(name), categories(name)')
@@ -77,44 +85,155 @@ export default function TodoPanel({
     onDelete(todo.id)
   }
 
+  function copyId() {
+    navigator.clipboard.writeText(todoRef ?? todo.id)
+    setIdCopied(true)
+    setTimeout(() => setIdCopied(false), 1500)
+  }
+
+  const field: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '5px',
+  }
+
+  const label: React.CSSProperties = {
+    fontSize: 'var(--fs-xs)',
+    fontWeight: 500,
+    color: 'var(--text3)',
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+  }
+
+  const input: React.CSSProperties = {
+    fontFamily: 'var(--font-ui)',
+    fontSize: 'var(--fs-base)',
+    background: 'var(--bg)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--r)',
+    padding: '8px 12px',
+    color: 'var(--text)',
+    outline: 'none',
+    WebkitAppearance: 'none',
+    appearance: 'none',
+    width: '100%',
+  }
+
+  const select: React.CSSProperties = {
+    ...input,
+    cursor: 'pointer',
+  }
+
+  const textarea: React.CSSProperties = {
+    ...input,
+    resize: 'vertical',
+    lineHeight: '1.5',
+    minHeight: '80px',
+  }
+
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
+      <div
+        style={{ position: 'fixed', inset: 0, background: 'rgba(42,51,42,0.25)', zIndex: 40 }}
+        onClick={onClose}
+      />
 
       {/* Panel */}
-      <div className="fixed top-0 right-0 h-full w-[480px] max-w-full bg-white shadow-2xl z-50 flex flex-col">
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        right: 0,
+        height: '100%',
+        width: '460px',
+        maxWidth: '100%',
+        background: 'var(--bg2)',
+        boxShadow: '-4px 0 24px rgba(42,51,42,0.12)',
+        zIndex: 50,
+        display: 'flex',
+        flexDirection: 'column',
+        fontFamily: 'var(--font-ui)',
+      }}>
+
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 shrink-0">
-          <span className="text-sm font-medium text-zinc-700">Edit Todo</span>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: 'var(--sp-lg) var(--sp-xl)',
+          borderBottom: '1px solid var(--border)',
+          flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+            {todoRef && (
+              <button
+                onClick={copyId}
+                title="Copy ID"
+                style={{
+                  fontSize: 'var(--fs-xs)',
+                  color: idCopied ? 'var(--pill-active-color)' : 'var(--muted)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-ui)',
+                  letterSpacing: '0.04em',
+                  padding: 0,
+                }}
+              >
+                {idCopied ? 'Copied!' : todoRef}
+              </button>
+            )}
+          </div>
           <button
             onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-700 text-2xl leading-none"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--muted)',
+              fontSize: '22px',
+              lineHeight: 1,
+              cursor: 'pointer',
+              padding: '0 4px',
+            }}
+            aria-label="Close"
           >
             ×
           </button>
         </div>
 
         {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-4">
-          <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1">Title</label>
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: 'var(--sp-xl)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--sp-lg)',
+          WebkitOverflowScrolling: 'touch',
+        }}>
+
+          {/* Title */}
+          <div style={field}>
+            <label style={label}>Title</label>
             <input
-              className="w-full border border-zinc-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
+              style={input}
               value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 mb-1">Status</label>
+          {/* Status + Priority */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-md)' }}>
+            <div style={field}>
+              <label style={label}>Status</label>
               <select
-                className="w-full border border-zinc-200 rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-zinc-400"
+                style={select}
                 value={form.status}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, status: e.target.value as Todo['status'] }))
-                }
+                onChange={e => setForm(f => ({ ...f, status: e.target.value as Todo['status'] }))}
+                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'}
               >
                 <option value="open">Open</option>
                 <option value="in_progress">In Progress</option>
@@ -122,141 +241,176 @@ export default function TodoPanel({
                 <option value="done">Done</option>
               </select>
             </div>
-
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 mb-1">Priority</label>
+            <div style={field}>
+              <label style={label}>Priority</label>
               <select
-                className="w-full border border-zinc-200 rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-zinc-400"
-                value={form.priority_value ?? 3}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, priority_value: Number(e.target.value) }))
-                }
+                style={select}
+                value={form.priority_value ?? ''}
+                onChange={e => setForm(f => ({ ...f, priority_value: e.target.value ? Number(e.target.value) : null }))}
+                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'}
               >
-                {priorities.map((p) => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
+                <option value="">None</option>
+                {priorities.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </div>
           </div>
 
+          {/* Product — all view only */}
           {isAll && (
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 mb-1">Product</label>
+            <div style={field}>
+              <label style={label}>Product</label>
               <select
-                className="w-full border border-zinc-200 rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-zinc-400"
+                style={select}
                 value={form.product_id}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    product_id: e.target.value,
-                    group_id: null,
-                    category_id: null,
-                  }))
-                }
+                onChange={e => setForm(f => ({ ...f, product_id: e.target.value, group_id: null, category_id: null }))}
+                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'}
               >
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
+                {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 mb-1">Group</label>
-              <select
-                className="w-full border border-zinc-200 rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-zinc-400"
-                value={form.group_id ?? ''}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, group_id: e.target.value || null }))
-                }
-              >
-                <option value="">None</option>
-                {filteredGroups.map((g) => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
-                ))}
-              </select>
+          {/* Resolution Notes — only when done */}
+          {isDone && (
+            <div style={field}>
+              <label style={label}>Resolution Notes</label>
+              <textarea
+                style={textarea}
+                value={form.resolution_notes ?? ''}
+                placeholder="What was done to resolve this…"
+                onChange={e => setForm(f => ({ ...f, resolution_notes: e.target.value }))}
+                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'}
+              />
             </div>
+          )}
 
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 mb-1">Category</label>
-              <select
-                className="w-full border border-zinc-200 rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-zinc-400"
-                value={form.category_id ?? ''}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, category_id: e.target.value || null }))
-                }
-              >
-                <option value="">None</option>
-                {filteredCategories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+          {/* Details toggle */}
+          <button
+            onClick={() => setShowDetails(d => !d)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--sp-sm)',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--muted)',
+              fontFamily: 'var(--font-ui)',
+              fontSize: 'var(--fs-sm)',
+              padding: 0,
+              textAlign: 'left',
+            }}
+          >
+            <span style={{
+              fontSize: '10px',
+              display: 'inline-block',
+              transition: 'transform var(--transition)',
+              transform: showDetails ? 'rotate(90deg)' : 'rotate(0deg)',
+            }}>▶</span>
+            Details
+          </button>
 
-          <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1">Description</label>
-            <textarea
-              className="w-full border border-zinc-200 rounded px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-zinc-400"
-              rows={5}
-              value={form.description ?? ''}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, description: e.target.value }))
-              }
-            />
-          </div>
+          {showDetails && (
+            <>
+              {/* Group + Category */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-md)' }}>
+                <div style={field}>
+                  <label style={label}>Group</label>
+                  <select
+                    style={select}
+                    value={form.group_id ?? ''}
+                    onChange={e => setForm(f => ({ ...f, group_id: e.target.value || null }))}
+                    onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                    onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                  >
+                    <option value="">None</option>
+                    {filteredGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                </div>
+                <div style={field}>
+                  <label style={label}>Category</label>
+                  <select
+                    style={select}
+                    value={form.category_id ?? ''}
+                    onChange={e => setForm(f => ({ ...f, category_id: e.target.value || null }))}
+                    onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                    onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                  >
+                    <option value="">None</option>
+                    {filteredCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1">Resolution Notes</label>
-            <textarea
-              className="w-full border border-zinc-200 rounded px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-zinc-400"
-              rows={5}
-              value={form.resolution_notes ?? ''}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, resolution_notes: e.target.value }))
-              }
-            />
-          </div>
+              {/* Description */}
+              <div style={field}>
+                <label style={label}>Description</label>
+                <textarea
+                  style={textarea}
+                  value={form.description ?? ''}
+                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                  onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                />
+              </div>
 
-          <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1">URLs (one per line)</label>
-            <textarea
-              className="w-full border border-zinc-200 rounded px-3 py-2 text-sm font-mono resize-none focus:outline-none focus:ring-1 focus:ring-zinc-400"
-              rows={3}
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1">ID</label>
-            <input
-              readOnly
-              className="w-full border border-zinc-100 rounded px-3 py-2 text-xs font-mono text-zinc-400 bg-zinc-50 cursor-text focus:outline-none"
-              value={(() => {
-                const code = products.find(p => p.id === todo.product_id)?.code
-                return code && todo.todo_number != null ? `${code}-${todo.todo_number}` : todo.id
-              })()}
-            />
-          </div>
+              {/* URLs */}
+              <div style={field}>
+                <label style={label}>URLs (one per line)</label>
+                <textarea
+                  style={{ ...textarea, fontFamily: 'monospace', fontSize: 'var(--fs-sm)', minHeight: '64px' }}
+                  value={urlInput}
+                  onChange={e => setUrlInput(e.target.value)}
+                  onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                />
+              </div>
+            </>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-zinc-200 flex items-center justify-between shrink-0">
+        <div style={{
+          padding: 'var(--sp-lg) var(--sp-xl)',
+          borderTop: '1px solid var(--border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexShrink: 0,
+        }}>
           {confirmDelete ? (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-red-600">Delete this todo?</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+              <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--error)' }}>Delete this todo?</span>
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="text-sm bg-red-600 text-white px-3 py-1.5 rounded hover:bg-red-700 disabled:opacity-50"
+                style={{
+                  fontFamily: 'var(--font-ui)',
+                  fontSize: 'var(--fs-sm)',
+                  background: 'var(--error)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 'var(--r)',
+                  padding: '6px 14px',
+                  cursor: 'pointer',
+                  opacity: deleting ? 0.5 : 1,
+                }}
               >
                 {deleting ? 'Deleting…' : 'Confirm'}
               </button>
               <button
                 onClick={() => setConfirmDelete(false)}
-                className="text-sm text-zinc-500 hover:text-zinc-700"
+                style={{
+                  fontFamily: 'var(--font-ui)',
+                  fontSize: 'var(--fs-sm)',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--muted)',
+                  cursor: 'pointer',
+                }}
               >
                 Cancel
               </button>
@@ -264,7 +418,14 @@ export default function TodoPanel({
           ) : (
             <button
               onClick={() => setConfirmDelete(true)}
-              className="text-sm text-red-500 hover:text-red-700"
+              style={{
+                fontFamily: 'var(--font-ui)',
+                fontSize: 'var(--fs-sm)',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--muted)',
+                cursor: 'pointer',
+              }}
             >
               Delete
             </button>
@@ -273,7 +434,18 @@ export default function TodoPanel({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="text-sm bg-zinc-900 text-white px-4 py-1.5 rounded hover:bg-zinc-700 disabled:opacity-50"
+            style={{
+              fontFamily: 'var(--font-ui)',
+              fontSize: 'var(--fs-sm)',
+              fontWeight: 500,
+              background: 'var(--pill-active-bg)',
+              border: '1px solid var(--pill-active-border)',
+              borderRadius: 'var(--r)',
+              padding: '8px 20px',
+              color: 'var(--pill-active-color)',
+              cursor: saving ? 'default' : 'pointer',
+              opacity: saving ? 0.6 : 1,
+            }}
           >
             {saving ? 'Saving…' : 'Save'}
           </button>

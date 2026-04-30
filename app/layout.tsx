@@ -1,5 +1,20 @@
 import type { Metadata } from 'next'
+import { DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import './globals.css'
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  weight: ['300', '400', '500'],
+  variable: '--font-ui',
+  display: 'swap',
+})
+
+const cormorant = Cormorant_Garamond({
+  subsets: ['latin'],
+  weight: ['300', '400'],
+  variable: '--font-display',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'Todos',
@@ -7,8 +22,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="bg-zinc-50 text-zinc-900 antialiased">{children}</body>
+    <html lang="en" className={`${dmSans.variable} ${cormorant.variable}`}>
+      <body>{children}</body>
     </html>
   )
 }

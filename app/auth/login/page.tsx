@@ -4,10 +4,11 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+const isDev = process.env.NODE_ENV === 'development'
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const router = useRouter()
 
@@ -15,17 +16,16 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    setMessage('')
 
     const supabase = createClient()
 
-    if (process.env.NODE_ENV === 'development' && email === 'dev@dev.local') {
+    if (isDev && email === 'dev@dev.local') {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: process.env.NEXT_PUBLIC_DEV_EMAIL!,
         password: process.env.NEXT_PUBLIC_DEV_PASSWORD!,
       })
       if (signInError) {
-        setError(signInError.message)
+        setError(`Dev login failed: ${signInError.message}`)
         setLoading(false)
         return
       }
@@ -41,17 +41,14 @@ export default function LoginPage() {
       return
     }
 
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error: otpError } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        shouldCreateUser: false,
-      },
+      options: { shouldCreateUser: false },
     })
 
-    if (error) {
-      setError(error.message)
+    if (otpError) {
+      setError(otpError.message)
     } else {
-      setMessage('Check your email for the verification code.')
       router.push(`/auth/verify-otp?email=${encodeURIComponent(email)}`)
     }
 
@@ -59,19 +56,51 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50 px-4">
-      <div className="w-full max-w-sm">
-        <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-8">
-          <div className="mb-8 text-center">
-            <h1 className="text-2xl font-semibold text-zinc-900">Sign in to TODOS</h1>
-            <p className="mt-2 text-sm text-zinc-500">
+    <div style={{
+      minHeight: '100dvh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'var(--bg)',
+      padding: '0 var(--sp-lg)',
+    }}>
+      <div style={{ width: '100%', maxWidth: '360px' }}>
+
+        <div style={{
+          background: 'var(--bg2)',
+          borderRadius: 'var(--r-xl)',
+          border: '1px solid var(--border)',
+          boxShadow: 'var(--shadow-md)',
+          padding: 'var(--sp-3xl)',
+        }}>
+          <div style={{ marginBottom: 'var(--sp-3xl)', textAlign: 'center' }}>
+            <h1 style={{
+              fontSize: 'var(--fs-xl)',
+              fontWeight: 'var(--fw-bold)',
+              color: 'var(--text)',
+              margin: 0,
+            }}>
+              TODOS
+            </h1>
+            <p style={{
+              marginTop: 'var(--sp-sm)',
+              fontSize: 'var(--fs-sm)',
+              color: 'var(--text3)',
+            }}>
               Enter your email to receive a verification code
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-zinc-700 mb-1.5">
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-xl)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-xs)' }}>
+              <label
+                htmlFor="email"
+                style={{
+                  fontSize: 'var(--fs-sm)',
+                  fontWeight: 'var(--fw-medium)',
+                  color: 'var(--text2)',
+                }}
+              >
                 Email address
               </label>
               <input
@@ -81,41 +110,89 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="you@example.com"
-                className="w-full px-3.5 py-2.5 rounded-lg border border-zinc-300 bg-white text-zinc-900 placeholder-zinc-400 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent transition"
+                style={{
+                  width: '100%',
+                  padding: '10px var(--sp-md)',
+                  borderRadius: 'var(--r)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg)',
+                  color: 'var(--text)',
+                  fontSize: 'var(--fs-input)',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  transition: 'border-color var(--transition)',
+                }}
+                onFocus={e => (e.currentTarget.style.borderColor = 'var(--border-focus)')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'var(--border)')}
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-zinc-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              style={{
+                width: '100%',
+                background: 'var(--success)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 'var(--r)',
+                padding: '12px',
+                fontSize: 'var(--fs-base)',
+                fontWeight: 'var(--fw-medium)',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.6 : 1,
+                transition: 'opacity var(--transition), background var(--transition)',
+              }}
             >
               {loading ? 'Sending…' : 'Send verification code'}
             </button>
           </form>
 
-          {message && (
-            <div className="mt-5 p-3.5 rounded-lg bg-emerald-50 border border-emerald-200">
-              <p className="text-sm text-emerald-700">{message}</p>
-            </div>
-          )}
-
           {error && (
-            <div className="mt-5 p-3.5 rounded-lg bg-red-50 border border-red-200">
-              <p className="text-sm text-red-600">{error}</p>
+            <div style={{
+              marginTop: 'var(--sp-lg)',
+              padding: 'var(--sp-md)',
+              borderRadius: 'var(--r)',
+              background: 'rgba(139, 32, 32, 0.07)',
+              border: '1px solid rgba(139, 32, 32, 0.2)',
+            }}>
+              <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--error)', margin: 0 }}>{error}</p>
             </div>
           )}
 
-          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-xs text-amber-700 text-center">
-              <strong>Dev mode:</strong> Use email <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono">dev@dev.local</code> to bypass email sending
-            </p>
-          </div>
+          {isDev && (
+            <div style={{
+              marginTop: 'var(--sp-md)',
+              padding: 'var(--sp-md)',
+              borderRadius: 'var(--r)',
+              background: 'rgba(122, 80, 16, 0.07)',
+              border: '1px solid rgba(122, 80, 16, 0.2)',
+            }}>
+              <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--warning)', margin: 0, textAlign: 'center' }}>
+                <strong>Dev mode:</strong> Use email{' '}
+                <code style={{
+                  background: 'rgba(122, 80, 16, 0.1)',
+                  padding: '1px 6px',
+                  borderRadius: '4px',
+                  fontFamily: 'monospace',
+                }}>
+                  dev@dev.local
+                </code>{' '}
+                to bypass email sending
+              </p>
+            </div>
+          )}
         </div>
 
-          <p className="mt-6 text-center text-xs text-zinc-400">
-            TODOS v0.2.13
-          </p>
+        <p style={{
+          marginTop: 'var(--sp-xl)',
+          textAlign: 'center',
+          fontSize: 'var(--fs-version)',
+          color: 'var(--muted)',
+        }}>
+          TODOS v0.2.14
+        </p>
+
       </div>
     </div>
   )
