@@ -186,7 +186,7 @@ function VerifyOtpContent() {
           color: 'var(--muted)',
           letterSpacing: '0.05em',
         }}>
-          TODOS v0.2.23
+          TODOS v0.2.24
         </span>
       </div>
     </div>

@@ -1,6 +1,6 @@
 {
   "name": "todos",
-  "version": "0.2.23",
+  "version": "0.2.24",
   "private": true,
   "scripts": {
     "dev": "next dev --experimental-https --experimental-https-cert localhost+1.pem --experimental-https-key localhost+1-key.pem -H 0.0.0.0 -p 3001",
@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.92.0",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.101.0",
     "next": "16.2.1",

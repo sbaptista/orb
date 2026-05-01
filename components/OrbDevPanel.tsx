@@ -9,6 +9,8 @@ type Props = {
   override: MoodOverride
   onChange: (m: MoodOverride) => void
   onSpeak: (s: Speech) => void
+  dryRun: boolean
+  onDryRunChange: (v: boolean) => void
 }
 
 const SPEECH_PRESETS: Record<string, Speech> = {
@@ -20,7 +22,7 @@ const SPEECH_PRESETS: Record<string, Speech> = {
   },
 }
 
-function OrbDevPanelInner({ override, onChange, onSpeak }: Props) {
+function OrbDevPanelInner({ override, onChange, onSpeak, dryRun, onDryRunChange }: Props) {
   const [open, setOpen] = useState(false)
 
   const btnStyle = (active: boolean): React.CSSProperties => ({
@@ -122,6 +124,20 @@ function OrbDevPanelInner({ override, onChange, onSpeak }: Props) {
           </button>
           <button type="button" style={btnStyle(false)} onClick={() => onSpeak(null)}>
             Clear
+          </button>
+
+          <div style={{
+            fontSize: '10px',
+            fontWeight: 700,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'var(--muted)',
+            padding: '8px 2px 2px',
+          }}>
+            Claude API
+          </div>
+          <button type="button" style={btnStyle(dryRun)} onClick={() => onDryRunChange(!dryRun)}>
+            Dry run {dryRun ? '✓' : ''}
           </button>
         </div>
       )}

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import AddProductModal from './AddProductModal'
 import { OrbDevPanel, type MoodOverride } from './OrbDevPanel'
+import { orbConverse } from '@/app/actions/orb-converse'
 
 type Product = { id: string; name: string; code: string | null; icon: string | null }
 type Todo    = { id: string; title: string; status: string; priority_value: number | null }
@@ -97,6 +98,7 @@ export default function AmbientDashboard() {
   const [inputFocused, setInputFocused]   = useState(false)
   const [pulse, setPulse]                 = useState(false)
   const [moodOverride, setMoodOverride]   = useState<MoodOverride>(null)
+  const [dryRun, setDryRun]               = useState(false)
   const [speech, setSpeech]               = useState<{ text: string; autoFade?: number } | null>(null)
   const [speechVisible, setSpeechVisible] = useState(false)
   const [speechText, setSpeechText]       = useState('')
@@ -162,29 +164,33 @@ export default function AmbientDashboard() {
   const speed     = ORB_SPEED[urgency]
   const selected  = products.find(p => p.id === selectedId)
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const title = input.trim()
-    if (!title || !selectedId || submitting) return
-    setSubmitting(true)
-    await supabase.from('todos').insert({
-      product_id: selectedId,
-      title,
-      status: 'open',
-      sort_order: 0,
-      urls: [],
-    })
-    // Refetch in place — stay on the orb screen
+  async function refetchTodos() {
+    if (!selectedId) return
     const { data } = await supabase
       .from('todos')
       .select('id, title, status, priority_value')
       .eq('product_id', selectedId)
       .is('deleted_at', null)
     setTodos((data ?? []) as Todo[])
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const text = input.trim()
+    if (!text || !selectedId || submitting) return
+    setSubmitting(true)
     setInput('')
+
+    const res = await orbConverse({ input: text, productId: selectedId, dryRun })
+    setSpeech({ text: res.speech, autoFade: res.refresh ? 4000 : undefined })
+
+    if (res.refresh) {
+      await refetchTodos()
+      setPulse(true)
+      setTimeout(() => setPulse(false), 420)
+    }
+
     setSubmitting(false)
-    setPulse(true)
-    setTimeout(() => setPulse(false), 420)
     inputRef.current?.focus()
   }
 
@@ -599,7 +605,7 @@ export default function AmbientDashboard() {
           color: 'var(--muted)',
           letterSpacing: '0.05em',
         }}>
-          TODOS v0.2.23
+          TODOS v0.2.24
         </span>
       </div>
 
@@ -607,6 +613,8 @@ export default function AmbientDashboard() {
         override={moodOverride}
         onChange={setMoodOverride}
         onSpeak={setSpeech}
+        dryRun={dryRun}
+        onDryRunChange={setDryRun}
       />
 
       {showAddProduct && (
