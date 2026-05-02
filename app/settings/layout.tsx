@@ -13,35 +13,45 @@ export default async function SettingsLayout({ children }: { children: React.Rea
       minHeight: '100dvh',
       background: 'var(--bg)',
       display: 'flex',
+      flexDirection: 'column',
       fontFamily: 'var(--font-ui)',
       WebkitFontSmoothing: 'antialiased',
     }}>
-      <SettingsSidebar />
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        {/* Top bar */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          height: '52px',
-          padding: '0 var(--sp-2xl)',
-          borderBottom: '1px solid var(--border)',
-          flexShrink: 0,
+      {/* Full-width top bar */}
+      <div style={{
+        height: '52px',
+        background: 'var(--bg2)',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--sp-md)',
+        padding: '0 var(--sp-2xl)',
+        flexShrink: 0,
+      }}>
+        <Link
+          href="/dashboard"
+          style={{
+            fontSize: 'var(--fs-sm)',
+            color: 'var(--muted)',
+            textDecoration: 'none',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          ← back
+        </Link>
+        <span style={{
+          fontSize: 'var(--fs-sm)',
+          fontWeight: 500,
+          color: 'var(--text2)',
         }}>
-          <Link
-            href="/dashboard"
-            style={{
-              fontSize: 'var(--fs-sm)',
-              color: 'var(--muted)',
-              textDecoration: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            ← back
-          </Link>
-        </div>
-        <main style={{ flex: 1, overflowY: 'auto' }}>
+          Settings
+        </span>
+      </div>
+
+      {/* Sidebar + content */}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <SettingsSidebar />
+        <main style={{ flex: 1, minWidth: 0, overflowY: 'auto' }}>
           {children}
         </main>
       </div>

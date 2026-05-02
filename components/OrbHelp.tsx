@@ -248,6 +248,45 @@ export default function OrbHelp({ onClose }: { onClose: () => void }) {
         WebkitFontSmoothing: 'antialiased',
       }}
     >
+      {/* Full-width top bar */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '52px',
+        background: 'var(--bg2)',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--sp-md)',
+        padding: '0 var(--sp-2xl)',
+        zIndex: 1,
+      }}>
+        <button
+          onClick={onClose}
+          autoFocus
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--muted)',
+            cursor: 'pointer',
+            padding: '6px 0',
+            fontSize: 'var(--fs-sm)',
+            fontFamily: 'var(--font-ui)',
+          }}
+          aria-label="Close help"
+        >
+          ← back
+        </button>
+        <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 500, color: 'var(--text2)' }}>
+          Help
+        </span>
+      </div>
+
+      {/* Sidebar + content below the top bar */}
+      <div style={{ display: 'flex', flex: 1, marginTop: '52px', overflow: 'hidden' }}>
+
       {/* Sidebar */}
       <div style={{
         width: sidebarOpen ? '220px' : '48px',
@@ -259,41 +298,6 @@ export default function OrbHelp({ onClose }: { onClose: () => void }) {
         overflow: 'hidden',
         background: 'var(--bg2)',
       }}>
-        {/* Sidebar header */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: sidebarOpen ? 'space-between' : 'center',
-          padding: '14px 12px',
-          borderBottom: '1px solid var(--border)',
-          minHeight: '52px',
-        }}>
-          {sidebarOpen && (
-            <span style={{
-              fontSize: 'var(--fs-xs)',
-              fontWeight: 600,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: 'var(--text3)',
-              whiteSpace: 'nowrap',
-            }}>
-              Help
-            </span>
-          )}
-          <button
-            onClick={() => setSidebarOpen(s => !s)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px', display: 'flex', alignItems: 'center', lineHeight: 1 }}
-            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-              {sidebarOpen
-                ? <><line x1="3" y1="8" x2="13" y2="8"/><path d="M8 3l-5 5 5 5"/></>
-                : <><line x1="3" y1="8" x2="13" y2="8"/><path d="M8 3l5 5-5 5"/></>
-              }
-            </svg>
-          </button>
-        </div>
-
         {/* Topic list */}
         <nav style={{ flex: 1, padding: '8px 0' }}>
           {TOPICS.map(t => (
@@ -326,40 +330,38 @@ export default function OrbHelp({ onClose }: { onClose: () => void }) {
             </button>
           ))}
         </nav>
-      </div>
 
-      {/* Content area */}
-      <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-        {/* Top bar */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          padding: '0 var(--sp-2xl)',
-          height: '52px',
-          borderBottom: '1px solid var(--border)',
-          flexShrink: 0,
-        }}>
+        {/* Sidebar footer: collapse toggle */}
+        <div style={{ borderTop: '1px solid var(--border)', padding: '8px 0', display: 'flex', justifyContent: sidebarOpen ? 'flex-start' : 'center' }}>
           <button
-            onClick={onClose}
-            autoFocus
+            onClick={() => setSidebarOpen(s => !s)}
+            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
             style={{
               background: 'none',
               border: 'none',
-              color: 'var(--muted)',
               cursor: 'pointer',
-              padding: '6px 0',
-              fontSize: 'var(--fs-sm)',
-              fontFamily: 'var(--font-ui)',
+              color: 'var(--muted)',
+              padding: sidebarOpen ? '4px var(--sp-lg)' : '4px 0',
               display: 'flex',
               alignItems: 'center',
+              lineHeight: 1,
+              width: sidebarOpen ? 'auto' : '100%',
+              justifyContent: 'center',
             }}
-            aria-label="Close help"
           >
-            ← back
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              {sidebarOpen ? (
+                <><line x1="3" y1="2" x2="3" y2="14"/><polyline points="9,5 6,8 9,11"/><line x1="6" y1="8" x2="13" y2="8"/></>
+              ) : (
+                <><line x1="3" y1="2" x2="3" y2="14"/><polyline points="7,5 10,8 7,11"/><line x1="3" y1="8" x2="10" y2="8"/></>
+              )}
+            </svg>
           </button>
         </div>
+      </div>
 
+      {/* Content area */}
+      <div style={{ flex: 1, overflow: 'auto' }}>
         {/* Topic content */}
         {selected && (
           <div style={{ padding: 'var(--sp-3xl) var(--sp-2xl)', maxWidth: '620px' }}>
@@ -376,6 +378,8 @@ export default function OrbHelp({ onClose }: { onClose: () => void }) {
           </div>
         )}
       </div>
+
+      </div> {/* end sidebar+content row */}
     </div>
   )
 }
