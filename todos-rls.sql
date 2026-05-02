@@ -15,22 +15,22 @@ create policy "users: update own" on users
   for update using (auth.uid() = id);
 
 -- products: owner sees all their products
-create policy "products: select own" on products
+create policy "projects: select own" on projects
   for select using (
     exists (select 1 from users where users.id = auth.uid())
   );
 
-create policy "products: insert own" on products
+create policy "projects: insert own" on projects
   for insert with check (
     exists (select 1 from users where users.id = auth.uid())
   );
 
-create policy "products: update own" on products
+create policy "projects: update own" on projects
   for update using (
     exists (select 1 from users where users.id = auth.uid())
   );
 
-create policy "products: delete own" on products
+create policy "projects: delete own" on projects
   for delete using (
     exists (select 1 from users where users.id = auth.uid())
   );
@@ -108,7 +108,7 @@ create policy "priorities: select authenticated" on priorities
 create policy "todos: select own" on todos
   for select using (
     exists (
-      select 1 from products
+      select 1 from projects
       where products.id = todos.product_id
       and exists (select 1 from users where users.id = auth.uid())
     )
@@ -117,7 +117,7 @@ create policy "todos: select own" on todos
 create policy "todos: insert own" on todos
   for insert with check (
     exists (
-      select 1 from products
+      select 1 from projects
       where products.id = todos.product_id
       and exists (select 1 from users where users.id = auth.uid())
     )
@@ -126,7 +126,7 @@ create policy "todos: insert own" on todos
 create policy "todos: update own" on todos
   for update using (
     exists (
-      select 1 from products
+      select 1 from projects
       where products.id = todos.product_id
       and exists (select 1 from users where users.id = auth.uid())
     )
@@ -135,7 +135,7 @@ create policy "todos: update own" on todos
 create policy "todos: delete own" on todos
   for delete using (
     exists (
-      select 1 from products
+      select 1 from projects
       where products.id = todos.product_id
       and exists (select 1 from users where users.id = auth.uid())
     )

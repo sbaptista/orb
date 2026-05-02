@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
+import { VERSION } from '@/lib/version'
 
 type Product = {
   id: string
@@ -153,22 +155,22 @@ export default function DashboardProducts() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    async function load() {
-      const [prodRes, todoRes] = await Promise.all([
-        supabase.from('products').select('*').order('sort_order'),
-        supabase.from('todos').select('product_id'),
-      ])
-      setProducts(prodRes.data ?? [])
-      const counts: Record<string, number> = {}
-      todoRes.data?.forEach(t => {
-        counts[t.product_id] = (counts[t.product_id] || 0) + 1
-      })
-      setTodoCounts(counts)
-      setLoading(false)
-    }
-    load()
+  const load = useCallback(async () => {
+    const [prodRes, todoRes] = await Promise.all([
+      supabase.from('projects').select('*').order('sort_order'),
+      supabase.from('todos').select('product_id'),
+    ])
+    setProducts(prodRes.data ?? [])
+    const counts: Record<string, number> = {}
+    todoRes.data?.forEach(t => {
+      counts[t.product_id] = (counts[t.product_id] || 0) + 1
+    })
+    setTodoCounts(counts)
+    setLoading(false)
   }, [supabase])
+
+  useVisibilityRefetch(load)
+  useEffect(() => { load() }, [load])
 
   function startEdit(p: Product) {
     setEditingId(p.id)
@@ -190,7 +192,7 @@ export default function DashboardProducts() {
     setSaving(true)
     setError('')
     const { data, error: err } = await supabase
-      .from('products')
+      .from('projects')
       .update({
         name: editForm.name.trim(),
         description: editForm.description.trim() || null,
@@ -213,7 +215,7 @@ export default function DashboardProducts() {
     setSaving(true)
     setError('')
     const { data, error: err } = await supabase
-      .from('products')
+      .from('projects')
       .insert({
         name: addForm.name.trim(),
         description: addForm.description.trim() || null,
@@ -233,7 +235,7 @@ export default function DashboardProducts() {
 
   async function handleDelete(id: string) {
     setSaving(true)
-    await supabase.from('products').delete().eq('id', id)
+    await supabase.from('projects').delete().eq('id', id)
     setSaving(false)
     setProducts(prev => prev.filter(p => p.id !== id))
     setConfirmDeleteId(null)
@@ -384,6 +386,11 @@ export default function DashboardProducts() {
             </div>
           )
         )}
+      </div>
+      <div style={{ padding: 'var(--sp-lg) var(--sp-2xl)' }}>
+        <span style={{ fontSize: 'var(--fs-version)', color: 'var(--muted)', letterSpacing: '0.05em' }}>
+          TODOS {VERSION}
+        </span>
       </div>
     </main>
   )

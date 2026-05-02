@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   const supabase = createServiceClient()
 
   const { data: product, error: productError } = await supabase
-    .from('products')
+    .from('projects')
     .select('id')
     .ilike('code', productCode)
     .single()
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
   const supabase = createServiceClient()
 
   const { data: product, error: productError } = await supabase
-    .from('products')
+    .from('projects')
     .select('id')
     .ilike('code', product_code)
     .single()

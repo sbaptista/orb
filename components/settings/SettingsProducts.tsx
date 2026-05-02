@@ -1,14 +1,14 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 
 type Product = {
   id: string
   name: string
   description: string | null
   color: string | null
-  icon: string | null
   sort_order: number
 }
 
@@ -16,7 +16,6 @@ type ItemForm = {
   name: string
   description: string
   color: string
-  icon: string
   sort_order: string
 }
 
@@ -24,7 +23,6 @@ const EMPTY_FORM: ItemForm = {
   name: '',
   description: '',
   color: '#6366f1',
-  icon: '',
   sort_order: '0',
 }
 
@@ -45,27 +43,15 @@ function ProductForm({
 }) {
   return (
     <div className="px-4 py-4 bg-zinc-50 border-b border-zinc-100">
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1">Name *</label>
-          <input
-            className="w-full border border-zinc-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
-            value={form.name}
-            onChange={e => onChange({ ...form, name: e.target.value })}
-            autoFocus
-            placeholder="Product name"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1">Icon (emoji)</label>
-          <input
-            className="w-full border border-zinc-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
-            value={form.icon}
-            onChange={e => onChange({ ...form, icon: e.target.value })}
-            placeholder="📦"
-            maxLength={2}
-          />
-        </div>
+      <div className="mb-3">
+        <label className="block text-xs text-zinc-500 mb-1">Name *</label>
+        <input
+          className="w-full border border-zinc-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
+          value={form.name}
+          onChange={e => onChange({ ...form, name: e.target.value })}
+          autoFocus
+          placeholder="Project name"
+        />
       </div>
       <div className="mb-3">
         <label className="block text-xs text-zinc-500 mb-1">Description</label>
@@ -128,22 +114,22 @@ export default function SettingsProducts() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    async function load() {
-      const [prodRes, todoRes] = await Promise.all([
-        supabase.from('products').select('*').order('sort_order'),
-        supabase.from('todos').select('product_id'),
-      ])
-      setProducts(prodRes.data ?? [])
-      const counts: Record<string, number> = {}
-      todoRes.data?.forEach(t => {
-        counts[t.product_id] = (counts[t.product_id] || 0) + 1
-      })
-      setTodoCounts(counts)
-      setLoading(false)
-    }
-    load()
+  const load = useCallback(async () => {
+    const [prodRes, todoRes] = await Promise.all([
+      supabase.from('projects').select('*').order('sort_order'),
+      supabase.from('todos').select('product_id'),
+    ])
+    setProducts(prodRes.data ?? [])
+    const counts: Record<string, number> = {}
+    todoRes.data?.forEach(t => {
+      counts[t.product_id] = (counts[t.product_id] || 0) + 1
+    })
+    setTodoCounts(counts)
+    setLoading(false)
   }, [supabase])
+
+  useVisibilityRefetch(load)
+  useEffect(() => { load() }, [load])
 
   function startEdit(p: Product) {
     setEditingId(p.id)
@@ -151,7 +137,6 @@ export default function SettingsProducts() {
       name: p.name,
       description: p.description ?? '',
       color: p.color ?? '#6366f1',
-      icon: p.icon ?? '',
       sort_order: String(p.sort_order),
     })
     setShowAdd(false)
@@ -164,12 +149,11 @@ export default function SettingsProducts() {
     setSaving(true)
     setError('')
     const { data, error: err } = await supabase
-      .from('products')
+      .from('projects')
       .update({
         name: editForm.name.trim(),
         description: editForm.description.trim() || null,
         color: editForm.color,
-        icon: editForm.icon.trim() || null,
         sort_order: Number(editForm.sort_order) || 0,
       })
       .eq('id', id)
@@ -186,12 +170,11 @@ export default function SettingsProducts() {
     setSaving(true)
     setError('')
     const { data, error: err } = await supabase
-      .from('products')
+      .from('projects')
       .insert({
         name: addForm.name.trim(),
         description: addForm.description.trim() || null,
         color: addForm.color,
-        icon: addForm.icon.trim() || null,
         sort_order: Number(addForm.sort_order) || 0,
       })
       .select()
@@ -205,7 +188,7 @@ export default function SettingsProducts() {
 
   async function handleDelete(id: string) {
     setSaving(true)
-    await supabase.from('products').delete().eq('id', id)
+    await supabase.from('projects').delete().eq('id', id)
     setSaving(false)
     setProducts(prev => prev.filter(p => p.id !== id))
     setConfirmDeleteId(null)
@@ -216,7 +199,7 @@ export default function SettingsProducts() {
   return (
     <div className="p-6 max-w-2xl">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Products</h2>
+        <h2 className="text-lg font-semibold">Projects</h2>
         {!showAdd && (
           <button
             onClick={() => {
@@ -228,7 +211,7 @@ export default function SettingsProducts() {
             }}
             className="text-sm border border-zinc-200 px-3 py-1.5 rounded text-zinc-600 hover:border-zinc-400 hover:text-zinc-900 transition-colors"
           >
-            + Add Product
+            + Add Project
           </button>
         )}
       </div>
@@ -242,13 +225,13 @@ export default function SettingsProducts() {
             onChange={setAddForm}
             onSubmit={handleAdd}
             onCancel={() => { setShowAdd(false); setError('') }}
-            submitLabel="Add Product"
+            submitLabel="Add Project"
             saving={saving}
           />
         )}
 
         {products.length === 0 && !showAdd ? (
-          <p className="text-sm text-zinc-400 px-4 py-8 text-center">No products yet.</p>
+          <p className="text-sm text-zinc-400 px-4 py-8 text-center">No projects yet.</p>
         ) : (
           <div className="divide-y divide-zinc-100">
             {products.map(p =>
@@ -303,7 +286,6 @@ export default function SettingsProducts() {
                     className="w-4 h-4 rounded shrink-0 border border-zinc-200"
                     style={{ backgroundColor: p.color ?? '#e5e7eb' }}
                   />
-                  <span className="text-base leading-none shrink-0">{p.icon ?? '📦'}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-zinc-800">{p.name}</p>
                     {p.description && (

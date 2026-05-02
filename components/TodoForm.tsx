@@ -136,6 +136,7 @@ export default function TodoForm({
             onChange={e => setTitle(e.target.value)}
             placeholder="What needs doing?"
             autoFocus
+            aria-label="Todo title"
             style={inputStyle}
             onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
             onBlur={e => e.target.style.borderColor = 'var(--border)'}
@@ -145,6 +146,7 @@ export default function TodoForm({
             <select
               value={priorityValue}
               onChange={e => setPriorityValue(e.target.value === '' ? '' : Number(e.target.value))}
+              aria-label="Priority"
               style={{ ...inputStyle, fontSize: 'var(--fs-base)', cursor: 'pointer' }}
               onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
               onBlur={e => e.target.style.borderColor = 'var(--border)'}
@@ -157,6 +159,7 @@ export default function TodoForm({
               <select
                 value={selectedProduct}
                 onChange={e => setSelectedProduct(e.target.value)}
+                aria-label="Product"
                 style={{ ...inputStyle, fontSize: 'var(--fs-base)', cursor: 'pointer' }}
                 onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
                 onBlur={e => e.target.style.borderColor = 'var(--border)'}

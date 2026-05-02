@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 
 type Product = { id: string; name: string }
 type Group = { id: string; name: string; product_id: string | null; sort_order: number }
@@ -24,24 +25,24 @@ export default function SettingsGroups() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    async function load() {
-      const [prodRes, groupRes, todoRes] = await Promise.all([
-        supabase.from('products').select('id, name').order('sort_order'),
-        supabase.from('groups').select('*').order('sort_order'),
-        supabase.from('todos').select('group_id'),
-      ])
-      setProducts(prodRes.data ?? [])
-      setGroups(groupRes.data ?? [])
-      const counts: Record<string, number> = {}
-      todoRes.data?.forEach(t => {
-        if (t.group_id) counts[t.group_id] = (counts[t.group_id] || 0) + 1
-      })
-      setTodoCounts(counts)
-      setLoading(false)
-    }
-    load()
+  const load = useCallback(async () => {
+    const [prodRes, groupRes, todoRes] = await Promise.all([
+      supabase.from('projects').select('id, name').order('sort_order'),
+      supabase.from('groups').select('*').order('sort_order'),
+      supabase.from('todos').select('group_id'),
+    ])
+    setProducts(prodRes.data ?? [])
+    setGroups(groupRes.data ?? [])
+    const counts: Record<string, number> = {}
+    todoRes.data?.forEach(t => {
+      if (t.group_id) counts[t.group_id] = (counts[t.group_id] || 0) + 1
+    })
+    setTodoCounts(counts)
+    setLoading(false)
   }, [supabase])
+
+  useVisibilityRefetch(load)
+  useEffect(() => { load() }, [load])
 
   const displayed = groups.filter(g =>
     scope === '' ? g.product_id === null : g.product_id === scope

@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 
 type Product = { id: string; name: string }
 type Category = { id: string; name: string; product_id: string | null; sort_order: number }
@@ -24,24 +25,24 @@ export default function SettingsCategories() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    async function load() {
-      const [prodRes, catRes, todoRes] = await Promise.all([
-        supabase.from('products').select('id, name').order('sort_order'),
-        supabase.from('categories').select('*').order('sort_order'),
-        supabase.from('todos').select('category_id'),
-      ])
-      setProducts(prodRes.data ?? [])
-      setCategories(catRes.data ?? [])
-      const counts: Record<string, number> = {}
-      todoRes.data?.forEach(t => {
-        if (t.category_id) counts[t.category_id] = (counts[t.category_id] || 0) + 1
-      })
-      setTodoCounts(counts)
-      setLoading(false)
-    }
-    load()
+  const load = useCallback(async () => {
+    const [prodRes, catRes, todoRes] = await Promise.all([
+      supabase.from('projects').select('id, name').order('sort_order'),
+      supabase.from('categories').select('*').order('sort_order'),
+      supabase.from('todos').select('category_id'),
+    ])
+    setProducts(prodRes.data ?? [])
+    setCategories(catRes.data ?? [])
+    const counts: Record<string, number> = {}
+    todoRes.data?.forEach(t => {
+      if (t.category_id) counts[t.category_id] = (counts[t.category_id] || 0) + 1
+    })
+    setTodoCounts(counts)
+    setLoading(false)
   }, [supabase])
+
+  useVisibilityRefetch(load)
+  useEffect(() => { load() }, [load])
 
   const displayed = categories.filter(c =>
     scope === '' ? c.product_id === null : c.product_id === scope

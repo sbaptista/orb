@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-type Product = { id: string; name: string; code: string | null; icon: string | null }
+type Project = { id: string; name: string; code: string | null; description: string | null }
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -29,16 +29,24 @@ const labelStyle: React.CSSProperties = {
 export default function AddProductModal({
   onClose,
   onCreated,
+  onUpdated,
+  onDeleted,
+  project,
 }: {
   onClose: () => void
-  onCreated: (product: Product) => void
+  onCreated?: (project: Project) => void
+  onUpdated?: (project: Project) => void
+  onDeleted?: (id: string) => void
+  project?: Project
 }) {
-  const [name, setName]           = useState('')
-  const [code, setCode]           = useState('')
-  const [icon, setIcon]           = useState('')
-  const [codeAutoSync, setCodeAutoSync] = useState(true)
-  const [saving, setSaving]       = useState(false)
-  const [error, setError]         = useState('')
+  const isEdit = !!project
+  const [name, setName]             = useState(project?.name ?? '')
+  const [code, setCode]             = useState(project?.code ?? '')
+  const [description, setDescription] = useState(project?.description ?? '')
+  const [codeAutoSync, setCodeAutoSync] = useState(!isEdit)
+  const [saving, setSaving]         = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [error, setError]           = useState('')
 
   function handleNameChange(value: string) {
     setName(value)
@@ -56,19 +64,44 @@ export default function AddProductModal({
     setSaving(true)
     setError('')
     const supabase = createClient()
-    const { data, error: err } = await supabase
-      .from('products')
-      .insert({
-        name: name.trim(),
-        code: code.trim() || null,
-        icon: icon.trim() || null,
-        sort_order: 0,
-      })
-      .select('id, name, code, icon')
-      .single()
+
+    if (isEdit) {
+      const { data, error: err } = await supabase
+        .from('projects')
+        .update({
+          name: name.trim(),
+          code: code.trim() || null,
+          description: description.trim() || null,
+        })
+        .eq('id', project.id)
+        .select('id, name, code, description')
+        .single()
+      setSaving(false)
+      if (err) { setError(err.message); return }
+      if (data) onUpdated?.(data as Project)
+    } else {
+      const { data, error: err } = await supabase
+        .from('projects')
+        .insert({
+          name: name.trim(),
+          code: code.trim() || null,
+          description: description.trim() || null,
+          sort_order: 0,
+        })
+        .select('id, name, code, description')
+        .single()
+      setSaving(false)
+      if (err) { setError(err.message); return }
+      if (data) onCreated?.(data as Project)
+    }
+  }
+
+  async function handleDelete() {
+    setSaving(true)
+    const supabase = createClient()
+    await supabase.from('projects').delete().eq('id', project!.id)
     setSaving(false)
-    if (err) { setError(err.message); return }
-    if (data) onCreated(data as Product)
+    onDeleted?.(project!.id)
   }
 
   return (
@@ -80,23 +113,28 @@ export default function AddProductModal({
       />
 
       {/* Modal */}
-      <div style={{
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        zIndex: 50,
-        width: '100%',
-        maxWidth: '400px',
-        background: 'var(--bg2)',
-        borderRadius: 'var(--r-xl)',
-        border: '1px solid var(--border)',
-        boxShadow: 'var(--shadow-lg)',
-        padding: 'var(--sp-2xl)',
-      }}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="apm-title"
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 50,
+          width: '100%',
+          maxWidth: '400px',
+          background: 'var(--bg2)',
+          borderRadius: 'var(--r-xl)',
+          border: '1px solid var(--border)',
+          boxShadow: 'var(--shadow-lg)',
+          padding: 'var(--sp-2xl)',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--sp-xl)' }}>
-          <h2 style={{ fontSize: 'var(--fs-lg)', fontWeight: 'var(--fw-bold)', color: 'var(--text)', margin: 0 }}>
-            New product
+          <h2 id="apm-title" style={{ fontSize: 'var(--fs-lg)', fontWeight: 'var(--fw-bold)', color: 'var(--text)', margin: 0 }}>
+            {isEdit ? 'Edit project' : 'New project'}
           </h2>
           <button
             onClick={onClose}
@@ -111,8 +149,9 @@ export default function AddProductModal({
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-lg)' }}>
           <div>
-            <label style={labelStyle}>Name *</label>
+            <label htmlFor="apm-name" style={labelStyle}>Name *</label>
             <input
+              id="apm-name"
               style={inputStyle}
               value={name}
               onChange={e => handleNameChange(e.target.value)}
@@ -123,66 +162,97 @@ export default function AddProductModal({
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-md)' }}>
-            <div>
-              <label style={labelStyle}>Code</label>
-              <input
-                style={{ ...inputStyle, fontFamily: 'monospace' }}
-                value={code}
-                onChange={e => handleCodeChange(e.target.value)}
-                placeholder="PROJ"
-                maxLength={6}
-                onFocus={e => (e.currentTarget.style.borderColor = 'var(--border-focus)')}
-                onBlur={e => (e.currentTarget.style.borderColor = 'var(--border)')}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>Icon (emoji)</label>
-              <input
-                style={inputStyle}
-                value={icon}
-                onChange={e => setIcon(e.target.value)}
-                placeholder="📦"
-                maxLength={2}
-                onFocus={e => (e.currentTarget.style.borderColor = 'var(--border-focus)')}
-                onBlur={e => (e.currentTarget.style.borderColor = 'var(--border)')}
-              />
-              <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', margin: 'var(--sp-xs) 0 0' }}>
-                ⌃⌘Space to pick
-              </p>
-            </div>
+          <div>
+            <label htmlFor="apm-code" style={labelStyle}>Code</label>
+            <input
+              id="apm-code"
+              style={{ ...inputStyle, fontFamily: 'monospace' }}
+              value={code}
+              onChange={e => handleCodeChange(e.target.value)}
+              placeholder="PROJ"
+              maxLength={6}
+              onFocus={e => (e.currentTarget.style.borderColor = 'var(--border-focus)')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="apm-desc" style={labelStyle}>Description</label>
+            <textarea
+              id="apm-desc"
+              rows={3}
+              style={{ ...inputStyle, resize: 'none', lineHeight: 1.5 }}
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="What this project is about"
+              onFocus={e => (e.currentTarget.style.borderColor = 'var(--border-focus)')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+            />
           </div>
 
           {error && (
             <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--error)', margin: 0 }}>{error}</p>
           )}
 
-          <div style={{ display: 'flex', gap: 'var(--sp-md)', justifyContent: 'flex-end', marginTop: 'var(--sp-xs)' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{ background: 'none', border: 'none', fontSize: 'var(--fs-sm)', color: 'var(--text3)', cursor: 'pointer', padding: '8px var(--sp-md)' }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              style={{
-                background: 'var(--success)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 'var(--r)',
-                padding: '8px var(--sp-xl)',
-                fontSize: 'var(--fs-sm)',
-                fontWeight: 'var(--fw-medium)',
-                cursor: saving ? 'not-allowed' : 'pointer',
-                opacity: saving ? 0.6 : 1,
-                transition: 'opacity var(--transition)',
-              }}
-            >
-              {saving ? 'Creating…' : 'Create'}
-            </button>
+          <div style={{ display: 'flex', gap: 'var(--sp-md)', alignItems: 'center', marginTop: 'var(--sp-xs)' }}>
+            {isEdit && !confirmDelete && (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                style={{ background: 'none', border: 'none', fontSize: 'var(--fs-sm)', color: 'var(--error)', cursor: 'pointer', padding: '8px 0', marginRight: 'auto' }}
+              >
+                Delete
+              </button>
+            )}
+            {isEdit && confirmDelete && (
+              <>
+                <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--text3)', marginRight: 'auto' }}>Sure?</span>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={saving}
+                  style={{ background: 'none', border: 'none', fontSize: 'var(--fs-sm)', color: 'var(--error)', fontWeight: 'var(--fw-medium)', cursor: 'pointer', padding: '8px var(--sp-sm)' }}
+                >
+                  {saving ? 'Deleting…' : 'Yes, delete'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  style={{ background: 'none', border: 'none', fontSize: 'var(--fs-sm)', color: 'var(--text3)', cursor: 'pointer', padding: '8px var(--sp-sm)' }}
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+            {!confirmDelete && (
+              <>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  style={{ background: 'none', border: 'none', fontSize: 'var(--fs-sm)', color: 'var(--text3)', cursor: 'pointer', padding: '8px var(--sp-md)', marginLeft: isEdit ? 0 : 'auto' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  style={{
+                    background: 'var(--success)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 'var(--r)',
+                    padding: '8px var(--sp-xl)',
+                    fontSize: 'var(--fs-sm)',
+                    fontWeight: 'var(--fw-medium)',
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    opacity: saving ? 0.6 : 1,
+                    transition: 'opacity var(--transition)',
+                  }}
+                >
+                  {saving ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Save' : 'Create')}
+                </button>
+              </>
+            )}
           </div>
         </form>
       </div>

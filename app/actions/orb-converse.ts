@@ -117,7 +117,7 @@ type CategoryRow = { id: string; name: string; product_id: string }
 
 async function buildContext(supabase: Awaited<ReturnType<typeof createClient>>, currentProductId: string) {
   const [{ data: products }, { data: todos }, { data: groups }, { data: categories }] = await Promise.all([
-    supabase.from('products').select('id, name, code').order('sort_order'),
+    supabase.from('projects').select('id, name, code').order('sort_order'),
     supabase.from('todos').select('id, todo_number, title, status, priority_value, product_id').is('deleted_at', null),
     supabase.from('groups').select('id, name, product_id'),
     supabase.from('categories').select('id, name, product_id'),
@@ -165,6 +165,14 @@ WHEN TO CALL TOOLS
 DEFAULTS
 - If product not specified, use currently-selected product: ${currentCode ?? '(none)'}
 - For queries, "urgent" = priority_value 1; "important" = 1-2.
+
+KEYBOARD NAVIGATION (answer without a tool if asked)
+- Tab: move between interactive elements
+- Enter or Space: activate the focused element
+- Left/Right arrow keys: switch products on the orb screen
+- ?: open the help page
+- Escape: close any open panel or overlay
+The app is fully keyboard-accessible and screen-reader-friendly.
 
 ACK FORMATS
 - After create_todo: "Added — CODE-N" (the system will give you the new code)

@@ -19,8 +19,8 @@
   /* ── Text ── */
   --text:  #2a332a;
   --text2: #4a5a4a;
-  --text3: #6a7a6a;
-  --muted: #8a9e8a;
+  --text3: #4b6b4b;  /* darkened from #6a7a6a — was 3.85:1, now 5.06:1 on --bg */
+  --muted: #547054;  /* darkened from #8a9e8a — was ~2.4:1, now 4.64:1 on --bg */
 
   /* ── Borders ── */
   --border:       rgba(60, 110, 60, 0.15);
@@ -115,15 +115,8 @@
    Within touch: min-width 768px = tablet, max-width 767px = phone
    ══════════════════════════════════════════════════════════ */
 
-/* ── Tablet tier ── */
-@media (hover: none) and (pointer: coarse) and (min-width: 768px) {
-  label { font-size: var(--fs-base); }
-  input, select, textarea { font-size: var(--fs-input); }
-  button { min-height: var(--touch); }
-}
-
-/* ── Phone tier ── */
-@media (hover: none) and (pointer: coarse) and (max-width: 767px) {
+/* ── Touch tier (phone + tablet share these rules; split if they diverge) ── */
+@media (hover: none) and (pointer: coarse) {
   label { font-size: var(--fs-base); }
   input, select, textarea { font-size: var(--fs-input); }
   button { min-height: var(--touch); }
@@ -172,8 +165,35 @@ textarea {
 }
 
 /* Prevent iOS/Android tap highlight */
-a, button {
+a, button, [role="button"] {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Eliminate 300ms tap delay and double-tap zoom on interactive elements */
+a, button, [role="button"], input, select, textarea {
+  touch-action: manipulation;
+}
+
+/* Skip-to-content link — visible only on keyboard focus */
+.skip-link {
+  position: fixed;
+  top: var(--sp-lg);
+  left: var(--sp-lg);
+  transform: translateY(-200%);
+  padding: 8px var(--sp-lg);
+  background: var(--bg2);
+  color: var(--pill-active-color);
+  border: 1px solid var(--pill-active-border);
+  border-radius: var(--r);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  z-index: 9999;
+  transition: transform 0.15s;
+}
+.skip-link:focus {
+  transform: translateY(0);
 }
 
 /* Focus ring — visible only via keyboard */

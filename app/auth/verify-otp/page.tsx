@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { VERSION } from '@/lib/version'
 
 function VerifyOtpContent() {
   const searchParams = useSearchParams()
@@ -186,7 +187,7 @@ function VerifyOtpContent() {
           color: 'var(--muted)',
           letterSpacing: '0.05em',
         }}>
-          TODOS v0.2.24
+          TODOS {VERSION}
         </span>
       </div>
     </div>

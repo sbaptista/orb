@@ -140,20 +140,25 @@ export default function TodoPanel({
       />
 
       {/* Panel */}
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        right: 0,
-        height: '100%',
-        width: '460px',
-        maxWidth: '100%',
-        background: 'var(--bg2)',
-        boxShadow: '-4px 0 24px rgba(42,51,42,0.12)',
-        zIndex: 50,
-        display: 'flex',
-        flexDirection: 'column',
-        fontFamily: 'var(--font-ui)',
-      }}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Todo details"
+        style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          height: '100%',
+          width: '460px',
+          maxWidth: '100%',
+          background: 'var(--bg2)',
+          boxShadow: '-4px 0 24px rgba(42,51,42,0.12)',
+          zIndex: 50,
+          display: 'flex',
+          flexDirection: 'column',
+          fontFamily: 'var(--font-ui)',
+        }}
+      >
 
         {/* Header */}
         <div style={{
@@ -214,8 +219,9 @@ export default function TodoPanel({
 
           {/* Title */}
           <div style={field}>
-            <label style={label}>Title</label>
+            <label htmlFor="tp-title" style={label}>Title</label>
             <input
+              id="tp-title"
               style={input}
               value={form.title}
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
@@ -227,8 +233,9 @@ export default function TodoPanel({
           {/* Status + Priority */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-md)' }}>
             <div style={field}>
-              <label style={label}>Status</label>
+              <label htmlFor="tp-status" style={label}>Status</label>
               <select
+                id="tp-status"
                 style={select}
                 value={form.status}
                 onChange={e => setForm(f => ({ ...f, status: e.target.value as Todo['status'] }))}
@@ -242,8 +249,9 @@ export default function TodoPanel({
               </select>
             </div>
             <div style={field}>
-              <label style={label}>Priority</label>
+              <label htmlFor="tp-priority" style={label}>Priority</label>
               <select
+                id="tp-priority"
                 style={select}
                 value={form.priority_value ?? ''}
                 onChange={e => setForm(f => ({ ...f, priority_value: e.target.value ? Number(e.target.value) : null }))}
@@ -259,8 +267,9 @@ export default function TodoPanel({
           {/* Product — all view only */}
           {isAll && (
             <div style={field}>
-              <label style={label}>Product</label>
+              <label htmlFor="tp-product" style={label}>Product</label>
               <select
+                id="tp-product"
                 style={select}
                 value={form.product_id}
                 onChange={e => setForm(f => ({ ...f, product_id: e.target.value, group_id: null, category_id: null }))}
@@ -275,8 +284,9 @@ export default function TodoPanel({
           {/* Resolution Notes — only when done */}
           {isDone && (
             <div style={field}>
-              <label style={label}>Resolution Notes</label>
+              <label htmlFor="tp-resolution" style={label}>Resolution Notes</label>
               <textarea
+                id="tp-resolution"
                 style={textarea}
                 value={form.resolution_notes ?? ''}
                 placeholder="What was done to resolve this…"
@@ -290,6 +300,7 @@ export default function TodoPanel({
           {/* Details toggle */}
           <button
             onClick={() => setShowDetails(d => !d)}
+            aria-expanded={showDetails}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -318,8 +329,9 @@ export default function TodoPanel({
               {/* Group + Category */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-md)' }}>
                 <div style={field}>
-                  <label style={label}>Group</label>
+                  <label htmlFor="tp-group" style={label}>Group</label>
                   <select
+                    id="tp-group"
                     style={select}
                     value={form.group_id ?? ''}
                     onChange={e => setForm(f => ({ ...f, group_id: e.target.value || null }))}
@@ -331,8 +343,9 @@ export default function TodoPanel({
                   </select>
                 </div>
                 <div style={field}>
-                  <label style={label}>Category</label>
+                  <label htmlFor="tp-category" style={label}>Category</label>
                   <select
+                    id="tp-category"
                     style={select}
                     value={form.category_id ?? ''}
                     onChange={e => setForm(f => ({ ...f, category_id: e.target.value || null }))}
@@ -347,8 +360,9 @@ export default function TodoPanel({
 
               {/* Description */}
               <div style={field}>
-                <label style={label}>Description</label>
+                <label htmlFor="tp-description" style={label}>Description</label>
                 <textarea
+                  id="tp-description"
                   style={textarea}
                   value={form.description ?? ''}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
@@ -359,8 +373,9 @@ export default function TodoPanel({
 
               {/* URLs */}
               <div style={field}>
-                <label style={label}>URLs (one per line)</label>
+                <label htmlFor="tp-urls" style={label}>URLs (one per line)</label>
                 <textarea
+                  id="tp-urls"
                   style={{ ...textarea, fontFamily: 'monospace', fontSize: 'var(--fs-sm)', minHeight: '64px' }}
                   value={urlInput}
                   onChange={e => setUrlInput(e.target.value)}

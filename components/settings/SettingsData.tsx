@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 
 type AuditRow = Record<string, unknown>
 
@@ -14,31 +15,31 @@ export default function SettingsData() {
   const [auditPage, setAuditPage] = useState(0)
   const PAGE_SIZE = 50
 
-  useEffect(() => {
-    async function loadAudit() {
-      setAuditLoading(true)
-      setAuditError('')
-      const from = auditPage * PAGE_SIZE
-      const to = from + PAGE_SIZE - 1
-      const { data, error } = await supabase
-        .from('audit_log')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(from, to)
-      if (error) {
-        setAuditError(error.message)
-      } else {
-        setAuditLog(data ?? [])
-      }
-      setAuditLoading(false)
+  const loadAudit = useCallback(async () => {
+    setAuditLoading(true)
+    setAuditError('')
+    const from = auditPage * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+    const { data, error } = await supabase
+      .from('audit_log')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(from, to)
+    if (error) {
+      setAuditError(error.message)
+    } else {
+      setAuditLog(data ?? [])
     }
-    loadAudit()
+    setAuditLoading(false)
   }, [supabase, auditPage])
+
+  useVisibilityRefetch(loadAudit)
+  useEffect(() => { loadAudit() }, [loadAudit])
 
   async function handleExport() {
     setExporting(true)
     const [products, groups, categories, platforms, todos, todoPlatforms] = await Promise.all([
-      supabase.from('products').select('*').order('sort_order'),
+      supabase.from('projects').select('*').order('sort_order'),
       supabase.from('groups').select('*').order('sort_order'),
       supabase.from('categories').select('*').order('sort_order'),
       supabase.from('platforms').select('*').order('sort_order'),

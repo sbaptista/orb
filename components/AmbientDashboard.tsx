@@ -1,14 +1,17 @@
 'use client'
 
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import AddProductModal from './AddProductModal'
+import OrbHelp from './OrbHelp'
 import { OrbDevPanel, type MoodOverride } from './OrbDevPanel'
 import { orbConverse } from '@/app/actions/orb-converse'
+import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
+import { VERSION } from '@/lib/version'
 
-type Product = { id: string; name: string; code: string | null; icon: string | null }
+type Product = { id: string; name: string; code: string | null; description: string | null }
 type Todo    = { id: string; title: string; status: string; priority_value: number | null }
 type Urgency = 'calm' | 'active' | 'urgent'
 
@@ -77,16 +80,14 @@ const SOLAR_FLARES = [
   { angle: 340, width: 26, height: 34, dur: 15, delay: 13.2 },
 ]
 
-const PLACEHOLDER: Record<Urgency, string> = {
-  calm:   'What needs doing?',
-  active: 'What\'s next?',
-  urgent: 'What\'s most pressing?',
-}
+const INPUT_PLACEHOLDER = "Do work, 'Explain' or '?'"
+const SS_INPUT  = 'todos_orb_input'
+const SS_SPEECH = 'todos_orb_speech'
 
 export default function AmbientDashboard() {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   const [products, setProducts]           = useState<Product[]>([])
   const [selectedId, setSelectedId]       = useState<string | null>(null)
@@ -95,13 +96,29 @@ export default function AmbientDashboard() {
   const [loading, setLoading]             = useState(true)
   const [submitting, setSubmitting]       = useState(false)
   const [showAddProduct, setShowAddProduct] = useState(false)
-  const [inputFocused, setInputFocused]   = useState(false)
+  const [showEditProduct, setShowEditProduct] = useState(false)
   const [pulse, setPulse]                 = useState(false)
   const [moodOverride, setMoodOverride]   = useState<MoodOverride>(null)
   const [dryRun, setDryRun]               = useState(false)
   const [speech, setSpeech]               = useState<{ text: string; autoFade?: number } | null>(null)
   const [speechVisible, setSpeechVisible] = useState(false)
   const [speechText, setSpeechText]       = useState('')
+  const [showHelp, setShowHelp]           = useState(false)
+  const autoFadeRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Restore input and speech from sessionStorage on mount
+  useEffect(() => {
+    const savedInput  = sessionStorage.getItem(SS_INPUT)
+    const savedSpeech = sessionStorage.getItem(SS_SPEECH)
+    if (savedInput)  setInput(savedInput)
+    if (savedSpeech) setSpeech({ text: savedSpeech })
+  }, [])
+
+  // Persist speechText to sessionStorage whenever it changes
+  useEffect(() => {
+    if (speechText) sessionStorage.setItem(SS_SPEECH, speechText)
+    else            sessionStorage.removeItem(SS_SPEECH)
+  }, [speechText])
 
   // Speech: fade in on new value, fade out when cleared. Keep last text during fade-out.
   useEffect(() => {
@@ -109,8 +126,11 @@ export default function AmbientDashboard() {
       setSpeechText(speech.text)
       setSpeechVisible(true)
       if (speech.autoFade) {
-        const t = setTimeout(() => setSpeech(null), speech.autoFade)
-        return () => clearTimeout(t)
+        autoFadeRef.current = setTimeout(() => setSpeech(null), speech.autoFade)
+        return () => {
+          if (autoFadeRef.current) clearTimeout(autoFadeRef.current)
+          autoFadeRef.current = null
+        }
       }
     } else {
       setSpeechVisible(false)
@@ -123,7 +143,7 @@ export default function AmbientDashboard() {
   // Load products, restore last selected
   useEffect(() => {
     async function load() {
-      const { data } = await supabase.from('products').select('id, name, code, icon').order('sort_order')
+      const { data } = await supabase.from('projects').select('id, name, code, description').order('sort_order')
       const list = (data ?? []) as Product[]
       setProducts(list)
       if (list.length > 0) {
@@ -136,35 +156,7 @@ export default function AmbientDashboard() {
     load()
   }, [supabase])
 
-  // Fetch todos when product changes
-  useEffect(() => {
-    if (!selectedId) return
-    async function fetchTodos() {
-      const { data } = await supabase
-        .from('todos')
-        .select('id, title, status, priority_value')
-        .eq('product_id', selectedId)
-        .is('deleted_at', null)
-      setTodos((data ?? []) as Todo[])
-    }
-    fetchTodos()
-    localStorage.setItem(LAST_PRODUCT_KEY, selectedId)
-  }, [selectedId, supabase])
-
-  const openTodos = todos.filter(t => t.status !== 'done')
-  const urgency   = moodOverride ?? computeUrgency(todos)
-  const style     = ORB_STYLE[urgency]
-
-  // Top 3 by priority (nulls last) — case 4: no special-case for empty P1
-  const topItems = useMemo(() => {
-    return [...openTodos]
-      .sort((a, b) => (a.priority_value ?? Infinity) - (b.priority_value ?? Infinity))
-      .slice(0, 3)
-  }, [openTodos])
-  const speed     = ORB_SPEED[urgency]
-  const selected  = products.find(p => p.id === selectedId)
-
-  async function refetchTodos() {
+  const fetchTodos = useCallback(async () => {
     if (!selectedId) return
     const { data } = await supabase
       .from('todos')
@@ -172,29 +164,104 @@ export default function AmbientDashboard() {
       .eq('product_id', selectedId)
       .is('deleted_at', null)
     setTodos((data ?? []) as Todo[])
-  }
+  }, [selectedId, supabase])
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  useVisibilityRefetch(fetchTodos)
+
+  // Fetch todos when product changes; subscribe to realtime updates
+  useEffect(() => {
+    if (!selectedId) return
+
+    fetchTodos()
+    localStorage.setItem(LAST_PRODUCT_KEY, selectedId)
+
+    const channel = supabase
+      .channel(`todos:${selectedId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'todos', filter: `product_id=eq.${selectedId}` },
+        () => fetchTodos(),
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [selectedId, supabase, fetchTodos])
+
+  const openTodos = todos.filter(t => t.status !== 'done')
+  const urgency   = moodOverride ?? computeUrgency(todos)
+  const style     = ORB_STYLE[urgency]
+  const speed     = ORB_SPEED[urgency]
+  const selected  = products.find(p => p.id === selectedId)
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const HINT_KEY = 'todos_keyboard_hint_shown'
+    let hintShown = !!localStorage.getItem(HINT_KEY)
+
+    function onKey(e: KeyboardEvent) {
+      const inInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName)
+
+      if (e.key === '?' && !inInput) {
+        e.preventDefault()
+        setShowHelp(s => !s)
+        return
+      }
+      if (e.key === 'Escape') {
+        setShowHelp(false)
+        return
+      }
+      if (e.key === 'Tab' && !hintShown) {
+        hintShown = true
+        localStorage.setItem(HINT_KEY, '1')
+        setSpeech({ text: 'Keyboard mode — Tab to navigate, arrows to switch products, ? for help.' })
+        return
+      }
+      if (!inInput && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault()
+        setSelectedId(current => {
+          if (!current || products.length <= 1) return current
+          const idx = products.findIndex(p => p.id === current)
+          if (idx === -1) return current
+          const next = e.key === 'ArrowLeft'
+            ? (idx - 1 + products.length) % products.length
+            : (idx + 1) % products.length
+          return products[next].id
+        })
+      }
+    }
+
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [products])
+
+  async function handleSubmit(e?: React.FormEvent) {
+    e?.preventDefault()
     const text = input.trim()
     if (!text || !selectedId || submitting) return
+    if (text === '?') {
+      setShowHelp(true)
+      return
+    }
+    if (text.toLowerCase() === 'explain') {
+      setSpeech({ text: 'Create, query, update, delete, or archive todos.\nTap the orb to list. Type \'?\' for more.' })
+      return
+    }
+    if (autoFadeRef.current) {
+      clearTimeout(autoFadeRef.current)
+      autoFadeRef.current = null
+    }
     setSubmitting(true)
-    setInput('')
     setSpeech({ text: 'Processing…' })
 
     const res = await orbConverse({ input: text, productId: selectedId, dryRun })
-    setSpeech({ text: res.speech, autoFade: res.refresh ? 4000 : undefined })
+    setSpeech({ text: res.speech })
 
     if (res.refresh) {
-      if (!res.mutatedProductId || res.mutatedProductId === selectedId) {
-        await refetchTodos()
-      }
       setPulse(true)
       setTimeout(() => setPulse(false), 420)
     }
 
     setSubmitting(false)
-    inputRef.current?.focus()
   }
 
   if (loading) return (
@@ -219,7 +286,7 @@ export default function AmbientDashboard() {
       justifyContent: 'center',
       gap: '16px',
     }}>
-      <p style={{ fontSize: 'var(--fs-base)', color: 'var(--text2)' }}>No products yet.</p>
+      <p style={{ fontSize: 'var(--fs-base)', color: 'var(--text2)' }}>No projects yet.</p>
       <Link href="/dashboard/classic" style={{
         fontSize: 'var(--fs-sm)',
         color: 'var(--pill-active-color)',
@@ -232,19 +299,22 @@ export default function AmbientDashboard() {
   )
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'var(--bg)',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '44px',
-      paddingTop: 'var(--sat)',
-      paddingBottom: 'calc(var(--sp-3xl) + var(--sab))',
-      fontFamily: 'var(--font-ui)',
-      WebkitFontSmoothing: 'antialiased',
-    }}>
+    <div
+      id="main-content"
+      style={{
+        minHeight: '100vh',
+        background: 'var(--bg)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '44px',
+        paddingTop: 'var(--sat)',
+        paddingBottom: 'calc(var(--sp-3xl) + var(--sab))',
+        fontFamily: 'var(--font-ui)',
+        WebkitFontSmoothing: 'antialiased',
+      }}
+    >
 
       {/* Orb */}
       <div
@@ -263,7 +333,7 @@ export default function AmbientDashboard() {
         aria-label={`${openTodos.length} open todos — tap to view list`}
         role="button"
         tabIndex={0}
-        onKeyDown={e => e.key === 'Enter' && selectedId && router.push(`/dashboard/${selectedId}`)}
+        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && selectedId && router.push(`/dashboard/${selectedId}`)}
       >
         {/* Glow */}
         <div data-todos-glow style={{
@@ -404,42 +474,49 @@ export default function AmbientDashboard() {
         </div>
       </div>
 
-      {/* Speech zone — orb's voice */}
-      <div
-        aria-live="polite"
-        style={{
-          width: '460px',
-          maxWidth: '90vw',
-          minHeight: '52px',
-          marginTop: '-28px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          textAlign: 'center',
-          fontFamily: 'var(--font-ui)',
-          fontSize: 'var(--fs-base)',
-          fontWeight: 400,
-          lineHeight: 1.45,
-          color: 'var(--text2)',
-          opacity: speechVisible ? 1 : 0,
-          transform: speechVisible ? 'translateY(0)' : 'translateY(-4px)',
-          transition: 'opacity 280ms ease-out, transform 280ms ease-out',
-          pointerEvents: speechVisible ? 'auto' : 'none',
-          whiteSpace: 'pre-line',
-          padding: '0 16px',
-        }}
-      >
-        {speechText}
-      </div>
+      {/* Speech panel — appears only when there's something to say */}
+      {speechText && (
+        <div
+          aria-live="polite"
+          style={{
+            width: '420px',
+            maxWidth: '90vw',
+            background: 'var(--bg2)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r-lg)',
+            boxShadow: 'var(--shadow-sm)',
+            padding: 'var(--sp-md) var(--sp-xl)',
+            fontFamily: 'var(--font-ui)',
+            fontSize: 'var(--fs-base)',
+            fontWeight: 400,
+            lineHeight: 1.5,
+            color: 'var(--text2)',
+            whiteSpace: 'pre-wrap',
+            overflowY: 'auto',
+            height: '96px',
+            opacity: speechVisible ? 1 : 0,
+            transform: speechVisible ? 'translateY(0)' : 'translateY(-6px)',
+            transition: 'opacity 280ms ease-out, transform 280ms ease-out',
+          }}
+        >
+          {speechText}
+        </div>
+      )}
 
       {/* Input */}
       <form onSubmit={handleSubmit} style={{ width: '420px', maxWidth: '90vw', position: 'relative' }}>
-        <input
+        <textarea
           ref={inputRef}
-          type="text"
+          rows={2}
           value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder={PLACEHOLDER[urgency]}
+          onChange={e => { setInput(e.target.value); sessionStorage.setItem(SS_INPUT, e.target.value) }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              handleSubmit()
+            }
+          }}
+          placeholder={INPUT_PLACEHOLDER}
           disabled={submitting}
           style={{
             width: '100%',
@@ -448,21 +525,24 @@ export default function AmbientDashboard() {
             background: 'var(--bg2)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--r-xl)',
-            padding: '15px 50px 15px 20px',
+            padding: '12px 50px 12px 20px',
             color: 'var(--text)',
             outline: 'none',
             boxShadow: 'var(--shadow-sm)',
             WebkitAppearance: 'none',
             appearance: 'none',
+            resize: 'none',
+            lineHeight: 1.5,
+            overflowY: 'auto',
           }}
           onFocus={e => {
             e.target.style.borderColor = 'var(--border-focus)'
-            setInputFocused(true)
+            setInput('')
+            setSpeech(null)
+            sessionStorage.removeItem(SS_INPUT)
+            sessionStorage.removeItem(SS_SPEECH)
           }}
-          onBlur={e => {
-            e.target.style.borderColor = 'var(--border)'
-            setInputFocused(false)
-          }}
+          onBlur={e => { e.target.style.borderColor = 'var(--border)' }}
         />
         <button
           type="submit"
@@ -470,8 +550,7 @@ export default function AmbientDashboard() {
           style={{
             position: 'absolute',
             right: '12px',
-            top: '50%',
-            transform: 'translateY(-50%)',
+            bottom: '12px',
             background: 'none',
             border: 'none',
             cursor: input.trim() ? 'pointer' : 'default',
@@ -481,90 +560,63 @@ export default function AmbientDashboard() {
             lineHeight: 1,
             transition: 'color 0.15s',
           }}
-          aria-label="Add todo"
+          aria-label="Submit"
         >
           ↵
         </button>
       </form>
 
-      {/* Focus-reveal: top priority items */}
-      <div
-        aria-hidden={!inputFocused}
-        style={{
-          width: '420px',
-          maxWidth: '90vw',
-          marginTop: '-24px',
-          opacity: inputFocused && topItems.length > 0 ? 1 : 0,
-          transform: inputFocused && topItems.length > 0 ? 'translateY(0)' : 'translateY(-6px)',
-          maxHeight: inputFocused && topItems.length > 0 ? '200px' : '0',
-          overflow: 'hidden',
-          transition: 'opacity 0.28s ease-out, transform 0.28s ease-out, max-height 0.32s ease-out',
-          pointerEvents: inputFocused ? 'auto' : 'none',
-        }}
-      >
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '6px',
-          padding: '4px 8px',
-        }}>
-          {topItems.map(t => (
-            <div
-              key={t.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                fontSize: 'var(--fs-sm)',
-                color: 'var(--text3)',
-                lineHeight: 1.4,
-              }}
-            >
-              <span style={{
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                background: t.priority_value === 1
-                  ? 'var(--status-open)'
-                  : t.priority_value === 2
-                    ? 'var(--pill-active-color)'
-                    : 'var(--muted)',
-                flexShrink: 0,
-              }} />
-              <span style={{
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}>
-                {t.title}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Product pills */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '420px' }}>
         {products.map(p => (
-          <button
-            key={p.id}
-            onClick={() => setSelectedId(p.id)}
-            style={{
-              fontFamily: 'var(--font-ui)',
-              fontSize: 'var(--fs-xs)',
-              fontWeight: 500,
-              letterSpacing: '0.07em',
-              padding: '7px 16px',
-              borderRadius: '20px',
-              border: `1px solid ${p.id === selectedId ? 'var(--pill-active-border)' : 'var(--border)'}`,
-              color: p.id === selectedId ? 'var(--pill-active-color)' : 'var(--muted)',
-              background: p.id === selectedId ? 'var(--pill-active-bg)' : 'transparent',
-              cursor: 'pointer',
-              transition: 'all var(--transition)',
-            }}
-          >
-            {p.code ?? p.name}
-          </button>
+          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              onClick={() => setSelectedId(p.id)}
+              style={{
+                fontFamily: 'var(--font-ui)',
+                fontSize: 'var(--fs-xs)',
+                fontWeight: 500,
+                letterSpacing: '0.07em',
+                padding: '7px 16px',
+                borderRadius: '20px',
+                border: `1px solid ${p.id === selectedId ? 'var(--pill-active-border)' : 'var(--border)'}`,
+                color: p.id === selectedId ? 'var(--pill-active-color)' : 'var(--muted)',
+                background: p.id === selectedId ? 'var(--pill-active-bg)' : 'transparent',
+                cursor: 'pointer',
+                transition: 'all var(--transition)',
+              }}
+            >
+              {p.code ?? p.name}
+            </button>
+            {p.id === selectedId && (
+              <button
+                onClick={() => setShowEditProduct(true)}
+                aria-label={`Edit ${p.name}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--muted)',
+                  cursor: 'pointer',
+                  padding: 0,
+                  flexShrink: 0,
+                  transition: 'all var(--transition)',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--text3)'; e.currentTarget.style.color = 'var(--text2)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </button>
+            )}
+          </div>
         ))}
         <button
           onClick={() => setShowAddProduct(true)}
@@ -582,7 +634,7 @@ export default function AmbientDashboard() {
             transition: 'all var(--transition)',
           }}
         >
-          + product
+          + project
         </button>
       </div>
 
@@ -625,9 +677,11 @@ export default function AmbientDashboard() {
           color: 'var(--muted)',
           letterSpacing: '0.05em',
         }}>
-          TODOS v0.2.25
+          TODOS {VERSION}
         </span>
       </div>
+
+      {showHelp && <OrbHelp onClose={() => setShowHelp(false)} />}
 
       <OrbDevPanel
         override={moodOverride}
@@ -640,10 +694,26 @@ export default function AmbientDashboard() {
       {showAddProduct && (
         <AddProductModal
           onClose={() => setShowAddProduct(false)}
-          onCreated={product => {
-            setProducts(prev => [...prev, product])
-            setSelectedId(product.id)
+          onCreated={project => {
+            setProducts(prev => [...prev, project])
+            setSelectedId(project.id)
             setShowAddProduct(false)
+          }}
+        />
+      )}
+
+      {showEditProduct && selected && (
+        <AddProductModal
+          project={selected}
+          onClose={() => setShowEditProduct(false)}
+          onUpdated={updated => {
+            setProducts(prev => prev.map(p => p.id === updated.id ? updated : p))
+            setShowEditProduct(false)
+          }}
+          onDeleted={id => {
+            setProducts(prev => prev.filter(p => p.id !== id))
+            setSelectedId(prev => prev === id ? (products.find(p => p.id !== id)?.id ?? null) : prev)
+            setShowEditProduct(false)
           }}
         />
       )}

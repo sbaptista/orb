@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { VERSION } from '@/lib/version'
 
 const NAV = [
   { href: '/settings/account', label: 'Account' },
@@ -116,6 +117,15 @@ export default function SettingsSidebar() {
             )
           })}
         </nav>
+        <span style={{
+          marginTop: 'auto',
+          padding: 'var(--sp-lg)',
+          fontSize: 'var(--fs-version)',
+          color: 'var(--muted)',
+          letterSpacing: '0.05em',
+        }}>
+          TODOS {VERSION}
+        </span>
       </aside>
 
       <style>{`

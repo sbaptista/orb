@@ -42,7 +42,7 @@ async function main() {
   // 1. Create CAN26 product
   console.log('\n1. Creating CAN26 product...')
   const { data: product, error: productError } = await supabase
-    .from('products')
+    .from('projects')
     .insert({
       name: 'CAN26',
       description: 'Canadian Rockies trip planner — October 2026',

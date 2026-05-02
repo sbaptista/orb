@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { VERSION } from '@/lib/version'
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -199,7 +200,7 @@ export default function LoginPage() {
           color: 'var(--muted)',
           letterSpacing: '0.05em',
         }}>
-          TODOS v0.2.24
+          TODOS {VERSION}
         </span>
       </div>
     </div>

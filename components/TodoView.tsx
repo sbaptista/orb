@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
+import { VERSION } from '@/lib/version'
 import TodoPanel from './TodoPanel'
 import TodoForm from './TodoForm'
 import ProductConfigPanel from './ProductConfigPanel'
@@ -69,17 +71,22 @@ export default function TodoView({ productId }: { productId: string }) {
   const [hoveredId,         setHoveredId]          = useState<string | null>(null)
   const [showDone,          setShowDone]           = useState(false)
 
+  const fetchTodos = useCallback(async () => {
+    let todoQuery = supabase
+      .from('todos')
+      .select('*, groups(name), categories(name)')
+      .is('deleted_at', null)
+      .order('sort_order')
+    if (!isAll) todoQuery = todoQuery.eq('product_id', productId)
+    const { data } = await todoQuery
+    setTodos((data as Todo[]) ?? [])
+  }, [productId, isAll, supabase])
+
+  useVisibilityRefetch(fetchTodos)
+
   useEffect(() => {
     async function fetchData() {
       setLoading(true)
-
-      let todoQuery = supabase
-        .from('todos')
-        .select('*, groups(name), categories(name)')
-        .is('deleted_at', null)
-        .order('sort_order')
-
-      if (!isAll) todoQuery = todoQuery.eq('product_id', productId)
 
       let groupQuery = supabase.from('groups').select('id, name, product_id').order('sort_order')
       if (!isAll) groupQuery = groupQuery.eq('product_id', productId)
@@ -87,21 +94,33 @@ export default function TodoView({ productId }: { productId: string }) {
       let catQuery = supabase.from('categories').select('id, name, product_id').order('sort_order')
       if (!isAll) catQuery = catQuery.eq('product_id', productId)
 
-      const [todosRes, groupsRes, catsRes, productsRes, prioritiesRes] = await Promise.all([
-        todoQuery, groupQuery, catQuery,
-        supabase.from('products').select('id, name, color, icon, code').order('sort_order'),
+      const [, groupsRes, catsRes, productsRes, prioritiesRes] = await Promise.all([
+        fetchTodos(), groupQuery, catQuery,
+        supabase.from('projects').select('id, name, color, icon, code').order('sort_order'),
         supabase.from('priorities').select('value, label').order('value'),
       ])
 
-      setTodos((todosRes.data as Todo[]) ?? [])
       setGroups(groupsRes.data ?? [])
       setCategories(catsRes.data ?? [])
       setProducts(productsRes.data ?? [])
       setPriorities(prioritiesRes.data ?? [])
       setLoading(false)
     }
+
     fetchData()
-  }, [productId, isAll, supabase])
+
+    const filter = isAll ? undefined : `product_id=eq.${productId}`
+    const channel = supabase
+      .channel(`todos-view:${productId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'todos', ...(filter ? { filter } : {}) },
+        () => fetchTodos(),
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [productId, isAll, supabase, fetchTodos])
 
   async function handleToggleDone(e: React.MouseEvent, todo: Todo) {
     e.stopPropagation()
@@ -126,12 +145,6 @@ export default function TodoView({ productId }: { productId: string }) {
   const priorityMap    = useMemo(() => new Map(priorities.map(p => [p.value, p.label])), [priorities])
   const productCodeMap = useMemo(() => new Map(products.map(p => [p.id, p.code])), [products])
 
-  const activeFilterCount = [
-    filterStatus !== 'active',
-    filterGroup !== 'all',
-    filterCategory !== 'all',
-    filterPriority !== 'all',
-  ].filter(Boolean).length
 
   const filtered = todos.filter(t => {
     if (filterStatus === 'active' && t.status === 'done') return false
@@ -216,7 +229,7 @@ export default function TodoView({ productId }: { productId: string }) {
   }
 
   return (
-    <div style={s.page}>
+    <div id="main-content" style={s.page}>
 
       {/* Top bar */}
       <div style={s.topBar}>
@@ -272,19 +285,17 @@ export default function TodoView({ productId }: { productId: string }) {
             aria-label="Toggle filters"
           >
             Filter
-            {activeFilterCount > 0 && (
-              <span style={{
-                background: 'var(--pill-active-color)',
-                color: 'var(--bg2)',
-                borderRadius: '10px',
-                fontSize: '10px',
-                fontWeight: 700,
-                padding: '1px 5px',
-                lineHeight: 1.4,
-              }}>
-                {activeFilterCount}
-              </span>
-            )}
+            <span style={{
+              background: 'var(--pill-active-color)',
+              color: 'var(--bg2)',
+              borderRadius: '10px',
+              fontSize: '10px',
+              fontWeight: 700,
+              padding: '1px 5px',
+              lineHeight: 1.4,
+            }}>
+              {filtered.length}
+            </span>
           </button>
 
           {/* Settings gear — product only */}
@@ -336,6 +347,7 @@ export default function TodoView({ productId }: { productId: string }) {
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value)}
             style={s.select}
+            aria-label="Filter by status"
           >
             <option value="active">Active only</option>
             <option value="all">All statuses</option>
@@ -349,6 +361,7 @@ export default function TodoView({ productId }: { productId: string }) {
             value={filterGroup}
             onChange={e => setFilterGroup(e.target.value)}
             style={s.select}
+            aria-label="Filter by group"
           >
             <option value="all">All groups</option>
             {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
@@ -358,6 +371,7 @@ export default function TodoView({ productId }: { productId: string }) {
             value={filterCategory}
             onChange={e => setFilterCategory(e.target.value)}
             style={s.select}
+            aria-label="Filter by category"
           >
             <option value="all">All categories</option>
             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -367,6 +381,7 @@ export default function TodoView({ productId }: { productId: string }) {
             value={filterPriority}
             onChange={e => setFilterPriority(e.target.value)}
             style={s.select}
+            aria-label="Filter by priority"
           >
             <option value="all">All priorities</option>
             {priorities.map(p => <option key={p.value} value={String(p.value)}>{p.label}</option>)}
@@ -404,6 +419,10 @@ export default function TodoView({ productId }: { productId: string }) {
                   onClick={() => setSelectedTodo(todo)}
                   onMouseEnter={() => setHoveredId(todo.id)}
                   onMouseLeave={() => setHoveredId(null)}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${todo.title}, ${todo.status}`}
+                  onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setSelectedTodo(todo)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -452,8 +471,7 @@ export default function TodoView({ productId }: { productId: string }) {
                       {todo.title}
                     </p>
 
-                    {/* Meta — shows on hover or selected */}
-                    {(isHovered || isSelected) && (todoRef || todo.groups?.name || todo.categories?.name) && (
+                    {(todoRef || todo.groups?.name || todo.categories?.name) && (
                       <p style={{
                         fontSize: 'var(--fs-xs)',
                         color: 'var(--muted)',
@@ -471,6 +489,7 @@ export default function TodoView({ productId }: { productId: string }) {
                       flexShrink: 0,
                       width: '20px',
                       height: '20px',
+                      minHeight: '20px',
                       borderRadius: '50%',
                       border: `1.5px solid ${isDone ? 'var(--status-done)' : 'var(--border)'}`,
                       background: isDone ? 'var(--status-done)' : 'transparent',
@@ -500,6 +519,7 @@ export default function TodoView({ productId }: { productId: string }) {
           <div style={{ marginTop: 'var(--sp-lg)' }}>
             <button
               onClick={() => setShowDone(d => !d)}
+              aria-expanded={showDone}
               style={{
                 width: '100%',
                 display: 'flex',
@@ -538,6 +558,10 @@ export default function TodoView({ productId }: { productId: string }) {
                       onClick={() => setSelectedTodo(todo)}
                       onMouseEnter={() => setHoveredId(todo.id)}
                       onMouseLeave={() => setHoveredId(null)}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`${todo.title}, done`}
+                      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setSelectedTodo(todo)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -571,7 +595,7 @@ export default function TodoView({ productId }: { productId: string }) {
                         }}>
                           {todo.title}
                         </p>
-                        {(isHovered || isSelected) && (todoRef || todo.groups?.name || todo.categories?.name) && (
+                        {(todoRef || todo.groups?.name || todo.categories?.name) && (
                           <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', marginTop: '2px' }}>
                             {[todoRef, todo.groups?.name, todo.categories?.name].filter(Boolean).join(' · ')}
                           </p>
@@ -583,6 +607,7 @@ export default function TodoView({ productId }: { productId: string }) {
                           flexShrink: 0,
                           width: '20px',
                           height: '20px',
+                          minHeight: '20px',
                           borderRadius: '50%',
                           border: '1.5px solid var(--status-done)',
                           background: 'var(--status-done)',
@@ -650,6 +675,24 @@ export default function TodoView({ productId }: { productId: string }) {
           onClose={() => setShowProductConfig(false)}
         />
       )}
+
+      {/* Version */}
+      <div style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: 'calc(12px + var(--sab)) 20px 12px',
+        pointerEvents: 'none',
+      }}>
+        <span style={{
+          fontSize: 'var(--fs-version)',
+          color: 'var(--muted)',
+          letterSpacing: '0.05em',
+        }}>
+          TODOS {VERSION}
+        </span>
+      </div>
     </div>
   )
 }
