@@ -348,18 +348,15 @@ export default function OrbHelp({ onClose }: { onClose: () => void }) {
               border: 'none',
               color: 'var(--muted)',
               cursor: 'pointer',
-              padding: '6px 10px',
+              padding: '6px 0',
               fontSize: 'var(--fs-sm)',
               fontFamily: 'var(--font-ui)',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              borderRadius: 'var(--r)',
             }}
             aria-label="Close help"
           >
-            Close
-            <span style={{ fontSize: 'var(--fs-xs)', opacity: 0.6 }}>Esc</span>
+            ← back
           </button>
         </div>
 
