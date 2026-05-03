@@ -27,6 +27,7 @@ export type OrbRequest = {
   input: string
   productId: string  // currently-selected product
   scopeToProduct?: boolean  // when true, queries default to current product
+  history?: Array<{ role: 'user' | 'assistant'; text: string }>
   dryRun?: boolean
 }
 
@@ -76,7 +77,7 @@ const TOOLS: Anthropic.Tool[] = [
         status: { type: 'string', enum: ['open', 'done', 'any'], description: 'Default: open' },
         priority_max: { type: 'integer', description: 'Only items where priority_value <= this. e.g. 1 for urgent only, 2 for urgent+high.' },
         text_match: { type: 'string', description: 'Free-text match against title/description.' },
-        max_results: { type: 'integer', description: 'Default: 5' },
+        max_results: { type: 'integer', description: 'Default: 20. Only lower this when the user explicitly wants a short summary.' },
       },
     },
   },
@@ -243,7 +244,7 @@ async function executeTool(name: string, input: any, ctx: ToolContext): Promise<
       results = results.filter(t => t.title.toLowerCase().includes(q))
     }
     results.sort((a, b) => (a.priority_value ?? 99) - (b.priority_value ?? 99))
-    const max = input.max_results ?? 5
+    const max = input.max_results ?? 20
     const formatted = results.slice(0, max).map(t => {
       const p = ctx.products.find(pp => pp.id === t.product_id)
       return { id: t.id, code: `${p?.code ?? p?.name}-${t.todo_number}`, title: t.title, status: t.status, priority_value: t.priority_value }
@@ -336,6 +337,7 @@ export async function orbConverse(req: OrbRequest): Promise<OrbResponse> {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
     const messages: Anthropic.MessageParam[] = [
+      ...(req.history?.map(h => ({ role: h.role, content: h.text })) ?? []),
       { role: 'user', content: req.input },
     ]
 

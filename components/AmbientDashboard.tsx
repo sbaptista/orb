@@ -310,6 +310,10 @@ export default function AmbientDashboard() {
             return
         }
 
+        const history = messages
+            .filter(m => m.text !== 'Processing…')
+            .map(m => ({ role: (m.type === 'user' ? 'user' : 'assistant') as 'user' | 'assistant', text: m.text }))
+
         const processingId = genId()
         setMessages(prev => [
             ...prev,
@@ -323,7 +327,7 @@ export default function AmbientDashboard() {
         resetInactivity()
 
         try {
-            const res = await orbConverse({ input: text, productId: selectedId, scopeToProduct, dryRun })
+            const res = await orbConverse({ input: text, productId: selectedId, scopeToProduct, history, dryRun })
             setMessages(prev => prev.map(m => m.id === processingId
                 ? {
                     id: processingId,
