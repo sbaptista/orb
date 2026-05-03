@@ -73,7 +73,7 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        product_code: { type: 'string', description: 'Restrict to a product. Omit to search all products.' },
+        product_code: { type: 'string', description: "Restrict to a product. If omitted, defaults to the user's current scope (which may be a specific product or all products)." },
         status: { type: 'string', enum: ['open', 'done', 'any'], description: 'Default: open' },
         priority_max: { type: 'integer', description: 'Only items where priority_value <= this. e.g. 1 for urgent only, 2 for urgent+high.' },
         text_match: { type: 'string', description: 'Free-text match against title/description.' },
@@ -201,6 +201,7 @@ type ToolContext = {
   groups: GroupRow[]
   categories: CategoryRow[]
   currentProductId: string
+  scopeToProduct: boolean
 }
 
 async function executeTool(name: string, input: any, ctx: ToolContext): Promise<string> {
@@ -235,6 +236,8 @@ async function executeTool(name: string, input: any, ctx: ToolContext): Promise<
     if (input.product_code) {
       const p = ctx.products.find(pp => pp.code?.toUpperCase() === String(input.product_code).toUpperCase())
       if (p) results = results.filter(t => t.product_id === p.id)
+    } else if (ctx.scopeToProduct) {
+      results = results.filter(t => t.product_id === ctx.currentProductId)
     }
     if (typeof input.priority_max === 'number') {
       results = results.filter(t => t.priority_value !== null && t.priority_value <= input.priority_max)
@@ -373,6 +376,7 @@ export async function orbConverse(req: OrbRequest): Promise<OrbResponse> {
           groups: ctx.groupList,
           categories: ctx.categoryList,
           currentProductId: req.productId,
+          scopeToProduct: req.scopeToProduct ?? true,
         })
         if (block.name === 'create_todo' || block.name === 'update_todo') {
           refresh = true

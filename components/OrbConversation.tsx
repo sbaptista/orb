@@ -243,31 +243,25 @@ export default function OrbConversation({
                     gap: '6px',
                     padding: '0 16px 10px',
                 }}>
-                    {[
-                        { label: productCode, value: true },
-                        { label: 'All',       value: false },
-                    ].map(({ label, value }) => (
-                        <button
-                            key={label}
-                            type="button"
-                            onClick={() => onScopeChange(value)}
-                            style={{
-                                fontFamily: 'var(--font-ui)',
-                                fontSize: 'var(--fs-xs)',
-                                fontWeight: 500,
-                                letterSpacing: '0.06em',
-                                padding: '3px 10px',
-                                borderRadius: '12px',
-                                border: `1px solid ${scopeToProduct === value ? 'var(--pill-active-border)' : 'var(--border)'}`,
-                                color: scopeToProduct === value ? 'var(--pill-active-color)' : 'var(--muted)',
-                                background: scopeToProduct === value ? 'var(--pill-active-bg)' : 'transparent',
-                                cursor: 'pointer',
-                                transition: 'all var(--transition)',
-                            }}
-                        >
-                            {label}
-                        </button>
-                    ))}
+                    <button
+                        type="button"
+                        onClick={() => onScopeChange(!scopeToProduct)}
+                        style={{
+                            fontFamily: 'var(--font-ui)',
+                            fontSize: 'var(--fs-xs)',
+                            fontWeight: 500,
+                            letterSpacing: '0.06em',
+                            padding: '3px 10px',
+                            borderRadius: '12px',
+                            border: `1px solid ${!scopeToProduct ? 'var(--pill-active-border)' : 'var(--border)'}`,
+                            color: !scopeToProduct ? 'var(--pill-active-color)' : 'var(--muted)',
+                            background: !scopeToProduct ? 'var(--pill-active-bg)' : 'transparent',
+                            cursor: 'pointer',
+                            transition: 'all var(--transition)',
+                        }}
+                    >
+                        All
+                    </button>
                 </div>
             </form>
         </div>
