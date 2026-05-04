@@ -25,6 +25,7 @@ export type OrbRequest = {
   productId: string
   scopeToProduct?: boolean
   history?: Array<{ role: 'user' | 'assistant'; text: string }>
+  dryRun?: boolean
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
