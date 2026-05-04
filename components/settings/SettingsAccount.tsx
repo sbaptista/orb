@@ -20,20 +20,37 @@ export default function SettingsAccount() {
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      setUserId(user.id)
-      setEmail(user.email ?? '')
-      const { data: profile } = await supabase
-        .from('users')
-        .select('first_name, last_name')
-        .eq('id', user.id)
-        .single()
-      if (profile) {
-        setFirstName(profile.first_name ?? '')
-        setLastName(profile.last_name ?? '')
+      try {
+        let user
+        const { data: userData, error: userError } = await supabase.auth.getUser()
+        
+        if (userError?.message?.includes('Lock')) {
+          // Fallback if another request is already refreshing the token
+          const { data: sessionData } = await supabase.auth.getSession()
+          user = sessionData.session?.user
+        } else {
+          user = userData.user
+        }
+
+        if (!user) return
+        setUserId(user.id)
+        setEmail(user.email ?? '')
+        
+        const { data: profile } = await supabase
+          .from('users')
+          .select('first_name, last_name')
+          .eq('id', user.id)
+          .single()
+          
+        if (profile) {
+          setFirstName(profile.first_name ?? '')
+          setLastName(profile.last_name ?? '')
+        }
+      } catch (err) {
+        console.warn('Auth check skipped due to lock contention')
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
     load()
   }, [supabase])

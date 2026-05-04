@@ -8,6 +8,8 @@ const NAV: SidebarItem[] = [
   { id: 'products',   href: '/settings/products',   label: 'Projects',   icon: '◈', active: false },
   { id: 'groups',     href: '/settings/groups',     label: 'Groups',     icon: '▤', active: false },
   { id: 'categories', href: '/settings/categories', label: 'Categories', icon: '◇', active: false },
+  { id: 'priorities', href: '/settings/priorities', label: 'Priorities', icon: '▴', active: false },
+  { id: 'statuses',   href: '/settings/statuses',   label: 'Statuses',   icon: '◪', active: false },
   { id: 'platforms',  href: '/settings/platforms',  label: 'Platforms',  icon: '▢', active: false },
   { id: 'data',       href: '/settings/data',       label: 'Data',       icon: '⬡', active: false },
 ]

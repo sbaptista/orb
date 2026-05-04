@@ -76,7 +76,7 @@ const TOOLS: Anthropic.Tool[] = [
       type: 'object',
       properties: {
         product_code: { type: 'string', description: "Restrict to a product. If omitted, defaults to the user's current scope (which may be a specific product or all products)." },
-        status: { type: 'string', enum: ['open', 'done', 'any'], description: 'Default: open' },
+        status: { type: 'string', description: 'Search by status name. Use "any" for all. Default: open' },
         priority_max: { type: 'integer', description: 'Only items where priority_value <= this. e.g. 1 for urgent only, 2 for urgent+high.' },
         text_match: { type: 'string', description: 'Free-text match against title/description.' },
         max_results: { type: 'integer', description: 'Default: 20. Only lower this when the user explicitly wants a short summary.' },
@@ -91,8 +91,8 @@ const TOOLS: Anthropic.Tool[] = [
       properties: {
         code: { type: 'string', description: 'Todo code like TODOS-23.' },
         title_match: { type: 'string', description: 'Fuzzy title match if no code given.' },
-        new_status: { type: 'string', enum: ['open', 'in_progress', 'on_hold', 'done'] },
-        new_priority: { type: 'integer', description: '1-4' },
+        new_status: { type: 'string', description: 'New status name.' },
+        new_priority: { type: 'integer', description: 'New priority value (integer).' },
         new_title: { type: 'string' },
         description: { type: 'string', description: 'Longer detail about the todo.' },
         resolution_notes: { type: 'string', description: 'What was done to resolve this. Populate when marking done.' },
@@ -131,37 +131,52 @@ type TodoRow  = {
 }
 type GroupRow    = { id: string; name: string; product_id: string }
 type CategoryRow = { id: string; name: string; product_id: string }
+type StatusRow   = { id: string; name: string; is_closed: boolean; sort_order: number }
+type PriorityRow = { id: string; label: string; value: number }
 
 async function buildContext(supabase: Awaited<ReturnType<typeof createClient>>, currentProductId: string) {
-  const [{ data: products }, { data: todos }, { data: groups }, { data: categories }] = await Promise.all([
+  const [{ data: products }, { data: todos }, { data: groups }, { data: categories }, { data: statuses }, { data: priorities }] = await Promise.all([
     supabase.from('projects').select('id, name, code').order('sort_order'),
     supabase.from('todos').select('id, todo_number, title, status, priority_value, product_id').is('deleted_at', null),
     supabase.from('groups').select('id, name, product_id'),
     supabase.from('categories').select('id, name, product_id'),
+    supabase.from('statuses').select('*').order('sort_order'),
+    supabase.from('priorities').select('*').order('value'),
   ])
 
   const productList  = (products   ?? []) as Product[]
   const todoList     = (todos      ?? []) as TodoRow[]
   const groupList    = (groups     ?? []) as GroupRow[]
   const categoryList = (categories ?? []) as CategoryRow[]
+  const statusList   = (statuses   ?? []) as StatusRow[]
+  const priorityList = (priorities ?? []) as PriorityRow[]
   const current = productList.find(p => p.id === currentProductId)
 
   const byProduct = productList.map(p => {
     const productTodos = todoList
-      .filter(t => t.product_id === p.id && t.status !== 'done')
+      .filter(t => t.product_id === p.id && !statusList.find(s => s.name === t.status)?.is_closed)
       .map(t => `  ${p.code ?? p.name}-${t.todo_number} [P${t.priority_value ?? '-'}] ${t.title}`)
       .join('\n')
     return `${p.code ?? p.name}:\n${productTodos || '  (none open)'}`
   }).join('\n\n')
 
-  return { productList, todoList, groupList, categoryList, current, contextString: byProduct }
+  return { productList, todoList, groupList, categoryList, statusList, priorityList, current, contextString: byProduct }
 }
 
 // ──────────────────────────────────────────────────────────────────────────
 // System prompt
 // ──────────────────────────────────────────────────────────────────────────
 
-function systemPrompt(contextString: string, currentCode: string | null, scopeToProduct: boolean): Anthropic.TextBlockParam[] {
+function systemPrompt(
+  contextString: string, 
+  currentCode: string | null, 
+  scopeToProduct: boolean,
+  statuses: StatusRow[],
+  priorities: PriorityRow[]
+): Anthropic.TextBlockParam[] {
+  const statusNames = statuses.map(s => s.name).join(', ')
+  const priorityInfo = priorities.map(p => `${p.value}:${p.label}`).join(', ')
+
   return [
     {
       type: 'text',
@@ -180,10 +195,14 @@ WHEN TO CALL TOOLS
 - update_todo: user wants to change status (mark done), priority, or title of an existing item
 - No tool needed: explanations, meta questions ("what does this mean?"), or clarifications
 
+VALID VALUES
+- Statuses: ${statusNames}
+- Priorities (value:name): ${priorityInfo}
+
 DEFAULTS
 - If product not specified, use currently-selected product: ${currentCode ?? '(none)'}
 - For queries without explicit product: ${scopeToProduct ? `restrict to current product (${currentCode ?? 'none'})` : 'search across all products'}
-- For queries, "urgent" = priority_value 1; "important" = 1-2.
+- For queries, "urgent" = priority_value 1 (or lowest available value); "important" = 1-2.
 
 KEYBOARD NAVIGATION (answer without a tool if asked)
 - Tab: move between interactive elements
@@ -215,6 +234,8 @@ type ToolContext = {
   todos: TodoRow[]
   groups: GroupRow[]
   categories: CategoryRow[]
+  statuses: StatusRow[]
+  priorities: PriorityRow[]
   currentProductId: string
   scopeToProduct: boolean
 }
@@ -246,8 +267,13 @@ async function executeTool(name: string, input: any, ctx: ToolContext): Promise<
 
   if (name === 'query_todos') {
     let results = ctx.todos.slice()
-    if (input.status && input.status !== 'any') results = results.filter(t => t.status === input.status)
-    else results = results.filter(t => t.status !== 'done') // default: open
+    if (input.status && input.status !== 'any') {
+      results = results.filter(t => t.status === input.status)
+    } else {
+      // Default: exclude all closed statuses
+      const closed = ctx.statuses.filter(s => s.is_closed).map(s => s.name)
+      results = results.filter(t => !closed.includes(t.status))
+    }
     if (input.product_code) {
       const p = ctx.products.find(pp => pp.code?.toUpperCase() === String(input.product_code).toUpperCase())
       if (p) results = results.filter(t => t.product_id === p.id)
@@ -288,7 +314,8 @@ async function executeTool(name: string, input: any, ctx: ToolContext): Promise<
     const update: Record<string, unknown> = {}
     if (input.new_status) {
       update.status = input.new_status
-      if (input.new_status === 'done') update.closed_at = new Date().toISOString()
+      const statusObj = ctx.statuses.find(s => s.name === input.new_status)
+      if (statusObj?.is_closed) update.closed_at = new Date().toISOString()
       else update.closed_at = null
     }
     if (input.new_priority !== undefined) update.priority_value = input.new_priority
@@ -347,7 +374,13 @@ export async function orbConverse(req: OrbRequest): Promise<OrbResponse> {
     }
 
     const ctx = await buildContext(supabase, req.productId)
-    const sys = systemPrompt(ctx.contextString, ctx.current?.code ?? ctx.current?.name ?? null, req.scopeToProduct ?? true)
+    const sys = systemPrompt(
+      ctx.contextString, 
+      ctx.current?.code ?? ctx.current?.name ?? null, 
+      req.scopeToProduct ?? true,
+      ctx.statusList,
+      ctx.priorityList
+    )
 
     if (req.dryRun) {
       return {
@@ -395,6 +428,8 @@ export async function orbConverse(req: OrbRequest): Promise<OrbResponse> {
           todos: ctx.todoList,
           groups: ctx.groupList,
           categories: ctx.categoryList,
+          statuses: ctx.statusList,
+          priorities: ctx.priorityList,
           currentProductId: req.productId,
           scopeToProduct: req.scopeToProduct ?? true,
         })
