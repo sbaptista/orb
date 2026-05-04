@@ -69,6 +69,21 @@ export default function OrbConversation({
     const activeSlashCommands = SLASH_COMMANDS.filter(c => c.cmd.toLowerCase().startsWith(input.toLowerCase()))
     const showSlashMenu = inputFocused && input.startsWith('/') && activeSlashCommands.length > 0 && historyIndex === -1 && !slashMenuDismissed.current
 
+    function fillCommand(cmd: string) {
+        slashMenuDismissed.current = true
+        onInputChange(cmd)
+        setSlashIndex(0)
+        const idx = cmd.indexOf('[project]')
+        if (idx !== -1) {
+            setTimeout(() => {
+                const el = textareaRef.current
+                if (!el) return
+                el.focus()
+                el.setSelectionRange(idx, idx + '[project]'.length)
+            }, 0)
+        }
+    }
+
 
     useEffect(() => {
         const saved = sessionStorage.getItem('todos_orb_cmd_hist')
@@ -255,9 +270,7 @@ export default function OrbConversation({
                                 }}
                                 onMouseDown={(e) => {
                                     e.preventDefault()
-                                    slashMenuDismissed.current = true
-                                    onInputChange(c.cmd)
-                                    setSlashIndex(0)
+                                    fillCommand(c.cmd)
                                 }}
                             >
                                 <span style={{ fontFamily: 'monospace', fontSize: 'var(--fs-xs)', color: 'var(--text)', fontWeight: slashIndex === i ? 600 : 400 }}>{c.cmd}</span>
@@ -276,9 +289,7 @@ export default function OrbConversation({
                         if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault()
                             if (showSlashMenu && activeSlashCommands[slashIndex]) {
-                                slashMenuDismissed.current = true
-                                onInputChange(activeSlashCommands[slashIndex].cmd)
-                                setSlashIndex(0)
+                                fillCommand(activeSlashCommands[slashIndex].cmd)
                             } else {
                                 handleFormSubmit()
                             }
