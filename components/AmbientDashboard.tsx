@@ -432,10 +432,6 @@ export default function AmbientDashboard({ initialProducts }: Props) {
                 if (chunk.suggestedKnowledge) {
                     setDistillTodo(chunk.suggestedKnowledge)
                 }
-
-                if (chunk.knowledgeResults) {
-                    setQueryResults(chunk.knowledgeResults)
-                }
             }
         } catch (err) {
             console.error('[orbSubmit]', err)
@@ -874,13 +870,6 @@ export default function AmbientDashboard({ initialProducts }: Props) {
                         setPulse(true)
                         setTimeout(() => setPulse(false), 500)
                     }}
-                />
-            )}
-
-            {queryResults && (
-                <QueryResultsModal 
-                    results={queryResults}
-                    onClose={() => setQueryResults(null)}
                 />
             )}
 

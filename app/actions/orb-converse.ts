@@ -20,6 +20,7 @@ export type OrbResponse = {
   error?: string
   isStreaming?: boolean
   suggestedKnowledge?: { id: string; productId: string; title: string; suggestion: { title: string; content: string } }
+  knowledgeResults?: Array<{ title: string; content: string; code?: string }>
 }
 
 export type OrbRequest = {
