@@ -32,8 +32,6 @@ export type Todo = {
   categories: { name: string } | null
 }
 
-export type Group    = { id: string; name: string; product_id: string }
-export type Category = { id: string; name: string; product_id: string }
 export type Product  = { id: string; name: string; color: string | null; icon: string | null; code: string | null }
 export type Priority = { value: number; label: string }
 
@@ -55,15 +53,11 @@ export default function TodoView({ productId }: { productId: string }) {
   const supabase = useMemo(() => createClient(), [])
 
   const [todos, setTodos]       = useState<Todo[]>([])
-  const [groups, setGroups]     = useState<Group[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [priorities, setPriorities] = useState<Priority[]>([])
   const [loading, setLoading]   = useState(true)
 
   const [filterStatus,   setFilterStatus]   = useState('active') // 'active' hides done by default
-  const [filterGroup,    setFilterGroup]    = useState('all')
-  const [filterCategory, setFilterCategory] = useState('all')
   const [filterPriority, setFilterPriority] = useState('all')
   const [showFilters,    setShowFilters]    = useState(false)
 
@@ -94,20 +88,12 @@ export default function TodoView({ productId }: { productId: string }) {
     async function fetchData() {
       setLoading(true)
 
-      let groupQuery = supabase.from('groups').select('id, name, product_id').order('sort_order')
-      if (!isAll) groupQuery = groupQuery.eq('product_id', productId)
-
-      let catQuery = supabase.from('categories').select('id, name, product_id').order('sort_order')
-      if (!isAll) catQuery = catQuery.eq('product_id', productId)
-
-      const [, groupsRes, catsRes, productsRes, prioritiesRes] = await Promise.all([
-        fetchTodos(), groupQuery, catQuery,
+      const [, productsRes, prioritiesRes] = await Promise.all([
+        fetchTodos(),
         supabase.from('projects').select('id, name, color, icon, code').order('sort_order'),
         supabase.from('priorities').select('value, label').order('value'),
       ])
 
-      setGroups(groupsRes.data ?? [])
-      setCategories(catsRes.data ?? [])
       setProducts(productsRes.data ?? [])
       setPriorities(prioritiesRes.data ?? [])
       setLoading(false)
@@ -216,8 +202,6 @@ export default function TodoView({ productId }: { productId: string }) {
   const filtered = todos.filter(t => {
     if (filterStatus === 'active' && t.status === 'done') return false
     if (filterStatus !== 'active' && filterStatus !== 'all' && t.status !== filterStatus) return false
-    if (filterGroup    !== 'all' && t.group_id    !== filterGroup)           return false
-    if (filterCategory !== 'all' && t.category_id !== filterCategory)        return false
     if (filterPriority !== 'all' && String(t.priority_value) !== filterPriority) return false
     return true
   })
@@ -225,8 +209,6 @@ export default function TodoView({ productId }: { productId: string }) {
   const doneTodos = filterStatus === 'active'
     ? todos.filter(t => {
         if (t.status !== 'done') return false
-        if (filterGroup    !== 'all' && t.group_id    !== filterGroup)           return false
-        if (filterCategory !== 'all' && t.category_id !== filterCategory)        return false
         if (filterPriority !== 'all' && String(t.priority_value) !== filterPriority) return false
         return true
       })
@@ -446,26 +428,6 @@ export default function TodoView({ productId }: { productId: string }) {
           </select>
 
           <select
-            value={filterGroup}
-            onChange={e => setFilterGroup(e.target.value)}
-            style={s.select}
-            aria-label="Filter by group"
-          >
-            <option value="all">All groups</option>
-            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-          </select>
-
-          <select
-            value={filterCategory}
-            onChange={e => setFilterCategory(e.target.value)}
-            style={s.select}
-            aria-label="Filter by category"
-          >
-            <option value="all">All categories</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-
-          <select
             value={filterPriority}
             onChange={e => setFilterPriority(e.target.value)}
             style={s.select}
@@ -586,13 +548,13 @@ export default function TodoView({ productId }: { productId: string }) {
                       {todo.title}
                     </p>
 
-                    {(todoRef || todo.groups?.name || todo.categories?.name) && (
+                    {todoRef && (
                       <p style={{
                         fontSize: 'var(--fs-xs)',
                         color: 'var(--muted)',
                         marginTop: '2px',
                       }}>
-                        {[todoRef, todo.groups?.name, todo.categories?.name].filter(Boolean).join(' · ')}
+                        {todoRef}
                       </p>
                     )}
                   </div>
@@ -739,9 +701,9 @@ export default function TodoView({ productId }: { productId: string }) {
                         }}>
                           {todo.title}
                         </p>
-                        {(todoRef || todo.groups?.name || todo.categories?.name) && (
+                        {todoRef && (
                           <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', marginTop: '2px' }}>
-                            {[todoRef, todo.groups?.name, todo.categories?.name].filter(Boolean).join(' · ')}
+                            {todoRef}
                           </p>
                         )}
                       </div>
@@ -781,8 +743,6 @@ export default function TodoView({ productId }: { productId: string }) {
       {selectedTodo && (
         <TodoPanel
           todo={selectedTodo}
-          groups={groups}
-          categories={categories}
           products={products}
           priorities={priorities}
           isAll={isAll}
@@ -802,8 +762,6 @@ export default function TodoView({ productId }: { productId: string }) {
         <TodoForm
           productId={isAll ? undefined : productId}
           products={products}
-          groups={groups}
-          categories={categories}
           priorities={priorities}
           onClose={() => setShowNewTodo(false)}
           onCreate={todo => {
@@ -974,7 +932,7 @@ export default function TodoView({ productId }: { productId: string }) {
           color: 'var(--muted)',
           letterSpacing: '0.05em',
         }}>
-          TODOS {VERSION}
+          Orb {VERSION}
         </span>
       </div>
     </div>

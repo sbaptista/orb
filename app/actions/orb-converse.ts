@@ -39,11 +39,9 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
 // ──────────────────────────────────────────────────────────────────────────
 
 async function buildContext(supabase: any, currentProductId: string) {
-  const [{ data: products }, { data: todos }, { data: groups }, { data: categories }, { data: statuses }, { data: priorities }, { data: knowledge }] = await Promise.all([
+  const [{ data: products }, { data: todos }, { data: statuses }, { data: priorities }, { data: knowledge }] = await Promise.all([
     supabase.from('projects').select('id, name, code').order('sort_order'),
     supabase.from('todos').select('id, todo_number, title, status, priority_value, product_id, closed_at').is('deleted_at', null),
-    supabase.from('groups').select('id, name, product_id'),
-    supabase.from('categories').select('id, name, product_id'),
     supabase.from('statuses').select('*').order('sort_order'),
     supabase.from('priorities').select('*').order('value'),
     supabase.from('knowledge_repo').select('*, projects(code)').order('created_at', { ascending: false }),
@@ -51,8 +49,6 @@ async function buildContext(supabase: any, currentProductId: string) {
 
   const productList  = (products   ?? [])
   const todoList     = (todos      ?? [])
-  const groupList    = (groups     ?? [])
-  const categoryList = (categories ?? [])
   const statusList   = (statuses   ?? [])
   const priorityList = (priorities ?? [])
   const knowledgeList = (knowledge   ?? [])
@@ -66,7 +62,7 @@ async function buildContext(supabase: any, currentProductId: string) {
     return `${p.code ?? p.name}:\n${productTodos || '  (none open)'}`
   }).join('\n\n')
 
-  return { productList, todoList, groupList, categoryList, statusList, priorityList, knowledgeList, current, contextString: byProduct }
+  return { productList, todoList, statusList, priorityList, knowledgeList, current, contextString: byProduct }
 }
 
 const TOOLS: Anthropic.Tool[] = [

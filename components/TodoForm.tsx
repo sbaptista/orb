@@ -3,13 +3,11 @@
 import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
-import type { Todo, Product, Group, Category, Priority } from './TodoView'
+import type { Todo, Product, Priority } from './TodoView'
 
 type Props = {
   productId?: string
   products: Product[]
-  groups: Group[]
-  categories: Category[]
   priorities: Priority[]
   onClose: () => void
   onCreate: (todo: Todo) => void

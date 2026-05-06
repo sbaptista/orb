@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { OrbResponse } from '@/app/actions/orb-converse'
-import type { Todo, Group, Category, Product, Priority } from './TodoView'
+import type { Todo, Product, Priority } from './TodoView'
 
 type ResultItem = NonNullable<OrbResponse['results']>[number]
 
@@ -147,8 +147,6 @@ export default function QueryResultsModal({
   const supabase = useMemo(() => createClient(), [])
   const [copied, setCopied] = useState(false)
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null)
-  const [groups, setGroups] = useState<Group[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [priorities, setPriorities] = useState<Priority[]>([])
   const [items, setItems] = useState<ResultItem[]>(results)
@@ -162,16 +160,12 @@ export default function QueryResultsModal({
   }, [items])
 
   async function openTodo(item: ResultItem) {
-    const [todoRes, groupRes, catRes, prodRes, priRes] = await Promise.all([
-      supabase.from('todos').select('*, groups(name), categories(name)').eq('id', item.id).single(),
-      supabase.from('groups').select('*'),
-      supabase.from('categories').select('*'),
+    const [todoRes, prodRes, priRes] = await Promise.all([
+      supabase.from('todos').select('*').eq('id', item.id).single(),
       supabase.from('projects').select('id, name, color, code').order('sort_order'),
       supabase.from('priorities').select('value, label').order('value'),
     ])
     if (todoRes.data) {
-      setGroups(groupRes.data ?? [])
-      setCategories(catRes.data ?? [])
       setProducts((prodRes.data ?? []).map((p: { id: string; name: string; color: string | null; code: string | null }) => ({ ...p, icon: null })))
       setPriorities(priRes.data ?? [])
       setSelectedTodo(todoRes.data as Todo)

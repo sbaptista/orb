@@ -2,15 +2,13 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Todo, Group, Category, Product, Priority } from './TodoView'
+import type { Todo, Product, Priority } from './TodoView'
 import DistillModal from './DistillModal'
 import { logAudit } from '@/app/actions/log-audit'
 import { useToast } from '@/components/ui/Toast'
 
 type Props = {
   todo: Todo
-  groups: Group[]
-  categories: Category[]
   products: Product[]
   priorities: Priority[]
   isAll: boolean
@@ -21,8 +19,6 @@ type Props = {
 
 export default function TodoPanel({
   todo,
-  groups,
-  categories,
   products,
   priorities,
   isAll,
@@ -48,8 +44,6 @@ export default function TodoPanel({
     setShowDetails(false)
   }, [todo.id])
 
-  const filteredGroups     = groups.filter(g => g.product_id === form.product_id)
-  const filteredCategories = categories.filter(c => c.product_id === form.product_id)
   const isDone             = form.status === 'done'
 
   const todoRef = (() => {
@@ -354,38 +348,6 @@ export default function TodoPanel({
 
           {showDetails && (
             <>
-              {/* Group + Category */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-md)' }}>
-                <div style={field}>
-                  <label htmlFor="tp-group" style={label}>Group</label>
-                  <select
-                    id="tp-group"
-                    style={select}
-                    value={form.group_id ?? ''}
-                    onChange={e => setForm(f => ({ ...f, group_id: e.target.value || null }))}
-                    onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
-                    onBlur={e => e.target.style.borderColor = 'var(--border)'}
-                  >
-                    <option value="">None</option>
-                    {filteredGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                  </select>
-                </div>
-                <div style={field}>
-                  <label htmlFor="tp-category" style={label}>Category</label>
-                  <select
-                    id="tp-category"
-                    style={select}
-                    value={form.category_id ?? ''}
-                    onChange={e => setForm(f => ({ ...f, category_id: e.target.value || null }))}
-                    onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
-                    onBlur={e => e.target.style.borderColor = 'var(--border)'}
-                  >
-                    <option value="">None</option>
-                    {filteredCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-              </div>
-
               {/* Description */}
               <div style={field}>
                 <label htmlFor="tp-description" style={label}>Description</label>
