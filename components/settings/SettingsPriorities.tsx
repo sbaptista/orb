@@ -334,11 +334,11 @@ export default function SettingsPriorities() {
               <div style={{ width: '24px', fontSize: 'var(--fs-xs)', color: 'var(--muted)', fontWeight: 600 }}>
                 {p.value}
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--text)' }}>{p.label}</p>
+              <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                <p style={{ margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.label}</p>
               </div>
-              <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', flexShrink: 0 }}>
-                {todoCounts[p.value] ?? 0} todos
+              <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                {todoCounts[p.value] ?? 0} tasks
               </span>
               
               <div style={{ display: 'flex', gap: '2px', marginRight: 'var(--sp-md)' }}>
