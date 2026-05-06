@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
+import { useToast } from '@/components/ui/Toast'
 
 type Product = {
   id: string
@@ -183,6 +184,7 @@ function ProductForm({
 
 export default function SettingsProducts() {
   const supabase = useMemo(() => createClient(), [])
+  const toast = useToast()
   const [products, setProducts] = useState<Product[]>([])
   const [todoCounts, setTodoCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
@@ -241,7 +243,7 @@ export default function SettingsProducts() {
       .single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setProducts(prev => prev.map(p => p.id === id ? data as Product : p))
+    if (data) { toast.success('Project saved.'); setProducts(prev => prev.map(p => p.id === id ? data as Product : p)) }
     setEditingId(null)
   }
 
@@ -261,7 +263,7 @@ export default function SettingsProducts() {
       .single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setProducts(prev => [...prev, data as Product])
+    if (data) { toast.success('Project added.'); setProducts(prev => [...prev, data as Product]) }
     setShowAdd(false)
     setAddForm(EMPTY_FORM)
   }
@@ -270,6 +272,7 @@ export default function SettingsProducts() {
     setSaving(true)
     await supabase.from('projects').delete().eq('id', id)
     setSaving(false)
+    toast.success('Project deleted.')
     setProducts(prev => prev.filter(p => p.id !== id))
     setConfirmDeleteId(null)
   }

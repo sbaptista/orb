@@ -3,7 +3,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
-import { purgeKnowledge } from '@/app/actions/purge-knowledge'
 
 type KnowledgeEntry = {
   id: string
@@ -19,7 +18,6 @@ export default function SettingsKnowledge() {
   const supabase = useMemo(() => createClient(), [])
   const [entries, setEntries] = useState<KnowledgeEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [exporting, setExporting] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const loadKnowledge = useCallback(async (isInitial = false) => {
@@ -38,42 +36,6 @@ export default function SettingsKnowledge() {
     loadKnowledge(true) 
   }, [loadKnowledge])
 
-  async function handleExportAndDelete() {
-    if (!confirm('This will download ALL knowledge entries as a JSON file and then PERMANENTLY delete them from the database. This is for bulk archival. Proceed?')) return
-    
-    setExporting(true)
-    const { data } = await supabase
-      .from('knowledge_repo')
-      .select('*, projects(name, code)')
-      .order('created_at', { ascending: false })
-
-    if (!data || data.length === 0) {
-      alert('No knowledge entries found.')
-      setExporting(false)
-      return
-    }
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `knowledge-archive-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-
-    if (confirm(`Archive downloaded (${data.length} entries). Delete them from Supabase now?`)) {
-      const res = await purgeKnowledge(data.map(d => d.id))
-      if (res.error) {
-        alert(`Purge failed: ${res.error}`)
-      } else {
-        loadKnowledge()
-        alert('Knowledge repository purged.')
-      }
-    }
-    
-    setExporting(false)
-  }
-
   const cardStyle: React.CSSProperties = {
     background: 'var(--bg2)',
     borderRadius: 'var(--r-lg)',
@@ -83,27 +45,9 @@ export default function SettingsKnowledge() {
 
   return (
     <div style={{ padding: 'var(--sp-2xl)', maxWidth: '960px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--sp-2xl)' }}>
-        <h2 style={{ fontSize: 'var(--fs-lg)', fontWeight: 'var(--fw-bold)', color: 'var(--text)', margin: 0 }}>
-          Knowledge Repository
-        </h2>
-        <button
-          onClick={handleExportAndDelete}
-          disabled={exporting || entries.length === 0}
-          style={{
-            background: 'none',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r)',
-            padding: '6px 14px',
-            fontSize: 'var(--fs-xs)',
-            color: 'var(--text3)',
-            cursor: (exporting || entries.length === 0) ? 'not-allowed' : 'pointer',
-            opacity: (exporting || entries.length === 0) ? 0.4 : 1,
-          }}
-        >
-          Archive All
-        </button>
-      </div>
+      <h2 style={{ fontSize: 'var(--fs-lg)', fontWeight: 'var(--fw-bold)', color: 'var(--text)', margin: '0 0 var(--sp-2xl)' }}>
+        Knowledge Repository
+      </h2>
 
       {loading ? (
         <div style={{ color: 'var(--muted)', fontSize: 'var(--fs-sm)' }}>Loading...</div>

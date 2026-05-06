@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/Toast'
 
 type Platform = { id: string; name: string; sort_order: number }
 type PlatformForm = { name: string; sort_order: string }
@@ -72,6 +73,7 @@ const dangerConfirmBtnStyle: React.CSSProperties = {
 
 export default function SettingsPlatforms() {
   const supabase = useMemo(() => createClient(), [])
+  const toast = useToast()
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -113,7 +115,7 @@ export default function SettingsPlatforms() {
       .single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setPlatforms(prev => [...prev, data as Platform])
+    if (data) { toast.success('Platform added.'); setPlatforms(prev => [...prev, data as Platform]) }
     setShowAdd(false)
     setAddForm(EMPTY_FORM)
   }
@@ -133,7 +135,7 @@ export default function SettingsPlatforms() {
       .single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setPlatforms(prev => prev.map(p => p.id === id ? data as Platform : p))
+    if (data) { toast.success('Platform saved.'); setPlatforms(prev => prev.map(p => p.id === id ? data as Platform : p)) }
     setEditingId(null)
   }
 
@@ -143,6 +145,7 @@ export default function SettingsPlatforms() {
     await supabase.from('todo_platforms').delete().eq('platform_id', id)
     await supabase.from('platforms').delete().eq('id', id)
     setSaving(false)
+    toast.success('Platform deleted.')
     setPlatforms(prev => prev.filter(p => p.id !== id))
     setConfirmDeleteId(null)
   }

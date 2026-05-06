@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { DM_Sans, Cormorant_Garamond } from 'next/font/google'
+import Providers from '@/components/Providers'
 import './globals.css'
 
 const dmSans = DM_Sans({
@@ -18,6 +19,7 @@ const cormorant = Cormorant_Garamond({
 
 export const metadata: Metadata = {
   title: 'Todos',
+  themeColor: '#d4e4d4',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -25,7 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${dmSans.variable} ${cormorant.variable}`}>
       <body>
         <a href="#main-content" className="skip-link">Skip to content</a>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   )

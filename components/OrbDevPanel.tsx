@@ -11,6 +11,7 @@ type Props = {
   override: MoodOverride
   onChange: (m: MoodOverride) => void
   onSpeak: (s: Speech) => void
+  onSubmit: (text: string) => void
   dryRun: boolean
   onDryRunChange: (v: boolean) => void
   messages: ConversationMessage[]
@@ -25,7 +26,7 @@ const SPEECH_PRESETS: Record<string, Speech> = {
   },
 }
 
-function OrbDevPanelInner({ override, onChange, onSpeak, dryRun, onDryRunChange, messages }: Props) {
+function OrbDevPanelInner({ override, onChange, onSpeak, onSubmit, dryRun, onDryRunChange, messages }: Props) {
   const [open, setOpen] = useState(false)
 
   const btnStyle = (active: boolean): React.CSSProperties => ({
@@ -138,6 +139,26 @@ function OrbDevPanelInner({ override, onChange, onSpeak, dryRun, onDryRunChange,
           </button>
           <button type="button" style={btnStyle(false)} onClick={() => onSpeak(null)}>
             Clear
+          </button>
+
+          <div style={{
+            fontSize: '10px',
+            fontWeight: 700,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'var(--muted)',
+            padding: '8px 2px 2px',
+          }}>
+            Test: orb tools
+          </div>
+          <button type="button" style={btnStyle(false)} onClick={() => onSubmit('Add a todo titled "DEV test" with description "This is a test description"')}>
+            create w/ description
+          </button>
+          <button type="button" style={btnStyle(false)} onClick={() => onSubmit('Create a todo for product XXXINVALID titled "error test"')}>
+            create → bad product
+          </button>
+          <button type="button" style={btnStyle(false)} onClick={() => onSubmit('Mark TODOS-99999 as done')}>
+            update → bad task code
           </button>
 
           <div style={{

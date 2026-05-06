@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
+import { useToast } from '@/components/ui/Toast'
 
 type Priority = { label: string; value: number }
 type PrioForm = { label: string; value: string }
@@ -96,6 +97,7 @@ const dangerConfirmBtnStyle: React.CSSProperties = {
 
 export default function SettingsPriorities() {
   const supabase = useMemo(() => createClient(), [])
+  const toast = useToast()
   const [priorities, setPriorities] = useState<Priority[]>([])
   const [todoCounts, setTodoCounts] = useState<Record<number, number>>({})
   const [loading, setLoading] = useState(true)
@@ -164,7 +166,7 @@ export default function SettingsPriorities() {
     
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setPriorities(prev => [...prev, data as Priority])
+    if (data) { toast.success('Priority added.'); setPriorities(prev => [...prev, data as Priority]) }
     setShowAdd(false)
     setAddForm(EMPTY_FORM)
   }
@@ -187,7 +189,7 @@ export default function SettingsPriorities() {
     
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setPriorities(prev => prev.map(p => p.value === value ? data as Priority : p))
+    if (data) { toast.success('Priority saved.'); setPriorities(prev => prev.map(p => p.value === value ? data as Priority : p)) }
     setEditingValue(null)
   }
 
@@ -207,6 +209,7 @@ export default function SettingsPriorities() {
     }
     
     setSaving(false)
+    toast.success('Priority deleted.')
     setConfirmDeleteValue(null)
     load()
   }

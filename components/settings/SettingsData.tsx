@@ -3,17 +3,22 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
+import { useToast } from '@/components/ui/Toast'
 import { prepareArchive, purgeArchivedTasks } from '@/app/actions/archive-data'
 import { importData } from '@/app/actions/import-data'
 import { getAuditLogs } from '@/app/actions/get-audit-logs'
 import { diagnoseAudit } from '@/app/actions/diagnose-audit'
+import DistillModal from '@/components/DistillModal'
 
 type AuditRow = Record<string, unknown>
 
 export default function SettingsData() {
   const supabase = useMemo(() => createClient(), [])
+  const toast = useToast()
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [distillQueue, setDistillQueue] = useState<any[]>([])
+  const [distillIndex, setDistillIndex] = useState(0)
   const [auditLog, setAuditLog] = useState<AuditRow[]>([])
   const [auditLoading, setAuditLoading] = useState(true)
   const [auditError, setAuditError] = useState('')
@@ -43,13 +48,14 @@ export default function SettingsData() {
 
   async function handleExport() {
     setExporting(true)
-    const [products, groups, categories, platforms, todos, todoPlatforms] = await Promise.all([
+    const [products, groups, categories, platforms, todos, todoPlatforms, knowledge] = await Promise.all([
       supabase.from('projects').select('*').order('sort_order'),
       supabase.from('groups').select('*').order('sort_order'),
       supabase.from('categories').select('*').order('sort_order'),
       supabase.from('platforms').select('*').order('sort_order'),
       supabase.from('todos').select('*').order('created_at'),
       supabase.from('todo_platforms').select('*'),
+      supabase.from('knowledge_repo').select('*').order('created_at'),
     ])
 
     const payload = {
@@ -60,6 +66,7 @@ export default function SettingsData() {
       platforms: platforms.data ?? [],
       todos: todos.data ?? [],
       todo_platforms: todoPlatforms.data ?? [],
+      knowledge_repo: knowledge.data ?? [],
     }
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
@@ -83,13 +90,13 @@ export default function SettingsData() {
       const text = await file.text()
       const payload = JSON.parse(text)
       const res = await importData(payload)
-      if (res.error) alert(`Import failed: ${res.error}`)
+      if (res.error) toast.error(`Import failed: ${res.error}`)
       else {
-        alert('Data restored successfully.')
+        toast.success('Data restored successfully.')
         loadAudit()
       }
     } catch (err: any) {
-      alert(`Invalid file: ${err.message}`)
+      toast.error(`Invalid file: ${err.message}`)
     } finally {
       setImporting(false)
       if (e.target) e.target.value = ''
@@ -98,18 +105,19 @@ export default function SettingsData() {
 
   async function handleArchive() {
     if (!confirm('This will download all closed tasks older than 30 days as a JSON file and then PERMANENTLY delete them from the database. Proceed?')) return
-    
+
     setExporting(true)
     const result = await prepareArchive()
-    
+
     if (!result.success || !result.data || result.data.length === 0) {
-      alert(result.error || 'No aged tasks found to archive.')
+      toast.neutral(result.error || 'No aged tasks found to archive.')
       setExporting(false)
       return
     }
 
-    // 1. Download the file
-    const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: 'application/json' })
+    // 1. Download wrapped archive file
+    const archivePayload = { archived_at: new Date().toISOString(), todos: result.data }
+    const blob = new Blob([JSON.stringify(archivePayload, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -123,14 +131,20 @@ export default function SettingsData() {
     if (confirm(`Archive downloaded (${result.count} tasks). Permanently delete these records from Supabase now?`)) {
       const purgeResult = await purgeArchivedTasks(result.data.map((t: any) => t.id))
       if (purgeResult.success) {
-        alert('Archival complete. Database purged.')
+        toast.success('Archival complete. Database purged.')
+        // 3. Offer knowledge distillation for tasks that have resolution notes
+        const candidates = result.data.filter((t: any) => t.resolution_notes?.trim())
+        if (candidates.length > 0) {
+          setDistillQueue(candidates)
+          setDistillIndex(0)
+        }
       } else {
-        alert('Archive saved, but purge failed: ' + purgeResult.error)
+        toast.error('Archive saved, but purge failed: ' + purgeResult.error)
       }
     } else {
-      alert('Archive saved. Database was NOT purged.')
+      toast.neutral('Archive saved. Database was NOT purged.')
     }
-    
+
     setExporting(false)
     loadAudit()
   }
@@ -173,7 +187,7 @@ export default function SettingsData() {
                 System Archive
               </h4>
               <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', margin: 0 }}>
-                Portability layer for your entire workspace. Export to backup or Import to restore/merge data from a JSON archive.
+                Portability layer for your entire workspace. Export includes all projects, tasks, and knowledge entries. Import restores or merges from any exported file.
               </p>
             </div>
             <div style={{ display: 'flex', gap: 'var(--sp-md)', flexShrink: 0 }}>
@@ -288,6 +302,25 @@ export default function SettingsData() {
           </div>
         </div>
       </div>
+
+      {/* Distillation queue — fires after Archive & Purge for todos with resolution notes */}
+      {distillQueue.length > 0 && distillIndex < distillQueue.length && (() => {
+        const todo = distillQueue[distillIndex]
+        const position = distillQueue.length > 1 ? `${distillIndex + 1} of ${distillQueue.length} — ` : ''
+        const advance = () => setDistillIndex(i => i + 1)
+        return (
+          <DistillModal
+            key={todo.id}
+            todoId={null}
+            productId={todo.product_id}
+            initialTitle={todo.title}
+            initialContent={todo.resolution_notes || ''}
+            note={`${position}Archived task — distill any insight worth keeping.`}
+            onClose={advance}
+            onSaved={advance}
+          />
+        )
+      })()}
 
       {/* 3. Audit Log */}
       <div>

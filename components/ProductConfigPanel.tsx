@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/Toast'
 
 type Group    = { id: string; name: string; product_id: string | null; sort_order: number }
 type Category = { id: string; name: string; product_id: string | null; sort_order: number }
@@ -109,6 +110,7 @@ function RowForm({ nameLabel, namePlaceholder, form, onChange, onSubmit, onCance
 }
 
 function GroupsSection({ productId, supabase }: { productId: string; supabase: ReturnType<typeof createClient> }) {
+  const toast = useToast()
   const [groups, setGroups]               = useState<Group[]>([])
   const [todoCounts, setTodoCounts]       = useState<Record<string, number>>({})
   const [loading, setLoading]             = useState(true)
@@ -143,7 +145,7 @@ function GroupsSection({ productId, supabase }: { productId: string; supabase: R
       .select().single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setGroups(prev => [...prev, data as Group])
+    if (data) { toast.success('Group added.'); setGroups(prev => [...prev, data as Group]) }
     setShowAdd(false); setAddForm(EMPTY)
   }
 
@@ -155,7 +157,7 @@ function GroupsSection({ productId, supabase }: { productId: string; supabase: R
       .eq('id', id).select().single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setGroups(prev => prev.map(g => g.id === id ? data as Group : g))
+    if (data) { toast.success('Group saved.'); setGroups(prev => prev.map(g => g.id === id ? data as Group : g)) }
     setEditingId(null)
   }
 
@@ -163,6 +165,7 @@ function GroupsSection({ productId, supabase }: { productId: string; supabase: R
     setSaving(true)
     await supabase.from('groups').delete().eq('id', id)
     setSaving(false)
+    toast.success('Group deleted.')
     setGroups(prev => prev.filter(g => g.id !== id))
     setConfirmDeleteId(null)
   }
@@ -227,6 +230,7 @@ function GroupsSection({ productId, supabase }: { productId: string; supabase: R
 }
 
 function CategoriesSection({ productId, supabase }: { productId: string; supabase: ReturnType<typeof createClient> }) {
+  const toast = useToast()
   const [categories, setCategories]       = useState<Category[]>([])
   const [todoCounts, setTodoCounts]       = useState<Record<string, number>>({})
   const [loading, setLoading]             = useState(true)
@@ -261,7 +265,7 @@ function CategoriesSection({ productId, supabase }: { productId: string; supabas
       .select().single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setCategories(prev => [...prev, data as Category])
+    if (data) { toast.success('Category added.'); setCategories(prev => [...prev, data as Category]) }
     setShowAdd(false); setAddForm(EMPTY)
   }
 
@@ -273,7 +277,7 @@ function CategoriesSection({ productId, supabase }: { productId: string; supabas
       .eq('id', id).select().single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setCategories(prev => prev.map(c => c.id === id ? data as Category : c))
+    if (data) { toast.success('Category saved.'); setCategories(prev => prev.map(c => c.id === id ? data as Category : c)) }
     setEditingId(null)
   }
 
@@ -281,6 +285,7 @@ function CategoriesSection({ productId, supabase }: { productId: string; supabas
     setSaving(true)
     await supabase.from('categories').delete().eq('id', id)
     setSaving(false)
+    toast.success('Category deleted.')
     setCategories(prev => prev.filter(c => c.id !== id))
     setConfirmDeleteId(null)
   }
@@ -345,6 +350,7 @@ function CategoriesSection({ productId, supabase }: { productId: string; supabas
 }
 
 function PlatformsSection({ supabase }: { supabase: ReturnType<typeof createClient> }) {
+  const toast = useToast()
   const [platforms, setPlatforms]         = useState<Platform[]>([])
   const [loading, setLoading]             = useState(true)
   const [editingId, setEditingId]         = useState<string | null>(null)
@@ -372,7 +378,7 @@ function PlatformsSection({ supabase }: { supabase: ReturnType<typeof createClie
       .select().single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setPlatforms(prev => [...prev, data as Platform])
+    if (data) { toast.success('Platform added.'); setPlatforms(prev => [...prev, data as Platform]) }
     setShowAdd(false); setAddForm(EMPTY)
   }
 
@@ -384,7 +390,7 @@ function PlatformsSection({ supabase }: { supabase: ReturnType<typeof createClie
       .eq('id', id).select().single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setPlatforms(prev => prev.map(p => p.id === id ? data as Platform : p))
+    if (data) { toast.success('Platform saved.'); setPlatforms(prev => prev.map(p => p.id === id ? data as Platform : p)) }
     setEditingId(null)
   }
 
@@ -393,6 +399,7 @@ function PlatformsSection({ supabase }: { supabase: ReturnType<typeof createClie
     await supabase.from('todo_platforms').delete().eq('platform_id', id)
     await supabase.from('platforms').delete().eq('id', id)
     setSaving(false)
+    toast.success('Platform deleted.')
     setPlatforms(prev => prev.filter(p => p.id !== id))
     setConfirmDeleteId(null)
   }

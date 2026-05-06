@@ -2,12 +2,14 @@
 
 import { useState } from 'react'
 import { saveKnowledge } from '@/app/actions/save-knowledge'
+import { useToast } from '@/components/ui/Toast'
 
 type Props = {
-  todoId: string
+  todoId: string | null
   productId: string
   initialTitle: string
   initialContent: string
+  note?: string
   onClose: () => void
   onSaved: () => void
 }
@@ -17,9 +19,11 @@ export default function DistillModal({
   productId,
   initialTitle,
   initialContent,
+  note,
   onClose,
   onSaved,
 }: Props) {
+  const toast = useToast()
   const [title, setTitle] = useState(initialTitle)
   const [content, setContent] = useState(initialContent)
   const [saving, setSaving] = useState(false)
@@ -37,8 +41,9 @@ export default function DistillModal({
 
     setSaving(false)
     if (res.error) {
-      alert('Failed to save knowledge: ' + res.error)
+      toast.error('Failed to save knowledge. Try again.')
     } else {
+      toast.success('Knowledge saved.')
       onSaved()
     }
   }
@@ -94,7 +99,7 @@ export default function DistillModal({
           Distill Knowledge
         </h3>
         <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', margin: '0 0 var(--sp-xl)' }}>
-          Extract a lesson or decision from this task to preserve it in the Knowledge Repository.
+          {note ?? 'Extract a lesson or decision from this task to preserve it in the Knowledge Repository.'}
         </p>
 
         <div style={fieldStyle}>

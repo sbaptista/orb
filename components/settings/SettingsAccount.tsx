@@ -3,10 +3,12 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/Toast'
 
 export default function SettingsAccount() {
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
+  const toast = useToast()
 
   const [userId, setUserId] = useState('')
   const [email, setEmail] = useState('')
@@ -14,7 +16,6 @@ export default function SettingsAccount() {
   const [lastName, setLastName] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
 
@@ -58,15 +59,13 @@ export default function SettingsAccount() {
   async function handleSave() {
     setSaving(true)
     setError('')
-    setSaved(false)
     const { error: err } = await supabase
       .from('users')
       .update({ first_name: firstName.trim(), last_name: lastName.trim() })
       .eq('id', userId)
     setSaving(false)
-    if (err) { setError(err.message); return }
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
+    if (err) { toast.error('Failed to save. Try again.'); return }
+    toast.success('Account saved.')
   }
 
   async function handleLogout() {
@@ -184,9 +183,6 @@ export default function SettingsAccount() {
             >
               {saving ? 'Saving…' : 'Save'}
             </button>
-            {saved && (
-              <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--success)' }}>Saved.</span>
-            )}
           </div>
         </div>
       </div>

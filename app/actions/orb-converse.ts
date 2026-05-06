@@ -14,6 +14,7 @@ export type OrbResponse = {
   thought?: string // A discrete "work step" completed by the Orb
   refresh?: boolean
   mutatedProductId?: string
+  mutationType?: 'create' | 'update' | 'delete'
   results?: Array<{ id: string; code: string; title: string; status: string; priority_value: number | null }>
   queryLabel?: string
   clientAction?: { action: string; target?: string }
@@ -89,6 +90,7 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
+        code: { type: 'string', description: 'Exact task code for single-todo lookup, e.g. "TODOS-62". Overrides all other filters.' },
         product_code: { type: 'string' },
         status: { type: 'string' },
         priority_max: { type: 'integer' },
@@ -247,13 +249,14 @@ ${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.code}] ${k.tit
               const { data, error } = await supabase.from('todos').insert({
                 product_id: product.id,
                 title: input.title,
+                description: input.description ?? null,
                 status: 'open',
                 priority_value: input.priority_value ?? null,
               }).select('id, todo_number').single()
               if (error) output = { error: error.message }
               else {
                 output = { ok: true, code: `${product.code}-${data.todo_number}` }
-                stream.update({ speech: accumulatedSpeech, thought: `Created ${product.code}-${data.todo_number}`, refresh: true, mutatedProductId: product.id })
+                stream.update({ speech: accumulatedSpeech, thought: `Created ${product.code}-${data.todo_number}`, refresh: true, mutatedProductId: product.id, mutationType: 'create' })
                 await logAuditEvent({
                   action: 'todo_create',
                   table_name: 'todos',
@@ -264,20 +267,40 @@ ${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.code}] ${k.tit
             }
           } else if (tc.name === 'query_todos') {
             let results = ctx.todoList.slice()
-            if (input.status && input.status !== 'any') {
-              results = results.filter((t: any) => t.status === input.status)
+
+            if (input.code) {
+              // Exact code match — short-circuit all other filters
+              const [productCode, todoNumStr] = String(input.code).toUpperCase().split('-')
+              const todoNum = parseInt(todoNumStr || '0')
+              results = results.filter((t: any) => {
+                const p = ctx.productList.find((pp: any) => pp.id === t.product_id)
+                return p?.code?.toUpperCase() === productCode && t.todo_number === todoNum
+              })
             } else {
-              const closed = ctx.statusList.filter((s: any) => s.is_closed).map((s: any) => s.name)
-              results = results.filter((t: any) => !closed.includes(t.status))
+              if (input.status && input.status !== 'any') {
+                results = results.filter((t: any) => t.status === input.status)
+              } else {
+                const closed = ctx.statusList.filter((s: any) => s.is_closed).map((s: any) => s.name)
+                results = results.filter((t: any) => !closed.includes(t.status))
+              }
+              if (input.product_code) {
+                const p = ctx.productList.find((pp: any) => pp.code?.toUpperCase() === String(input.product_code).toUpperCase())
+                if (p) results = results.filter((t: any) => t.product_id === p.id)
+              } else if (req.scopeToProduct) {
+                results = results.filter((t: any) => t.product_id === req.productId)
+              }
+              if (input.text_match) {
+                const q = String(input.text_match).toLowerCase()
+                results = results.filter((t: any) => t.title?.toLowerCase().includes(q))
+              }
+              if (input.priority_max) {
+                results = results.filter((t: any) => t.priority_value != null && t.priority_value <= input.priority_max)
+              }
+              results.sort((a: any, b: any) => (a.priority_value ?? 99) - (b.priority_value ?? 99))
             }
-            if (input.product_code) {
-              const p = ctx.productList.find((pp: any) => pp.code?.toUpperCase() === String(input.product_code).toUpperCase())
-              if (p) results = results.filter((t: any) => t.product_id === p.id)
-            } else if (req.scopeToProduct) {
-              results = results.filter((t: any) => t.product_id === req.productId)
-            }
-            results.sort((a: any, b: any) => (a.priority_value ?? 99) - (b.priority_value ?? 99))
-            const returned = results.slice(0, 10).map((t: any) => {
+
+            const limit = input.max_results ?? 10
+            const returned = results.slice(0, limit).map((t: any) => {
               const p = ctx.productList.find((pp: any) => pp.id === t.product_id)
               return { id: t.id, code: `${p?.code ?? p?.name}-${t.todo_number}`, title: t.title, status: t.status, priority_value: t.priority_value }
             })
@@ -321,7 +344,7 @@ ${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.code}] ${k.tit
               if (error) output = { error: error.message }
               else {
                 output = { ok: true }
-                stream.update({ speech: accumulatedSpeech, thought: `Updated ${input.code}`, refresh: true, mutatedProductId: todo.product_id })
+                stream.update({ speech: accumulatedSpeech, thought: `Updated ${input.code}`, refresh: true, mutatedProductId: todo.product_id, mutationType: 'update' })
                 await logAuditEvent({
                   action: closingStatus && !todo.closed_at ? 'todo_close' : 'todo_update',
                   table_name: 'todos',
@@ -398,7 +421,7 @@ ${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.code}] ${k.tit
               if (error) output = { error: error.message }
               else {
                 output = { ok: true, code: input.code }
-                stream.update({ speech: accumulatedSpeech, thought: `Deleted ${input.code}`, refresh: true, mutatedProductId: todo.product_id })
+                stream.update({ speech: accumulatedSpeech, thought: `Deleted ${input.code}`, refresh: true, mutatedProductId: todo.product_id, mutationType: 'delete' })
                 await logAuditEvent({
                   action: 'todo_delete',
                   table_name: 'todos',
@@ -424,6 +447,9 @@ ${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.code}] ${k.tit
             const returned = results.slice(0, 10).map((k: any) => ({ title: k.title, content: k.content, code: k.projects?.code }))
             output = { count: results.length, returned }
             stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length} insights`, knowledgeResults: returned })
+          }
+          if (output?.error) {
+            stream.update({ speech: accumulatedSpeech, thought: `Error: ${output.error}` })
           }
           toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
         }

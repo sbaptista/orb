@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/Toast'
 import type { Todo, Product, Group, Category, Priority } from './TodoView'
 
 type Props = {
@@ -22,6 +23,7 @@ export default function TodoForm({
   onCreate,
 }: Props) {
   const supabase = useMemo(() => createClient(), [])
+  const toast = useToast()
   const defaultProductId = productId ?? products[0]?.id ?? ''
 
   const [title,         setTitle]         = useState('')
@@ -54,8 +56,8 @@ export default function TodoForm({
       .single()
 
     setSaving(false)
-    if (err) { setError(err.message); return }
-    if (data) onCreate(data as Todo)
+    if (err) { toast.error('Failed to create todo. Try again.'); return }
+    if (data) { toast.success('Todo created'); onCreate(data as Todo) }
   }
 
   const inputStyle: React.CSSProperties = {

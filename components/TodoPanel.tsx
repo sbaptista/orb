@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Todo, Group, Category, Product, Priority } from './TodoView'
 import DistillModal from './DistillModal'
 import { logAudit } from '@/app/actions/log-audit'
+import { useToast } from '@/components/ui/Toast'
 
 type Props = {
   todo: Todo
@@ -30,6 +31,7 @@ export default function TodoPanel({
   onDelete,
 }: Props) {
   const supabase = useMemo(() => createClient(), [])
+  const toast = useToast()
   const [form, setForm] = useState({ ...todo })
   const [urlInput, setUrlInput] = useState((todo.urls ?? []).join('\n'))
   const [saving, setSaving] = useState(false)
@@ -58,7 +60,7 @@ export default function TodoPanel({
   async function handleSave() {
     setSaving(true)
     const urls = urlInput.split('\n').map(u => u.trim()).filter(Boolean)
-    const { data } = await supabase
+    const { data, error: err } = await supabase
       .from('todos')
       .update({
         title:            form.title,
@@ -78,9 +80,11 @@ export default function TodoPanel({
       .select('*, groups(name), categories(name)')
       .single()
     setSaving(false)
+    if (err) { toast.error('Failed to save. Try again.'); return }
     if (data) {
-      onSave(data as Todo)
       const justClosed = form.status === 'done' && todo.status !== 'done'
+      toast.success(justClosed ? 'Todo closed.' : 'Todo saved.')
+      onSave(data as Todo)
       logAudit({
         action: justClosed ? 'todo_close' : 'todo_update',
         table_name: 'todos',
@@ -96,7 +100,8 @@ export default function TodoPanel({
 
   async function handleDelete() {
     setDeleting(true)
-    await supabase.from('todos').delete().eq('id', todo.id)
+    const { error: err } = await supabase.from('todos').delete().eq('id', todo.id)
+    if (err) { toast.error('Failed to delete. Try again.'); setDeleting(false); return }
     logAudit({
       action: 'todo_delete',
       table_name: 'todos',
@@ -104,6 +109,7 @@ export default function TodoPanel({
       before: { title: todo.title, status: todo.status }
     })
     setDeleting(false)
+    toast.success('Todo deleted.')
     onDelete(todo.id)
   }
 

@@ -58,6 +58,17 @@
   --status-on-hold:     #5a6a7a;
   --status-done:        #2d5a2d;
 
+  /* ── Toast ── */
+  --toast-success-bg:     var(--success);
+  --toast-success-fg:     #ffffff;
+  --toast-success-border: rgba(255, 255, 255, 0.18);
+  --toast-error-bg:       var(--error);
+  --toast-error-fg:       #ffffff;
+  --toast-error-border:   rgba(255, 255, 255, 0.18);
+  --toast-neutral-bg:     var(--success);
+  --toast-neutral-fg:     #ffffff;
+  --toast-neutral-border: rgba(255, 255, 255, 0.18);
+
   /* ── Border radius ── */
   --r:    8px;
   --r-lg: 12px;

@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache'
 
 export async function saveKnowledge(params: {
   product_id: string
-  origin_todo_id: string
+  origin_todo_id: string | null
   title: string
   content: string
 }) {

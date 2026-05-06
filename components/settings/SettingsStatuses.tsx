@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
+import { useToast } from '@/components/ui/Toast'
 
 type Status = { id: string; name: string; sort_order: number; is_closed: boolean }
 type StatusForm = { name: string; is_closed: boolean }
@@ -96,6 +97,7 @@ const dangerConfirmBtnStyle: React.CSSProperties = {
 
 export default function SettingsStatuses() {
   const supabase = useMemo(() => createClient(), [])
+  const toast = useToast()
   const [statuses, setStatuses] = useState<Status[]>([])
   const [todoCounts, setTodoCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
@@ -170,7 +172,7 @@ export default function SettingsStatuses() {
     
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setStatuses(prev => [...prev, data as Status])
+    if (data) { toast.success('Status added.'); setStatuses(prev => [...prev, data as Status]) }
     setShowAdd(false)
     setAddForm(EMPTY_FORM)
   }
@@ -193,7 +195,7 @@ export default function SettingsStatuses() {
     
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setStatuses(prev => prev.map(s => s.id === id ? data as Status : s))
+    if (data) { toast.success('Status saved.'); setStatuses(prev => prev.map(s => s.id === id ? data as Status : s)) }
     setEditingId(null)
   }
 
@@ -215,6 +217,7 @@ export default function SettingsStatuses() {
     }
 
     setSaving(false)
+    toast.success('Status deleted.')
     setConfirmDeleteId(null)
     load()
   }

@@ -14,6 +14,7 @@ import { orbConverse, type OrbResponse } from '@/app/actions/orb-converse'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import DistillModal from './DistillModal'
 import { VERSION } from '@/lib/version'
+import { useToast } from '@/components/ui/Toast'
 
 type Product = { id: string; name: string; code: string | null; description: string | null }
 type Todo    = { id: string; title: string; status: string; priority_value: number | null }
@@ -95,6 +96,7 @@ const SOLAR_FLARES = [
 export default function AmbientDashboard({ initialProducts }: Props) {
     const router   = useRouter()
     const supabase = useMemo(() => createClient(), [])
+    const toast    = useToast()
 
     const [products, setProducts]               = useState<Product[]>(initialProducts ?? [])
     const [selectedId, setSelectedId]           = useState<string | null>(null)
@@ -409,6 +411,11 @@ export default function AmbientDashboard({ initialProducts }: Props) {
                 if (chunk.refresh) {
                     setPulse(true)
                     setTimeout(() => setPulse(false), 420)
+                    if (chunk.mutatedProductId === selectedId) fetchTodos()
+                    if (chunk.mutationType === 'create') toast.success('Todo created.')
+                    else if (chunk.mutationType === 'update') toast.success('Todo saved.')
+                    else if (chunk.mutationType === 'delete') toast.success('Todo deleted.')
+                    else toast.success('Todo updated.')
                 }
 
                 if (chunk.clientAction) {
@@ -826,6 +833,7 @@ export default function AmbientDashboard({ initialProducts }: Props) {
                 override={moodOverride}
                 onChange={setMoodOverride}
                 onSpeak={speech => { if (speech) addOrbMessage(speech.text) }}
+                onSubmit={handleSubmit}
                 dryRun={dryRun}
                 onDryRunChange={setDryRun}
                 messages={messages}

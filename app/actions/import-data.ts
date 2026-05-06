@@ -25,9 +25,19 @@ export async function importData(payload: any) {
   const supabase = createAdminClient()
 
   try {
-    // If payload is an array and looks like knowledge repo entries, wrap it
-    if (Array.isArray(payload) && payload.length > 0 && payload[0].title && payload[0].content) {
-      payload = { knowledge_repo: payload }
+    // Wrap recognized raw arrays; reject anything else that's a raw array
+    if (Array.isArray(payload)) {
+      const first = payload[0] ?? {}
+      if (payload.length === 0) return { error: 'File contains an empty array — nothing to import.' }
+      if (first.title && first.content && !first.status) {
+        // knowledge_repo entries (have title + content, no todo status field)
+        payload = { knowledge_repo: payload }
+      } else if (first.todos) {
+        // Shouldn't happen (array of objects each with a todos key), reject
+        return { error: 'Unrecognized file format. Use a file exported by this app.' }
+      } else {
+        return { error: 'Unrecognized file format. Use a file exported by this app.' }
+      }
     }
 
     // Import in dependency order to respect foreign keys

@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
+import { useToast } from '@/components/ui/Toast'
 
 type Product = { id: string; name: string }
 type Category = { id: string; name: string; product_id: string | null; sort_order: number }
@@ -79,6 +80,7 @@ const dangerConfirmBtnStyle: React.CSSProperties = {
 
 export default function SettingsCategories() {
   const supabase = useMemo(() => createClient(), [])
+  const toast = useToast()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [todoCounts, setTodoCounts] = useState<Record<string, number>>({})
@@ -150,7 +152,7 @@ export default function SettingsCategories() {
       .single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setCategories(prev => [...prev, data as Category])
+    if (data) { toast.success('Category added.'); setCategories(prev => [...prev, data as Category]) }
     setShowAdd(false)
     setAddForm(EMPTY_FORM)
   }
@@ -171,7 +173,7 @@ export default function SettingsCategories() {
       .single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setCategories(prev => prev.map(c => c.id === id ? data as Category : c))
+    if (data) { toast.success('Category saved.'); setCategories(prev => prev.map(c => c.id === id ? data as Category : c)) }
     setEditingId(null)
   }
 
@@ -179,6 +181,7 @@ export default function SettingsCategories() {
     setSaving(true)
     await supabase.from('categories').delete().eq('id', id)
     setSaving(false)
+    toast.success('Category deleted.')
     setCategories(prev => prev.filter(c => c.id !== id))
     setConfirmDeleteId(null)
   }

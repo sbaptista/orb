@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/Toast'
 
 type Project = { id: string; name: string; code: string | null; description: string | null }
 
@@ -40,6 +41,7 @@ export default function AddProductModal({
   project?: Project
 }) {
   const isEdit = !!project
+  const toast = useToast()
   const [name, setName]             = useState(project?.name ?? '')
   const [code, setCode]             = useState(project?.code ?? '')
   const [description, setDescription] = useState(project?.description ?? '')
@@ -77,8 +79,8 @@ export default function AddProductModal({
         .select('id, name, code, description')
         .single()
       setSaving(false)
-      if (err) { setError(err.message); return }
-      if (data) onUpdated?.(data as Project)
+      if (err) { toast.error('Failed to update project. Try again.'); return }
+      if (data) { toast.success('Project updated.'); onUpdated?.(data as Project) }
     } else {
       const { data, error: err } = await supabase
         .from('projects')
@@ -91,8 +93,8 @@ export default function AddProductModal({
         .select('id, name, code, description')
         .single()
       setSaving(false)
-      if (err) { setError(err.message); return }
-      if (data) onCreated?.(data as Project)
+      if (err) { toast.error('Failed to create project. Try again.'); return }
+      if (data) { toast.success('Project created.'); onCreated?.(data as Project) }
     }
   }
 
@@ -101,6 +103,7 @@ export default function AddProductModal({
     const supabase = createClient()
     await supabase.from('projects').delete().eq('id', project!.id)
     setSaving(false)
+    toast.success('Project deleted.')
     onDeleted?.(project!.id)
   }
 
