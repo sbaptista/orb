@@ -1,0 +1,241 @@
+/* TODOS FONT SIZE RULES
+   Floor: 12px absolute minimum — nothing rendered goes below this
+   11px — version string only
+   12px — metadata, labels, badges, captions
+   13px — secondary content
+   15px — body text, primary content
+   16px — all form inputs (prevents iOS auto-zoom on focus)
+   Display — Cormorant Garamond 300, used for orb number only
+   Stan is 74 — sizing intentionally larger than platform defaults */
+
+@import "tailwindcss";
+
+:root {
+  /* ── Backgrounds ── */
+  --bg:  #e8ede8;
+  --bg2: #f2f5f2;
+  --bg3: #dde5dd;
+
+  /* ── Text ── */
+  --text:  #2a332a;
+  --text2: #4a5a4a;
+  --text3: #4b6b4b;  /* darkened from #6a7a6a — was 3.85:1, now 5.06:1 on --bg */
+  --muted: #547054;  /* darkened from #8a9e8a — was ~2.4:1, now 4.64:1 on --bg */
+
+  /* ── Borders ── */
+  --border:       rgba(60, 110, 60, 0.15);
+  --border-focus: rgba(60, 110, 60, 0.38);
+
+  /* ── Shadows ── */
+  --shadow-sm: 0 2px 8px  rgba(60, 110, 60, 0.07);
+  --shadow-md: 0 8px 32px rgba(60, 110, 60, 0.16), 0 2px 8px rgba(60, 110, 60, 0.08);
+  --shadow-lg: 0 16px 48px rgba(60, 110, 60, 0.18), 0 4px 12px rgba(60, 110, 60, 0.10);
+
+  /* ── Orb ── */
+  --orb-hi:    #ffffff;
+  --orb-mid:   #d4e4d4;
+  --orb-lo:    #b8d0b8;
+  --orb-glow:  rgba(80, 130, 80, 0.20);
+  --orb-count: #2d5a2d;
+  --orb-label: #7a9e7a;
+
+  /* ── Interactive ── */
+  --pill-bg:     transparent;
+  --pill-border: var(--border);
+  --pill-color:  var(--muted);
+  --pill-active-bg:     rgba(60, 110, 60, 0.08);
+  --pill-active-border: rgba(60, 110, 60, 0.32);
+  --pill-active-color:  #2d5a2d;
+
+  /* ── Semantic ── */
+  --success: #2d5a2d;
+  --error:   #8b2020;
+  --warning: #7a5010;
+
+  /* ── Status colors ── */
+  --status-open:        #b87010;
+  --status-in-progress: #2060a0;
+  --status-on-hold:     #5a6a7a;
+  --status-done:        #2d5a2d;
+
+  /* ── Toast ── */
+  --toast-success-bg:     var(--success);
+  --toast-success-fg:     #ffffff;
+  --toast-success-border: rgba(255, 255, 255, 0.18);
+  --toast-error-bg:       var(--error);
+  --toast-error-fg:       #ffffff;
+  --toast-error-border:   rgba(255, 255, 255, 0.18);
+  --toast-neutral-bg:     var(--success);
+  --toast-neutral-fg:     #ffffff;
+  --toast-neutral-border: rgba(255, 255, 255, 0.18);
+
+  /* ── Border radius ── */
+  --r:    8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+
+  /* ── Motion ── */
+  --transition: 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --orb-speed:  4.5s;
+
+  /* ── iOS safe area ── */
+  --sat: env(safe-area-inset-top,    0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left,   0px);
+  --sar: env(safe-area-inset-right,  0px);
+
+  /* ── Font sizes ── */
+  --fs-version: 11px;
+  --fs-xs:      12px;
+  --fs-sm:      13px;
+  --fs-base:    15px;
+  --fs-input:   16px;
+  --fs-lg:      18px;
+  --fs-xl:      22px;
+  --fs-orb:     42px;
+
+  /* ── Font weights ── */
+  --fw-normal: 400;
+  --fw-medium: 500;
+  --fw-bold:   700;
+
+  /* ── Spacing ── */
+  --sp-xs:  4px;
+  --sp-sm:  8px;
+  --sp-md:  12px;
+  --sp-lg:  16px;
+  --sp-xl:  20px;
+  --sp-2xl: 24px;
+  --sp-3xl: 32px;
+
+  /* ── Touch targets ── */
+  --touch: 48px;
+
+  /* ── Content width ── */
+  --content-max: 960px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   RESPONSIVE ARCHITECTURE — same approach as Helm
+   Type scaling → INPUT DEVICE (pointer query), not window width
+   Layout stacking → window WIDTH only
+
+   Pointer queries:
+     (hover:hover) and (pointer:fine)   → Mac/desktop
+     (hover:none)  and (pointer:coarse) → iPad or iPhone or Android touch
+   Within touch: min-width 768px = tablet, max-width 767px = phone
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Touch tier (phone + tablet share these rules; split if they diverge) ── */
+@media (hover: none) and (pointer: coarse) {
+  label { font-size: var(--fs-base); }
+  input, select, textarea { font-size: var(--fs-input); }
+  button { min-height: var(--touch); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   BASE RESET
+   ══════════════════════════════════════════════════════════ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  height: 100%;
+  background: var(--bg);
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: 1.6;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100%;
+}
+
+/* Scrollable containers on mobile */
+.scroll-mobile {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Remove default input appearance on iOS and Android */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Prevent iOS/Android tap highlight */
+a, button, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Eliminate 300ms tap delay and double-tap zoom on interactive elements */
+a, button, [role="button"], input, select, textarea {
+  touch-action: manipulation;
+}
+
+/* Skip-to-content link — visible only on keyboard focus */
+.skip-link {
+  position: fixed;
+  top: var(--sp-lg);
+  left: var(--sp-lg);
+  transform: translateY(-200%);
+  padding: 8px var(--sp-lg);
+  background: var(--bg2);
+  color: var(--pill-active-color);
+  border: 1px solid var(--pill-active-border);
+  border-radius: var(--r);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  z-index: 9999;
+  transition: transform 0.15s;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* Focus ring — visible only via keyboard */
+:focus-visible {
+  outline: 3px solid rgba(60, 110, 60, 0.45);
+  outline-offset: 2px;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   CONTENT CONTAINER
+   ══════════════════════════════════════════════════════════ */
+
+.content-container {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 var(--sp-2xl);
+}
+
+@media (max-width: 900px) {
+  .content-container { padding: 0 var(--sp-lg); }
+}
+
+@media (max-width: 480px) {
+  .content-container { padding: 0 var(--sp-md); }
+}

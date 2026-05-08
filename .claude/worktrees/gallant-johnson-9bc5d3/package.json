@@ -1,6 +1,6 @@
 {
-  "name": "orb",
-  "version": "0.3.1",
+  "name": "todos",
+  "version": "0.2.43",
   "private": true,
   "scripts": {
     "dev": "next dev --experimental-https --experimental-https-cert localhost+1.pem --experimental-https-key localhost+1-key.pem -H 0.0.0.0 -p 3001",

@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { OrbResponse } from '@/app/actions/orb-converse'
-import type { Todo, Product, Priority } from './TodoView'
+import type { Todo, Group, Category, Product, Priority } from './TodoView'
 
 type ResultItem = NonNullable<OrbResponse['results']>[number]
 
@@ -139,16 +139,16 @@ export default function QueryResultsModal({
   results,
   queryLabel,
   onClose,
-  fullText,
 }: {
   results: ResultItem[]
   queryLabel: string
   onClose: () => void
-  fullText?: string
 }) {
   const supabase = useMemo(() => createClient(), [])
   const [copied, setCopied] = useState(false)
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null)
+  const [groups, setGroups] = useState<Group[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [priorities, setPriorities] = useState<Priority[]>([])
   const [items, setItems] = useState<ResultItem[]>(results)
@@ -162,12 +162,16 @@ export default function QueryResultsModal({
   }, [items])
 
   async function openTodo(item: ResultItem) {
-    const [todoRes, prodRes, priRes] = await Promise.all([
-      supabase.from('todos').select('*').eq('id', item.id).single(),
+    const [todoRes, groupRes, catRes, prodRes, priRes] = await Promise.all([
+      supabase.from('todos').select('*, groups(name), categories(name)').eq('id', item.id).single(),
+      supabase.from('groups').select('*'),
+      supabase.from('categories').select('*'),
       supabase.from('projects').select('id, name, color, code').order('sort_order'),
       supabase.from('priorities').select('value, label').order('value'),
     ])
     if (todoRes.data) {
+      setGroups(groupRes.data ?? [])
+      setCategories(catRes.data ?? [])
       setProducts((prodRes.data ?? []).map((p: { id: string; name: string; color: string | null; code: string | null }) => ({ ...p, icon: null })))
       setPriorities(priRes.data ?? [])
       setSelectedTodo(todoRes.data as Todo)
@@ -271,20 +275,9 @@ export default function QueryResultsModal({
           </button>
         </div>
 
-        {/* Content */}
+        {/* List */}
         <div style={{ overflowY: 'auto', flex: 1 }}>
-          {fullText ? (
-            <div style={{
-              padding: 'var(--sp-xl)',
-              fontSize: 'var(--fs-base)',
-              color: 'var(--text2)',
-              fontFamily: 'var(--font-ui)',
-              lineHeight: 1.6,
-              whiteSpace: 'pre-wrap',
-            }}>
-              {fullText}
-            </div>
-          ) : items.length === 0 ? (
+          {items.length === 0 ? (
             <p style={{ padding: 'var(--sp-2xl)', textAlign: 'center', fontSize: 'var(--fs-sm)', color: 'var(--muted)', margin: 0 }}>
               No results
             </p>

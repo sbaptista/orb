@@ -1,0 +1,4449 @@
+{
+  "itinerary": [
+    {
+      "day": "Pre-Trip",
+      "date": "Sat, Oct 3, 2026",
+      "label": "Departure Day — Honolulu",
+      "type": "flight",
+      "rows": [
+        {
+          "time": "8:00 AM HST",
+          "hst": "",
+          "activity": "Preparation / Pack",
+          "detail": "Final packing. Ensure day bag has: meds, valuables, passports, electronics, warm layer.",
+          "rowTime": "08:00",
+          "rowDate": "2026-10-03",
+          "rowTz": "Pacific/Honolulu",
+          "rowCity": "Honolulu",
+          "approx": true,
+          "allDay": false,
+          "provided": false,
+          "actionRequired": false,
+          "arNote": "",
+          "linkedItems": []
+        },
+        {
+          "time": "11:50 HST",
+          "hst": "11:50 PM (already HST)",
+          "activity": "✈️ Depart HNL",
+          "detail": "AS 900 HNL→SEA (operated by Alaska as Hawaiian Airlines)\nFirst (D) | 3A Cathleen / 3B Stanley",
+          "rowTime": "23:50",
+          "rowDate": "2026-10-03",
+          "rowTz": "Pacific/Honolulu",
+          "rowCity": "Honolulu",
+          "allDay": false,
+          "approx": false,
+          "provided": false
+        }
+      ],
+      "city": "Honolulu"
+    },
+    {
+      "day": 1,
+      "date": "Sun, Oct 4, 2026",
+      "label": "Day 1 — Arrive Vancouver",
+      "type": "flight",
+      "city": "Vancouver",
+      "rows": [
+        {
+          "time": "8:30 AM PDT",
+          "hst": "5:30 AM HST",
+          "activity": "🛬 Arrive SEA",
+          "detail": "AS 900 arrives Seattle. 3h 14m layover.",
+          "meals": "In-flight breakfast (First Class)",
+          "rowTime": "08:30",
+          "rowDate": "2026-10-04",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver"
+        },
+        {
+          "time": "11:44 AM PDT",
+          "hst": "8:44 AM HST",
+          "activity": "✈️ Depart SEA",
+          "detail": "AS 2355 SEA→YVR (Horizon Air)\nFirst (D) | 2D Cathleen / 2C Stanley",
+          "meals": "In-flight (First Class)",
+          "rowTime": "11:44",
+          "rowDate": "2026-10-04",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver"
+        },
+        {
+          "time": "12:49 PM PDT",
+          "hst": "9:49 AM HST",
+          "activity": "🛬 Arrive YVR",
+          "detail": "Transfer independently to hotel. Uber/pre-book TBD.",
+          "meals": "",
+          "rowTime": "12:49",
+          "rowDate": "2026-10-04",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver"
+        },
+        {
+          "time": "4:00 PDT",
+          "hst": "≈1:00 PM HST",
+          "activity": "🏨 Check In",
+          "detail": "Sheraton Vancouver Wall Centre\n1000 Burrard St | (604) 331-1000",
+          "rowTime": "16:00",
+          "rowDate": "2026-10-04",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver",
+          "allDay": false,
+          "approx": true,
+          "provided": false,
+          "actionRequired": false,
+          "arNote": "",
+          "linkedItems": [
+            {
+              "section": "hotels",
+              "id": 1
+            }
+          ]
+        },
+        {
+          "rowDate": "2026-10-03",
+          "rowTime": "19:30",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver",
+          "allDay": false,
+          "approx": true,
+          "activity": "Dinner or snack at hotel",
+          "detail": "",
+          "provided": false,
+          "hst": "",
+          "time": "7:30 PDT",
+          "actionRequired": false,
+          "arNote": ""
+        }
+      ]
+    },
+    {
+      "day": 2,
+      "date": "Mon, Oct 5, 2026",
+      "label": "Day 2 — Free Day, Vancouver",
+      "type": "free",
+      "city": "Vancouver",
+      "rows": [
+        {
+          "time": "8:00 AM PDT",
+          "hst": "",
+          "activity": "☕ Coffee + Walk",
+          "detail": "Coffee + walk along False Creek.",
+          "rowTime": "08:00",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver",
+          "allDay": false,
+          "approx": true,
+          "provided": false,
+          "rowDate": "2026-10-05",
+          "actionRequired": false,
+          "arNote": "",
+          "linkedItems": []
+        },
+        {
+          "time": "11:30 PDT",
+          "hst": "9:00 AM HST",
+          "activity": "🚌 Vancouver City Tour",
+          "detail": "Vancouver City Tour + Capilano Suspension Bridge (5.5 hrs)\nPickup Location: South Tower Entrance @ Sheraton Wall Centre - 1000 Burrard St (https://goo.gl/maps/7JZqiWmGoVXtkVzr5)\n\nPickup Time: 11:30 AM\nDeparture Time: 12 Noon\n\nKindly be ready at the South Tower Entrance of the hotel no later than pick up time. Our tour guide will be looking for you by your name anytime between the pick-up and departure time. If you are still waiting by then, please feel free to call us at +1-604-451-1600 for further assistance.",
+          "rowTime": "11:30",
+          "rowDate": "2026-10-05",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver",
+          "allDay": false,
+          "approx": false,
+          "provided": false
+        },
+        {
+          "time": "≈5:30 PM PDT",
+          "hst": "≈2:30 PM HST",
+          "activity": "🔙 Return from Tour",
+          "detail": "Approx. return after 5.5 hr tour.",
+          "meals": "",
+          "rowTime": "17:30",
+          "rowDate": "2026-10-05",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver"
+        },
+        {
+          "rowDate": "2026-10-05",
+          "rowTime": "19:30",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver",
+          "allDay": false,
+          "approx": true,
+          "activity": "Dinner or snack at hotel",
+          "detail": "",
+          "provided": false,
+          "hst": "",
+          "time": "7:30 PM PDT",
+          "actionRequired": false,
+          "arNote": "",
+          "linkedItems": []
+        }
+      ]
+    },
+    {
+      "day": 3,
+      "date": "Tue, Oct 6, 2026",
+      "label": "Day 3 — Vancouver → Kamloops (Train)",
+      "type": "train",
+      "city": "Vancouver",
+      "rows": [
+        {
+          "time": "7:00 PDT",
+          "hst": "4:00–4:30 AM HST",
+          "activity": "🚌 Motorcoach Pickup",
+          "detail": "Transfer from Sheraton Wall Centre to Rocky Mountaineer Station.",
+          "rowTime": "07:00",
+          "rowDate": "2026-10-06",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver",
+          "allDay": false,
+          "approx": false,
+          "provided": false
+        },
+        {
+          "time": "8:00 PDT",
+          "hst": "5:00 AM HST",
+          "activity": "🚂 Depart Vancouver for Kamloops",
+          "detail": "GoldLeaf Service: Vancouver → Kamloops\nHighlights: Hell's Gate, Cisco Crossing bridges, Kamloops Lake\nBreakfast, lunch, beverages, and snacks are included onboard.",
+          "rowTime": "08:00",
+          "rowDate": "2026-10-06",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver",
+          "allDay": false,
+          "approx": false,
+          "provided": true
+        },
+        {
+          "time": "6:15–7:45 PM PDT",
+          "hst": "3:15–4:45 PM HST",
+          "activity": "🚂 Arrive Kamloops",
+          "detail": "Motorcoach transfer from Kamloops siding to hotel (30–45 min).",
+          "meals": "",
+          "rowTime": "18:15",
+          "rowDate": "2026-10-06",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Kamloops"
+        },
+        {
+          "rowDate": "2026-10-06",
+          "rowTime": "20:00",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Kamloops",
+          "allDay": false,
+          "approx": true,
+          "activity": "Possible light dinner or snack",
+          "detail": "",
+          "provided": false,
+          "actionRequired": false,
+          "arNote": "",
+          "linkedItems": [],
+          "hst": "",
+          "time": "8:00 PM PDT"
+        }
+      ]
+    },
+    {
+      "day": 4,
+      "date": "Wed, Oct 7, 2026",
+      "label": "Day 4 — Kamloops → Jasper (Train)",
+      "type": "train",
+      "city": "Kamloops",
+      "rows": [
+        {
+          "time": "Early AM",
+          "hst": "",
+          "activity": "🚌 Motorcoach to Station",
+          "detail": "Transfer to Kamloops Rocky Mountaineer Train Siding, 525 CN Road, Kamloops, BC",
+          "rowDate": "2026-10-07",
+          "rowTime": "07:15",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Kamloops",
+          "allDay": false,
+          "approx": true,
+          "provided": false
+        },
+        {
+          "time": "8:15 PDT",
+          "hst": "5:15 AM HST",
+          "activity": "🚂 Depart Kamloops for Jasper",
+          "detail": "GoldLeaf Service: Kamloops → Jasper\nHighlights: Mt. Robson, Pyramid Falls, Moose Lake, Continental Divide\nBreakfast, lunch, beverages, and snacks are included onboard.",
+          "rowTime": "08:15",
+          "rowDate": "2026-10-07",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Kamloops",
+          "allDay": false,
+          "approx": true,
+          "provided": true
+        },
+        {
+          "time": "7:00–8:30 PM MDT",
+          "hst": "5:00–6:30 PM HST",
+          "activity": "🚂 Arrive Jasper",
+          "detail": "Transfer to Fairmont Jasper Park Lodge. National Parks Pass valid from today.\nRocky Mountaineer Jasper Station: 607 Connaught Dr, Jasper, AB\nEstimated arrival time: 7:00 PM - 8:30 PM MT",
+          "rowTime": "19:00",
+          "rowDate": "2026-10-07",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Jasper",
+          "allDay": false,
+          "approx": true,
+          "provided": false
+        },
+        {
+          "rowDate": "2026-10-07",
+          "rowTime": "21:00",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Jasper",
+          "allDay": false,
+          "approx": true,
+          "activity": "Late dinner or snack?",
+          "detail": "",
+          "provided": false,
+          "hst": "",
+          "time": "9:00 MDT"
+        }
+      ]
+    },
+    {
+      "day": 5,
+      "date": "Thu, Oct 8, 2026",
+      "label": "Day 5 — Jasper Sightseeing",
+      "type": "free",
+      "city": "Jasper",
+      "rows": [
+        {
+          "time": "Morning",
+          "hst": "",
+          "activity": "🌄 Free Time — Jasper",
+          "detail": "Leisure morning. Options: wildlife walk, Lac Beauvert shoreline.",
+          "meals": "TBD",
+          "rowTime": "09:00",
+          "rowDate": "2026-10-08",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Jasper",
+          "approx": true,
+          "actionRequired": true
+        },
+        {
+          "time": "Afternoon",
+          "hst": "",
+          "activity": "🚌 Half-Day Sightseeing",
+          "detail": "Included half-day tour of Jasper's landmarks.",
+          "meals": "",
+          "rowTime": "13:00",
+          "rowDate": "2026-10-08",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Jasper",
+          "approx": true
+        },
+        {
+          "time": "Afternoon",
+          "hst": "",
+          "activity": "🚡 Jasper SkyTram",
+          "detail": "Included. Ascends to 2,263m on Whistlers Mountain. Boardwalks, summit hike.",
+          "meals": "",
+          "rowTime": "14:00",
+          "rowDate": "2026-10-08",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Jasper",
+          "approx": true
+        },
+        {
+          "rowDate": "2026-10-08",
+          "rowTime": "19:00",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Jasper",
+          "allDay": false,
+          "approx": true,
+          "activity": "Dinner",
+          "detail": "",
+          "provided": false,
+          "hst": "",
+          "time": "7:00 MDT",
+          "actionRequired": true,
+          "arNote": "Select from recommended list in Restaurants or other option."
+        }
+      ]
+    },
+    {
+      "day": 6,
+      "date": "Fri, Oct 9, 2026",
+      "label": "Day 6 — Icefields Parkway → Lake Louise",
+      "type": "transit",
+      "city": "Lake Louise",
+      "rows": [
+        {
+          "rowDate": "2026-10-09",
+          "rowTime": "07:00",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Jasper",
+          "allDay": false,
+          "approx": true,
+          "activity": "Motorcoach pickup",
+          "detail": "Don't have details yet.",
+          "provided": false,
+          "actionRequired": true,
+          "arNote": "Update when we have final documents",
+          "linkedItems": [],
+          "hst": "",
+          "time": "7:00 AM MDT"
+        },
+        {
+          "time": "8:00 AM MDT",
+          "hst": "",
+          "activity": "🚌 Icefield Discovery Tour",
+          "detail": "Motorcoach: Jasper → Lake Louise via Icefields Parkway\nHighlights: Bow Lake, Columbia Icefield, Athabasca Falls",
+          "rowTime": "08:00",
+          "rowDate": "2026-10-09",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Jasper",
+          "approx": true,
+          "allDay": false,
+          "provided": false,
+          "actionRequired": false,
+          "arNote": "",
+          "linkedItems": []
+        },
+        {
+          "time": "En route",
+          "hst": "",
+          "activity": "🧊 Ice Explorer",
+          "detail": "Six-wheel drive vehicle tour onto Athabasca Glacier. Included.",
+          "meals": "",
+          "rowTime": "11:00",
+          "rowDate": "2026-10-09",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Icefields Parkway",
+          "approx": true
+        },
+        {
+          "rowDate": "2026-10-09",
+          "rowTime": "12:00",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Icefields Parkway",
+          "allDay": false,
+          "approx": true,
+          "activity": "🍽️ Alpine Lunch",
+          "detail": "Included. Columbia Icefield Glacier Discovery Centre.",
+          "provided": true,
+          "hst": "",
+          "time": "≈1:00 PM MDT"
+        },
+        {
+          "time": "En route",
+          "hst": "",
+          "activity": "🌉 Glacier Skywalk",
+          "detail": "400m boardwalk + glass-floor observation platform. Included.",
+          "meals": "",
+          "rowTime": "13:00",
+          "rowDate": "2026-10-09",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Icefields Parkway",
+          "approx": true
+        },
+        {
+          "time": "5:00 MDT",
+          "hst": "",
+          "activity": "🏨 Arrive Lake Louise-Post Hotel & Spa",
+          "detail": "",
+          "rowTime": "17:00",
+          "rowDate": "2026-10-09",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Lake Louise",
+          "approx": true,
+          "allDay": false,
+          "provided": false,
+          "actionRequired": false,
+          "arNote": "",
+          "linkedItems": [
+            {
+              "section": "hotels",
+              "id": 4
+            }
+          ]
+        },
+        {
+          "rowDate": "2026-10-09",
+          "rowTime": "20:00",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Lake Louise",
+          "allDay": false,
+          "approx": false,
+          "activity": "Dinner at Post Hotel Dining Room",
+          "detail": "Confirmation #: 56098",
+          "provided": false,
+          "hst": "",
+          "time": "8:00 MDT",
+          "actionRequired": false,
+          "arNote": "",
+          "linkedItems": [
+            {
+              "section": "restaurants",
+              "id": 11
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "day": 7,
+      "date": "Sat, Oct 10, 2026",
+      "label": "Day 7 — Lake Louise → Banff (Free Day)",
+      "type": "free",
+      "city": "Banff",
+      "rows": [
+        {
+          "rowDate": "2026-10-10",
+          "rowTime": "07:00",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Banff",
+          "allDay": false,
+          "approx": true,
+          "activity": "Transfer by motorcoach to Banff from Lake Louise.",
+          "detail": "The journey will take approximately one hour.",
+          "provided": false,
+          "actionRequired": true,
+          "arNote": "Set time when final documents are available.",
+          "linkedItems": [],
+          "hst": "",
+          "time": "7:00 AM MDT"
+        },
+        {
+          "time": "≈12:00 PM MDT",
+          "hst": "≈8:00 AM HST",
+          "activity": "🚌 Transfer to Banff",
+          "detail": "Motorcoach: Lake Louise → Banff (~1 hour). Arrive ≈1:00 PM. (Time estimated)",
+          "meals": "",
+          "rowTime": "12:00",
+          "rowDate": "2026-10-10",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Lake Louise"
+        },
+        {
+          "time": "≈1:00 PM MDT",
+          "hst": "≈9:00 AM HST",
+          "activity": "🏨 Check In — Banff",
+          "detail": "Elk + Avenue Hotel\n333 Banff Ave | (877) 442-2623",
+          "meals": "",
+          "rowTime": "13:00",
+          "rowDate": "2026-10-10",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Banff"
+        },
+        {
+          "time": "3:00 PM MDT",
+          "hst": "",
+          "activity": "🚌 Legendary Banff Tour",
+          "detail": "90-min open top bus tour. Hourly 10am–7pm.\nPickup: Brewster Sightseeing, 100 Gopher St.",
+          "rowTime": "15:00",
+          "rowDate": "2026-10-10",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Banff",
+          "approx": true,
+          "allDay": false,
+          "provided": false,
+          "actionRequired": true,
+          "arNote": "Possibly wait until day-of to schedule? Depends on how we feel.",
+          "linkedItems": []
+        }
+      ]
+    },
+    {
+      "day": 8,
+      "date": "Sun, Oct 11, 2026",
+      "label": "Day 8 — Banff → Kamloops (Train)",
+      "type": "train",
+      "city": "Banff",
+      "rows": [
+        {
+          "time": "7:00 AM MDT",
+          "hst": "3:00–3:30 AM HST",
+          "activity": "🚌 Motorcoach to Station",
+          "detail": "Transfer from Elk + Avenue Hotel to Banff Station.",
+          "rowTime": "07:00",
+          "rowDate": "2026-10-11",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Banff",
+          "allDay": false,
+          "approx": true,
+          "provided": false,
+          "actionRequired": true,
+          "arNote": "Update with final docs",
+          "linkedItems": []
+        },
+        {
+          "time": "8:00 AM MDT",
+          "hst": "≈4:00 AM HST",
+          "activity": "🚂 Depart Banff",
+          "detail": "GoldLeaf: Banff → Lake Louise. Highlights: Bow River, Castle Mountain. (Time estimated)",
+          "rowTime": "08:00",
+          "rowDate": "2026-10-11",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Banff",
+          "allDay": false,
+          "approx": true,
+          "provided": false,
+          "actionRequired": true,
+          "arNote": "Update with final docs",
+          "linkedItems": []
+        },
+        {
+          "time": "≈9:15 AM MDT",
+          "hst": "≈5:15 AM HST",
+          "activity": "🚂 Depart Lake Louise",
+          "detail": "GoldLeaf: Lake Louise → Kamloops.\nHighlights: Spiral Tunnels, Stoney Creek Bridge, Craigellachie. (Time estimated)",
+          "meals": "Lunch, snacks included",
+          "rowTime": "09:15",
+          "rowDate": "2026-10-11",
+          "rowTz": "America/Edmonton",
+          "rowCity": "Banff"
+        },
+        {
+          "time": "≈7:15–8:45 PM PDT",
+          "hst": "≈4:15–5:45 PM HST",
+          "activity": "🚂 Arrive Kamloops",
+          "detail": "Motorcoach to hotel (30–45 min). (Time estimated)",
+          "meals": "",
+          "rowTime": "19:15",
+          "rowDate": "2026-10-11",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Kamloops"
+        }
+      ]
+    },
+    {
+      "day": 9,
+      "date": "Mon, Oct 12, 2026",
+      "label": "Day 9 — Kamloops → Vancouver (Train)",
+      "type": "train",
+      "city": "Kamloops",
+      "rows": [
+        {
+          "time": "Early AM",
+          "hst": "",
+          "activity": "🚌 Motorcoach to Station",
+          "detail": "Transfer to Kamloops Train Siding, 525 CN Road.",
+          "meals": "",
+          "rowTime": "07:00",
+          "rowDate": "2026-10-12",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver",
+          "approx": true
+        },
+        {
+          "time": "≈8:00 AM PDT",
+          "hst": "≈5:00 AM HST",
+          "activity": "🚂 Depart Kamloops",
+          "detail": "GoldLeaf: Kamloops → Vancouver.\nHighlights: Kamloops Lake, Cisco Crossing, Hell's Gate. (Time estimated)",
+          "meals": "Breakfast, lunch, snacks included",
+          "rowTime": "08:00",
+          "rowDate": "2026-10-12",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver"
+        },
+        {
+          "time": "≈6:15–7:45 PM PDT",
+          "hst": "≈3:15–4:45 PM HST",
+          "activity": "🚂 Arrive Vancouver",
+          "detail": "Motorcoach: Vancouver Station → Sheraton Wall Centre. (Time estimated)",
+          "meals": "",
+          "rowTime": "18:15",
+          "rowDate": "2026-10-12",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver"
+        },
+        {
+          "rowDate": "2026-10-12",
+          "rowTime": "19:00",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver",
+          "allDay": false,
+          "approx": true,
+          "activity": "Dinner",
+          "detail": "",
+          "provided": false,
+          "hst": "",
+          "time": "7:00 PDT",
+          "actionRequired": true,
+          "arNote": "Select from recommended restaurants or find something else."
+        }
+      ]
+    },
+    {
+      "day": 10,
+      "date": "Tue, Oct 13, 2026",
+      "label": "Day 10 — Return to Honolulu",
+      "type": "flight",
+      "city": "Vancouver",
+      "rows": [
+        {
+          "time": "Morning",
+          "hst": "",
+          "activity": "🏨 Check Out",
+          "detail": "Check out Sheraton Wall Centre (11:00 AM). Transfer to YVR independently.",
+          "meals": "TBD breakfast",
+          "rowTime": "09:00",
+          "rowDate": "2026-10-13",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver",
+          "approx": true
+        },
+        {
+          "time": "1:48 PM PDT",
+          "hst": "10:48 AM HST",
+          "activity": "✈️ Depart YVR",
+          "detail": "AS 2356 YVR→SEA (Horizon Air)\nFirst (D) | 2D Cathleen / 2C Stanley",
+          "meals": "In-flight (First Class)",
+          "rowTime": "13:48",
+          "rowDate": "2026-10-13",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver"
+        },
+        {
+          "time": "2:59 PM PDT",
+          "hst": "11:59 AM HST",
+          "activity": "🛬 Arrive SEA",
+          "detail": "3h 1m layover at Seattle/Tacoma Intl.",
+          "meals": "In-flight / airport",
+          "rowTime": "14:59",
+          "rowDate": "2026-10-13",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver"
+        },
+        {
+          "time": "6:00 PM PDT",
+          "hst": "3:00 PM HST",
+          "activity": "✈️ Depart SEA",
+          "detail": "AS 222 SEA→HNL\nFirst (D) | 2F Cathleen / 2D Stanley | Confirm: QWRVFP",
+          "meals": "In-flight (First Class)",
+          "rowTime": "18:00",
+          "rowDate": "2026-10-13",
+          "rowTz": "America/Vancouver",
+          "rowCity": "Vancouver"
+        },
+        {
+          "time": "9:10 PM HST",
+          "hst": "9:10 PM (already HST)",
+          "activity": "🏠 Arrive HNL",
+          "detail": "Home! Welcome back.",
+          "meals": "",
+          "rowTime": "21:10",
+          "rowDate": "2026-10-13",
+          "rowTz": "Pacific/Honolulu",
+          "rowCity": "Honolulu"
+        },
+        {
+          "rowDate": "2026-10-13",
+          "rowTime": "23:00",
+          "rowTz": "Pacific/Honolulu",
+          "rowCity": "Honolulu",
+          "allDay": false,
+          "approx": true,
+          "activity": "Ride home",
+          "detail": "",
+          "provided": false,
+          "actionRequired": false,
+          "arNote": "",
+          "hst": "",
+          "time": "11:00 PM HST",
+          "linkedItems": []
+        }
+      ]
+    }
+  ],
+  "todos": [
+    {
+      "id": 3,
+      "group": "✈️ Alaska Airlines",
+      "category": "Alaska Airlines",
+      "task": "Make sure passport is available for trip – Cathleen B.",
+      "ref": "Flight confirm QWRVFP | Alaska #346458361",
+      "urgent": false,
+      "status": "open",
+      "platforms": [],
+      "resolution": "",
+      "urls": []
+    },
+    {
+      "id": 5,
+      "group": "🚂 Rocky Mountaineer",
+      "category": "Rocky Mountaineer",
+      "task": "Check in online via Guest Portal",
+      "ref": "Required within 7 days before Oct 6 | rockymountaineer.com/your-booking | Booking: DIR1117775",
+      "closedAt": "",
+      "status": "open",
+      "platforms": [],
+      "resolution": "",
+      "urls": [],
+      "urgent": true
+    },
+    {
+      "id": 6,
+      "group": "🚂 Rocky Mountaineer",
+      "category": "Rocky Mountaineer",
+      "task": "Collect Welcome Package (luggage tags + boarding passes)",
+      "ref": "Within 3 days of, or morning of, Oct 6 at 1755 Cottrell St, Vancouver",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 7,
+      "group": "🚂 Rocky Mountaineer",
+      "category": "Rocky Mountaineer",
+      "task": "Confirm National Parks Pass is in Welcome Package",
+      "ref": "Confirm: per person or per vehicle? Covers all park areas?",
+      "closedAt": "",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 17,
+      "group": "📋 Now – June",
+      "category": "Admin",
+      "task": "Buy passport wallets",
+      "ref": "Print two copies of travel wallet insert (3x5 card)",
+      "urgent": false,
+      "status": "open",
+      "platforms": [],
+      "resolution": "",
+      "urls": []
+    },
+    {
+      "id": 25,
+      "group": "📅 60 Days Out – Aug 5",
+      "category": "Financials",
+      "task": "Final payment $12,195 due Aug 6, 2026",
+      "ref": "Rocky Mountaineer Booking #DIR1117775",
+      "status": "open",
+      "platforms": [],
+      "resolution": "",
+      "urgent": true,
+      "urls": []
+    },
+    {
+      "id": 26,
+      "group": "📅 60 Days Out – Aug 5",
+      "category": "Restaurants",
+      "task": "Book key dinner reservations (Post Hotel priority)",
+      "ref": "Reserve 30–45 days out minimum for Post Hotel Dining Room",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 29,
+      "group": "📅 45 Days Out – Aug 20",
+      "category": "Rocky Mountaineer",
+      "task": "Receive final travel documents via email",
+      "ref": "Save PDFs to Google Drive",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 30,
+      "group": "📅 45 Days Out – Aug 20",
+      "category": "Admin",
+      "task": "Print hard copy backup of all travel documents",
+      "ref": "Checklist: (1) Alaska Airlines confirmation QWRVFP — all 4 flight segments. (2) Rocky Mountaineer confirmation DIR1117775 — GoldLeaf itinerary. (3) Hotel confirmations — Sheraton x2, Fairmont JPL, Post Hotel, Elk+Avenue. (4) Travel insurance policy + emergency contact card. (5) Both passports (color copy). (6) National Parks Pass (valid Oct 7–11). (7) 3×5 reference cards — Flights, RM, Hotels, Contacts, Itinerary. Store originals in carry-on; leave copies at home.",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 31,
+      "group": "📅 30 Days Out – Sep 4",
+      "category": "Mobile",
+      "task": "Confirm AT&T 55+ roaming active for Canada",
+      "ref": "Unlimited calls/data. Hotspot: 10GB then throttled 128kbps.",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 32,
+      "group": "📅 30 Days Out – Sep 4",
+      "category": "Mobile",
+      "task": "Download offline Google Maps for all cities",
+      "ref": "Cities: Vancouver BC, Kamloops BC, Jasper AB, Lake Louise AB (search 'Lake Louise, Alberta' for correct coverage area), Banff AB. Download on WiFi before departure. Maps → profile icon → Offline maps → Select your own map.",
+      "status": "done",
+      "platforms": [],
+      "resolution": "Not necessary",
+      "closedAt": "2026-03-30T02:40:17.396Z",
+      "urgent": false,
+      "urls": []
+    },
+    {
+      "id": 33,
+      "group": "📅 30 Days Out – Sep 4",
+      "category": "Restaurants",
+      "task": "Confirm all dinner reservations",
+      "ref": "Priority: Post Hotel Dining Room (Oct 9)",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 34,
+      "group": "📅 30 Days Out – Sep 4",
+      "category": "Logistics",
+      "task": "Confirm all ground transportation logistics",
+      "ref": "See Transportation section. Self-arranged: (1) YVR arrival Oct 4 — Uber/Lyft to Sheraton ≈$40–55 CAD. (2) YVR departure Oct 13 — Uber/Lyft from Sheraton, depart by 11 AM for 1:48 PM flight. Rocky Mountaineer motorcoaches: Oct 6 pickup at Sheraton 7–7:30 AM, Oct 11 pickup at Elk+Avenue 7–7:30 AM. Verify all RM transfers included in DIR1117775.",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 35,
+      "group": "📅 14 Days Out – Sep 20",
+      "category": "Packing",
+      "task": "Replace AirTag batteries (Sep 21)",
+      "ref": "",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 36,
+      "group": "📅 14 Days Out – Sep 20",
+      "category": "Packing",
+      "task": "Packing dry run – test luggage fits Rocky Mountaineer limits",
+      "ref": "Max 2 bags/person | 66 lbs total | 50 lbs max/bag | Day pack: 16\"×11\"×8\" max",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 37,
+      "group": "📅 14 Days Out – Sep 20",
+      "category": "Weather",
+      "task": "Check 10-day weather forecast for Canadian Rockies",
+      "ref": "October: possible early snow. Pack waterproof shell + warm mid-layer + gloves.",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 38,
+      "group": "📅 7 Days Out – Sep 27",
+      "category": "Alaska Airlines",
+      "task": "Alaska Airlines online check-in",
+      "ref": "Confirmation QWRVFP | AS 900 departs HNL Oct 3 11:50 PM",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 39,
+      "group": "📅 7 Days Out – Sep 27",
+      "category": "Alaska Airlines",
+      "task": "Screenshot boarding passes for both travelers",
+      "ref": "",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 40,
+      "group": "📅 7 Days Out – Sep 27",
+      "category": "Rocky Mountaineer",
+      "task": "Check in online via Rocky Mountaineer Guest Portal",
+      "ref": "rockymountaineer.com/your-booking | Booking: DIR1117775",
+      "status": "open",
+      "platforms": [],
+      "resolution": "",
+      "urgent": true,
+      "urls": []
+    },
+    {
+      "id": 41,
+      "group": "📅 7 Days Out – Sep 27",
+      "category": "Logistics",
+      "task": "Confirm all Rocky Mountaineer motorcoach pickup times",
+      "ref": "Oct 6: 7–7:30AM | Oct 7: early AM | Oct 11: 7–7:30AM",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 42,
+      "group": "📅 7 Days Out – Sep 27",
+      "category": "Documents",
+      "task": "Print travel documents + wallet inserts (2 copies each)",
+      "ref": "Travel wallet insert (3x5) | Flight itinerary wallet insert (3x5)",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 43,
+      "group": "📅 7 Days Out – Sep 27",
+      "category": "Documents",
+      "task": "Locate and pack passports",
+      "ref": "Store in travel wallets",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 44,
+      "group": "📅 7 Days Out – Sep 27",
+      "category": "Financials",
+      "task": "Notify credit card company of Canada travel",
+      "ref": "Bring two credit cards. Consider small amount CAD cash from airport ATM.",
+      "closedAt": "",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 45,
+      "group": "📅 3 Days Out – Sep 30",
+      "category": "Packing",
+      "task": "Begin packing",
+      "ref": "Use Packing List in app",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 46,
+      "group": "📅 3 Days Out – Sep 30",
+      "category": "Documents",
+      "task": "Confirm 3×5 cards printed and in travel wallet",
+      "ref": "",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 47,
+      "group": "📅 3 Days Out – Sep 30",
+      "category": "Logistics",
+      "task": "Confirm cab / ride to airport for Oct 3 departure",
+      "ref": "Flight AS 900 departs HNL 11:50 PM",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 51,
+      "group": "📅 3 Days Out – Sep 30",
+      "category": "Home",
+      "task": "Notify Ryan",
+      "ref": "",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 52,
+      "group": "📅 3 Days Out – Sep 30",
+      "category": "Home",
+      "task": "Notify newspaper",
+      "ref": "",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 53,
+      "group": "📅 3 Days Out – Sep 30",
+      "category": "Home",
+      "task": "Notify Post Office",
+      "ref": "",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 48,
+      "group": "🗓️ Day Of – Oct 3",
+      "category": "Home",
+      "task": "Turn off WiFi",
+      "ref": "",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 49,
+      "group": "🗓️ Day Of – Oct 3",
+      "category": "Home",
+      "task": "Shut off water in bathrooms",
+      "ref": "",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 50,
+      "group": "🗓️ Day Of – Oct 3",
+      "category": "Home",
+      "task": "Empty Keurig water",
+      "ref": "",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 54,
+      "group": "🗓️ Day Of – Oct 3",
+      "category": "Home",
+      "task": "Turn off digital picture frame",
+      "ref": "",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 55,
+      "group": "🗓️ Day Of – Oct 3",
+      "category": "Home",
+      "task": "Empty wet garbage",
+      "ref": "",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 56,
+      "group": "🗓️ Day Of – Oct 3",
+      "category": "Packing",
+      "task": "Final packing check — verify all items packed",
+      "ref": "Use Packing List in app",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 57,
+      "group": "🗓️ Day Of – Oct 3",
+      "category": "Logistics",
+      "task": "Charge all devices before leaving",
+      "ref": "iPhone, Watch, iPad, AirPods",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 95,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "v2 architecture: rewrite as a proper multi-file trip-agnostic web app after CAN26 trip",
+      "ref": "Current app is ~5200 lines single file, hardcoded 2026/Oct dates, global state, inline event handlers, regex-parsed compound strings. Good data model and timezone logic — these survive into v2. v2 scope: split HTML/CSS/JS, trip-agnostic data model, structured fields everywhere (closes TODO #92), proper event delegation, no global state mutations. Decision: build v2 after Oct 2026 trip using real usage as a guide.",
+      "status": "on-hold",
+      "platforms": [],
+      "resolution": "",
+      "urls": []
+    },
+    {
+      "id": 134,
+      "group": "🛠️ Developer",
+      "category": "Architecture",
+      "task": "V2 architecture spec: split single-file app into engine + data + devlog",
+      "ref": "Design decision captured post-v0.9.86. Current single-file approach (5,700+ lines, 330KB) is at the upper comfortable bound. Any new feature touching schema or DEFAULT_DATA should be treated as a trigger to begin the split. \n\nV2 target structure: \n(1) app.html — markup + app shell + UI logic only.\n\n(2) styles.css — all styling.\n\n(3) data.[tripname].json — all trip-specific data: itinerary, flights, hotels, restaurants, packing, user todos, settings. Engine loads this on first run, normalizes, persists to localStorage. Subsequent loads use localStorage as authoritative — no historic migrations on every load.\n\n4) devlog.json or external Markdown — developer todos and changelog, decoupled from runtime. Key design principles: schemaVersion in metadata drives discrete vN→vN+1 migration registry (not a monolith). \n\nDEFAULT_DATA becomes a trip template, not a seed database embedded in code. Reuse model: duplicate data.[tripname].json for each new trip — engine is untouched. \n\nTrip loader concept: switch datasets from same engine. Entanglement risk: syncDefaultTodos, migrateData, renderAll, buildCalendarEvents all have implicit knowledge of data shape — defining a clean engine/data interface is the core design challenge for v2, not just moving files. \n\nDev log todos currently serve as changelog and session memory between AI sessions — moving them out requires replacing that function deliberately (candidate: external CHANGELOG.md + session brief). \n\nTimeline: do not attempt before trip. Natural start point is post-CAN26 when picking up for next trip.",
+      "status": "done",
+      "platforms": [],
+      "resolution": "",
+      "urls": [],
+      "urgent": false,
+      "closedAt": "2026-03-29T08:19:38.844Z"
+    },
+    {
+      "id": 154,
+      "group": "📅 45 Days Out – Aug 20",
+      "category": "Admin",
+      "task": "Save PDF backup of each 3×5 reference card",
+      "ref": "Use the '⬇ Save PDF' button in the 3×5 Cards dialog. Select a card, click Save PDF — app generates a 2-page PDF (front + back) and downloads it automatically as CAN26_Card_[Name].pdf. Store in iCloud Drive and Google Drive (drive.google.com/drive/folders/1adhCX8PRqY5cnE1Tpap-q0uD0HifulHt). Do this for all 5 cards once final content is verified.",
+      "status": "open",
+      "platforms": []
+    },
+    {
+      "id": 228,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Generalize 3x5 card print instructions — current text is Epson ET-8500 + Stanley specific. When a public/shared version is built, replace with generic duplex instructions.",
+      "ref": "Added v3.0.57",
+      "createdAt": "2026-03-21T17:55:00.000Z",
+      "closedAt": "",
+      "status": "on-hold",
+      "platforms": [],
+      "resolution": "",
+      "urls": []
+    },
+    {
+      "id": 251,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "TODO synch issue.",
+      "ref": "Data updates synch correctly between platforms for individual TODO items but they do not automatically get reflected in the  TODO section itself.\n\nTo test: Change a field that is shown on the TODO row on one platform. If another platform has the TODO section displayed, the change is not displayed. However, if you look at the specific record, the change is there.\n\nNOTE: This may affect other section like Itinerary as well.",
+      "resolution": "",
+      "status": "on-hold",
+      "platforms": [],
+      "urls": [],
+      "createdAt": "2026-03-24T23:23:39.362Z",
+      "closedAt": "",
+      "urgent": false
+    },
+    {
+      "id": 255,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Re-visit Calendar Functionality",
+      "ref": "Current plan is to create a new calendar and populate it. It cannot replace current events so the calendar must be deleted and rebuilt when there are changes",
+      "resolution": "",
+      "status": "done",
+      "platforms": [],
+      "urls": [],
+      "createdAt": "2026-03-28T02:15:43.902Z",
+      "closedAt": "2026-03-29T08:19:24.021Z"
+    },
+    {
+      "id": 256,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Create standalone TODOs App",
+      "ref": "Now that there are two products, remove the TODO list from CAN26 and create a standalone app. Should be possible to start with CAN26->index.html and strip out all other sections. Leave the printing section.\n\nWill need to add a Product field.",
+      "resolution": "",
+      "status": "open",
+      "platforms": [],
+      "urls": [],
+      "createdAt": "2026-03-30T06:39:14.437Z",
+      "closedAt": "",
+      "urgent": true
+    }
+  ],
+  "flights": [
+    {
+      "id": 1,
+      "date": "Sat, Oct 3 / Sun, Oct 4",
+      "flightNum": "AS 900",
+      "from": "HNL",
+      "fromCity": "Honolulu, HI",
+      "to": "SEA",
+      "toCity": "Seattle, WA",
+      "departs": "Sat, Oct 3 | 11:50 PM HST",
+      "arrives": "Sun, Oct 4 | 8:30 AM PDT",
+      "depDate": "2026-10-03",
+      "depTime": "23:50",
+      "depTz": "Pacific/Honolulu",
+      "arrDate": "2026-10-04",
+      "arrTime": "08:30",
+      "arrTz": "America/Vancouver",
+      "seats": "First (D) | 3A Cathleen / 3B Stanley",
+      "operator": "Operated by Alaska as Hawaiian Airlines",
+      "confirmationNum": "QWRVFP",
+      "depTerminal": "",
+      "depGate": "",
+      "arrTerminal": "",
+      "arrGate": "",
+      "notes": "Overnight flight. 3h 14m layover at SEA."
+    },
+    {
+      "id": 2,
+      "date": "Sun, Oct 4",
+      "flightNum": "AS 2355",
+      "from": "SEA",
+      "fromCity": "Seattle, WA",
+      "to": "YVR",
+      "toCity": "Vancouver, BC",
+      "departs": "Sun, Oct 4 | 11:44 AM PDT",
+      "arrives": "Sun, Oct 4 | 12:49 PM PDT",
+      "depDate": "2026-10-04",
+      "depTime": "11:44",
+      "depTz": "America/Vancouver",
+      "arrDate": "2026-10-04",
+      "arrTime": "12:49",
+      "arrTz": "America/Vancouver",
+      "seats": "First (D) | 2D Cathleen / 2C Stanley",
+      "operator": "Horizon Air as AlaskaHorizon. Check in with Alaska.",
+      "confirmationNum": "QWRVFP",
+      "depTerminal": "",
+      "depGate": "",
+      "arrTerminal": "",
+      "arrGate": "",
+      "notes": "Arrive YVR in time for Day 1."
+    },
+    {
+      "id": 3,
+      "date": "Tue, Oct 13",
+      "flightNum": "AS 2356",
+      "from": "YVR",
+      "fromCity": "Vancouver, BC",
+      "to": "SEA",
+      "toCity": "Seattle, WA",
+      "departs": "Tue, Oct 13 | 1:48 PM PDT",
+      "arrives": "Tue, Oct 13 | 2:59 PM PDT",
+      "depDate": "2026-10-13",
+      "depTime": "13:48",
+      "depTz": "America/Vancouver",
+      "arrDate": "2026-10-13",
+      "arrTime": "14:59",
+      "arrTz": "America/Vancouver",
+      "seats": "First (D) | 2D Cathleen / 2C Stanley",
+      "operator": "Horizon Air as AlaskaHorizon. Check in with Alaska.",
+      "confirmationNum": "QWRVFP",
+      "depTerminal": "",
+      "depGate": "",
+      "arrTerminal": "",
+      "arrGate": "",
+      "notes": "3h 1m layover at SEA."
+    },
+    {
+      "id": 4,
+      "date": "Tue, Oct 13",
+      "flightNum": "AS 222",
+      "from": "SEA",
+      "fromCity": "Seattle, WA",
+      "to": "HNL",
+      "toCity": "Honolulu, HI",
+      "departs": "Tue, Oct 13 | 6:00 PM PDT",
+      "arrives": "Tue, Oct 13 | 9:10 PM HST",
+      "depDate": "2026-10-13",
+      "depTime": "18:00",
+      "depTz": "America/Vancouver",
+      "arrDate": "2026-10-13",
+      "arrTime": "21:10",
+      "arrTz": "Pacific/Honolulu",
+      "seats": "First (D) | 2F Cathleen / 2D Stanley",
+      "operator": "Operated by Alaska Airlines",
+      "confirmationNum": "QWRVFP",
+      "depTerminal": "",
+      "depGate": "",
+      "arrTerminal": "",
+      "arrGate": "",
+      "notes": ""
+    }
+  ],
+  "hotels": [
+    {
+      "id": 1,
+      "dates": "Oct 4–6 (2 nights)",
+      "checkinDate": "2026-10-04",
+      "checkoutDate": "2026-10-06",
+      "name": "Sheraton Vancouver Wall Centre",
+      "streetAddress": "1000 Burrard St",
+      "city": "Vancouver",
+      "province": "BC",
+      "postalCode": "V6Z 2S3",
+      "phone": "(604) 331-1000",
+      "checkinTime": "4:00 PM",
+      "checkoutTime": "11:00 AM",
+      "confirmationNum": "",
+      "roomType": "Traditional Room",
+      "url": "marriott.com/...yvrws",
+      "mapsUrl": "",
+      "notes": "Porterage incl. | Pool + fitness centre",
+      "nearby": [
+        {
+          "name": "Café One",
+          "url": "https://www.cafeonevancouver.com/",
+          "walk": "in hotel",
+          "meals": [
+            "B",
+            "L",
+            "D"
+          ],
+          "note": "Hotel restaurant — 6:30 AM–10 PM"
+        },
+        {
+          "name": "Burgoo",
+          "url": "http://burgoo.ca/",
+          "walk": "2 min",
+          "meals": [
+            "L",
+            "D"
+          ],
+          "note": "Cozy bistro, gourmet comfort food — 11 AM–9 PM"
+        },
+        {
+          "name": "Earls Kitchen + Bar",
+          "url": "https://www.earls.ca/locations/test-kitchen",
+          "walk": "5 min",
+          "meals": [
+            "L",
+            "D"
+          ],
+          "note": "Upscale casual, broad menu — 11 AM–midnight"
+        },
+        {
+          "name": "JOEY Burrard",
+          "url": "https://joeyrestaurants.com/location/joey-burrard/",
+          "walk": "6 min",
+          "meals": [
+            "L",
+            "D"
+          ],
+          "note": "Very popular, lobster spaghetti — 11 AM–1 AM"
+        },
+        {
+          "name": "The Templeton",
+          "url": "http://www.thetempleton.ca/",
+          "walk": "6 min",
+          "meals": [
+            "B",
+            "L"
+          ],
+          "note": "Classic retro diner, bottomless coffee — 8:30 AM–3 PM"
+        },
+        {
+          "name": "Craffles",
+          "url": "http://www.craffles.ca/",
+          "walk": "8 min",
+          "meals": [
+            "B",
+            "L"
+          ],
+          "note": "Popular brunch, can have lines — 8 AM–4 PM"
+        },
+        {
+          "name": "Bread x Butter",
+          "url": "http://breadxbuttercafe.com/",
+          "walk": "9 min",
+          "meals": [
+            "B",
+            "L"
+          ],
+          "note": "Egg sandwiches and café fare — 8 AM–3 PM"
+        }
+      ],
+      "actionRequired": false,
+      "arNote": ""
+    },
+    {
+      "id": 2,
+      "dates": "Oct 6–7 (1 night)",
+      "checkinDate": "2026-10-06",
+      "checkoutDate": "2026-10-07",
+      "name": "Kamloops Accommodation (assigned at check-in)",
+      "streetAddress": "",
+      "city": "Kamloops",
+      "province": "BC",
+      "postalCode": "",
+      "phone": "",
+      "checkinTime": "",
+      "checkoutTime": "",
+      "confirmationNum": "",
+      "roomType": "",
+      "url": "",
+      "mapsUrl": "",
+      "notes": "3-star moderate. May include Sun Peaks Resort. Details given at station.",
+      "nearby": [],
+      "actionRequired": false,
+      "arNote": ""
+    },
+    {
+      "id": 3,
+      "dates": "Oct 7–9 (2 nights)",
+      "checkinDate": "2026-10-07",
+      "checkoutDate": "2026-10-09",
+      "name": "Fairmont Jasper Park Lodge",
+      "streetAddress": "1 Old Lodge Rd",
+      "city": "Jasper",
+      "province": "AB",
+      "postalCode": "T0E 1E0",
+      "phone": "(780) 852-3301",
+      "checkinTime": "4:00 PM",
+      "checkoutTime": "11:00 AM",
+      "confirmationNum": "",
+      "roomType": "Fairmont Room",
+      "url": "jasper-park-lodge.com",
+      "mapsUrl": "",
+      "notes": "700-acre resort on Lac Beauvert | Resort fee included\n⚠️ National Parks Pass valid here (Oct 7–11)",
+      "nearby": [
+        {
+          "name": "The Great Hall & Emerald Lounge",
+          "url": "https://www.jasper-park-lodge.com/dine/",
+          "walk": "On-site",
+          "meals": [
+            "B",
+            "L",
+            "D"
+          ],
+          "note": "Modern Canadian gastropub, sweeping Lac Beauvert views, craft cocktails"
+        },
+        {
+          "name": "Orso Trattoria",
+          "url": "https://www.jasper-park-lodge.com/dine/",
+          "walk": "On-site",
+          "meals": [
+            "D"
+          ],
+          "note": "Modern Italian, lake patio, Sunday Brunch — reservations recommended"
+        },
+        {
+          "name": "Stanley's Kitchen & Bar",
+          "url": "https://www.jasper-park-lodge.com/dine/",
+          "walk": "On-site",
+          "meals": [
+            "B",
+            "L",
+            "D"
+          ],
+          "note": "Canadian steakhouse classics, all-day dining at Golf Clubhouse"
+        },
+        {
+          "name": "Oka Sushi",
+          "url": "https://www.jasper-park-lodge.com/dine/",
+          "walk": "On-site",
+          "meals": [
+            "D"
+          ],
+          "note": "Intimate sushi bar on Beauvert Promenade — reservations 6–6:30 PM only"
+        },
+        {
+          "name": "Fitzhugh's Fine Foods",
+          "url": "https://www.jasper-park-lodge.com/dine/",
+          "walk": "On-site",
+          "meals": [
+            "B",
+            "L"
+          ],
+          "note": "Coffee, pastries, gourmet sandwiches — grab and go for day trips"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "dates": "Oct 9–10 (1 night)",
+      "checkinDate": "2026-10-09",
+      "checkoutDate": "2026-10-10",
+      "name": "Post Hotel & Spa",
+      "streetAddress": "200 Pipestone Rd",
+      "city": "Lake Louise",
+      "province": "AB",
+      "postalCode": "T0L 1E0",
+      "phone": "(403) 522-3989",
+      "checkinTime": "4:00 PM",
+      "checkoutTime": "11:00 AM",
+      "confirmationNum": "",
+      "roomType": "Post Room",
+      "url": "posthotel.com",
+      "mapsUrl": "https://maps.app.goo.gl/BjyJkQLPYdjTA7Ku8?g_st=ic",
+      "notes": "Private patio | Saltwater pool | Porterage incl.\n⚠️ Reserve Post Hotel Dining Room ASAP",
+      "actionRequired": false,
+      "arNote": "",
+      "nearby": []
+    },
+    {
+      "id": 5,
+      "dates": "Oct 10–11 (1 night)",
+      "checkinDate": "2026-10-10",
+      "checkoutDate": "2026-10-11",
+      "name": "Elk + Avenue Hotel",
+      "streetAddress": "333 Banff Ave",
+      "city": "Banff",
+      "province": "AB",
+      "postalCode": "T1L 1J3",
+      "phone": "(877) 442-2623",
+      "checkinTime": "4:00 PM",
+      "checkoutTime": "11:00 AM",
+      "confirmationNum": "",
+      "roomType": "Standard Room",
+      "url": "banffjaspercollection.com/hotels/elk-avenue-hotel",
+      "mapsUrl": "",
+      "notes": "Arrive ≈1:00 PM (transfer from Lake Louise) | Downtown Banff | Jacuzzi + sauna | Porterage incl.",
+      "nearby": [
+        {
+          "name": "Wild Flour Bakery",
+          "url": "http://www.wildflourbakery.ca/",
+          "walk": "1 min",
+          "meals": [
+            "B",
+            "L"
+          ],
+          "note": "Artisan sourdough, pastries, great coffee — 7 AM–5 PM"
+        },
+        {
+          "name": "The Boss Kitchen & Bar",
+          "url": "http://thebossbanff.com/",
+          "walk": "1 min",
+          "meals": [
+            "L",
+            "D"
+          ],
+          "note": "Locally sourced, bison, mountain views — 11 AM–11 PM"
+        },
+        {
+          "name": "Farm & Fire",
+          "url": "http://farmandfirebanff.com/",
+          "walk": "2 min",
+          "meals": [
+            "B",
+            "L",
+            "D"
+          ],
+          "note": "Bison Benny standout — 7 AM–9 PM (afternoon break)"
+        },
+        {
+          "name": "Tooloulous",
+          "url": "https://tooloulous.com/",
+          "walk": "2 min",
+          "meals": [
+            "B",
+            "L",
+            "D"
+          ],
+          "note": "Cajun/Creole, popular and busy — 8 AM–9 PM"
+        },
+        {
+          "name": "Three Bears Brewery",
+          "url": "http://threebearsbanff.com/",
+          "walk": "2 min",
+          "meals": [
+            "L",
+            "D"
+          ],
+          "note": "Local craft beer, great steaks — 11:30 AM–9:30 PM"
+        },
+        {
+          "name": "Banff Social",
+          "url": "https://banffsocial.ca/",
+          "walk": "2 min",
+          "meals": [
+            "L",
+            "D"
+          ],
+          "note": "Bison burger, lively atmosphere — noon–10 PM"
+        },
+        {
+          "name": "Brazen",
+          "url": "https://www.banffjaspercollection.com/dining/brazen/",
+          "walk": "3 min",
+          "meals": [
+            "B",
+            "L",
+            "D"
+          ],
+          "note": "Upscale Canadian, great brunch — 7 AM–9 PM"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "dates": "Oct 12–13 (1 night)",
+      "checkinDate": "2026-10-12",
+      "checkoutDate": "2026-10-13",
+      "name": "Sheraton Vancouver Wall Centre",
+      "streetAddress": "1000 Burrard St",
+      "city": "Vancouver",
+      "province": "BC",
+      "postalCode": "V6Z 2S3",
+      "phone": "(604) 331-1000",
+      "checkinTime": "4:00 PM",
+      "checkoutTime": "11:00 AM",
+      "confirmationNum": "",
+      "roomType": "Traditional Room",
+      "url": "marriott.com/...yvrws",
+      "mapsUrl": "",
+      "notes": "Return stay. Porterage incl. | Pool + fitness centre",
+      "nearby": [
+        {
+          "name": "Café One",
+          "url": "https://www.cafeonevancouver.com/",
+          "walk": "in hotel",
+          "meals": [
+            "B",
+            "L",
+            "D"
+          ],
+          "note": "Hotel restaurant — 6:30 AM–10 PM"
+        },
+        {
+          "name": "Burgoo",
+          "url": "http://burgoo.ca/",
+          "walk": "2 min",
+          "meals": [
+            "L",
+            "D"
+          ],
+          "note": "Cozy bistro, gourmet comfort food — 11 AM–9 PM"
+        },
+        {
+          "name": "Earls Kitchen + Bar",
+          "url": "https://www.earls.ca/locations/test-kitchen",
+          "walk": "5 min",
+          "meals": [
+            "L",
+            "D"
+          ],
+          "note": "Upscale casual, broad menu — 11 AM–midnight"
+        },
+        {
+          "name": "JOEY Burrard",
+          "url": "https://joeyrestaurants.com/location/joey-burrard/",
+          "walk": "6 min",
+          "meals": [
+            "L",
+            "D"
+          ],
+          "note": "Very popular, lobster spaghetti — 11 AM–1 AM"
+        },
+        {
+          "name": "The Templeton",
+          "url": "http://www.thetempleton.ca/",
+          "walk": "6 min",
+          "meals": [
+            "B",
+            "L"
+          ],
+          "note": "Classic retro diner, bottomless coffee — 8:30 AM–3 PM"
+        },
+        {
+          "name": "Craffles",
+          "url": "http://www.craffles.ca/",
+          "walk": "8 min",
+          "meals": [
+            "B",
+            "L"
+          ],
+          "note": "Popular brunch, can have lines — 8 AM–4 PM"
+        },
+        {
+          "name": "Bread x Butter",
+          "url": "http://breadxbuttercafe.com/",
+          "walk": "9 min",
+          "meals": [
+            "B",
+            "L"
+          ],
+          "note": "Egg sandwiches and café fare — 8 AM–3 PM"
+        }
+      ]
+    }
+  ],
+  "transport": [
+    {
+      "id": 1,
+      "date": "Sun, Oct 4",
+      "dateISO": "2026-10-04",
+      "type": "Taxi",
+      "fromLocation": "YVR International Airport",
+      "toLocation": "Sheraton Vancouver Wall Centre",
+      "time": "≈1:00 PM PDT",
+      "provider": "YVR Licensed Taxi",
+      "phone": "",
+      "url": "",
+      "confirmationNum": "",
+      "cost": "≈$25–35 CAD",
+      "included": false,
+      "notes": "First-come first-serve taxi stand, Arrivals Level 2 (International or Domestic). No booking needed — walk up on arrival. Accepts cash, credit, debit."
+    },
+    {
+      "id": 2,
+      "date": "Tue, Oct 6",
+      "dateISO": "2026-10-06",
+      "type": "Motorcoach",
+      "fromLocation": "Sheraton Vancouver Wall Centre",
+      "toLocation": "Rocky Mountaineer Station, Vancouver",
+      "time": "7:00–7:30 AM PDT",
+      "provider": "Rocky Mountaineer",
+      "phone": "1-877-460-3200",
+      "url": "rockymountaineer.com",
+      "confirmationNum": "DIR1117775",
+      "cost": "Included",
+      "included": true,
+      "notes": "Pickup at hotel south tower entrance. Allow extra time."
+    },
+    {
+      "id": 3,
+      "date": "Wed, Oct 7",
+      "dateISO": "2026-10-07",
+      "type": "Motorcoach",
+      "fromLocation": "Kamloops Station",
+      "toLocation": "Fairmont Jasper Park Lodge",
+      "time": "On arrival from train",
+      "provider": "Rocky Mountaineer",
+      "phone": "1-877-460-3200",
+      "url": "rockymountaineer.com",
+      "confirmationNum": "DIR1117775",
+      "cost": "Included",
+      "included": true,
+      "notes": "Transfer arranged by Rocky Mountaineer on arrival in Jasper."
+    },
+    {
+      "id": 4,
+      "date": "Fri, Oct 9",
+      "dateISO": "2026-10-09",
+      "type": "Motorcoach",
+      "fromLocation": "Fairmont Jasper Park Lodge",
+      "toLocation": "Post Hotel & Spa, Lake Louise",
+      "time": "Morning — TBD",
+      "provider": "Rocky Mountaineer",
+      "phone": "1-877-460-3200",
+      "url": "rockymountaineer.com",
+      "confirmationNum": "DIR1117775",
+      "cost": "Included",
+      "included": true,
+      "notes": "Icefields Parkway motorcoach tour — Columbia Icefield stop en route."
+    },
+    {
+      "id": 5,
+      "date": "Sat, Oct 10",
+      "dateISO": "2026-10-10",
+      "type": "Motorcoach",
+      "fromLocation": "Post Hotel & Spa, Lake Louise",
+      "toLocation": "Elk + Avenue Hotel, Banff",
+      "time": "≈12:00 PM MDT",
+      "provider": "Rocky Mountaineer",
+      "phone": "1-877-460-3200",
+      "url": "rockymountaineer.com",
+      "confirmationNum": "DIR1117775",
+      "cost": "Included",
+      "included": true,
+      "notes": "Arrive Banff ≈1:00 PM. Self-arrange if transfer not confirmed."
+    },
+    {
+      "id": 6,
+      "date": "Sun, Oct 11",
+      "dateISO": "2026-10-11",
+      "type": "Motorcoach",
+      "fromLocation": "Elk + Avenue Hotel, Banff",
+      "toLocation": "Rocky Mountaineer Station, Banff",
+      "time": "7:00–7:30 AM MDT",
+      "provider": "Rocky Mountaineer",
+      "phone": "1-877-460-3200",
+      "url": "rockymountaineer.com",
+      "confirmationNum": "DIR1117775",
+      "cost": "Included",
+      "included": true,
+      "notes": "Return journey pickup. Banff → Lake Louise → Kamloops."
+    },
+    {
+      "id": 7,
+      "date": "Mon, Oct 12",
+      "dateISO": "2026-10-12",
+      "type": "Motorcoach",
+      "fromLocation": "Kamloops Station",
+      "toLocation": "Sheraton Vancouver Wall Centre",
+      "time": "On arrival from train",
+      "provider": "Rocky Mountaineer",
+      "phone": "1-877-460-3200",
+      "url": "rockymountaineer.com",
+      "confirmationNum": "DIR1117775",
+      "cost": "Included",
+      "included": true,
+      "notes": "Transfer arranged by Rocky Mountaineer on arrival in Vancouver."
+    },
+    {
+      "id": 8,
+      "date": "Tue, Oct 13",
+      "dateISO": "2026-10-13",
+      "type": "Taxi",
+      "fromLocation": "Sheraton Vancouver Wall Centre",
+      "toLocation": "YVR International Airport",
+      "time": "≈11:00 AM PDT",
+      "provider": "YVR Licensed Taxi",
+      "phone": "",
+      "url": "",
+      "confirmationNum": "",
+      "cost": "≈$25–35 CAD",
+      "included": false,
+      "notes": "Ask concierge to arrange (604-893-7110) or self-arrange. Drop-off: Departures Level 3, Alaska Airlines. Flight departs 1:48 PM — allow 2+ hrs."
+    },
+    {
+      "id": 9,
+      "date": "9/1/2026",
+      "dateISO": "2026-09-01",
+      "type": "Rideshare",
+      "time": "",
+      "fromLocation": "Home",
+      "toLocation": "HNL",
+      "provider": "Uber?",
+      "phone": "",
+      "url": "",
+      "confirmationNum": "",
+      "cost": "",
+      "included": false,
+      "notes": "",
+      "actionRequired": false,
+      "arNote": ""
+    },
+    {
+      "id": 10,
+      "date": "Sun, Oct 4",
+      "dateISO": "2026-10-13",
+      "type": "Other",
+      "time": "≈1:00 PM PDT",
+      "fromLocation": "YVR International Airport",
+      "toLocation": "FooManchu",
+      "provider": "",
+      "phone": "",
+      "url": "",
+      "confirmationNum": "",
+      "cost": "",
+      "included": false,
+      "notes": "",
+      "actionRequired": false,
+      "arNote": ""
+    }
+  ],
+  "restaurants": [
+    {
+      "id": 1,
+      "city": "Vancouver",
+      "when": "Oct 4 – Dinner (arrival)",
+      "name": "TBD – light dinner near hotel",
+      "style": "Casual. Near Sheraton Wall Centre, 1000 Burrard St.",
+      "reservation": "No",
+      "url": "",
+      "calDate": "2026-10-04",
+      "streetAddress": "",
+      "addressCity": "",
+      "stateProvince": "",
+      "country": "",
+      "zipPostal": "",
+      "phoneDesc": "",
+      "phoneNum": "",
+      "email": "",
+      "mapsUrl": "",
+      "confirmed": false,
+      "reservationTime": "",
+      "confirmationNum": "",
+      "bookingSource": "",
+      "bookingUrl": "",
+      "partySize": 2,
+      "actionRequired": false,
+      "arNote": ""
+    },
+    {
+      "id": 2,
+      "city": "Vancouver",
+      "when": "Oct 5 – Dinner (choice A)",
+      "name": "Joe Fortes Seafood & Chop House",
+      "style": "Classic seafood & oyster bar. Vancouver landmark.",
+      "reservation": "Recommended",
+      "url": "joefortes.ca",
+      "actionRequired": false,
+      "arNote": ""
+    },
+    {
+      "id": 3,
+      "city": "Vancouver",
+      "when": "Oct 5 – Dinner (choice B)",
+      "name": "Miku",
+      "style": "Upscale Japanese / aburi-style sushi.",
+      "reservation": "Recommended",
+      "url": "mikurestaurant.com",
+      "actionRequired": false,
+      "arNote": ""
+    },
+    {
+      "id": 4,
+      "city": "Vancouver",
+      "when": "Oct 5 – Dinner (choice C)",
+      "name": "Nightingale",
+      "style": "West Coast small plates. David Hawksworth.",
+      "reservation": "Recommended",
+      "url": "hawknightingale.com",
+      "actionRequired": false,
+      "arNote": ""
+    },
+    {
+      "id": 5,
+      "city": "Vancouver",
+      "when": "Oct 12 – Dinner (last night)",
+      "name": "TBD – Vancouver",
+      "style": "Return evening. Near Sheraton Wall Centre.",
+      "reservation": "TBD",
+      "url": "",
+      "actionRequired": false,
+      "arNote": ""
+    },
+    {
+      "id": 6,
+      "city": "Kamloops",
+      "when": "Oct 6 & Oct 11 (overnight stops)",
+      "name": "TBD – Kamloops",
+      "style": "Hotel accommodation details at check-in.",
+      "reservation": "No",
+      "url": "",
+      "actionRequired": false,
+      "arNote": ""
+    },
+    {
+      "id": 7,
+      "city": "Jasper",
+      "when": "Oct 7 – Dinner",
+      "name": "TBD – Jasper evening",
+      "style": "Fairmont JPL on-site dining available.",
+      "reservation": "TBD",
+      "url": "fairmont.com/jasper"
+    },
+    {
+      "id": 8,
+      "city": "Jasper",
+      "when": "Oct 8 – Dinner (option A)",
+      "name": "Jasper Brewing Co.",
+      "style": "Relaxed atmosphere, local craft brews, casual pub food.",
+      "reservation": "No",
+      "url": "jasperbrewingco.ca"
+    },
+    {
+      "id": 9,
+      "city": "Jasper",
+      "when": "Oct 8 – Dinner (option B)",
+      "name": "The Nook Smokehouse (Fairmont JPL)",
+      "style": "Canadian comfort food. On property at Fairmont JPL.",
+      "reservation": "TBD",
+      "url": "fairmont.com/.../the-nook.html"
+    },
+    {
+      "id": 10,
+      "city": "Jasper",
+      "when": "Oct 8 – Dinner (option C)",
+      "name": "Emerald Lounge",
+      "style": "NOTE: Travel agent says NOT casual dining.",
+      "reservation": "TBD",
+      "url": "emeraldsupperclub.com"
+    },
+    {
+      "id": 11,
+      "city": "Lake Louise",
+      "when": "Oct 9 – Dinner",
+      "name": "Post Hotel Dining Room",
+      "style": "Refined alpine cuisine. RESERVE EARLY — 30–45 days out.\nReservation Link:\nhttps://www.opentable.ca/booking/view?rid=1276195&lang=en-ca&utm_source=opentable&utm_medium=tms_email&utm_campaign=reso_change&confirmationNumber=56098&securityToken=01wyHruORYB0sMnr6yLnDOgTZNlegyX5DrTW3ZKch0QoI1",
+      "reservation": "Yes – PRIORITY",
+      "url": "https://posthotel.com/dine/cuisine",
+      "calDate": "2026-10-09",
+      "streetAddress": "200 Pipestone Road",
+      "addressCity": "Lake Louise",
+      "stateProvince": "AB",
+      "country": "Canada",
+      "zipPostal": "T0L 1E0",
+      "phoneDesc": "",
+      "phoneNum": "(403) 522-3989",
+      "email": "",
+      "mapsUrl": "https://maps.app.goo.gl/m2Q2kW9STGps16i47",
+      "confirmed": true,
+      "reservationTime": "20:00",
+      "confirmationNum": "56098",
+      "bookingSource": "OpenTable",
+      "bookingUrl": "https://www.opentable.ca/booking/view?rid=1276195&lang=en-ca&utm_source=opentable&utm_medium=tms_email&utm_campaign=reso_confirm&confirmationNumber=56098&securityToken=01wyHruORYB0sMnr6yLnDOgTZNlegyX5DrTW3ZKch0QoI1",
+      "partySize": 2,
+      "actionRequired": false,
+      "arNote": ""
+    },
+    {
+      "id": 12,
+      "city": "Lake Louise",
+      "when": "Oct 9 – Dinner (casual alt)",
+      "name": "The Outpost Pub (Post Hotel)",
+      "style": "Casual, cozy. Same property as Post Hotel.",
+      "reservation": "No",
+      "url": "posthotel.com"
+    },
+    {
+      "id": 13,
+      "city": "Banff",
+      "when": "Oct 10 – Dinner (option A)",
+      "name": "The Maple Leaf",
+      "style": "Canadian cuisine, lodge-style feel.",
+      "reservation": "Recommended",
+      "url": ""
+    },
+    {
+      "id": 14,
+      "city": "Banff",
+      "when": "Oct 10 – Dinner (option B)",
+      "name": "Block Kitchen + Bar",
+      "style": "Creative small plates.",
+      "reservation": "Recommended",
+      "url": "",
+      "calDate": "2026-10-10",
+      "streetAddress": "",
+      "addressCity": "",
+      "stateProvince": "",
+      "country": "",
+      "zipPostal": "",
+      "phoneDesc": "",
+      "phoneNum": "",
+      "email": "",
+      "mapsUrl": "",
+      "confirmed": false,
+      "reservationTime": "",
+      "confirmationNum": "",
+      "bookingSource": "",
+      "bookingUrl": "",
+      "partySize": 2,
+      "actionRequired": false,
+      "arNote": ""
+    },
+    {
+      "id": 15,
+      "city": "Banff",
+      "when": "Oct 10 – Dinner (option C)",
+      "name": "Park Distillery",
+      "style": "Campfire-inspired dishes, house-made spirits.",
+      "reservation": "Recommended",
+      "url": ""
+    }
+  ],
+  "keyinfo": [
+    {
+      "id": 1,
+      "section": "💰 Financials",
+      "label": "Total Trip Cost",
+      "value": "$17,088.25"
+    },
+    {
+      "id": 2,
+      "section": "💰 Financials",
+      "label": "Deposit Paid",
+      "value": "$4,893.25"
+    },
+    {
+      "id": 3,
+      "section": "💰 Financials",
+      "label": "Final Payment Due",
+      "value": "$12,195.00 — due Aug 6, 2026\n⚠️ Confirm auto-charge date"
+    },
+    {
+      "id": 4,
+      "section": "💰 Financials",
+      "label": "Trip Insurance",
+      "value": "Through Rocky Mountaineer"
+    },
+    {
+      "id": 5,
+      "section": "💰 Financials",
+      "label": "Airfare Insurance",
+      "value": "Refund option purchased"
+    },
+    {
+      "id": 6,
+      "section": "📋 Booking References",
+      "label": "Rocky Mountaineer #",
+      "value": "DIR1117775"
+    },
+    {
+      "id": 7,
+      "section": "📋 Booking References",
+      "label": "Alaska Airlines Code",
+      "value": "QWRVFP"
+    },
+    {
+      "id": 8,
+      "section": "📋 Booking References",
+      "label": "Service Level",
+      "value": "GoldLeaf (Rocky Mountaineer) | First Class (Alaska Airlines)"
+    },
+    {
+      "id": 9,
+      "section": "📋 Booking References",
+      "label": "Travel Professional",
+      "value": "Hailey Zhou | hzhou@rockymountaineer.com | 877-460-3200 ext. 7218"
+    },
+    {
+      "id": 10,
+      "section": "📋 Booking References",
+      "label": "Emergency Contact",
+      "value": "James Tokishi | (808) 741-2401"
+    },
+    {
+      "id": 11,
+      "section": "📋 Booking References",
+      "label": "Backup Credit Card",
+      "value": "Stan's Citibank Visa"
+    },
+    {
+      "id": 12,
+      "section": "🔗 Key Links",
+      "label": "Guest Portal",
+      "value": "rockymountaineer.com/your-booking\nBooking: DIR1117775 | Last: Baptista"
+    },
+    {
+      "id": 13,
+      "section": "🔗 Key Links",
+      "label": "Preparing to Go Guide",
+      "value": "issuu.com/rockymountaineer/docs/rm24-1710-preparing_to_go-issuu"
+    },
+    {
+      "id": 14,
+      "section": "🔗 Key Links",
+      "label": "Booking Confirmation",
+      "value": "rockymountaineer.my.salesforce-sites.com/c__CustomerContent?id=a6nOL0000032dWcYAI"
+    },
+    {
+      "id": 15,
+      "section": "🔗 Key Links",
+      "label": "Train Schedule & Stations",
+      "value": "rockymountaineer.com/preparing-to-go/train-schedule"
+    },
+    {
+      "id": 16,
+      "section": "🔗 Key Links",
+      "label": "Stored Documents (Drive)",
+      "value": "drive.google.com/drive/folders/1adhCX8PRqY5cnE1Tpap-q0uD0HifulHt"
+    },
+    {
+      "id": 17,
+      "section": "🎒 Add-Ons & Activities",
+      "label": "Vancouver – Oct 5",
+      "value": "Vancouver City Tour + Capilano Suspension Bridge (5.5 hrs)\nPickup: South tower Sheraton | Departs 12:00 PM | 877-451-1777\nwestcoastsightseeing.com"
+    },
+    {
+      "id": 19,
+      "section": "🎒 Add-Ons & Activities",
+      "label": "Banff – Oct 10",
+      "value": "Legendary Banff — 90 min open top bus tour\nHourly 10am–7pm | Brewster Sightseeing, 100 Gopher St, Banff\nbanffjaspercollection.com/attractions/open-top-touring/tours/legendary-banff/"
+    },
+    {
+      "id": 20,
+      "section": "🎒 Add-Ons & Activities",
+      "label": "Icefields – Oct 9",
+      "value": "Ice Explorer + Glacier Skywalk — INCLUDED in package\nAlpine Lunch included at Columbia Icefield Discovery Centre"
+    },
+    {
+      "id": 21,
+      "section": "📦 Luggage",
+      "label": "Rocky Mountaineer Main Bags",
+      "value": "Max 2 bags/person | Total ≤66 lbs | Per bag ≤50 lbs\nRocky Mountaineer handles all transfers between stops"
+    },
+    {
+      "id": 22,
+      "section": "📦 Luggage",
+      "label": "Train Day Pack (GoldLeaf)",
+      "value": "Max 16\"×11\"×8\" (40×28×20cm) | Carry onboard\nMust include: meds, valuables, passports, electronics, warm layer, final docs\n⚠️ Never put essentials in transferred luggage"
+    },
+    {
+      "id": 23,
+      "section": "📦 Luggage",
+      "label": "Alaska Airlines",
+      "value": "Carry-on: 22×14×9 in (hard limit) + 1 personal item under seat\nFirst Class: not strict per Hailey – 1–2 inches over OK"
+    },
+    {
+      "id": 24,
+      "section": "🌦️ Time Zones",
+      "label": "Vancouver / Kamloops",
+      "value": "PDT = HST + 3 hours"
+    },
+    {
+      "id": 25,
+      "section": "🌦️ Time Zones",
+      "label": "Jasper / Lake Louise / Banff",
+      "value": "MDT = HST + 4 hours"
+    },
+    {
+      "id": 26,
+      "section": "🌦️ Time Zones",
+      "label": "October Weather – Rockies",
+      "value": "Possible early snow at elevation (Icefields, Gondola, Skytram)\nPack: waterproof shell + warm mid-layer + gloves"
+    }
+  ],
+  "packing": {
+    "stan": [
+      {
+        "id": 1,
+        "cat": "Bags",
+        "sub": "",
+        "text": "Patagonia Black Hole 30L",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 2,
+        "cat": "Bags",
+        "sub": "",
+        "text": "Peak Design backpack?",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 3,
+        "cat": "Clothes",
+        "sub": "Flights",
+        "text": "Short sleeve merino",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 4,
+        "cat": "Clothes",
+        "sub": "Flights",
+        "text": "Black tech pants",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 5,
+        "cat": "Clothes",
+        "sub": "Flights",
+        "text": "Merino hoodie — lashed to Patagonia",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 6,
+        "cat": "Clothes",
+        "sub": "Flights",
+        "text": "Black belt",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 7,
+        "cat": "Clothes",
+        "sub": "Flights",
+        "text": "Compression socks",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 8,
+        "cat": "Clothes",
+        "sub": "Flights",
+        "text": "Skechers",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 9,
+        "cat": "Clothes",
+        "sub": "Outer",
+        "text": "Green belt (packed)",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 10,
+        "cat": "Clothes",
+        "sub": "Outer",
+        "text": "Winter cap — Alpaca",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 11,
+        "cat": "Clothes",
+        "sub": "Outer",
+        "text": "Scarf — Alpaca",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 12,
+        "cat": "Clothes",
+        "sub": "Outer",
+        "text": "Packable winter jacket — Uniqlo",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 13,
+        "cat": "Clothes",
+        "sub": "Outer",
+        "text": "Raincoat",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 14,
+        "cat": "Clothes",
+        "sub": "Outer",
+        "text": "Packable travel cap",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 15,
+        "cat": "Clothes",
+        "sub": "Outer",
+        "text": "House slippers",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 16,
+        "cat": "Clothes",
+        "sub": "Tops",
+        "text": "Merino wool T-shirts (2)",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 17,
+        "cat": "Clothes",
+        "sub": "Tops",
+        "text": "Merino wool long sleeve (2)",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 18,
+        "cat": "Clothes",
+        "sub": "Tops",
+        "text": "T-shirts for hotel room (1 or 2)",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 19,
+        "cat": "Clothes",
+        "sub": "Tops",
+        "text": "Long sleeve shirt — suitable for dining (white)",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 20,
+        "cat": "Clothes",
+        "sub": "Tops",
+        "text": "Grey sweater",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 21,
+        "cat": "Clothes",
+        "sub": "Bottoms",
+        "text": "Green pants",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 22,
+        "cat": "Clothes",
+        "sub": "Bottoms",
+        "text": "Sweat pants",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 23,
+        "cat": "Clothes",
+        "sub": "Underwear",
+        "text": "Underwear (9 pair)",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 24,
+        "cat": "Clothes",
+        "sub": "Socks",
+        "text": "Darn Tough socks",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 25,
+        "cat": "Clothes",
+        "sub": "Socks",
+        "text": "Alpaca socks",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 26,
+        "cat": "Clothes",
+        "sub": "Socks",
+        "text": "Black socks",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 27,
+        "cat": "Clothes",
+        "sub": "Socks",
+        "text": "Red socks",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 28,
+        "cat": "Clothes",
+        "sub": "Socks",
+        "text": "Purple socks",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 29,
+        "cat": "Meds",
+        "sub": "",
+        "text": "Check w/ Cathy",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 30,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Nail clippers",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 31,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Deodorant (Nature, unscented)",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 32,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "1-Drop",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 33,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Comb",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 34,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Q-tips",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 35,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Hand sanitizer",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 36,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Toothbrush",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 37,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Toothpaste",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 38,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Mouthwash",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 39,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Mouth guard",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 40,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Mask",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 41,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Small tissue packet",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 42,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Band-aids",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 43,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Shaver",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 44,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Blades",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 45,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Shaving soap",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 46,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Wet Ones",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 47,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Floss",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 48,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Blistex",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 49,
+        "cat": "Toiletries & Tech",
+        "sub": "Backpack",
+        "text": "Device wipes",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 50,
+        "cat": "Toiletries & Tech",
+        "sub": "Personal Carryon",
+        "text": "1-Drop",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 51,
+        "cat": "Toiletries & Tech",
+        "sub": "Personal Carryon",
+        "text": "Hand sanitizer",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 52,
+        "cat": "Toiletries & Tech",
+        "sub": "Personal Carryon",
+        "text": "Masks (2)?",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 53,
+        "cat": "Toiletries & Tech",
+        "sub": "Personal Carryon",
+        "text": "Blistex",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 54,
+        "cat": "Toiletries & Tech",
+        "sub": "Personal Carryon",
+        "text": "Mouthwash",
+        "owned": true,
+        "packed": false
+      },
+      {
+        "id": 55,
+        "cat": "Toiletries & Tech",
+        "sub": "Always Available",
+        "text": "Magsafe iPhone battery",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 56,
+        "cat": "Toiletries & Tech",
+        "sub": "Always Available",
+        "text": "3 ft C-to-C cable",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 57,
+        "cat": "Toiletries & Tech",
+        "sub": "Always Available",
+        "text": "USB-C outlet plug (iPhone)",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 58,
+        "cat": "Toiletries & Tech",
+        "sub": "Always Available",
+        "text": "Watch Magsafe charger",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 59,
+        "cat": "Toiletries & Tech",
+        "sub": "Always Available",
+        "text": "USB-A outlet plug (Watch)",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 60,
+        "cat": "Toiletries & Tech",
+        "sub": "Always Available",
+        "text": "Microfiber glasses-cleaning cloth",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 61,
+        "cat": "Support",
+        "sub": "",
+        "text": "FOLDER WITH PRINTED DOCUMENTS",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 62,
+        "cat": "Support",
+        "sub": "",
+        "text": "Canada currency ($40 in 5's and 10's)",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 63,
+        "cat": "Support",
+        "sub": "",
+        "text": "Microfiber glasses-cleaning cloth",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 64,
+        "cat": "Support",
+        "sub": "",
+        "text": "AirPod Pro strap",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 65,
+        "cat": "Support",
+        "sub": "",
+        "text": "Car key (not needed if cab to/from airport)",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 66,
+        "cat": "Support",
+        "sub": "",
+        "text": "Condo key as backup (only one needs to bring)",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 67,
+        "cat": "Support",
+        "sub": "",
+        "text": "Do NOT bring car FOB",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 68,
+        "cat": "Support",
+        "sub": "",
+        "text": "Contigo mug (water)",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 69,
+        "cat": "Support",
+        "sub": "",
+        "text": "Wet wipes",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 70,
+        "cat": "Support",
+        "sub": "",
+        "text": "Detergent strips",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 71,
+        "cat": "Support",
+        "sub": "",
+        "text": "Light waterproof bags",
+        "owned": false,
+        "packed": true
+      },
+      {
+        "id": 72,
+        "cat": "Support",
+        "sub": "",
+        "text": "Bags for dirty clothes",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 73,
+        "cat": "Support",
+        "sub": "",
+        "text": "Band-aids (in EB bag)",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 74,
+        "cat": "Support",
+        "sub": "",
+        "text": "AirTags + holders",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 75,
+        "cat": "Support",
+        "sub": "",
+        "text": "Dry/wet pouches (waterproof bags)",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 76,
+        "cat": "Support",
+        "sub": "",
+        "text": "Travel wash cloths",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 77,
+        "cat": "Support",
+        "sub": "",
+        "text": "Covid test kits",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 78,
+        "cat": "Support",
+        "sub": "",
+        "text": "ID cards for luggage",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 79,
+        "cat": "Support",
+        "sub": "",
+        "text": "Downloaded movies for flights",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 80,
+        "cat": "Support",
+        "sub": "",
+        "text": "Wall outlet multiplug (flat profile)",
+        "owned": false,
+        "packed": false
+      },
+      {
+        "id": 81,
+        "cat": "Support",
+        "sub": "",
+        "text": "Passport",
+        "owned": false,
+        "packed": false
+      }
+    ],
+    "cathy": [],
+    "stanCatOrder": [
+      "Clothes",
+      "Bags",
+      "Toiletries & Tech",
+      "Meds",
+      "Support"
+    ],
+    "stanSubOrder": {
+      "Clothes": [
+        "Flights",
+        "Outer",
+        "Tops",
+        "Bottoms",
+        "Underwear",
+        "Socks"
+      ],
+      "Meds": [
+        ""
+      ],
+      "Toiletries & Tech": [
+        "Backpack",
+        "Personal Carryon",
+        "Always Available"
+      ],
+      "Support": [
+        ""
+      ],
+      "Bags": [
+        ""
+      ]
+    },
+    "cathyCatOrder": []
+  },
+  "packingNotes": [
+    {
+      "id": 1,
+      "text": "What is plan for Non-US destinations?"
+    },
+    {
+      "id": 2,
+      "text": "Need a more structured backpack than the Eddie Bauer."
+    },
+    {
+      "id": 3,
+      "text": "Uniqlo sweater worked out very well. In general, the merino wool shirts worked well."
+    },
+    {
+      "id": 4,
+      "text": "Didn't use any of the travel hangars."
+    },
+    {
+      "id": 5,
+      "text": "The alpaca and Darn Tough socks were too thick for the Skechers. Good thing I bought the thinner merino wool socks."
+    },
+    {
+      "id": 6,
+      "text": "Plastic belts worked ok for the most part. However, at the Pentagon they made us take them off and it was rather clumsy. The black plastic buckle belt is too hard to resize."
+    },
+    {
+      "id": 7,
+      "text": "The wall outlet multiplug is really useful. It might be better to find one with a flatter profile."
+    },
+    {
+      "id": 8,
+      "text": "Need unlimited data plan on vacations."
+    },
+    {
+      "id": 9,
+      "text": "Patagonia pants may be too lightweight for colder climates. Tech pants work well."
+    },
+    {
+      "id": 10,
+      "text": "Things I missed on a previous trip: Toothbrush, Microfiber cloth for glasses, Apple Pencil sleeve, Casual clothes for hotel room (T-shirt, sweat pants)."
+    }
+  ],
+  "calendarEvents": [],
+  "archivedTodos": [
+    {
+      "id": 8,
+      "group": "🚂 Rocky Mountaineer",
+      "category": "Rocky Mountaineer",
+      "task": "Confirm final payment auto-charge date",
+      "ref": "Final payment $12,195 due Aug 6, 2026",
+      "done": true,
+      "closedAt": "2026-03-17T03:59:54.768Z",
+      "archivedAt": "2026-03-17T03:59:56.641Z"
+    },
+    {
+      "id": 1,
+      "group": "✈️ Alaska Airlines",
+      "category": "Alaska Airlines",
+      "task": "Add KTN – Cathleen B.",
+      "ref": "Flight confirm QWRVFP | Alaska #346458361\nNo need for KTN",
+      "done": true,
+      "closedAt": "2026-03-17T22:34:15.971Z",
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 2,
+      "group": "✈️ Alaska Airlines",
+      "category": "Alaska Airlines",
+      "task": "Add KTN – Stanley B.",
+      "ref": "Flight confirm QWRVFP | Alaska #346457871\nNo need for KTN",
+      "done": true,
+      "closedAt": "2026-03-17T22:35:03.849Z",
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 4,
+      "group": "✈️ Alaska Airlines",
+      "category": "Alaska Airlines",
+      "task": "Add passport – Stanley B.",
+      "ref": "Flight confirm QWRVFP | Alaska #346457871",
+      "done": true,
+      "closedAt": "2026-03-17T22:38:48.910Z",
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 10,
+      "group": "📋 Now – June",
+      "category": "Add-Ons",
+      "task": "Purchase Vancouver City Tour + Capilano Suspension Bridge tickets",
+      "ref": "Oct 5 | Pickup south tower Sheraton | 877-451-1777 | westcoastsightseeing.com | Departs 12pm, 5.5 hrs",
+      "done": true,
+      "closedAt": "2026-03-17T23:49:21.816Z",
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 11,
+      "group": "📋 Now – June",
+      "category": "Add-Ons",
+      "task": "Purchase Legendary Banff 90-min open top bus tour",
+      "ref": "Oct 10 | Hourly 10am–7pm | Pickup: Brewster Sightseeing, 100 Gopher St, Banff",
+      "done": true,
+      "closedAt": "2026-03-17T23:48:24.964Z",
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 13,
+      "group": "📋 Now – June",
+      "category": "Restaurants",
+      "task": "Reserve Post Hotel Dining Room – Lake Louise (Oct 9)",
+      "ref": "Reserve 30–45 days out. posthotel.com/dine/cuisine",
+      "done": true,
+      "closedAt": "2026-03-17T23:48:17.524Z",
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 18,
+      "group": "📋 Now – June",
+      "category": "Admin",
+      "task": "Copy 3x5 cards (manually built) from iCloud Downloads to Google Drive",
+      "ref": "drive.google.com/drive/folders/1adhCX8PRqY5cnE1Tpap-q0uD0HifulHt — Predates app. Cards built manually in Numbers/Pages. Superseded by app-generated cards.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 19,
+      "group": "📋 Now – June",
+      "category": "Add-Ons",
+      "task": "Decide: Banff Gondola (Oct 10)",
+      "ref": "Confirm availability and book if desired",
+      "done": true,
+      "closedAt": "2026-03-17T23:49:35.420Z",
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 20,
+      "group": "📋 Now – June",
+      "category": "Add-Ons",
+      "task": "Decide: Jasper wildlife tour (Oct 8 morning)",
+      "ref": "Book if desired — book by 60 days out",
+      "done": true,
+      "closedAt": "2026-03-17T23:49:39.172Z",
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 21,
+      "group": "📋 Now – June",
+      "category": "Admin",
+      "task": "Verify travel insurance covers pre-existing conditions",
+      "ref": "",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 22,
+      "group": "📋 Now – June",
+      "category": "Admin",
+      "task": "Verify passports valid through April 2027",
+      "ref": "",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 23,
+      "group": "📋 Now – June",
+      "category": "Add-Ons",
+      "task": "Decided add-ons (Vancouver, Kamloops, Jasper, Lake Louise, Banff)",
+      "ref": "",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 24,
+      "group": "📋 Now – June",
+      "category": "Admin",
+      "task": "Replace walking shoes (test before trip)",
+      "ref": "",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 27,
+      "group": "📅 60 Days Out – Aug 5",
+      "category": "Add-Ons",
+      "task": "Book Jasper wildlife tour if decided",
+      "ref": "We are doing this:  Legendary Banff Tour",
+      "done": true,
+      "closedAt": "2026-03-17T09:42:00.241Z",
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 28,
+      "group": "📅 60 Days Out – Aug 5",
+      "category": "Add-Ons",
+      "task": "Confirm Banff Gondola decision and book if going",
+      "ref": "We are doing this:, Legendary Banff Tour",
+      "done": true,
+      "closedAt": "2026-03-17T09:42:30.019Z",
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 58,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Example: Toast not visible on Safari",
+      "ref": "v0.8.x\nThis is an example. Close it",
+      "done": true,
+      "closedAt": "2026-03-17T09:49:30.261Z",
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 59,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Example: Add dark mode",
+      "ref": "",
+      "done": true,
+      "closedAt": "2026-03-17T09:49:45.738Z",
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 77,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Custom event time ignored — creates all-day event instead",
+      "ref": "Fixed v0.9.16 — display string was overwriting raw time before ICS export.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 78,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Migration: allow default todos to update existing items (not just add missing ones)",
+      "ref": "Currently migration skips id:77 done:true because id exists in saved state. Need a way to push updates to ref/done fields on default todos without overwriting user edits. Closed v0.9.81.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 79,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "ICS export: add re-import warning and dedicated calendar recommendation to export dialog",
+      "ref": "Fixed v0.9.50 — yellow warning box added to export modal explaining that Google Calendar always adds on import, never updates. Step-by-step workflow: delete CAN26 calendar, recreate, then import fresh .ics.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 81,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Calendar: show HST label on all timed app-generated events for easy reconciliation",
+      "ref": "Custom events already showed 🏠 HST label in detail panel and ICS DESCRIPTION. Extended to trains v0.9.42 by pulling existing hst field from depart row. Flights and hotels already had _homeTz via toHomeTzLabel(). Tours, dinners, todos are genuinely all-day (no local time) — no conversion needed.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 82,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "ICS export: train events omit HST from DESCRIPTION even though row data has hst field",
+      "ref": "Fixed v0.9.42 — _homeTz now set on train events from depart.hst. Will appear as 🏠 [time] HST in DESCRIPTION of exported .ics, matching behavior of flights, hotels, and custom events.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 83,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Calendar detail panel: audit all event types to confirm 🏠 HST line renders when _homeTz is set",
+      "ref": "Render code already handles _homeTz universally (e._homeTz check in cal-card template). Audit: flights ✅ hotels ✅ custom ✅ trains ✅ (v0.9.42). Tours/dinners/todos are all-day — N/A.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 84,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "HST label missing on HNL-origin flights — toHomeTzLabel returned null when fromTzid === homeTz",
+      "ref": "Fixed v0.9.43 — removed early null return. All timed events now show 🏠 HST label regardless of whether local timezone is already HST. Consistent across flights, hotels, trains, custom events.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 85,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "tzFromCityStr false-matched 'HST' in 'PDT (HST+3)' offset notation, returning Pacific/Honolulu for Vancouver hotels",
+      "ref": "Fixed v0.9.44 — now only matches HST as primary tz token (when PDT/PST absent). Root cause: Sheraton/Kamloops checkin field says 'Time zone: PDT (HST+3)' meaning local is PDT. Old code saw 'HST' and returned Honolulu tzid, causing wallTimeToUTC to convert 4PM as if it were HST, producing wrong UTC and wrong Google Calendar display time (4PM HST instead of 1PM HST).",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 86,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "ICS export used UTC-Z timestamps — Google Calendar displayed local city time as if it were HST",
+      "ref": "Fixed v0.9.44 — switched all timed events (flights, hotels, custom) to DTSTART;TZID=[city_tz]:local_time format. Google Calendar now has the city timezone, converts correctly to viewer timezone (HST), and can display both local and HST times. e.g. Sheraton check-in: DTSTART;TZID=America/Vancouver:20261004T160000 → Google shows 1:00 PM HST.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 87,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "ICS SUMMARY: append local time + tz abbreviation to event title",
+      "ref": "Implemented v0.9.45 — e.g. '[CAN26] 🏨 Check-in: Sheraton Vancouver Wall Centre (4:00 PM PDT)'. Extracted from DTSTART;TZID= field so it always matches the actual stored time. Only added when event has a TZID timestamp (timed events); all-day events unchanged.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 88,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Restaurants: upgraded to first-class confirmed reservation entity",
+      "ref": "v0.9.46 — added confirmed (bool), reservationTime (HH:MM), confirmationNum, partySize fields. Confirmed dinners emit timed TZID-based calendar events with HST label, matching hotel/flight behavior. Unconfirmed remain all-day events. migrateData backfills new fields. restaurantForm shows toggled confirmed section. renderRestaurants shows ✅ CONFIRMED badge with time/conf#/party.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 89,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Confirmed dinner exported as all-day in ICS — reservation time input was plain text, regex silently failed",
+      "ref": "Fixed v0.9.47 — switched input to type=time (browser enforces HH:MM, regex always matches). Added warning toast in ICS fallback path for confirmed dinners so future silent failures surface. Root cause: silent all-day fallback with no feedback is a recurring fragility pattern across all timed event types.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 90,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Time inputs: enforce type=time everywhere, remove dead fallbacks, add required validation",
+      "ref": "v0.9.48 — custom event and restaurant time inputs all use type=time (browser enforces HH:MM). Removed dead 'else { displayTime = e.time }' fallback in buildCalendarEvents. Simplified custom event save validation from regex to empty check. Added required-time guard in restaurant save when confirmed=true.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 91,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Restaurants: replace when-string regex date extraction with type=date picker (calDate field)",
+      "ref": "v0.9.49 — added calDate (YYYY-MM-DD) field driven by type=date picker constrained to Oct 3–13. buildCalendarEvents uses calDate first, falls back to when regex for legacy data. migrateData backfills calDate from when regex. f-when demoted to display label only. Date required on save.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.419Z"
+    },
+    {
+      "id": 92,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Tier 2: replace compound flight departs/arrives strings with structured fields (date picker + time picker + city dropdown)",
+      "ref": "Currently f-dep and f-arr store strings like 'Sun, Oct 4 | 11:44 AM PDT' parsed by parseFlightDateTime(). Fragile — wrong format silently produces all-day ICS events. Fix: structured fields for date, time, city/tz. Also applies to hotel dates field ('Oct 4–6 (2 nights) & Oct 12–13'). Low urgency for CAN26 since flight data is already set, but important before reusing app for future trips. Closed v0.9.70.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 93,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "ICS export dialog: add re-import warning + Google Calendar delete-and-reimport workflow",
+      "ref": "Implemented v0.9.50 — closes TODO #79.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 94,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "PWA: consider converting to Progressive Web App for phone/iPad/offline access during trip",
+      "ref": "Requires hosting at a real URL (GitHub Pages recommended — free, no credit card). Add service worker + manifest to existing HTML. App cached locally = works offline in Banff with no signal. iOS Safari won't run local HTML files — PWA at a URL is the fix. Decision deferred post-v0.9.51. Assess before trip (by Sep 2026).",
+      "done": true,
+      "closedAt": "2026-03-17T22:08:17.126Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 96,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Fix: mobile sidebar overlay persists after resizing window past 900px breakpoint",
+      "ref": "sidebar-overlay.open { display: block } is not scoped to the mobile media query, so if the user opens the sidebar at [900px then widens the window, the overlay remains blocking the UI. Fixed in v0.9.52 by adding a window resize listener that calls closeSidebar() whenever innerWidth > 899.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 97,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Fix: migrateData changes not written back to file handle on load",
+      "ref": "applyLoadedData() called saveToLocalStorage() only — not saveState(). So migrated defaults (new todos, backfilled fields) were in memory and localStorage but never written to the linked .json file. Next session the file loaded again without them. Fixed v0.9.53: applyLoadedData now calls saveState() so file handle gets updated immediately after migration.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 98,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Restaurant: add address, mapsUrl, bookingSource, bookingUrl fields",
+      "ref": "v0.9.53 — address (freeform text), mapsUrl (manual paste), bookingSource (e.g. OpenTable), bookingUrl (link to confirmation page). All optional. Show on restaurant card: address with inline Map link, booking source in confirmed badge, View Booking link. migrateData backfills all four fields on existing records. ICS LOCATION and DESCRIPTION wiring deferred to next session.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 99,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "TODO cards: show ID number (#N) next to category badge",
+      "ref": "v0.9.53 — small #N label rendered inline with category pill on each todo card. Makes it easy to reference specific todos by number in conversation or bug reports.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 100,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Fix: new default todos not appearing after upgrade — migrateData timing unreliable",
+      "ref": "migrateData ran correctly but multiple load paths (file handle, localStorage, btnNew) meant migrated state wasn't always persisted. Root fix in v0.9.54: syncDefaultTodos() runs inside renderAll() on every startup — safe, idempotent, catches all load paths. Supersedes the applyLoadedData saveState() fix from v0.9.53.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 101,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Fix: syncDefaultTodos id-only matching caused false collision with user-created todos",
+      "ref": "User todos assigned by nextId() incremented into the same id range as new default developer todos (96–100). syncDefaultTodos saw those ids as already present and skipped injection. Fixed v0.9.55: match on id+group composite key ('id:group') — a user todo with a colliding numeric id is not a match unless the group also matches.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 102,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Todo id namespace: developer and user todos share the same integer id space — collisions visible in UI",
+      "ref": "Won't fix / by design. syncDefaultTodos() ensures all developer todos (up to #154) are always present in state.todos before nextId() runs on any new user todo, so user todos always land at #155+. The two populations are naturally separated. Composite-id scheme deferred indefinitely — v2 would start from a clean architecture anyway (see #134).",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 103,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Restaurant form: structured address fields, side-by-side pairs, rename Reservation label, fix confirmed fields visibility",
+      "ref": "v0.9.57 — (1) freeform address replaced with structured fields: streetAddress, addressCity, stateProvince, country, zipPostal, phoneDesc, phoneNum, email. Old address field migrated to streetAddress. (2) Side-by-side pairs: Reservation Time+Party Size, Booking Source+Booking Confirmation Link. (3) Renamed 'Reservation?' to 'Recommendation Required?'. (4) Fixed confirmed fields visibility: changed display toggle value from '' to 'block'. migrateData backfills all new fields.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 104,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Improve error/validation message specificity — current toasts are too generic ('Error')",
+      "ref": "v0.10.126 — Audited all showToast() calls. Fixed two categories of issues: (1) 20 calls had arguments reversed (type, msg) instead of correct (msg, type) — these were silently showing '⚠ error' or '✓ success' as the message text. All corrected. (2) Vague messages improved: 'Title and date are required' → 'Event title and date are required'; 'Start time is required' → '...for timed events'; 'Date is required' → 'Restaurant date is required'; 'Reservation time is required when confirmed' → '...when Confirmed is checked'; 'warn' type (invalid) → 'info'; card print errors made action-specific.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 105,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Modal: dirty-form detection — warn before discarding unsaved changes",
+      "ref": "v0.9.58 — openModal() snapshots all input/select/textarea values (50ms after render to allow dynamic fields to settle). closeModalWithGuard() compares current vs snapshot and shows browser confirm() if dirty. Applies to overlay click, Cancel button, and Escape key. saveModal() clears snapshot before invoking callback so save-then-close path never triggers the guard. Universal — works for all forms automatically.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 106,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Modal: red dot + Save button highlight when form is dirty",
+      "ref": "v0.9.59 — red dot (var(--red), 8px circle) appears next to modal title when any field changes. Save button background also shifts to red. Both clear on save or close. Driven by input/change event listener attached to modal-body on open. _setModalDirtyUI() centralises both signals.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 107,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Todo list: needs a strategy for pruning, archiving, and bulk deletion",
+      "ref": "The todo list is growing fast — developer todos, trip todos, done items all accumulating. Options to consider: (1) Archive vs delete distinction — archive hides but preserves, delete is permanent. (2) Bulk select mode — checkbox per row, select-all, then delete or archive selected. (3) Auto-archive completed developer todos. (4) Separate 'Archive' view. Design decision needed before implementation. Deferred.",
+      "done": true,
+      "closedAt": "2026-03-17T22:08:29.425Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 108,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Restaurant ICS: enrich LOCATION and DESCRIPTION with full address and contact/booking info",
+      "ref": "v0.9.61 — LOCATION now uses full structured address (streetAddress + addressCity/city + stateProvince + country). Google Calendar renders this as a tappable address that opens Maps. DESCRIPTION now includes: style, confirmation #, booking source, booking URL, party size, phone (with description label), email, Maps URL, website. Unconfirmed all-day events also enriched with address, phone, website. Revisit field ordering after seeing in action.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 109,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Flights: add confirmation/record locator, terminal, gate fields; enrich ICS; dynamic Overview airline block",
+      "ref": "v0.9.62 — (1) New fields on each flight: confirmationNum, terminal, gate. All optional/day-of. migrateData backfills. (2) Flight card shows confirmation in gold, terminal+gate combined row when present. (3) ICS DESCRIPTION now includes: seats, operator, confirmation, arrival time, terminal/gate, notes. (4) Overview hardcoded QWRVFP/Alaska line replaced with dynamic block derived from state.flights — one line per unique operator+confirmation combo.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 110,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Flight ICS: append arrival time+tz to event title/SUMMARY",
+      "ref": "v0.9.63 — arrivalLabel built from e._arr (h, min, tzid already parsed). Format: '→ 8:30 AM PDT'. Appended after departure time label in SUMMARY. e.g. '[CAN26] ✈️ AS 900: HNL → SEA (11:50 PM HST) → 8:30 AM PDT'. Only added when _arr is present.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 111,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Flight ICS title: single parens wrapping both dep+arr times",
+      "ref": "v0.9.64 — format changed from '(11:50 PM HST) → 8:30 AM PDT' to '(11:50 PM HST → 8:30 AM PDT)'. One paren pair wraps the full time range. Other event types retain their existing (local time) format unchanged.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 112,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Flight ICS description: add labeled Departs line, separate labeled Terminal and Gate",
+      "ref": "v0.9.65 — DESCRIPTION now includes 'Departs: ...' line above 'Arrives: ...'. Terminal and Gate changed from unlabeled combined 'Terminal 2 · Gate B14' to separate labeled lines: 'Terminal: Terminal 2' and 'Gate: Gate B14'.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 113,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Flights: split terminal/gate into departure and arrival pairs",
+      "ref": "v0.9.66 — single terminal+gate fields replaced with depTerminal, depGate, arrTerminal, arrGate. Labels: 'Terminal (Dep)', 'Gate (Dep)', 'Terminal (Arr)', 'Gate (Arr)'. migrateData migrates old terminal→depTerminal, gate→depGate. ICS DESCRIPTION groups dep fields below Departs line and arr fields below Arrives line.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 114,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Hotels: structured address, phone, confirmation, check-in/out times, room type, URL, Maps URL fields",
+      "ref": "v0.9.67 — replaced freeform address+checkin+notes blobs with: streetAddress, city, province, postalCode, phone, confirmationNum, checkinTime, checkoutTime, roomType, url, mapsUrl, notes. DEFAULT_DATA updated for all 5 hotels. renderHotels card updated. ICS: LOCATION now full address (Maps-tappable), DESCRIPTION includes room type, confirmation, times, phone, Maps/website links. tzFromCityStr extended to match city names directly. _fixedMin now respected in hotel ICS timed events. migrateData parses old freeform fields.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 115,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Hotels: add structured checkinDate/checkoutDate; split Sheraton non-contiguous stay into two records",
+      "ref": "v0.9.68 — added checkinDate and checkoutDate (ISO 8601 date inputs) to hotel records. ICS builder now reads these directly instead of regex-parsing the dates display string. Legacy fallback retained for migrated data. Sheraton Vancouver split from one record (Oct 4-6 & Oct 12-13) into two: id:1 Oct 4-6 and id:6 Oct 11-13. Display label field retained for human-readable dates on cards.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 116,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Hotels migration fix: compound Sheraton record not splitting on load from saved state",
+      "ref": "v0.9.69 — DEFAULT_DATA had 6 records correctly but saved state retained old 5-record structure. Migration only backfills fields on existing records, never adds new ones. Fix: detect old id:1 Sheraton with '&' in dates string, update it to outbound-only Oct 4-6, then push new id:6 return stay Oct 11-13 if not already present.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 117,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Flights: structured depDate/depTime/depTz/arrDate/arrTime/arrTz fields (closes TODO #92)",
+      "ref": "v0.9.70 — replaced regex-parsed freeform departs/arrives strings with structured depDate (ISO date), depTime (HH:MM 24h), depTz (IANA), arrDate, arrTime, arrTz. buildCalendarEvents reads structured fields first, falls back to parseFlightDateTime on old data. flightForm has Dep/Arr fieldsets with date+time+tz inline, display string below each. migrateData auto-populates structured fields by parsing existing display strings. DEFAULT_DATA updated with QWRVFP confirmation on all 4 flights.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 118,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Date pickers: missing min/max trip bounds on flight, hotel, and calendar event forms",
+      "ref": "v0.9.71 — restaurants already had min/max. Added: flight depDate min=Oct3 max=Oct13, flight arrDate min=Oct3 max=Oct14 (overnight arrival day). Hotel checkinDate min=Oct3 max=Oct13, checkoutDate min=Oct4 max=Oct14. Calendar event date min=Oct3 max=Oct13.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 119,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Date pickers: replace hardcoded min/max with trip-aware bounds from settings.tripStart/tripEnd",
+      "ref": "v0.9.72 — added tripStart and tripEnd to settings (DEFAULT_DATA, renderSettings, saveTripDates, migrateData backfill). Added tripDateBounds(allowExtra) helper: reads state.settings.tripStart/tripEnd, computes endPlusOne for arrival/checkout fields. All date pickers (flights dep/arr, hotels ci/co, calendar event, restaurant) now use tripDateBounds() instead of hardcoded dates. Trip dates card added to Settings → Calendar section.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 120,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "ICS HST label; TODO createdAt/closedAt timestamps",
+      "ref": "v0.9.73 — (1) ICS homeTzNote changed from '🏠 7:10 PM HST' to '🏠 HST: 7:10 PM HST' so it's clear what the line means. (2) Todos now track createdAt (ISO timestamp, set on openAddTodo push) and closedAt (set when done becomes true via toggleTodo or editTodo, cleared when undone). Both displayed on card in small text as 'Created: Mar 8, 2026 · Closed: Mar 8, 2026'. migrateData backfills empty strings; existing done todos get closedAt='(before v0.9.73)'.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 121,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Settings page div imbalance causing bleed-through; Invalid date on pre-v0.9.73 todo closedAt",
+      "ref": "v0.9.74 — (1) The Trip Dates card insertion in v0.9.72 consumed the ICS prefix card's outer settings-card/settings-card-body wrappers in the str_replace, leaving those divs orphaned and the Calendar settings-section's grid unclosed. Verified clean with depth counter. (2) fmtDate() helper added: falls back to raw string if new Date(s) is NaN, so '(before v0.9.73)' displays as-is instead of 'Invalid date'. Open tasks with empty createdAt show nothing (falsy guard).",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 122,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Flight ICS: combine terminal/gate onto Departs/Arrives lines to reduce crowding",
+      "ref": "v0.9.75 — DESCRIPTION changed from separate Terminal (Dep)/Gate (Dep) lines to inline: 'Departs: Sat, Oct 3 | 11:50 PM HST from Terminal 2, Gate B14' and 'Arrives: Sun, Oct 4 | 8:30 AM PDT at Terminal N, Gate D7'. Omitted when not set.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 123,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Flight terminal/gate: raw values shown without labels in card and ICS",
+      "ref": "v0.9.76 — fields store just the value (e.g. '2', 'B14') not the label. Output was 'from 666, 999' instead of 'from Terminal 666, Gate 999'. Fixed by prepending 'Terminal ' and 'Gate ' in both the ICS detail builder and the flight card display.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 124,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "ICS home tz label redundant: '🏠 HST: 11:50 PM HST' has HST twice",
+      "ref": "v0.9.77 — toHomeTzLabel already includes the tz abbreviation in the time string. Changed label from 'HST:' to 'Home:' → '🏠 Home: 11:50 PM HST'.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 125,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Calendar nav: group all controls left as ‹ MONTH › Today",
+      "ref": "v0.9.78 — removed flex:1 from .cal-nav-month (was pushing controls to opposite edges). Reordered HTML to ‹ MONTH › Today. Added min-width:180px to month label so it doesn't jump when month name changes length.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 126,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Calendar nav: center month label between arrows",
+      "ref": "v0.9.79 — added text-align:center to .cal-nav-month.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 127,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Move Export .ics button from Calendar page to Settings",
+      "ref": "v0.9.80 — ICS export is infrequent (once at setup, again if data changes significantly). Removed from Calendar page header. Added as a card in Settings → Calendar section with descriptive label.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 128,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "syncDefaultTodos: update task/ref on existing items (closes #78); suppress Home: on restaurant ICS events",
+      "ref": "v0.9.81 — (1) syncDefaultTodos now uses a Map keyed on id:group. For existing matches it patches task and ref if they differ from DEFAULT_DATA, preserving done/createdAt/closedAt. Closes TODO #78. (2) Restaurant timed events now emit _homeTz:null — the home time conversion is noise for a dinner reservation since you're already there. Flights, hotels, and itinerary events retain _homeTz.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 129,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Remove parseFlightDateTime fallback from buildCalendarEvents; direct edit from calendar detail panel",
+      "ref": "v0.9.82 — (1) buildCalendarEvents now reads dep/arr structured fields only (depDate/depTime/depTz). Fallback to parseFlightDateTime removed. parseFlightDateTime kept with clarifying comment — still used in migrateData to backfill structured fields from old display strings on load. (2) Flight, hotel, and restaurant events now carry _sourceId. Calendar detail panel footer shows a direct ✏️ Edit button for these types, opening the edit modal inline rather than navigating away. Itinerary and keyinfo events retain the old 'Edit on [Page] →' nav link.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 130,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "syncDefaultTodos: done:true not pushed from DEFAULT_DATA — #78 stayed open after v0.9.81",
+      "ref": "v0.9.83 — syncDefaultTodos synced task and ref but not done. If DEFAULT_DATA marks a todo done:true, saved state with done:false never got updated. Fix: also push done=true when DEFAULT_DATA.done is true. Never force-open (don't push done:false). This closes #78 on load for all existing saved states.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 131,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "TODO #92 left as done:false in DEFAULT_DATA despite being closed in v0.9.70",
+      "ref": "v0.9.84 — same class of bug as #78/#130. Closed ref said 'Closed v0.9.70' but done flag was never flipped. Now done:true — syncDefaultTodos will push it closed on next load.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 132,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "ICS: stable UIDs from record IDs, SEQUENCE counter, METHOD:PUBLISH",
+      "ref": "v0.9.85 — (1) UIDs now derived from stable record ids: can26-flight-{id}, can26-hotel-{id}-ci/co, can26-restaurant-{id}, can26-custom-{id}. Events without record ids (train, tour, itinerary, deadline) use type+date+title slug as stable fallback. (2) settings.icsExportSeq increments on every export and is written as SEQUENCE to every VEVENT — lets calendar clients know which version wins. Backfilled to 0 in migrateData. (3) METHOD:PUBLISH added to VCALENDAR header. Foundation for TODO #94 (GitHub Pages subscription URL) where UIDs enable in-place event updates without reimport.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 133,
+      "group": "🛠️ Developer",
+      "category": "Architecture",
+      "task": "Add schemaVersion to settings — foundation for v2 discrete migrations",
+      "ref": "v0.9.86 — added settings.schemaVersion=1 to DEFAULT_DATA and migrateData backfill. Costs nothing now. In v2, migrations will be discrete functions keyed on schemaVersion (v1→v2, v2→v3) rather than the current monolithic migrateData that must know all historic data shapes and runs on every load. Having a version number in saved state means v2 can detect exactly which migrations to run.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 135,
+      "group": "🛠️ Developer",
+      "category": "UI",
+      "task": "Restore version string to left nav panel alongside the save status string",
+      "ref": "v0.9.87 — added #nav-version div to sidebar-footer, populated in renderVersionChip() with 'v{BUILD.version}'. Styled same as sync-status (10px, text3, centered, Lato). Settings version card retained — serves diagnostic role (build label, file status), not redundant.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 136,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "TODO page: Incomplete toggle button is bold when not active — should only be bold when clicked",
+      "ref": "v0.9.87 — font-weight:600 was in base .todo-incomplete-toggle style, making it always bold. Moved to .todo-incomplete-toggle.active only. Base is now font-weight:400.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 137,
+      "group": "🛠️ Developer",
+      "category": "UI",
+      "task": "Nav footer: version and save status on one line in that order",
+      "ref": "v0.9.88 — merged #sync-status and #nav-version into single #nav-status-line div. Format: 'v0.9.88 · Saved 10:32 AM'. updateSyncStatus writes combined string; renderVersionChip seeds version-only on initial render before first save event fires. Color follows save status (text3 normal, gold unsaved, red error).",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 138,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "TODO archiving: per-todo 📦 button, bulk Archive done per group, archived section with ↩ restore",
+      "ref": "v0.9.89 — (1) state.archivedTodos array added to DEFAULT_DATA and migrateData backfill. (2) archiveTodo(id): moves item from state.todos to state.archivedTodos, stamps archivedAt. (3) unarchiveTodo(id): restores item, removes archivedAt. (4) archiveGroupDone(group): bulk archives all done items in a group with toast confirmation. (5) Each done todo card gets a 📦 archive button alongside edit/delete. (6) Each group header shows 'Archive done' button when gdone &gt; 0. (7) Collapsed '📦 Archived (N)' section at page bottom, toggled by _todoShowArchived. Archived items shown newest-first with group label, archived date, and ↩ restore button. (8) Subtitle shows '· N archived' count. Persists to saved state and JSON export.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 139,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Tooltip help text on hover for all buttons throughout the app",
+      "ref": "v0.10.126 — Single-pass audit of all buttons. Added title= attributes to all 76 buttons: nav/hamburger, all section '+ Add' buttons, all ✏️ edit and 🗑 delete row buttons, packing tabs, filter pills, view-mode toggles, modal/confirm/print/card dialog buttons, settings actions, and calendar nav. Covers both static HTML and dynamically-generated template literal buttons.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 140,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "3×5 cards: pill card selection UI + mountain silhouette design",
+      "ref": "v0.9.90 — Replaced qty number inputs with toggle pill buttons (✈ Flights, 🚂 Rocky Mountaineer, 🏨 Hotels, 📋 Key Contacts, 📅 Itinerary). All selected by default. All/None buttons for bulk toggle. printCards() reads .cd-pill.active elements. Mountain silhouette added as CSS ::after pseudo-element on .card-page — two-layer SVG ridge at card bottom in navy at 7% and 5% opacity. Border added: 1.5pt solid #0D1E35 around each card.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 141,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "3×5 cards: popup window causes duplex print failure on Epson ET-8500; CSS background silhouette not printed",
+      "ref": "v0.9.91 — (1) Replaced window.open/document.write with Blob URL download: generates CAN26_Cards.html, triggers download, toast says open in Safari or Preview. Eliminates browser popup rendering race that caused incomplete duplex jobs. (2) Moved mountain silhouette from CSS ::after pseudo-element (suppressed by print engines) to inline SVG via cardMountain() helper injected into all 10 card functions. (3) Updated in-file instructions to: open in Safari/Preview, set paper to 3×5in, enable duplex.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 142,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "3×5 cards: output PDF not HTML; duplex still only printing back page",
+      "ref": "v0.9.92 — Replaced intermediate HTML approach with html2canvas + jsPDF pipeline. printCards() downloads CAN26_CardGen.html which: (1) loads html2canvas 1.4.1 + jsPDF 2.5.1 from cdnjs CDN, (2) waits for document.fonts.ready, (3) renders each .card-page div to canvas at scale:3 (~288dpi), (4) assembles into a multi-page PDF with 5x3in landscape pages, (5) saves CAN26_Cards.pdf. Progress bar shown during generation. PDF opened in Preview/Safari handles duplex correctly since it is a proper multi-page document.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 143,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "3×5 cards: generate PDF directly on button click; fix mountain silhouette missing from PDF",
+      "ref": "v0.9.93 — (1) Eliminated intermediate HTML file entirely. printCards() is now async, loads html2canvas + jsPDF via loadScript() into main page (once, cached), creates fixed-pixel hidden container in main DOM (480x288px = 5x3in @96dpi), renders each card one at a time, assembles jsPDF and calls pdf.save('CAN26_Cards.pdf') directly. Button label updates to 'Rendering N/total…' during generation. (2) Mountain silhouette replaced from SVG (which html2canvas renders inconsistently) to [canvas class='card-mountain-canvas'> drawn by drawMountainCanvas(). Called explicitly on each card before html2canvas capture. Canvas drawing is always captured natively.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 144,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "3×5 cards: mountain silhouette flooding card text — barely visible",
+      "ref": "v0.9.94 — Root cause: drawMountainCanvas path arrays ended with 'W,12,W,H' (pixel values) but were being divided by 360 and 28, producing x=640 and y=617 on a 480×36 canvas. Path closure from those out-of-bounds coords created a massive dark fill region covering the whole card. Fix: rewrote both ridge paths entirely in coordinate space (0–360 x, 0–28 y) with no pixel variable mixing. Used x()/y() helper functions. Front ridge peaks also lowered (y values 14–26 not 12–24) to keep silhouette subtle at card bottom only.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 145,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "3×5 cards: headers/footer clear but body text barely visible and too large",
+      "ref": "v0.9.95 — Root cause: card CSS (.card-page, .card-body, .card-row, etc.) was only defined inside buildCardWindow HTML string, which is no longer used now that rendering happens in the main DOM. Cards rendered with browser default styles — font too large, colors wrong. Fix: added getCardCSS() returning pixel-unit card styles (px not pt/in to avoid dpi ambiguity) injected as [style tag] into container before each card. Updated html2canvas target from container.firstElementChild to container.querySelector('.card-page') to skip injected style tag. Also added 'Confirmation:' prefix to QWRVFP and DIR1117775 card-ref labels.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 146,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "3×5 cards: card size less than full 3x5 in PDF; Preview duplex only prints one page; AS 2355/56 confusing; footer barely visible",
+      "ref": "v0.9.96 — (1) Render container moved from position:fixed;left:-9999px (causes layout issues in some engines) to position:fixed;top:0;left:0;opacity:0;z-index:-1 — guarantees proper layout computation. (2) Footer/side-label color darkened from #C8C0B4 to #6B6058. (3) AS 2355/56 split into two rows: AS 2355 SEA→YVR (outbound) and AS 2356 YVR→SEA (return), both noting Horizon Air. (4) PDF page order changed from interleaved front/back to all-fronts-first then all-backs — print fronts, flip stack, print backs. No duplex setting needed, avoids Preview duplex confusion entirely.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 147,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "3×5 cards: text not filling card size in PDF; black border visible; revert to interleaved duplex",
+      "ref": "v0.9.97 — (1) Border removed from .card-page in getCardCSS() — added in v0.9.90 as design idea, not wanted. (2) jsPDF orientation:'landscape' removed — was fighting format:[5,3] and could swap dimensions; now using format:[5,3] directly with no orientation. pdf.addPage() likewise uses [5,3] without orientation string. (3) Removed explicit width/height override from html2canvas options — let it use element's actual rendered dimensions. Settle timeout increased from 60 to 120ms. (4) Reverted page order to interleaved front/back; duplex to be revisited separately.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 148,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "3×5 cards: PDF generating as portrait 3x5 instead of landscape 5x3 — content fills only top portion, scale 78%",
+      "ref": "v0.9.98 — Root cause: removing orientation:'landscape' in v0.9.97 caused jsPDF to default to portrait and silently swap [5,3] to [3,5]. Screenshot showed Portrait selected, Scale to Fit at 78%, content in top 60% of page. Fix: restored orientation:'landscape' to both jsPDF constructor and addPage() call. With landscape, jsPDF treats [5,3] as 5-wide x 3-tall correctly. Preview Auto Rotate should now align the page properly.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 149,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "3×5 cards: revert to popup window approach; PDF approach never matched original edge-to-edge sizing",
+      "ref": "v0.9.99 — Photo comparison showed original popup window cards filled 3x5 edge-to-edge at native print resolution; PDF approach consistently showed white margins and scaling issues. Reverted to window.open + document.write + @page{size:5in 3in landscape;margin:0}. Dropped all html2canvas/jsPDF infrastructure. SVG silhouette restored (works in popup at print resolution). Duplex solved with on-screen instructions: Odd pages only (fronts) → flip stack → Even pages only (backs). getCardCSS/loadScript/drawMountainCanvas/async printCards all removed.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 150,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "3×5 cards: odd/even page selection in Preview dialog unreliable with Epson rear tray; replace with two separate print jobs",
+      "ref": "v1.0.00 — Replaced single 'Open Print Window' button with two buttons: 'Print Fronts' (btn-secondary, navy/gold) and 'Print Backs' (btn-primary). Each opens its own popup with only those pages — fronts-only window or backs-only window. printCards(side) accepts 'fronts' or 'backs'. buildCardWindow(pages, totalCards, label) shows context-appropriate instruction: fronts window says flip stack and print backs; backs window confirms fronts should already be done. Each is a clean single-sided print job — no duplex setting needed at all.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 151,
+      "group": "🛠️ Developer",
+      "category": "Admin",
+      "task": "Adopt 3-level versioning scheme: M.mm.nnnn",
+      "ref": "v0.10.100 — Scheme: MM=major (manual), mm=minor (manual), nnnn=build (incremented each rev). No leading zeros. Display: '0.10.100'. File naming: CAN26_Planner_vM_mm_nnnn.html. Starting at 0.10.100 — the 100 acknowledges prior work. v1.0.0 is reserved for first production release (trip data locked, cards verified, no open P1 bugs).",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 152,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "3×5 cards: prints edge-to-edge with no margins; landscape resets in system dialog",
+      "ref": "v0.10.101 — (1) Added margin:0.08in to @page rule — small clearance so content doesn't bleed to paper edge. (2) Landscape override by macOS system dialog is a known browser limitation — @page size is respected by browser print dialog but macOS resets orientation when escalating to system dialog. Workaround: set landscape once in system dialog and save to '3x5 BW Rear Tray' preset.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 153,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "3×5 cards: @page margin:0.08in causes card to overflow printable area — only gray line printed",
+      "ref": "v0.10.102 — Root cause: .card-page is width:5in height:3in but @page margin:0.08in shrinks printable area to 4.84×2.84in — card overflows and browser renders almost nothing. Fix: reverted @page to margin:0, instead increased card internal padding from 0.17/0.22/0.14/0.22in to 0.22/0.28/0.18/0.28in. Full 5×3 page used, content pushed away from edges via padding.",
+      "done": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 200,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "v2: Export todo list (open bugs) to clipboard for dev session handoff",
+      "ref": "Logged v0.10.128 — dev cannot read localStorage, so bug numbers alone are meaningless across sessions. Add a small 'Copy open bugs' button (Settings or dev console) that serializes open todos to clipboard as JSON or plain text so they can be pasted at the start of a dev conversation.",
+      "done": true,
+      "createdAt": "2026-03-12T00:00:00.000Z",
+      "closedAt": "2026-03-17T21:55:48.934Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 205,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "High memory usage (2.2 GB) — Claude.ai dev session tab, NOT the planner app",
+      "ref": "Observed v0.10.136. Memory accumulation is in the Claude.ai conversation tab due to long dev session context, file renders, and back-and-forth. The planner app tab is unaffected. NOT actionable in v1 or v2 planner code — this is a Claude.ai/browser session constraint. Workaround: start a new Claude session periodically.",
+      "done": true,
+      "createdAt": "2026-03-12T00:00:00.000Z",
+      "closedAt": "2026-03-17T21:52:09.607Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 206,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Import JSON dialog — button label mismatch: showed 'Delete' instead of 'Import' or 'Archive'",
+      "ref": "Observed Mar 2026 session. confirmDelete() set the modal title dynamically ('Confirm Archive' vs 'Confirm Delete') but the action button always read 'Delete'. Fixed v0.10.142: added id='confirm-action-btn' to modal button; confirmDelete() now sets button text and tooltip dynamically — 'Import' for importjson, 'Archive' for archivealldone, 'Delete' for all others.",
+      "done": true,
+      "createdAt": "2026-03-13T00:00:00.000Z",
+      "closedAt": "2026-03-13T00:00:00.000Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 207,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Hotels: sort by checkinDate at render time instead of relying on array order",
+      "ref": "Hotels added via UI are always appended to end of array, breaking chronological display order. Fix: sort hotels by checkinDate in renderHotels() before building HTML. One-line sort — no schema change required. Workaround until fixed: export JSON, reorder manually, reimport. First surfaced when Hotel #7 (Kamloops return Oct 11–12) was added after Hotel #6 (Vancouver Oct 12–13).",
+      "done": true,
+      "createdAt": "2026-03-13T00:00:00.000Z",
+      "closedAt": "2026-03-13T00:00:00.000Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 208,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Itinerary: city field missing from all days in JSON export/import cycle",
+      "ref": "DEFAULT_DATA itinerary days have a city field but migrateData() only backfills top-level keys — it never iterates per-day fields. Result: city was absent from all itinerary days in state and JSON exports. Fixed v0.11.0: migrateData() now matches each saved itinerary day to its DEFAULT_DATA counterpart by day field and backfills city (and dayMeals) if undefined.",
+      "done": true,
+      "createdAt": "2026-03-13T00:00:00.000Z",
+      "closedAt": "2026-03-13T00:00:00.000Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 209,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Itinerary: dayMeals missing from all days in JSON export/import cycle",
+      "ref": "Same root cause as #208 — migrateData() never backfilled per-day fields on itinerary records. dayMeals (breakfast/lunch/dinner with desc and provided fields) was present in DEFAULT_DATA but absent from saved state and JSON exports for all days. Fixed v0.11.0 alongside #208: single per-day backfill loop in migrateData() restores both city and dayMeals from DEFAULT_DATA on first load after upgrade.",
+      "done": true,
+      "createdAt": "2026-03-13T00:00:00.000Z",
+      "closedAt": "2026-03-13T00:00:00.000Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 210,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Itinerary: add UI to edit row detail text (time, activity, detail, meals fields per row)",
+      "ref": "Itinerary row content originated from early Apple Notes imports and could not be edited in the app. Fixed v0.11.2: added ✏️ button to each itinerary row. editItineraryRow(di,ri) opens a modal with fields for time, hst, activity, detail (textarea), and meals. Saves to state.itinerary[di].rows[ri] and re-opens the day panel after save. Dirty-form guard and dirty-dot indicator work automatically via existing openModal() infrastructure.",
+      "done": true,
+      "createdAt": "2026-03-13T00:00:00.000Z",
+      "closedAt": "2026-03-13T00:00:00.000Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 211,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Itinerary: day numbers too faint — rgba(0,0,0,0.07) nearly invisible",
+      "ref": "Fixed v0.11.4 — .day-num color bumped from rgba(0,0,0,0.07) to rgba(0,0,0,0.20). Visible as a watermark number without competing with the day label text.",
+      "done": true,
+      "createdAt": "2026-03-13T00:00:00.000Z",
+      "closedAt": "2026-03-13T00:00:00.000Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 212,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Itinerary: departure day (Oct 3) label 'day: —' renamed to 'Pre-Trip'",
+      "ref": "Fixed v0.11.4 — DEFAULT_DATA departure day changed from day:'—' to day:'Pre-Trip'. renderItinerary now detects non-numeric day values and renders them at 13px bold instead of 32px to fit the header space cleanly.",
+      "done": true,
+      "createdAt": "2026-03-13T00:00:00.000Z",
+      "closedAt": "2026-03-13T00:00:00.000Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 213,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Itinerary rows: replace freeform Local Time text field with structured date/time/tz picker",
+      "ref": "Fixed v0.11.4 — added rowDate (YYYY-MM-DD), rowTime (HH:MM 24h), rowTz (IANA tzid) fields to each row. Edit and Add Row modals now show a structured time fieldset (date+time+tz pickers in a 3-column grid) alongside a freeform Display Label override. migrateData backfills rowDate/rowTime/rowTz as '' on all existing rows. rowLocalTime() computes the time-column display from structured fields; falls back to row.time if not set.",
+      "done": true,
+      "createdAt": "2026-03-13T00:00:00.000Z",
+      "closedAt": "2026-03-13T00:00:00.000Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 214,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Itinerary rows: HST field should be computed from structured time + home TZ setting, not manually entered",
+      "ref": "Fixed v0.11.4 — rowHstLabel() computes home-TZ label from rowDate+rowTime+rowTz via toHomeTzLabel() when structured fields are set. Falls back to legacy row.hst string for rows without structured time. HST field removed from edit modal — no longer manually entered. Consistent with how flights and calendar events compute home-TZ labels.",
+      "done": true,
+      "createdAt": "2026-03-13T00:00:00.000Z",
+      "closedAt": "2026-03-13T00:00:00.000Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 215,
+      "group": "🛠️ Developer",
+      "category": "Logistics",
+      "task": "Test silent data synch",
+      "ref": "This update is from iPad",
+      "done": true,
+      "createdAt": "2026-03-17T19:06:55.033Z",
+      "closedAt": "2026-03-17T23:25:52.687Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 216,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Change behavior of Copy TODOs button. Instead of copying all, copy based on current filter settings. Be sure to indicate how many todos are copied so the user has confidence it's correct.",
+      "ref": "",
+      "done": true,
+      "createdAt": "2026-03-17T22:54:15.422Z",
+      "closedAt": "2026-03-18T02:00:51.932Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 217,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Redo packing list",
+      "ref": "sections, subsections should be in dropdown list with ability to add to both.\nImplement CRUD.",
+      "done": true,
+      "createdAt": "2026-03-17T23:58:54.372Z",
+      "closedAt": "2026-03-18T03:34:23.819Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 218,
+      "group": "🛠️ Developer",
+      "category": "UI",
+      "task": "Revisit calendar",
+      "ref": "Don't like look. Allow event edits directly from the calendar. Maybe others.",
+      "done": true,
+      "createdAt": "2026-03-18T00:00:19.359Z",
+      "closedAt": "2026-03-22T18:31:01.243Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 219,
+      "group": "✈️ Alaska Airlines",
+      "category": "Request",
+      "task": "Packing list sata model considerations for next app rev",
+      "ref": "Data model note: Categories and sub-categories only exist as properties on items — there's no separate category list. So \"add category\" just stores a named category on a __placeholder__ item (invisible), or more cleanly, we store a state.packing[person].categories array. The cleanest approach without touching the data model is to derive categories from items — an \"empty\" category simply isn't possible without a placeholder, so Add Category will create the category name in the dropdown but not persist it until an item is added to it. I'll handle this by adding a state.packing[person].cats and state.packing[person].subs arrays to store user-defined category/sub names.",
+      "done": true,
+      "createdAt": "2026-03-18T02:57:16.752Z",
+      "closedAt": "2026-03-22T16:53:43.076Z",
+      "urgent": true,
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 220,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Data Model considerations for Packing List",
+      "ref": "Data model note: Categories and sub-categories only exist as properties on items — there's no separate category list. So \"add category\" just stores a named category on a __placeholder__ item (invisible), or more cleanly, we store a state.packing[person].categories array. The cleanest approach without touching the data model is to derive categories from items — an \"empty\" category simply isn't possible without a placeholder, so Add Category will create the category name in the dropdown but not persist it until an item is added to it. I'll handle this by adding a state.packing[person].cats and state.packing[person].subs arrays to store user-defined category/sub names.",
+      "done": true,
+      "createdAt": "2026-03-18T02:59:09.579Z",
+      "closedAt": "2026-03-18T07:13:19.932Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 222,
+      "group": "🛠️ Developer",
+      "category": "UI",
+      "task": "Move sync pill immediately to the right of the quick navbar pill instead of right-aligned on the right side.",
+      "ref": "",
+      "done": true,
+      "createdAt": "2026-03-20T00:56:46.187Z",
+      "closedAt": "2026-03-20T06:06:30.714Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 223,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "Text alignment issues in Packing List section.",
+      "ref": "Send Claude \"Screenshot Packing List Text Alignment Issues\"",
+      "done": true,
+      "createdAt": "2026-03-20T01:17:32.266Z",
+      "closedAt": "2026-03-20T06:06:36.248Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 224,
+      "group": "🛠️ Developer",
+      "category": "UI",
+      "task": "Banner too small, almost clipped on bottom edge.",
+      "ref": "Attach this screenshot to Claude session: \"Banner too small\"",
+      "done": true,
+      "createdAt": "2026-03-20T03:24:41.764Z",
+      "closedAt": "2026-03-20T06:06:59.396Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 229,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "For 3x5 printing provide a preview of the printout.",
+      "ref": "Currently it automatically downloads the PDF. Sometime, I just want to check it and not download.",
+      "done": true,
+      "createdAt": "2026-03-21T22:42:26.144Z",
+      "closedAt": "2026-03-22T00:28:10.138Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 230,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "When 3x5 cards are downloaded a toast indicates where it is downloaded but doesn't stay up long enough.",
+      "ref": "Resolved v3.0.60 — added download location to Settings instead of extending toast",
+      "done": true,
+      "createdAt": "2026-03-21T22:46:12.604Z",
+      "closedAt": "2026-03-22T00:28:06.130Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 231,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Discuss with Claude: Add an \"Action Required\" flag and a new \"Action Required\" Section",
+      "ref": "As I work with the app, I notice that there are several sections such as Transportation and Itineraries that have items yet to be completed. An Sometimes the reason is that it's simply too early. At other times there are chores that could be completed but I haven't gotten to them. There are other indicators and flags such as \"approximate\" that might serve this purpose but not necessarily. I don't want to create unnecessary functionality but this seems like a gap that is missing.\n\nOne big question: How does this differ from the TODOs. For example, there is this TODO:  \"Confirm all dinner reservations\". But that is very generic. It is different than \"Dinner at Kamloops requires a reservation\" which would be an Itinerary item. Perhaps it simply means that I need an easy way to drive a TODO from an item. But I believe a section that shows all the open items are important. I need Claude to look carefully at the re-invention issue.",
+      "done": true,
+      "createdAt": "2026-03-22T01:56:52.057Z",
+      "closedAt": "2026-03-22T03:49:36.368Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 232,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Provide a way to link to a section or an item in a section.",
+      "ref": "This is something apps like WordPress do. For example if I am in a Details field somewhere, I type '@' and a dropdown list appears that is an in-app URL. If click, it jumps there. A usage example is that I create a Dinner Itinerary item. In the details section, I would add the in-house link to a restaurant  rather than duplicating information in the itinerary. But this is where we need to really think through this task. In some ways the question is, what is driving what.  The ease by which both operations in the UI and coding architecture depend on how well we cal think through while making it open to flexibility.",
+      "done": true,
+      "createdAt": "2026-03-22T02:23:52.313Z",
+      "closedAt": "2026-03-22T09:15:33.541Z",
+      "archivedAt": "2026-03-22T18:32:05.420Z"
+    },
+    {
+      "id": 12,
+      "group": "📋 Now – June",
+      "category": "Restaurants",
+      "task": "Pick & reserve Vancouver signature dinner (Oct 5)",
+      "ref": "Options: Joe Fortes | Miku | Nightingale",
+      "done": true,
+      "urgent": true,
+      "closedAt": "2026-03-22T19:55:03.603Z",
+      "archivedAt": "2026-03-23T01:50:38.579Z"
+    },
+    {
+      "id": 14,
+      "group": "📋 Now – June",
+      "category": "Restaurants",
+      "task": "Pick Banff dinner restaurant (Oct 10)",
+      "ref": "Options: The Maple Leaf | Block Kitchen + Bar | Park Distillery",
+      "done": true,
+      "urgent": true,
+      "closedAt": "2026-03-22T19:55:05.102Z",
+      "archivedAt": "2026-03-23T01:50:38.579Z"
+    },
+    {
+      "id": 15,
+      "group": "📋 Now – June",
+      "category": "Restaurants",
+      "task": "Pick Jasper dinner restaurant (Oct 8)",
+      "ref": "Options: Jasper Brewing Co. | The Nook Smokehouse | Emerald Lounge",
+      "done": true,
+      "urgent": true,
+      "closedAt": "2026-03-22T19:55:07.327Z",
+      "archivedAt": "2026-03-23T01:50:38.579Z"
+    },
+    {
+      "id": 9,
+      "group": "📋 Now – June",
+      "category": "Admin",
+      "task": "Verify all calendar dates are created and correct",
+      "ref": "Oct 3–13, 2026",
+      "urgent": true,
+      "status": "done",
+      "platforms": [],
+      "resolution": "Verified 3/23/2026",
+      "closedAt": "2026-03-24T08:46:34.772Z",
+      "urls": [],
+      "archivedAt": "2026-03-26T01:50:48.195Z"
+    },
+    {
+      "id": 16,
+      "group": "📋 Now – June",
+      "category": "Admin",
+      "task": "Decide airport transfer strategy – YVR arrival Oct 4 & departure Oct 13",
+      "ref": "Hotel check-in 4pm. Oct 13 flight departs 1:48pm.",
+      "urgent": true,
+      "status": "done",
+      "platforms": [],
+      "resolution": "Call taxi",
+      "closedAt": "2026-03-24T08:47:01.696Z",
+      "urls": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 221,
+      "group": "🛠️ Developer",
+      "category": "Architecture",
+      "task": "iOS apps may need a face lift",
+      "ref": "After working with three platforms -- Mac , iPhone, iPad -- it's clear to me that this app is designed best for the Mac. This TODO is a place holder for now. I need to think and investigate ideal layouts for iPhone apps.\n\nOther considerations: This is scope creep but there IS time.",
+      "createdAt": "2026-03-20T00:54:32.055Z",
+      "closedAt": "2026-03-26T01:50:26.384Z",
+      "status": "done",
+      "platforms": [],
+      "resolution": "3/25/2026: Major facelift of all platforms including CSS and JavaScript changes were done.",
+      "urls": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 225,
+      "group": "🛠️ Developer",
+      "category": "UI",
+      "task": "Tooltips too hard to read (too small, perhaps do white text on black background)",
+      "ref": "Recent UI improvements cleared this up",
+      "createdAt": "2026-03-20T03:40:23.403Z",
+      "closedAt": "2026-03-24T05:37:57.822Z",
+      "status": "done",
+      "platforms": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 226,
+      "group": "📋 Now – June",
+      "category": "Transportation",
+      "task": "Verify all transportation that needs to be booked is done",
+      "ref": "",
+      "createdAt": "2026-03-21T13:58:49.442Z",
+      "closedAt": "2026-03-24T08:47:23.384Z",
+      "status": "done",
+      "platforms": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 227,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Add Transportation, Itinerary to 3x5 cards",
+      "ref": "",
+      "createdAt": "2026-03-21T14:06:21.015Z",
+      "closedAt": "2026-03-24T08:36:57.420Z",
+      "status": "done",
+      "platforms": [],
+      "resolution": "Transportation will be added to the back of the relevant Itinerary day card. The intent was to create an Itinerary Overview card but it was determined to be unnecessary.",
+      "urls": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 233,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Urgent/Do Now in the Overview Obsolete?",
+      "ref": "The Urgent/Do Now are for TODOs primarily in the planning phase. Action Required are for actions that will impact events that take place during the trip such as booking a reservation.",
+      "createdAt": "2026-03-22T06:25:56.993Z",
+      "closedAt": "2026-03-23T02:14:12.977Z",
+      "status": "done",
+      "platforms": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 234,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "3x5 card preview currently opens another tab. This works on the Mac but there is no other tab in the iOS PWA platform",
+      "ref": "Solution: Disable preview on iOS",
+      "createdAt": "2026-03-22T18:35:42.504Z",
+      "closedAt": "2026-03-24T00:56:47.686Z",
+      "status": "done",
+      "platforms": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 235,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Less space between group and checkbox rows to make more room for the TODO list",
+      "ref": "",
+      "createdAt": "2026-03-22T21:37:45.301Z",
+      "closedAt": "2026-03-22T22:42:26.492Z",
+      "status": "done",
+      "platforms": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 236,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Use ellipsis for rows to make the look cleaner.",
+      "ref": "",
+      "createdAt": "2026-03-22T21:40:15.307Z",
+      "closedAt": "2026-03-22T22:48:54.708Z",
+      "status": "done",
+      "platforms": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 237,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Make the app banner slightly taller",
+      "ref": "Put the names (Stanley & Cathy Baptista) on the second row with the dates. Put a bullet between the two like you have done with the current top row.",
+      "createdAt": "2026-03-22T21:50:54.902Z",
+      "closedAt": "2026-03-22T22:33:19.190Z",
+      "status": "done",
+      "platforms": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 238,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Add Copy button to all Reference/Notes boxes",
+      "ref": "There is sometimes too much information to see on three row. Allow user to copy/paste somewhere else.",
+      "createdAt": "2026-03-22T22:52:39.681Z",
+      "closedAt": "2026-03-23T02:10:36.383Z",
+      "status": "done",
+      "platforms": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 239,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Examine styling of all UI elements and bring the app to conformance.",
+      "ref": "Over time any number of checkboxes, filters, and so on have been added. We need to take some time to make sure the app is consistent. This means the establishment of style guides that can be added to the handoff doc. This is a large effort and may have to be done in stages.",
+      "createdAt": "2026-03-22T22:58:29.208Z",
+      "closedAt": "2026-03-24T00:47:10.158Z",
+      "status": "done",
+      "platforms": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 240,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Dropdowns after 3.1.0 release need more height and font is too small. Especially on iOS platforms.",
+      "ref": "Refers to both Itinerary and TODO sections.",
+      "createdAt": "2026-03-23T04:50:03.058Z",
+      "closedAt": "2026-03-23T15:25:43.295Z",
+      "status": "done",
+      "platforms": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 241,
+      "group": "📋 Now – June",
+      "category": "Restaurants",
+      "task": "Look for meal options around or in the hotel",
+      "ref": "",
+      "createdAt": "2026-03-23T06:21:29.249Z",
+      "closedAt": "2026-03-25T07:47:25.084Z",
+      "status": "done",
+      "platforms": [],
+      "resolution": "A clickable tab \"NEARBY DINING\" has been added to Restaurants",
+      "urls": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 242,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "GitHub Error",
+      "ref": "[03/23/2026 5:06:16 AM] pushToGitHub\niPhone: GitHub push failed 403: Unable to validate Restricts updates to workflow files: Rule was unable to be completed in 10 seconds\n\nDiagnosis (Mar 23): GitHub repo has a branch ruleset \"Restrict updates to workflow files\" enabled. When this rule is active, GitHub requires the PAT to have the `workflow` scope even when not touching workflow files — without it the rule evaluation fails with 403. Fix: GitHub → Settings → Developer settings → Personal Access Tokens → find CAN26 token → edit → add `workflow` scope.\n\nFoo",
+      "createdAt": "2026-03-23T15:10:20.589Z",
+      "closedAt": "2026-03-24T00:44:14.433Z",
+      "status": "done",
+      "platforms": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 243,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Redo icons",
+      "ref": "Change to Can26 only. It’s too detailed",
+      "createdAt": "2026-03-23T15:19:52.910Z",
+      "closedAt": "2026-03-24T00:44:58.667Z",
+      "status": "done",
+      "platforms": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 244,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "TODOs: Add additional status flags, resolution notes,  platform",
+      "ref": "For discussion. Potential additional status flags\non-hold\npostponed\ndeferred\npending",
+      "createdAt": "2026-03-24T00:56:28.514Z",
+      "closedAt": "2026-03-24T08:04:32.829Z",
+      "status": "done",
+      "platforms": [],
+      "resolution": "",
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 245,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "TODOs: Is it possible to link to screenshots?",
+      "ref": "It would be very helpful for discussions with Claude.\nQuestion: Can they be stored on GitHub then linked?",
+      "createdAt": "2026-03-24T05:35:43.377Z",
+      "closedAt": "2026-03-24T08:44:03.044Z",
+      "status": "done",
+      "platforms": [],
+      "resolution": "URLs added to this screen",
+      "urls": [],
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 246,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Add AM/PM to Itinerary rows.",
+      "ref": "See screenshot link \"Add AM/PM to Itinerary rows.\"",
+      "resolution": "AM/PM added",
+      "status": "done",
+      "platforms": [],
+      "urls": [
+        {
+          "label": "Add AM/PM to Itinerary rows.",
+          "href": "https://github.com/sbaptista/can26/issues/1"
+        }
+      ],
+      "createdAt": "2026-03-24T08:56:53.819Z",
+      "closedAt": "2026-03-24T19:20:50.554Z",
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 248,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "TODO Platform checkboxes have no affect",
+      "ref": "The new platform checkboxes do not seem to have any affect on the list",
+      "resolution": "They now function as additive to the other checkboxes.",
+      "status": "done",
+      "platforms": [],
+      "urls": [],
+      "createdAt": "2026-03-24T17:42:09.517Z",
+      "closedAt": "2026-03-24T20:48:53.034Z",
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 249,
+      "group": "🛠️ Developer",
+      "category": "Bug",
+      "task": "TODO Checkbox Spill",
+      "ref": "See screenshot",
+      "resolution": "",
+      "status": "done",
+      "platforms": [
+        "iPhone"
+      ],
+      "urls": [],
+      "createdAt": "2026-03-24T17:48:09.346Z",
+      "closedAt": "2026-03-24T20:46:53.930Z",
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 250,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Homepage Icon Not Enough Contrast",
+      "ref": "See screenshot",
+      "resolution": "",
+      "status": "done",
+      "platforms": [],
+      "urls": [],
+      "createdAt": "2026-03-24T17:51:23.576Z",
+      "closedAt": "2026-03-24T20:47:08.738Z",
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 252,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Add Checkbox for Paused and re-label checkboxes",
+      "ref": "Add a separate checkbox for Paused, remove it from inclusion with Incomplete and remove them from the Open count.\n\nLabel changes:\n\nIncomplete Only -> Open\nUrgent only -> Urgent\nPaused -> Paused (new)",
+      "resolution": "",
+      "status": "done",
+      "platforms": [],
+      "urls": [],
+      "createdAt": "2026-03-25T00:23:50.235Z",
+      "closedAt": "2026-03-25T07:48:44.691Z",
+      "archivedAt": "2026-03-26T01:50:48.196Z"
+    },
+    {
+      "id": 252,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "iPhone Multi-column blocks don’t work",
+      "ref": "",
+      "resolution": "",
+      "status": "done",
+      "platforms": [
+        "iPhone"
+      ],
+      "urls": [
+        {
+          "label": "iPhone 3 column blocks don’t work",
+          "href": "https://github.com/sbaptista/can26/issues/5#issue-4140603768"
+        }
+      ],
+      "createdAt": "2026-03-26T04:59:25.457Z",
+      "closedAt": "2026-03-26T20:44:42.107Z",
+      "archivedAt": "2026-03-27T21:18:06.014Z"
+    },
+    {
+      "id": 253,
+      "group": "🛠️ Developer",
+      "category": "Request",
+      "task": "Position Cancel/Save Bottom/Right of dialog Boxes",
+      "ref": "Place them Bottom/Right",
+      "resolution": "Decided to keep things as is.",
+      "status": "done",
+      "platforms": [],
+      "urls": [
+        {
+          "label": "Better placement of Cancel/Save",
+          "href": "https://github.com/sbaptista/can26/issues/6"
+        }
+      ],
+      "createdAt": "2026-03-26T07:25:06.544Z",
+      "closedAt": "2026-03-26T19:45:42.590Z",
+      "archivedAt": "2026-03-27T21:18:06.014Z"
+    }
+  ],
+  "settings": {
+    "icsPrefix": "[CAN26]",
+    "homeTimezone": "Pacific/Honolulu",
+    "tripStart": "2026-10-03",
+    "tripEnd": "2026-10-13",
+    "icsExportSeq": 1,
+    "schemaVersion": 2,
+    "tripName": "Rockies Highlights Circle Journey",
+    "bookingRef": "DIR1117775",
+    "travellers": "Stanley & Cathy Baptista",
+    "tripService": "GoldLeaf Service",
+    "tripDates": "Oct 3–13, 2026"
+  }
+}
