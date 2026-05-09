@@ -75,6 +75,8 @@ LAN access at `https://192.168.86.90:3001` — configured in `next.config.ts` `a
 
 Version bumps happen continuously as changes are made locally. Git pushes happen only when Stan decides enough changes have accumulated for a release. The version in `package.json` is the canonical source; `lib/version.ts` mirrors it for display. Both files are updated together on each bump — `lib/version.ts` is a static `VERSION` string, not a dynamic import, so remember to update both.
 
+**Bump protocol:** AI only bumps the patch (third node, e.g. `0.3.2→0.3.3`). Stan explicitly indicates when to bump minor (middle) or major (top) nodes.
+
 ---
 
 # Git Production Pushes
