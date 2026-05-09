@@ -233,6 +233,54 @@ export default function OrbConversation({
     const [inputFocused, setInputFocused] = useState(false)
     const [copiedInput, setCopiedInput] = useState(false)
     const [copiedTranscript, setCopiedTranscript] = useState(false)
+    const [isListening, setIsListening] = useState(false)
+
+    const SpeechRecognitionAPI = typeof window !== 'undefined'
+        ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+        : undefined
+    const supportsVoice = !!SpeechRecognitionAPI
+    const recognitionRef = useRef<any>(null)
+
+    function startListening() {
+        if (!SpeechRecognitionAPI || submitting) return
+        try {
+            const recognition = new SpeechRecognitionAPI()
+            recognition.continuous = true
+            recognition.interimResults = false
+            recognition.lang = 'en-US'
+
+            recognition.onresult = (event: any) => {
+                let finalTranscript = ''
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript
+                    }
+                }
+                if (finalTranscript && textareaRef.current) {
+                    const currentVal = textareaRef.current.value
+                    onInputChange(currentVal + finalTranscript)
+                }
+            }
+
+            recognition.onerror = () => setIsListening(false)
+            recognition.onend = () => setIsListening(false)
+
+            recognitionRef.current = recognition
+            recognition.start()
+            setIsListening(true)
+        } catch (err) {
+            console.error('[voice]', err)
+            setIsListening(false)
+        }
+    }
+
+    function stopListening() {
+        if (recognitionRef.current) {
+            try { recognitionRef.current.stop() } catch {}
+            recognitionRef.current = null
+        }
+        setIsListening(false)
+    }
 
     useEffect(() => {
         onFocusChange(inputFocused)
@@ -407,7 +455,7 @@ export default function OrbConversation({
 
             <div style={{
                 flexShrink: 0,
-                margin: '0 2px 2px',
+                margin: '0 2px 12px',
             }}>
                 <div style={{
                     border: `1px solid ${inputFocused ? 'var(--border-focus)' : 'var(--border)'}`,
@@ -676,6 +724,35 @@ export default function OrbConversation({
                                 )}
                             </button>
 
+                            <button
+                                type="button"
+                                onClick={() => isListening ? stopListening() : startListening()}
+                                onMouseDown={(e) => e.preventDefault()}
+                                disabled={!supportsVoice || submitting}
+                                title={isListening ? 'Stop recording' : 'Voice input'}
+                                aria-label={isListening ? 'Stop recording' : 'Voice input'}
+                                style={{
+                                    fontFamily: 'var(--font-ui)',
+                                    fontSize: '10px',
+                                    fontWeight: 500,
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                    border: '1px solid var(--border)',
+                                    color: isListening ? '#c00' : 'var(--muted)',
+                                    background: isListening ? 'rgba(200,0,0,0.06)' : 'transparent',
+                                    cursor: !supportsVoice || submitting ? 'default' : 'pointer',
+                                    opacity: !supportsVoice || submitting ? 0.35 : 1,
+                                    transition: 'all var(--transition)',
+                                }}
+                            >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={isListening ? { animation: 'voice-pulse 1s ease-in-out infinite' } : undefined}>
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                    <line x1="12" y1="19" x2="12" y2="23"/>
+                                    <line x1="8" y1="23" x2="16" y2="23"/>
+                                </svg>
+                            </button>
+
                             <div style={{ flex: 1 }} />
 
                             <button
@@ -708,6 +785,10 @@ export default function OrbConversation({
                 @keyframes todos-cursor-blink {
                     0%, 100% { opacity: 1; }
                     50% { opacity: 0; }
+                }
+                @keyframes voice-pulse {
+                    0%, 100% { opacity: 1; transform: scale(1); }
+                    50% { opacity: 0.5; transform: scale(1.15); }
                 }
             `}</style>
         </div>
