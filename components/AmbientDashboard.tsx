@@ -119,13 +119,40 @@ export default function AmbientDashboard({ initialProducts }: Props) {
     const [distillTodo, setDistillTodo]           = useState<{ id: string; productId: string; title: string; suggestion: { title: string; content: string } } | null>(null)
     const [isInputFocused, setIsInputFocused]     = useState(false)
     const [isMobile, setIsMobile]                 = useState(false)
+    const [canScrollLeft, setCanScrollLeft]       = useState(false)
+    const [canScrollRight, setCanScrollRight]     = useState(false)
 
     useEffect(() => {
         setIsMobile(window.matchMedia('(hover: none) and (pointer: coarse)').matches)
     }, [])
 
-    const inactivityRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const prevSelectedId   = useRef<string | null>(null)
+    const inactivityRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const prevSelectedId     = useRef<string | null>(null)
+    const projectScrollRef   = useRef<HTMLDivElement>(null)
+    const prevProductLen     = useRef(products.length)
+
+    function updateProjectScrollState() {
+        const el = projectScrollRef.current
+        if (!el) return
+        setCanScrollLeft(el.scrollLeft > 2)
+        setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2)
+    }
+
+    function scrollProjects(dir: 'left' | 'right') {
+        const el = projectScrollRef.current
+        if (!el) return
+        el.scrollBy({ left: dir === 'left' ? -120 : 120, behavior: 'smooth' })
+    }
+
+    // Auto-scroll to end when a project is added
+    useEffect(() => {
+        const el = projectScrollRef.current
+        if (products.length > prevProductLen.current && el) {
+            el.scrollLeft = el.scrollWidth
+        }
+        prevProductLen.current = products.length
+        updateProjectScrollState()
+    }, [products.length])
 
     function resetInactivity() {
         if (inactivityRef.current) clearTimeout(inactivityRef.current)
@@ -710,92 +737,193 @@ export default function AmbientDashboard({ initialProducts }: Props) {
             {/* ── Project strip ── */}
             <div style={{
                 position: 'fixed',
-                bottom: 'calc(clamp(100px, 14vh, 140px) - 34px)',
+                bottom: 'calc(clamp(100px, 14vh, 140px) - 54px)',
                 left: '50%',
                 transform: 'translateX(-50%)',
                 zIndex: 20,
                 display: 'flex',
                 justifyContent: 'center',
-                pointerEvents: 'none',
             }}>
                 <div style={{
                     maxWidth: '420px',
                     width: '100%',
                     display: 'flex',
-                    gap: '6px',
-                    overflowX: 'auto',
-                    WebkitOverflowScrolling: 'touch',
+                    background: 'rgba(255, 255, 255, 0.96)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--r-xl)',
+                    boxShadow: 'var(--shadow-md)',
+                    overflow: 'hidden',
                 }}>
-                    {products.map(p => (
-                        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, pointerEvents: 'auto' }}>
-                            <button
-                                type="button"
-                                onClick={() => { setSelectedId(p.id); setScopeToProduct(true) }}
-                                title={`Switch to ${p.code ?? p.name}`}
-                                style={{
-                                    fontFamily: 'var(--font-ui)',
-                                    fontSize: '11px',
-                                    fontWeight: 500,
-                                    letterSpacing: '0.04em',
-                                    padding: '5px 14px',
-                                    borderRadius: '7px',
-                                    border: `1.5px solid ${p.id === selectedId ? 'var(--pill-active-border)' : 'var(--border)'}`,
-                                    color: p.id === selectedId ? 'var(--pill-active-color)' : 'var(--text2)',
-                                    background: p.id === selectedId ? 'var(--pill-active-bg)' : 'rgba(255,255,255,0.85)',
-                                    cursor: 'pointer',
-                                    whiteSpace: 'nowrap',
-                                    transition: 'all var(--transition)',
-                                    backdropFilter: 'blur(4px)',
-                                }}
-                            >
-                                {p.code ?? p.name}
-                            </button>
-                            {p.id === selectedId && (
+                    <div style={{
+                        flex: 1,
+                        position: 'relative',
+                        overflow: 'hidden',
+                        display: 'flex',
+                    }}>
+                        {canScrollLeft && (
+                            <div style={{
+                                position: 'absolute',
+                                left: 0,
+                                top: 0,
+                                bottom: 0,
+                                display: 'flex',
+                                alignItems: 'center',
+                                zIndex: 3,
+                                pointerEvents: 'none',
+                            }}>
                                 <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); setShowEditProduct(true) }}
+                                    onClick={() => scrollProjects('left')}
                                     style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
+                                        pointerEvents: 'auto',
                                         width: '24px',
                                         height: '24px',
                                         borderRadius: '50%',
                                         border: '1.5px solid var(--border)',
-                                        background: 'rgba(255,255,255,0.85)',
+                                        background: 'rgba(255,255,255,0.9)',
                                         color: 'var(--muted)',
                                         cursor: 'pointer',
                                         padding: 0,
-                                        transition: 'all 0.15s',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                                     }}
+                                    aria-label="Scroll left"
                                 >
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                        <path d="M15 18l-6-6 6-6"/>
                                     </svg>
                                 </button>
-                            )}
+                            </div>
+                        )}
+                        <div
+                            ref={projectScrollRef}
+                            onScroll={updateProjectScrollState}
+                            style={{
+                                flex: 1,
+                                overflowX: 'auto',
+                                WebkitOverflowScrolling: 'touch',
+                                display: 'flex',
+                                gap: '4px',
+                                padding: '6px 0 6px 8px',
+                                maskImage: 'linear-gradient(to right, transparent 0, black 8px, black calc(100% - 8px), transparent 100%)',
+                                WebkitMaskImage: 'linear-gradient(to right, transparent 0, black 8px, black calc(100% - 8px), transparent 100%)',
+                            }}
+                        >
+                            {products.map(p => (
+                                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setSelectedId(p.id); setScopeToProduct(true) }}
+                                        title={`Switch to ${p.code ?? p.name}`}
+                                        style={{
+                                            fontFamily: 'var(--font-ui)',
+                                            fontSize: '11px',
+                                            fontWeight: 500,
+                                            letterSpacing: '0.04em',
+                                            padding: '5px 14px',
+                                            borderRadius: '7px',
+                                            border: '1.5px solid var(--pill-active-border)',
+                                            color: p.id === selectedId ? 'var(--pill-active-color)' : 'var(--text2)',
+                                            background: p.id === selectedId ? 'var(--pill-active-bg)' : 'transparent',
+                                            cursor: 'pointer',
+                                            whiteSpace: 'nowrap',
+                                            transition: 'all var(--transition)',
+                                        }}
+                                    >
+                                        {p.code ?? p.name}
+                                    </button>
+                                    {p.id === selectedId && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); setShowEditProduct(true) }}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                width: '24px',
+                                                height: '24px',
+                                                borderRadius: '50%',
+                                                border: '1.5px solid var(--border)',
+                                                background: 'transparent',
+                                                color: 'var(--muted)',
+                                                cursor: 'pointer',
+                                                padding: 0,
+                                                transition: 'all 0.15s',
+                                            }}
+                                        >
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                            </svg>
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                    <button
-                        type="button"
-                        onClick={() => setShowAddProduct(true)}
-                        style={{
-                            pointerEvents: 'auto',
-                            fontFamily: 'var(--font-ui)',
-                            fontSize: '11px',
-                            fontWeight: 500,
-                            padding: '5px 14px',
-                            borderRadius: '7px',
-                            border: '1.5px dashed var(--border)',
-                            color: 'var(--muted)',
-                            background: 'rgba(255,255,255,0.85)',
-                            cursor: 'pointer',
-                            flexShrink: 0,
-                            backdropFilter: 'blur(4px)',
-                        }}
-                    >
-                        + project
-                    </button>
+                        {canScrollRight && (
+                            <div style={{
+                                position: 'absolute',
+                                right: 0,
+                                top: 0,
+                                bottom: 0,
+                                display: 'flex',
+                                alignItems: 'center',
+                                zIndex: 3,
+                                pointerEvents: 'none',
+                            }}>
+                                <button
+                                    type="button"
+                                    onClick={() => scrollProjects('right')}
+                                    style={{
+                                        pointerEvents: 'auto',
+                                        width: '24px',
+                                        height: '24px',
+                                        borderRadius: '50%',
+                                        border: '1.5px solid var(--border)',
+                                        background: 'rgba(255,255,255,0.9)',
+                                        color: 'var(--muted)',
+                                        cursor: 'pointer',
+                                        padding: 0,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                    }}
+                                    aria-label="Scroll right"
+                                >
+                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                        <path d="M9 18l6-6-6-6"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        flexShrink: 0,
+                        padding: '0 6px',
+                    }}>
+                        <button
+                            type="button"
+                            onClick={() => setShowAddProduct(true)}
+                            style={{
+                                fontFamily: 'var(--font-ui)',
+                                fontSize: '11px',
+                                fontWeight: 500,
+                                padding: '5px 14px',
+                                borderRadius: '7px',
+                                border: '1.5px dashed var(--border)',
+                                color: 'var(--muted)',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            + project
+                        </button>
+                    </div>
                 </div>
             </div>
 
