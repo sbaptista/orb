@@ -234,14 +234,16 @@ export default function OrbConversation({
     const [copiedInput, setCopiedInput] = useState(false)
     const [copiedTranscript, setCopiedTranscript] = useState(false)
     const [isListening, setIsListening] = useState(false)
-
-    const SpeechRecognitionAPI = typeof window !== 'undefined'
-        ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
-        : undefined
-    const supportsVoice = !!SpeechRecognitionAPI
+    const [supportsVoice, setSupportsVoice] = useState(false)
     const recognitionRef = useRef<any>(null)
 
+    useEffect(() => {
+        const api = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        setSupportsVoice(!!api)
+    }, [])
+
     function startListening() {
+        const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (!SpeechRecognitionAPI || submitting) return
         try {
             const recognition = new SpeechRecognitionAPI()
