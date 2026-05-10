@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
@@ -12,12 +12,15 @@ export default function SettingsAccount() {
 
   const [userId, setUserId] = useState('')
   const [email, setEmail] = useState('')
+  const [newEmail, setNewEmail] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
+  const origFirstName = useRef('')
+  const origLastName = useRef('')
 
   useEffect(() => {
     async function load() {
@@ -36,6 +39,7 @@ export default function SettingsAccount() {
         if (!user) return
         setUserId(user.id)
         setEmail(user.email ?? '')
+        setNewEmail(user.email ?? '')
         
         const { data: profile } = await supabase
           .from('users')
@@ -46,6 +50,8 @@ export default function SettingsAccount() {
         if (profile) {
           setFirstName(profile.first_name ?? '')
           setLastName(profile.last_name ?? '')
+          origFirstName.current = profile.first_name ?? ''
+          origLastName.current = profile.last_name ?? ''
         }
       } catch (err) {
         console.warn('Auth check skipped due to lock contention')
@@ -59,13 +65,28 @@ export default function SettingsAccount() {
   async function handleSave() {
     setSaving(true)
     setError('')
-    const { error: err } = await supabase
+
+    const { error: nameErr } = await supabase
       .from('users')
       .update({ first_name: firstName.trim(), last_name: lastName.trim() })
       .eq('id', userId)
+    if (nameErr) { setSaving(false); toast.error('Failed to save. Try again.'); return }
+
+    const emailChanged = newEmail.trim() !== email
+    if (emailChanged) {
+      const { error: emailErr } = await supabase.auth.updateUser({ email: newEmail.trim() })
+      if (emailErr) {
+        setError(emailErr.message)
+        setSaving(false)
+        return
+      }
+      setEmail(newEmail.trim())
+      toast.success(`Confirmation sent to ${newEmail.trim()}.`)
+    } else {
+      toast.success('Account saved.')
+    }
+
     setSaving(false)
-    if (err) { toast.error('Failed to save. Try again.'); return }
-    toast.success('Account saved.')
   }
 
   async function handleLogout() {
@@ -73,6 +94,11 @@ export default function SettingsAccount() {
     await supabase.auth.signOut()
     router.push('/auth/login')
   }
+
+  const hasChanges =
+    firstName.trim() !== origFirstName.current ||
+    lastName.trim() !== origLastName.current ||
+    newEmail.trim() !== email
 
   if (loading) return (
     <div style={{ padding: 'var(--sp-3xl)', fontSize: 'var(--fs-sm)', color: 'var(--muted)' }}>
@@ -91,13 +117,6 @@ export default function SettingsAccount() {
     outline: 'none',
     boxSizing: 'border-box',
     transition: 'border-color var(--transition)',
-  }
-
-  const readonlyStyle: React.CSSProperties = {
-    ...inputStyle,
-    background: 'var(--bg3)',
-    color: 'var(--muted)',
-    cursor: 'not-allowed',
   }
 
   const cardStyle: React.CSSProperties = {
@@ -154,9 +173,15 @@ export default function SettingsAccount() {
 
           <div>
             <label style={labelStyle}>Email</label>
-            <input style={readonlyStyle} value={email} readOnly />
+            <input
+              style={inputStyle}
+              value={newEmail}
+              onChange={e => setNewEmail(e.target.value)}
+              onFocus={e => (e.currentTarget.style.borderColor = 'var(--border-focus)')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+            />
             <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)', margin: 'var(--sp-xs) 0 0' }}>
-              Email cannot be changed here.
+              A confirmation email will be sent to the new address.
             </p>
           </div>
 
@@ -167,7 +192,7 @@ export default function SettingsAccount() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-md)' }}>
             <button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || !hasChanges}
               style={{
                 background: 'var(--success)',
                 color: '#fff',
@@ -176,8 +201,8 @@ export default function SettingsAccount() {
                 padding: '8px var(--sp-lg)',
                 fontSize: 'var(--fs-sm)',
                 fontWeight: 'var(--fw-medium)',
-                cursor: saving ? 'not-allowed' : 'pointer',
-                opacity: saving ? 0.6 : 1,
+                cursor: saving || !hasChanges ? 'not-allowed' : 'pointer',
+                opacity: saving || !hasChanges ? 0.6 : 1,
                 transition: 'opacity var(--transition)',
               }}
             >

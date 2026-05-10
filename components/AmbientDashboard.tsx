@@ -124,6 +124,8 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const [ownerFilter, setOwnerFilter]           = useState<string | null>(null)
     const [showOwnerDropdown, setShowOwnerDropdown] = useState(false)
     const [owners, setOwners]                     = useState<{ id: string; name: string }[]>([])
+    const [userName, setUserName]                 = useState<string>('')
+    const [userFullName, setUserFullName]         = useState<string>('')
 
     useEffect(() => {
         setIsMobile(window.matchMedia('(hover: none) and (pointer: coarse)').matches)
@@ -245,6 +247,28 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
         }
         load()
     }, [isAdmin, supabase])
+
+    // Fetch current user's name for user button
+    useEffect(() => {
+        async function load() {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const { data: profile } = await supabase
+                    .from('users')
+                    .select('first_name, last_name')
+                    .eq('id', user.id)
+                    .single()
+                if (profile) {
+                    const full = [profile.first_name, profile.last_name].filter(Boolean).join(' ')
+                    setUserName(full || (user.email ?? ''))
+                    setUserFullName(full)
+                } else {
+                    setUserName(user.email?.charAt(0).toUpperCase() ?? '?')
+                }
+            }
+        }
+        load()
+    }, [supabase])
 
     // Derive display products based on owner filter
     const displayProducts = ownerFilter ? products.filter(p => p.created_by === ownerFilter) : products
@@ -853,6 +877,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                                             <button
                                                 type="button"
                                                 onClick={(e) => { e.stopPropagation(); setShowEditProduct(true) }}
+                                                title="Edit project"
                                                 style={{
                                                     display: 'flex',
                                                     alignItems: 'center',
@@ -928,6 +953,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                                 <button
                                     type="button"
                                     onClick={() => setShowOwnerDropdown(d => !d)}
+                                    title="Filter by project owner"
                                     style={{
                                         fontFamily: 'var(--font-ui)',
                                         fontSize: '11px',
@@ -935,11 +961,15 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                                         padding: '0 8px 0 0',
                                         border: 'none',
                                         background: 'none',
-                                        color: ownerFilter ? 'var(--pill-active-color)' : 'var(--muted)',
+                                        color: ownerFilter ? 'var(--pill-active-color)' : 'var(--link)',
                                         cursor: 'pointer',
                                         whiteSpace: 'nowrap',
                                         lineHeight: '28px',
+                                        textDecoration: 'underline',
+                                        textUnderlineOffset: '2px',
                                     }}
+                                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--link-hover)' }}
+                                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--link)' }}
                                 >
                                     {ownerFilter ? (owners.find(o => o.id === ownerFilter)?.name ?? 'Owner') : 'Owners'}
                                 </button>
@@ -1001,6 +1031,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                         <button
                             type="button"
                             onClick={() => setShowAddProduct(true)}
+                            title="Add a new project"
                             style={{
                                 fontFamily: 'var(--font-ui)',
                                 fontSize: '11px',
@@ -1008,11 +1039,15 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                                 padding: '0 0 0 8px',
                                 border: 'none',
                                 background: 'none',
-                                color: displayProducts.length === 0 ? '#ED7654' : 'var(--muted)',
+                                color: displayProducts.length === 0 ? '#ED7654' : 'var(--link)',
                                 cursor: 'pointer',
                                 whiteSpace: 'nowrap',
                                 lineHeight: '28px',
+                                textDecoration: 'underline',
+                                textUnderlineOffset: '2px',
                             }}
+                            onMouseEnter={e => { e.currentTarget.style.color = 'var(--link-hover)' }}
+                            onMouseLeave={e => { e.currentTarget.style.color = displayProducts.length === 0 ? '#ED7654' : 'var(--link)' }}
                         >
                             Add Project
                         </button>
@@ -1058,21 +1093,14 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                     </svg>
                 </Link>
                 <button
-                    onClick={async () => {
-                        await supabase.auth.signOut()
-                        router.push('/auth/login')
-                    }}
-                    title="Sign out"
-                    aria-label="Sign out"
-                    style={{ background: 'rgba(255,255,255,0.7)', border: '1.5px solid rgba(60,110,60,0.25)', borderRadius: '50%', cursor: 'pointer', color: 'var(--muted)', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, transition: 'all 0.15s' }}
+                    onClick={() => router.push('/settings/account')}
+                    title={userFullName || 'Account'}
+                    aria-label="Account"
+                    style={{ background: 'rgba(255,255,255,0.7)', border: '1.5px solid rgba(60,110,60,0.25)', borderRadius: '50%', cursor: 'pointer', color: 'var(--muted)', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, fontWeight: 600, fontSize: '14px', transition: 'all 0.15s' }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(60,110,60,0.5)'; e.currentTarget.style.color = 'var(--text2)'; e.currentTarget.style.background = '#fff' }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(60,110,60,0.25)'; e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.background = 'rgba(255,255,255,0.7)' }}
                 >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                        <polyline points="16 17 21 12 16 7"/>
-                        <line x1="21" y1="12" x2="9" y2="12"/>
-                    </svg>
+                    {userName.charAt(0).toUpperCase()}
                 </button>
             </div>
 

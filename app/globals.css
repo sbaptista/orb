@@ -47,6 +47,10 @@
   --pill-active-border: rgba(60, 110, 60, 0.32);
   --pill-active-color:  #2d5a2d;
 
+  /* ── Links ── */
+  --link:       #1a6fa0;
+  --link-hover: #145580;
+
   /* ── Semantic ── */
   --success: #2d5a2d;
   --error:   #8b2020;
