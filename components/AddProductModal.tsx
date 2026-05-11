@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
+import { createProject, updateProject, deleteProject } from '@/app/actions/manage-project'
 
 type Project = { id: string; name: string; code: string | null; description: string | null; created_by: string }
 
@@ -33,12 +33,14 @@ export default function AddProductModal({
   onUpdated,
   onDeleted,
   project,
+  ownerId,
 }: {
   onClose: () => void
   onCreated?: (project: Project) => void
   onUpdated?: (project: Project) => void
   onDeleted?: (id: string) => void
   project?: Project
+  ownerId?: string | null
 }) {
   const isEdit = !!project
   const toast = useToast()
@@ -65,48 +67,40 @@ export default function AddProductModal({
     if (!name.trim()) { setError('Name is required'); return }
     setSaving(true)
     setError('')
-    const supabase = createClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
-    const userId = user?.id
-
-    if (isEdit) {
-      const { data, error: err } = await supabase
-        .from('projects')
-        .update({
+    try {
+      if (isEdit) {
+        const result = await updateProject(project.id, {
           name: name.trim(),
           code: code.trim() || null,
           description: description.trim() || null,
         })
-        .eq('id', project.id)
-        .select('id, name, code, description, created_by')
-        .single()
-      setSaving(false)
-      if (err) { toast.error('Failed to update project. Try again.'); return }
-      if (data) { toast.success('Project updated.'); onUpdated?.(data as Project) }
-    } else {
-      const { data, error: err } = await supabase
-        .from('projects')
-        .insert({
+        setSaving(false)
+        if (result.error) { console.error('[AddProductModal] update error:', result.error); toast.error('Failed to update project. Try again.'); return }
+        if (result.project) { toast.success('Project updated.'); onUpdated?.(result.project as Project) }
+      } else {
+        const result = await createProject({
           name: name.trim(),
           code: code.trim() || null,
           description: description.trim() || null,
-          sort_order: 0,
-          created_by: userId,
+          ownerId,
         })
-        .select('id, name, code, description, created_by')
-        .single()
+        setSaving(false)
+        if (result.error) { console.error('[AddProductModal] create error:', result.error); toast.error('Failed to create project. Try again.'); return }
+        if (result.project) { toast.success('Project created.'); onCreated?.(result.project as Project) }
+      }
+    } catch (caught) {
       setSaving(false)
-      if (err) { toast.error('Failed to create project. Try again.'); return }
-      if (data) { toast.success('Project created.'); onCreated?.(data as Project) }
+      console.error('[AddProductModal] thrown error:', caught)
+      toast.error('Failed to create project. Try again.')
     }
   }
 
   async function handleDelete() {
     setSaving(true)
-    const supabase = createClient()
-    await supabase.from('projects').delete().eq('id', project!.id)
+    const result = await deleteProject(project!.id)
     setSaving(false)
+    if (result.error) { toast.error('Failed to delete project.'); return }
     toast.success('Project deleted.')
     onDeleted?.(project!.id)
   }

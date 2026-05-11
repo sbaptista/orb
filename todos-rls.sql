@@ -7,7 +7,7 @@
 create policy "users: select own" on users
   for select using (
     auth.uid() = id
-    or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+    or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
   );
 
 create policy "users: insert own" on users
@@ -16,31 +16,31 @@ create policy "users: insert own" on users
 create policy "users: update own" on users
   for update using (
     auth.uid() = id
-    or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+    or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
   );
 
 -- Projects: Admins see all; owners see only their own
 create policy "projects: select own" on projects
   for select using (
     created_by = auth.uid()
-    or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+    or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
   );
 
 create policy "projects: insert own" on projects
   for insert with check (
-    exists (select 1 from users where users.id = auth.uid() and users.role_id in (1, 2))
+    exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1, 2))
   );
 
 create policy "projects: update own" on projects
   for update using (
     created_by = auth.uid()
-    or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+    or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
   );
 
 create policy "projects: delete own" on projects
   for delete using (
     created_by = auth.uid()
-    or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+    or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
   );
 
 -- Todos: scoped through project ownership
@@ -51,7 +51,7 @@ create policy "todos: select own" on todos
       where projects.id = todos.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );
@@ -63,7 +63,7 @@ create policy "todos: insert own" on todos
       where projects.id = todos.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );
@@ -75,7 +75,7 @@ create policy "todos: update own" on todos
       where projects.id = todos.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );
@@ -87,7 +87,7 @@ create policy "todos: delete own" on todos
       where projects.id = todos.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );
@@ -100,7 +100,7 @@ create policy "groups: select own" on groups
       where projects.id = groups.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );
@@ -112,7 +112,7 @@ create policy "groups: insert own" on groups
       where projects.id = groups.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );
@@ -124,7 +124,7 @@ create policy "groups: update own" on groups
       where projects.id = groups.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );
@@ -136,7 +136,7 @@ create policy "groups: delete own" on groups
       where projects.id = groups.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );
@@ -149,7 +149,7 @@ create policy "categories: select own" on categories
       where projects.id = categories.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );
@@ -161,7 +161,7 @@ create policy "categories: insert own" on categories
       where projects.id = categories.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );
@@ -173,7 +173,7 @@ create policy "categories: update own" on categories
       where projects.id = categories.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );
@@ -185,7 +185,7 @@ create policy "categories: delete own" on categories
       where projects.id = categories.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );
@@ -198,7 +198,7 @@ create policy "platforms: select own" on platforms
       where projects.id = platforms.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );
@@ -210,7 +210,7 @@ create policy "platforms: insert own" on platforms
       where projects.id = platforms.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );
@@ -222,7 +222,7 @@ create policy "platforms: update own" on platforms
       where projects.id = platforms.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );
@@ -234,7 +234,7 @@ create policy "platforms: delete own" on platforms
       where projects.id = platforms.product_id
       and (
         projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id = 1)
+        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
       )
     )
   );

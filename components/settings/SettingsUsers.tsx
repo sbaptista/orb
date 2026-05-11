@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState, useCallback } from 'react'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import { useToast } from '@/components/ui/Toast'
 import { inviteUser } from '@/app/actions/invite-user'
 import { updateUser } from '@/app/actions/update-user'
 import { deleteUser } from '@/app/actions/delete-user'
+import { listUsers } from '@/app/actions/list-users'
 import { FormField, inputStyle, inputFocusStyle, selectStyle } from '@/components/ui/FormField'
 
 type UserRow = {
@@ -70,7 +70,6 @@ const dangerConfirmBtnStyle: React.CSSProperties = {
 }
 
 export default function SettingsUsers() {
-  const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
 
   const [users, setUsers] = useState<UserRow[]>([])
@@ -90,14 +89,11 @@ export default function SettingsUsers() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    const [{ data: usersData }, { data: rolesData }] = await Promise.all([
-      supabase.from('users').select('id, email, first_name, last_name, role_id').order('email'),
-      supabase.from('roles').select('*').order('value'),
-    ])
-    setUsers(usersData ?? [])
-    setRoles(rolesData ?? [])
+    const { users: usersData, roles: rolesData } = await listUsers()
+    setUsers(usersData as UserRow[])
+    setRoles(rolesData as RoleRow[])
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   useVisibilityRefetch(load)
   useEffect(() => { load() }, [load])

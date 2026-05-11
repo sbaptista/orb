@@ -1,40 +1,15 @@
 -- ============================================================
--- Roles, user roles, project ownership
--- 2026-05-09
+-- Fix RLS policies to include superadmin (role_id = 0)
+-- 2026-05-10
+-- ============================================================
+-- role_id 0 = superadmin (by design)
+-- role_id 1 = Admin
+-- role_id 2 = Owner
+-- Admin-level access uses role_id IN (0, 1)
+-- User-permission checks use role_id IN (0, 1, 2)
 -- ============================================================
 
--- Roles table
-CREATE TABLE IF NOT EXISTS public.roles (
-    id SERIAL PRIMARY KEY,
-    value INTEGER NOT NULL UNIQUE,
-    name TEXT NOT NULL UNIQUE
-);
-
-INSERT INTO public.roles (value, name) VALUES (1, 'Admin'), (2, 'Owner');
-
--- Add role_id to users (default to Owner = 2)
-ALTER TABLE public.users ADD COLUMN role_id INTEGER NOT NULL DEFAULT 2 REFERENCES public.roles(id);
-
--- Migrate old text role column data
-UPDATE public.users SET role_id = 2;
-UPDATE public.users SET role_id = 1 WHERE LOWER(role) = 'admin';
-
--- Drop old text role column
-ALTER TABLE public.users DROP COLUMN role;
-
--- Add created_by to projects
-ALTER TABLE public.projects ADD COLUMN created_by UUID REFERENCES public.users(id);
-
--- Backfill: set Stanley as creator of all existing projects
-UPDATE public.projects SET created_by = 'dc030c16-57aa-4fcf-a24b-83d17471a7ac';
-
-ALTER TABLE public.projects ALTER COLUMN created_by SET NOT NULL;
-
--- ============================================================
--- RLS policies
--- ============================================================
-
--- Users: Admins can see/update all; owners see only themselves
+-- Users
 DROP POLICY IF EXISTS "users: select own" ON public.users;
 CREATE POLICY "users: select own" ON public.users
     FOR SELECT USING (
@@ -49,7 +24,7 @@ CREATE POLICY "users: update own" ON public.users
         OR EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND users.role_id IN (0, 1))
     );
 
--- Projects: Admins see all; owners see only their own
+-- Projects
 DROP POLICY IF EXISTS "projects: select own" ON public.projects;
 CREATE POLICY "projects: select own" ON public.projects
     FOR SELECT USING (
@@ -77,7 +52,7 @@ CREATE POLICY "projects: delete own" ON public.projects
         OR EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND users.role_id IN (0, 1))
     );
 
--- Todos: scoped through project ownership
+-- Todos
 DROP POLICY IF EXISTS "todos: select own" ON public.todos;
 CREATE POLICY "todos: select own" ON public.todos
     FOR SELECT USING (
@@ -130,7 +105,7 @@ CREATE POLICY "todos: delete own" ON public.todos
         )
     );
 
--- Groups: scoped through project ownership
+-- Groups
 DROP POLICY IF EXISTS "groups: select own" ON public.groups;
 CREATE POLICY "groups: select own" ON public.groups
     FOR SELECT USING (
@@ -183,7 +158,7 @@ CREATE POLICY "groups: delete own" ON public.groups
         )
     );
 
--- Categories: scoped through project ownership
+-- Categories
 DROP POLICY IF EXISTS "categories: select own" ON public.categories;
 CREATE POLICY "categories: select own" ON public.categories
     FOR SELECT USING (
@@ -236,7 +211,7 @@ CREATE POLICY "categories: delete own" ON public.categories
         )
     );
 
--- Platforms: scoped through project ownership
+-- Platforms
 DROP POLICY IF EXISTS "platforms: select own" ON public.platforms;
 CREATE POLICY "platforms: select own" ON public.platforms
     FOR SELECT USING (

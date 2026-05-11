@@ -5,6 +5,7 @@ import { readStreamableValue } from 'ai/rsc'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { listUsers } from '@/app/actions/list-users'
 import AddProductModal from './AddProductModal'
 import QueryResultsModal from './QueryResultsModal'
 import OrbHelp from './OrbHelp'
@@ -238,15 +239,13 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     useEffect(() => {
         if (!isAdmin) return
         async function load() {
-            const { data: users } = await supabase
-                .from('users')
-                .select('id, first_name, last_name, email')
-            if (users) {
-                setOwners(users.map(u => ({ id: u.id, name: [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email })))
+            const { users } = await listUsers()
+            if (users.length) {
+                setOwners(users.map((u: any) => ({ id: u.id, name: [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email })))
             }
         }
         load()
-    }, [isAdmin, supabase])
+    }, [isAdmin])
 
     // Fetch current user's name for user button
     useEffect(() => {
@@ -275,7 +274,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
 
     // Reset selection when current project is hidden by filter
     useEffect(() => {
-        if (selectedId && !displayProducts.find(p => p.id === selectedId)) {
+        if (!displayProducts.find(p => p.id === selectedId)) {
             setSelectedId(displayProducts.length > 0 ? displayProducts[0].id : null)
         }
     }, [displayProducts, selectedId])
@@ -342,6 +341,13 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const style     = ORB_STYLE[urgency]
     const speed     = ORB_SPEED[urgency]
     const selected  = products.find(p => p.id === selectedId)
+    const noProject = !selectedId
+
+    const NO_PROJECT_STYLE = {
+        orbMid: '#d4dce4', orbLo: '#c0ccd8',
+        glow: 'rgba(100,140,180,0.3)',
+        countColor: '#3a5a7a', labelColor: '#7a9aaa',
+    }
 
     // Global keyboard shortcuts
     useEffect(() => {
@@ -388,7 +394,12 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
 
     async function handleSubmit(value?: string) {
         const text = (value ?? input).trim()
-        if (!text || !selectedId || submitting) return
+        if (!text || submitting) return
+
+        if (!selectedId) {
+            toast.neutral('Add a project first.')
+            return
+        }
 
         if (text === '?') {
             setShowHelp(true)
@@ -592,8 +603,14 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                 pointerEvents: 'none',
             }}>
                 <div
-                    onClick={() => selectedId && router.push(`/dashboard/${selectedId}`)}
-                    title="View todo list"
+                    onClick={() => {
+                        if (noProject) {
+                            toast.neutral('Add a project to get started.')
+                        } else {
+                            router.push(`/dashboard/${selectedId}`)
+                        }
+                    }}
+                    title={noProject ? 'Add a project to get started' : 'View todo list'}
                     style={{
                         position: 'relative',
                         width: 'clamp(140px, 25vh, 200px)',
@@ -606,19 +623,28 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                         transform: `scale(${orbScale})`,
                         transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
                     }}
-                    aria-label={`${openTodos.length} open todos — tap to view list`}
+                    aria-label={noProject ? 'No project selected — add a project to get started' : `${openTodos.length} open todos — tap to view list`}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && selectedId && router.push(`/dashboard/${selectedId}`)}
+                    onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            if (noProject) {
+                                toast.neutral('Add a project to get started.')
+                            } else {
+                                router.push(`/dashboard/${selectedId}`)
+                            }
+                        }
+                    }}
                 >
                     {/* Glow */}
                     <div data-todos-glow style={{
                         position: 'absolute',
-                        inset: ORB_GLOW[urgency].inset,
+                        inset: noProject ? '-18px' : ORB_GLOW[urgency].inset,
                         borderRadius: '50%',
-                        background: `radial-gradient(circle at 40% 35%, ${style.glow}, transparent 70%)`,
-                        filter: `blur(${ORB_GLOW[urgency].blur})`,
-                        animation: `todos-glow-${urgency} ${speed} ease-in-out infinite`,
+                        background: `radial-gradient(circle at 40% 35%, ${noProject ? NO_PROJECT_STYLE.glow : style.glow}, transparent 70%)`,
+                        filter: `blur(${noProject ? '20px' : ORB_GLOW[urgency].blur})`,
+                        animation: noProject ? 'none' : `todos-glow-${urgency} ${speed} ease-in-out infinite`,
                         transition: 'inset 0.8s, filter 0.8s, background 0.8s',
                     }} />
 
@@ -667,9 +693,9 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                         width: '100%',
                         height: '100%',
                         borderRadius: '50%',
-                        background: `radial-gradient(circle at 36% 30%, #ffffff, ${style.orbMid} 45%, ${style.orbLo} 82%)`,
-                        boxShadow: `0 8px 32px ${style.glow}, 0 2px 8px rgba(0,0,0,0.06), inset 0 -4px 12px rgba(0,0,0,0.04), inset 0 2px 8px rgba(255,255,255,0.9)`,
-                        animation: `${ORB_ANIMATION[urgency]} ${speed} ease-in-out infinite`,
+                        background: `radial-gradient(circle at 36% 30%, #ffffff, ${noProject ? NO_PROJECT_STYLE.orbMid : style.orbMid} 45%, ${noProject ? NO_PROJECT_STYLE.orbLo : style.orbLo} 82%)`,
+                        boxShadow: `0 8px 32px ${noProject ? NO_PROJECT_STYLE.glow : style.glow}, 0 2px 8px rgba(0,0,0,0.06), inset 0 -4px 12px rgba(0,0,0,0.04), inset 0 2px 8px rgba(255,255,255,0.9)`,
+                        animation: noProject ? 'none' : `${ORB_ANIMATION[urgency]} ${speed} ease-in-out infinite`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -693,11 +719,11 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                                 fontSize="11"
                                 fontWeight={600}
                                 letterSpacing="3"
-                                fill={style.labelColor}
+                                fill={noProject ? NO_PROJECT_STYLE.labelColor : style.labelColor}
                                 style={{ textTransform: 'uppercase', transition: 'fill 0.8s' }}
                             >
                                 <textPath href="#todos-orb-name-arc" startOffset="50%" textAnchor="middle">
-                                    {(() => {
+                                    {noProject ? 'WAITING' : (() => {
                                         const raw = (selected?.code ?? selected?.name ?? '').toUpperCase()
                                         return raw.length > 10 ? `${raw.slice(0, 9)}…` : raw
                                     })()}
@@ -708,11 +734,11 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                                 fontSize="11"
                                 fontWeight={600}
                                 letterSpacing="3"
-                                fill={style.labelColor}
+                                fill={noProject ? NO_PROJECT_STYLE.labelColor : style.labelColor}
                                 style={{ textTransform: 'uppercase', transition: 'fill 0.8s' }}
                             >
                                 <textPath href="#todos-orb-state-arc" startOffset="50%" textAnchor="middle">
-                                    {urgency.toUpperCase()}
+                                    {noProject ? 'SET UP' : urgency.toUpperCase()}
                                 </textPath>
                             </text>
                         </svg>
@@ -720,12 +746,12 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                             fontFamily: 'var(--font-display)',
                             fontSize: 'var(--fs-orb)',
                             fontWeight: 300,
-                            color: style.countColor,
+                            color: noProject ? NO_PROJECT_STYLE.countColor : style.countColor,
                             letterSpacing: '-1px',
                             lineHeight: 1,
                             transition: 'color 0.8s',
                         }}>
-                            {openTodos.length}
+                            {noProject ? '—' : openTodos.length}
                         </span>
                         <span style={{
                             fontFamily: 'var(--font-ui)',
@@ -733,10 +759,10 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                             fontWeight: 400,
                             letterSpacing: '0.14em',
                             textTransform: 'uppercase',
-                            color: style.labelColor,
+                            color: noProject ? NO_PROJECT_STYLE.labelColor : style.labelColor,
                             transition: 'color 0.8s',
                         }}>
-                            open
+                            {noProject ? 'no project' : 'open'}
                         </span>
                     </div>
                 </div>
@@ -971,7 +997,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                                     onMouseEnter={e => { e.currentTarget.style.color = 'var(--link-hover)' }}
                                     onMouseLeave={e => { e.currentTarget.style.color = 'var(--link)' }}
                                 >
-                                    {ownerFilter ? (owners.find(o => o.id === ownerFilter)?.name ?? 'Owner') : 'Owners'}
+                                    {ownerFilter ? (owners.find(o => o.id === ownerFilter)?.name ?? 'Owner') : (userFullName || 'Me')}
                                 </button>
                                 {showOwnerDropdown && (
                                     <>
@@ -998,7 +1024,6 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                                                     type="button"
                                                     onClick={() => {
                                                         setOwnerFilter(o.id === ownerFilter ? null : o.id)
-                                                        setSelectedId(null)
                                                         setShowOwnerDropdown(false)
                                                     }}
                                                     style={{
@@ -1141,6 +1166,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
 
             {showAddProduct && (
                 <AddProductModal
+                    ownerId={isAdmin ? ownerFilter : null}
                     onClose={() => setShowAddProduct(false)}
                     onCreated={project => {
                         setProducts(prev => [...prev, project])
