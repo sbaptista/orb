@@ -15,6 +15,7 @@ type Props = {
   dryRun: boolean
   onDryRunChange: (v: boolean) => void
   messages: ConversationMessage[]
+  onForceQuiet?: () => void
 }
 
 const SPEECH_PRESETS: Record<string, Speech> = {
@@ -26,7 +27,7 @@ const SPEECH_PRESETS: Record<string, Speech> = {
   },
 }
 
-function OrbDevPanelInner({ override, onChange, onSpeak, onSubmit, dryRun, onDryRunChange, messages }: Props) {
+function OrbDevPanelInner({ override, onChange, onSpeak, onSubmit, dryRun, onDryRunChange, messages, onForceQuiet }: Props) {
   const [open, setOpen] = useState(false)
 
   const copyTranscript = () => {
@@ -60,7 +61,10 @@ function OrbDevPanelInner({ override, onChange, onSpeak, onSubmit, dryRun, onDry
             Urgent
           </button>
 
-          <div className="dev-section">Speak</div>
+          <div className="dev-section">Speak & State</div>
+          <button type="button" className="dev-btn" onClick={() => onForceQuiet?.()}>
+            Force Quiet State (Ambient)
+          </button>
           <button type="button" className="dev-btn" onClick={() => onSpeak(SPEECH_PRESETS.short)}>
             Short
           </button>

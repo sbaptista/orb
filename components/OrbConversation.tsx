@@ -29,6 +29,10 @@ type Props = {
     selectedProjectId?: string | null
     onShowEditProject: () => void
     onShowAddProject: () => void
+    conversationActive?: boolean
+    onRestoreConversation?: () => void
+    projectStrip?: React.ReactNode
+    orbElement?: React.ReactNode
 }
 
 function OrbCard({ msg, onShowResults }: { msg: ConversationMessage; onShowResults: Props['onShowResults'] }) {
@@ -164,6 +168,10 @@ export default function OrbConversation({
     selectedProjectId,
     onShowEditProject,
     onShowAddProject,
+    conversationActive = true,
+    onRestoreConversation,
+    projectStrip,
+    orbElement,
 }: Props) {
     const threadRef             = useRef<HTMLDivElement>(null)
     const textareaRef           = useRef<HTMLTextAreaElement>(null)
@@ -230,9 +238,11 @@ export default function OrbConversation({
     useEffect(() => {
         const el = threadRef.current
         if (el) {
-            const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120
-            if (isNearBottom) {
-                requestAnimationFrame(() => { el.scrollTop = el.scrollHeight })
+            const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 300
+            const lastMsg = messages[messages.length - 1]
+            const forceScroll = lastMsg && (lastMsg.type === 'user' || lastMsg.isStreaming)
+            if (isNearBottom || forceScroll) {
+                setTimeout(() => { el.scrollTop = el.scrollHeight }, 10)
             }
         }
     }, [messages])
@@ -336,26 +346,42 @@ export default function OrbConversation({
     }
 
     return (
-        <div className="oc-wrap" style={{
-            borderColor: inputFocused ? 'var(--border-focus)' : undefined,
+        <div className="oc-wrap" data-mode={conversationActive ? 'dialogue' : 'ambient'} style={{
+            borderColor: (inputFocused && conversationActive) ? 'var(--border-focus)' : undefined,
         }}>
-            <div ref={threadRef} className="oc-thread">
-                <div className="shrink-0" style={{ height: 'clamp(200px, 34vh, 280px)' }} />
-                {messages.map(msg => (
-                        msg.type === 'user' ? (
-                            <div
-                                key={msg.id}
-                                style={{ display: 'flex', justifyContent: 'flex-end', margin: '0 2px' }}
-                            >
-                                <div className="oc-user-bubble">
-                                    {msg.text}
+            {orbElement}
+            {conversationActive ? (
+                <div ref={threadRef} className="oc-thread">
+                    <div className="shrink-0" style={{ height: 'clamp(200px, 34vh, 280px)' }} />
+                    {messages.map(msg => (
+                            msg.type === 'user' ? (
+                                <div
+                                    key={msg.id}
+                                    style={{ display: 'flex', justifyContent: 'flex-end', margin: '5px 2px' }}
+                                >
+                                    <div className="oc-user-bubble">
+                                        {msg.text}
+                                    </div>
                                 </div>
-                            </div>
-                        ) : (
-                            <OrbCard key={msg.id} msg={msg} onShowResults={onShowResults} />
-                        )
-                ))}
-            </div>
+                            ) : (
+                                <OrbCard key={msg.id} msg={msg} onShowResults={onShowResults} />
+                            )
+                    ))}
+                </div>
+            ) : (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: '10px' }}>
+                    {messages.length > 0 && onRestoreConversation && (
+                        <button
+                            type="button"
+                            onClick={onRestoreConversation}
+                            className="btn-outline"
+                            style={{ background: 'var(--bg2)', padding: '8px 16px', borderRadius: 'var(--r-xl)' }}
+                        >
+                            Show Conversation
+                        </button>
+                    )}
+                </div>
+            )}
 
             <div className="oc-input-wrap">
                 <div className="oc-input-border" style={{
@@ -550,6 +576,7 @@ export default function OrbConversation({
                         </div>
                     </form>
                 </div>
+                {projectStrip}
             </div>
 
             <style>{`

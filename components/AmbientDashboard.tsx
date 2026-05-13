@@ -139,9 +139,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     function resetInactivity() {
         if (inactivityRef.current) clearTimeout(inactivityRef.current)
         inactivityRef.current = setTimeout(() => {
-            setMessages([])
             setConversationActive(false)
-            sessionStorage.removeItem(SS_CONVERSATION)
         }, INACTIVITY_MS)
     }
 
@@ -563,16 +561,8 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
 
 
 
-    return (
-        <>
-        <MuralCanvas key={selectedId} urgency={urgency} />
-        <div className="dash-main">
-
-            {/* ── Star Wars fade mask ── */}
-            <div className="dash-fade" />
-
-            {/* ── Orb ── */}
-            <div className="dash-orb-wrap">
+    const orbElement = (
+            <div className="dash-orb-wrap" data-mode={conversationActive ? 'dialogue' : 'ambient'}>
                 <div
                     onClick={() => {
                         if (noProject) {
@@ -738,16 +728,28 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                     </div>
                 </div>
             </div>
+    )
+
+    return (
+        <>
+        <MuralCanvas key={selectedId} urgency={urgency} />
+        <div className="dash-main">
+
+            {/* ── Star Wars fade mask ── */}
+            <div className="dash-fade" />
 
             {/* ── Conversation outer ── */}
             <div className="dash-conversation">
                 <OrbConversation
+                    orbElement={orbElement}
                     messages={messages}
                     input={input}
                     submitting={submitting}
                     productCode={selected?.code ?? selected?.name ?? ''}
                     products={products}
                     scopeToProduct={scopeToProduct}
+                    conversationActive={conversationActive}
+                    onRestoreConversation={() => setConversationActive(true)}
                     onInputChange={v => { setInput(v); sessionStorage.setItem(SS_INPUT, v) }}
                     onSubmit={handleSubmit}
                     onShowResults={handleShowResults}
@@ -757,130 +759,130 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                     selectedProjectId={selectedId}
                     onShowEditProject={() => setShowEditProduct(true)}
                     onShowAddProject={() => setShowAddProduct(true)}
-                />
-            </div>
-
-            {/* ── Project strip ── */}
-            <div className="dash-strip">
-                <div className="dash-strip-inner" style={displayProducts.length === 0 ? { justifyContent: 'center' } : undefined}>
-                    {displayProducts.length > 0 && (
-                        <div className="dash-strip-scroll-wrap">
-                            {canScrollLeft && (
-                                <div className="dash-scroll-anchor dash-scroll-anchor-left">
-                                    <button
-                                        type="button"
-                                        className="scroll-arrow"
-                                        onClick={() => scrollProjects('left')}
-                                        aria-label="Scroll left"
-                                    >
-                                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                            <path d="M15 18l-6-6 6-6"/>
-                                        </svg>
-                                    </button>
-                                </div>
-                            )}
-                            <div
-                                ref={projectScrollRef}
-                                onScroll={updateProjectScrollState}
-                                className="dash-strip-scroll"
-                            >
-                                {displayProducts.map(p => (
-                                    <div key={p.id} className="dash-strip-item">
-                                        <button
-                                            type="button"
-                                            className="dash-strip-pill"
-                                            aria-current={p.id === selectedId ? 'true' : undefined}
-                                            onClick={() => { setSelectedId(p.id); setScopeToProduct(true) }}
-                                            title={`Switch to ${p.code ?? p.name}`}
-                                        >
-                                            {p.code ?? p.name}
-                                        </button>
-                                        {p.id === selectedId && (
-                                            <button
-                                                type="button"
-                                                className="edit-btn"
-                                                onClick={(e) => { e.stopPropagation(); setShowEditProduct(true) }}
-                                                title="Edit project"
-                                            >
-                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                                                </svg>
-                                            </button>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                            {canScrollRight && (
-                                <div className="dash-scroll-anchor dash-scroll-anchor-right">
-                                    <button
-                                        type="button"
-                                        className="scroll-arrow"
-                                        onClick={() => scrollProjects('right')}
-                                        aria-label="Scroll right"
-                                    >
-                                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                            <path d="M9 18l6-6-6-6"/>
-                                        </svg>
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                    <div className="dash-strip-actions">
-                        {isAdmin && (
-                            <>
-                                <button
-                                    type="button"
-                                    className="strip-link"
-                                    onClick={() => setShowOwnerDropdown(d => !d)}
-                                    title="Filter by project owner"
-                                    style={{ padding: '0 8px 0 0', color: ownerFilter ? 'var(--pill-active-color)' : undefined }}
-                                >
-                                    {ownerFilter ? (owners.find(o => o.id === ownerFilter)?.name ?? 'Owner') : (userFullName || 'Me')}
-                                </button>
-                                {showOwnerDropdown && (
-                                    <>
-                                        <div
-                                            className="dropdown-backdrop"
-                                            onClick={() => setShowOwnerDropdown(false)}
-                                        />
-                                        <div className="dropdown-menu">
-                                            {owners.map(o => (
+                    projectStrip={
+                        <div className="dash-strip">
+                            <div className="dash-strip-inner" style={displayProducts.length === 0 ? { justifyContent: 'center' } : undefined}>
+                                {displayProducts.length > 0 && (
+                                    <div className="dash-strip-scroll-wrap">
+                                        {canScrollLeft && (
+                                            <div className="dash-scroll-anchor dash-scroll-anchor-left">
                                                 <button
-                                                    key={o.id}
                                                     type="button"
-                                                    className="dropdown-item"
-                                                    onClick={() => {
-                                                        setOwnerFilter(o.id === ownerFilter ? null : o.id)
-                                                        setShowOwnerDropdown(false)
-                                                    }}
-                                                    style={{
-                                                        background: o.id === ownerFilter ? 'var(--pill-active-bg)' : undefined,
-                                                        color: o.id === ownerFilter ? 'var(--pill-active-color)' : 'var(--text)',
-                                                    }}
+                                                    className="scroll-arrow"
+                                                    onClick={() => scrollProjects('left')}
+                                                    aria-label="Scroll left"
                                                 >
-                                                    {o.name}
+                                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                                        <path d="M15 18l-6-6 6-6"/>
+                                                    </svg>
                                                 </button>
+                                            </div>
+                                        )}
+                                        <div
+                                            ref={projectScrollRef}
+                                            onScroll={updateProjectScrollState}
+                                            className="dash-strip-scroll"
+                                        >
+                                            {displayProducts.map(p => (
+                                                <div key={p.id} className="dash-strip-item">
+                                                    <button
+                                                        type="button"
+                                                        className="dash-strip-pill"
+                                                        aria-current={p.id === selectedId ? 'true' : undefined}
+                                                        onClick={() => { setSelectedId(p.id); setScopeToProduct(true) }}
+                                                        title={`Switch to ${p.code ?? p.name}`}
+                                                    >
+                                                        {p.code ?? p.name}
+                                                    </button>
+                                                    {p.id === selectedId && (
+                                                        <button
+                                                            type="button"
+                                                            className="edit-btn"
+                                                            onClick={(e) => { e.stopPropagation(); setShowEditProduct(true) }}
+                                                            title="Edit project"
+                                                        >
+                                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                                            </svg>
+                                                        </button>
+                                                    )}
+                                                </div>
                                             ))}
                                         </div>
-                                    </>
+                                        {canScrollRight && (
+                                            <div className="dash-scroll-anchor dash-scroll-anchor-right">
+                                                <button
+                                                    type="button"
+                                                    className="scroll-arrow"
+                                                    onClick={() => scrollProjects('right')}
+                                                    aria-label="Scroll right"
+                                                >
+                                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                                        <path d="M9 18l6-6-6-6"/>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
-                            </>
-                        )}
-                        {displayProducts.length > 0 && (
-                            <span className="dash-separator">|</span>
-                        )}
-                        <button
-                            type="button"
-                            className={`strip-link${displayProducts.length === 0 ? ' strip-link-accent' : ''}`}
-                            onClick={() => setShowAddProduct(true)}
-                            title="Add a new project"
-                            style={{ padding: '0 0 0 8px' }}
-                        >
-                            Add Project
-                        </button>
-                    </div>
-                </div>
+                                <div className="dash-strip-actions">
+                                    {isAdmin && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                className="strip-link"
+                                                onClick={() => setShowOwnerDropdown(d => !d)}
+                                                title="Filter by project owner"
+                                                style={{ padding: '0 8px 0 0', color: ownerFilter ? 'var(--pill-active-color)' : undefined }}
+                                            >
+                                                {ownerFilter ? (owners.find(o => o.id === ownerFilter)?.name ?? 'Owner') : (userFullName || 'Me')}
+                                            </button>
+                                            {showOwnerDropdown && (
+                                                <>
+                                                    <div
+                                                        className="dropdown-backdrop"
+                                                        onClick={() => setShowOwnerDropdown(false)}
+                                                    />
+                                                    <div className="dropdown-menu">
+                                                        {owners.map(o => (
+                                                            <button
+                                                                key={o.id}
+                                                                type="button"
+                                                                className="dropdown-item"
+                                                                onClick={() => {
+                                                                    setOwnerFilter(o.id === ownerFilter ? null : o.id)
+                                                                    setShowOwnerDropdown(false)
+                                                                }}
+                                                                style={{
+                                                                    background: o.id === ownerFilter ? 'var(--pill-active-bg)' : undefined,
+                                                                    color: o.id === ownerFilter ? 'var(--pill-active-color)' : 'var(--text)',
+                                                                }}
+                                                            >
+                                                                {o.name}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </>
+                                            )}
+                                        </>
+                                    )}
+                                    {displayProducts.length > 0 && (
+                                        <span className="dash-separator">|</span>
+                                    )}
+                                    <button
+                                        type="button"
+                                        className={`strip-link${displayProducts.length === 0 ? ' strip-link-accent' : ''}`}
+                                        onClick={() => setShowAddProduct(true)}
+                                        title="Add a new project"
+                                        style={{ padding: '0 0 0 8px' }}
+                                    >
+                                        Add Project
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                />
             </div>
 
             {/* ── Top right — help + settings + account ── */}
@@ -944,6 +946,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                 dryRun={dryRun}
                 onDryRunChange={setDryRun}
                 messages={messages}
+                onForceQuiet={() => setConversationActive(false)}
             />
 
             {showAddProduct && (
