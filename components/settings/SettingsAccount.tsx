@@ -103,8 +103,6 @@ export default function SettingsAccount() {
 
   return (
     <div className="settings-page s-page" style={{ maxWidth: '480px' }}>
-      <h2 className="s-title mb-2xl">Account</h2>
-
       <div className="s-card mb-md">
         <div className="flex-col gap-lg">
           <div className="settings-grid-2col grid-2col">

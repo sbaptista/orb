@@ -227,10 +227,10 @@ export default function TodoView({ productId }: { productId: string }) {
         </Link>
 
         {!isAll && currentProduct && (
-          <span className="tv-title">{currentProduct.name}</span>
+          <span className="sl-title">{currentProduct.name}</span>
         )}
         {isAll && (
-          <span className="tv-title">All Products</span>
+          <span className="sl-title">All Products</span>
         )}
 
         <div className="tv-toolbar">

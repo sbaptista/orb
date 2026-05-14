@@ -5,7 +5,6 @@ import { readStreamableValue } from 'ai/rsc'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { listUsers } from '@/app/actions/list-users'
 import AddProductModal from './AddProductModal'
 import QueryResultsModal from './QueryResultsModal'
 import OrbHelp from './OrbHelp'
@@ -122,9 +121,6 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const [isMobile, setIsMobile]                 = useState(false)
     const [canScrollLeft, setCanScrollLeft]       = useState(false)
     const [canScrollRight, setCanScrollRight]     = useState(false)
-    const [ownerFilter, setOwnerFilter]           = useState<string | null>(null)
-    const [showOwnerDropdown, setShowOwnerDropdown] = useState(false)
-    const [owners, setOwners]                     = useState<{ id: string; name: string }[]>([])
     const [userName, setUserName]                 = useState<string>('')
     const [userFullName, setUserFullName]         = useState<string>('')
 
@@ -233,17 +229,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [supabase])
 
-    // Build owners list for admin filter (all users who can own projects)
-    useEffect(() => {
-        if (!isAdmin) return
-        async function load() {
-            const { users } = await listUsers()
-            if (users.length) {
-                setOwners(users.map((u: any) => ({ id: u.id, name: [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email })))
-            }
-        }
-        load()
-    }, [isAdmin])
+
 
     // Fetch current user's name for user button
     useEffect(() => {
@@ -268,7 +254,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     }, [supabase])
 
     // Derive display products based on owner filter
-    const displayProducts = ownerFilter ? products.filter(p => p.created_by === ownerFilter) : products
+    const displayProducts = products
 
     // Reset selection when current project is hidden by filter
     useEffect(() => {
@@ -826,46 +812,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                                     </div>
                                 )}
                                 <div className="dash-strip-actions">
-                                    {isAdmin && (
-                                        <>
-                                            <button
-                                                type="button"
-                                                className="strip-link"
-                                                onClick={() => setShowOwnerDropdown(d => !d)}
-                                                title="Filter by project owner"
-                                                style={{ padding: '0 8px 0 0', color: ownerFilter ? 'var(--pill-active-color)' : undefined }}
-                                            >
-                                                {ownerFilter ? (owners.find(o => o.id === ownerFilter)?.name ?? 'Owner') : (userFullName || 'Me')}
-                                            </button>
-                                            {showOwnerDropdown && (
-                                                <>
-                                                    <div
-                                                        className="dropdown-backdrop"
-                                                        onClick={() => setShowOwnerDropdown(false)}
-                                                    />
-                                                    <div className="dropdown-menu">
-                                                        {owners.map(o => (
-                                                            <button
-                                                                key={o.id}
-                                                                type="button"
-                                                                className="dropdown-item"
-                                                                onClick={() => {
-                                                                    setOwnerFilter(o.id === ownerFilter ? null : o.id)
-                                                                    setShowOwnerDropdown(false)
-                                                                }}
-                                                                style={{
-                                                                    background: o.id === ownerFilter ? 'var(--pill-active-bg)' : undefined,
-                                                                    color: o.id === ownerFilter ? 'var(--pill-active-color)' : 'var(--text)',
-                                                                }}
-                                                            >
-                                                                {o.name}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </>
-                                            )}
-                                        </>
-                                    )}
+
                                     {displayProducts.length > 0 && (
                                         <span className="dash-separator">|</span>
                                     )}
@@ -912,7 +859,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                 </Link>
                 <button
                     className="nav-btn"
-                    onClick={() => router.push('/settings/account')}
+                    onClick={() => router.push('/account')}
                     title={userFullName || 'Account'}
                     aria-label="Account"
                     style={{ fontWeight: 600, fontSize: '14px' }}
@@ -951,7 +898,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
 
             {showAddProduct && (
                 <AddProductModal
-                    ownerId={isAdmin ? ownerFilter : null}
+                    ownerId={null}
                     onClose={() => setShowAddProduct(false)}
                     onCreated={project => {
                         setProducts(prev => [...prev, project])

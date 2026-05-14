@@ -8,6 +8,7 @@ import { updateUser } from '@/app/actions/update-user'
 import { deleteUser } from '@/app/actions/delete-user'
 import { listUsers } from '@/app/actions/list-users'
 import { FormField, inputStyle, inputFocusStyle, selectStyle } from '@/components/ui/FormField'
+import Link from 'next/link'
 
 type UserRow = {
   id: string
@@ -303,7 +304,9 @@ export default function SettingsUsers() {
               <div className="avatar">{avatarLetter}</div>
               <div className="s-row-info">
                 <div className="text-sm truncate">
-                  {[user.first_name, user.last_name].filter(Boolean).join(' ') || '—'}
+                  <Link href={`/settings/users/${user.id}`} style={{ fontWeight: 600, color: 'var(--pill-active-color)', textDecoration: 'underline', textUnderlineOffset: '3px' }}>
+                    {[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}
+                  </Link>
                 </div>
                 <div className="text-xs text-muted">{user.email}</div>
               </div>
@@ -332,6 +335,9 @@ export default function SettingsUsers() {
 
               {!isSuperAdmin && (
                 <div className="settings-row-actions flex-center" style={{ gap: '2px' }}>
+                  <Link href={`/settings/users/${user.id}`} className="btn-row-action" style={{ textDecoration: 'none' }}>
+                    View Projects
+                  </Link>
                   {!protectedUser && (
                     <button className="btn-row-action" onClick={() => startEdit(user)} title="Edit user name and role">Edit</button>
                   )}

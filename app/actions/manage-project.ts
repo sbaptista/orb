@@ -4,10 +4,19 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { assertAdmin } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 
+async function checkCodeConflict(admin: ReturnType<typeof createAdminClient>, code: string, excludeId?: string) {
+  const query = admin.from('projects').select('id').ilike('code', code)
+  if (excludeId) query.neq('id', excludeId)
+  const { data } = await query.maybeSingle()
+  return !!data
+}
+
 export async function createProject(data: {
   name: string
-  code: string | null
-  description: string | null
+  code?: string | null
+  description?: string | null
+  color?: string | null
+  sort_order?: number
   ownerId?: string | null
 }) {
   try {
@@ -16,21 +25,30 @@ export async function createProject(data: {
     return { error: e.message }
   }
 
+  const code = data.code?.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!code) return { error: 'Project code is required' }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
   const admin = createAdminClient()
+
+  if (await checkCodeConflict(admin, code)) {
+    return { error: `Code "${code}" is already in use` }
+  }
+
   const { data: project, error } = await admin
     .from('projects')
     .insert({
       name: data.name,
-      code: data.code,
-      description: data.description,
-      sort_order: 0,
+      code,
+      description: data.description ?? null,
+      color: data.color ?? null,
+      sort_order: data.sort_order ?? 0,
       created_by: data.ownerId ?? user.id,
     })
-    .select('id, name, code, description, created_by')
+    .select()
     .single()
 
   if (error) return { error: error.message }
@@ -38,9 +56,11 @@ export async function createProject(data: {
 }
 
 export async function updateProject(id: string, data: {
-  name: string
-  code: string | null
-  description: string | null
+  name?: string
+  code?: string | null
+  description?: string | null
+  color?: string | null
+  sort_order?: number
 }) {
   try {
     await assertAdmin()
@@ -49,15 +69,21 @@ export async function updateProject(id: string, data: {
   }
 
   const admin = createAdminClient()
+
+  if (data.code !== undefined) {
+    const code = data.code?.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+    if (!code) return { error: 'Project code is required' }
+    if (await checkCodeConflict(admin, code, id)) {
+      return { error: `Code "${code}" is already in use` }
+    }
+    data = { ...data, code }
+  }
+
   const { data: project, error } = await admin
     .from('projects')
-    .update({
-      name: data.name,
-      code: data.code,
-      description: data.description,
-    })
+    .update(data)
     .eq('id', id)
-    .select('id, name, code, description, created_by')
+    .select()
     .single()
 
   if (error) return { error: error.message }

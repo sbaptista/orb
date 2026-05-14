@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import NavLink from '@/components/settings/NavLink'
 import { useState } from 'react'
 import { VERSION } from '@/lib/version'
 
@@ -48,9 +48,9 @@ export default function CollapsibleSidebar({ items, defaultOpen = true }: Props)
           )
           if (item.href) {
             return (
-              <Link key={item.id} href={item.href} className="cs-item" aria-current={item.active ? 'page' : undefined}>
+              <NavLink key={item.id} href={item.href} className="cs-item" aria-current={item.active ? 'page' : undefined}>
                 {inner}
-              </Link>
+              </NavLink>
             )
           }
           return (

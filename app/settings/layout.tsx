@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import SettingsSidebar from '@/components/settings/SettingsSidebar'
+import SettingsTopbar from '@/components/settings/SettingsTopbar'
+import { UnsavedChangesProvider } from '@/lib/hooks/useUnsavedChanges'
+import { BreadcrumbOverridesProvider } from '@/lib/hooks/useBreadcrumbOverrides'
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -17,16 +19,17 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   const isAdmin = currentUser?.role_id === 1 || currentUser?.role_id === 3
 
   return (
-    <div className="sl-page">
-      <div className="sl-topbar">
-        <Link href="/dashboard" className="sl-back">← back</Link>
-        <span className="sl-title">Settings</span>
-      </div>
+    <UnsavedChangesProvider>
+      <BreadcrumbOverridesProvider>
+        <div className="sl-page">
+          <SettingsTopbar />
 
-      <div className="sl-body settings-shell">
-        <SettingsSidebar isAdmin={isAdmin} />
-        <main className="sl-main">{children}</main>
-      </div>
-    </div>
+          <div className="sl-body settings-shell">
+            <SettingsSidebar isAdmin={isAdmin} />
+            <main className="sl-main">{children}</main>
+          </div>
+        </div>
+      </BreadcrumbOverridesProvider>
+    </UnsavedChangesProvider>
   )
 }

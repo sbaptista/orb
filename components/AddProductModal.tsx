@@ -44,6 +44,7 @@ export default function AddProductModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) { setError('Name is required'); return }
+    if (!code.trim()) { setError('Code is required'); return }
     setSaving(true)
     setError('')
 
@@ -55,7 +56,7 @@ export default function AddProductModal({
           description: description.trim() || null,
         })
         setSaving(false)
-        if (result.error) { console.error('[AddProductModal] update error:', result.error); toast.error('Failed to update project. Try again.'); return }
+        if (result.error) { console.error('[AddProductModal] update error:', result.error); setSaving(false); setError(result.error); return }
         if (result.project) { toast.success('Project updated.'); onUpdated?.(result.project as Project) }
       } else {
         const result = await createProject({
@@ -65,7 +66,7 @@ export default function AddProductModal({
           ownerId,
         })
         setSaving(false)
-        if (result.error) { console.error('[AddProductModal] create error:', result.error); toast.error('Failed to create project. Try again.'); return }
+        if (result.error) { console.error('[AddProductModal] create error:', result.error); setSaving(false); setError(result.error); return }
         if (result.project) { toast.success('Project created.'); onCreated?.(result.project as Project) }
       }
     } catch (caught) {

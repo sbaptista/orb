@@ -65,15 +65,18 @@ function ToastItemComp({ item, onDismiss }: { item: ToastItem; onDismiss: (id: s
 
   useEffect(() => {
     const enterRaf = requestAnimationFrame(() => setVisible(true))
-    const timer = setTimeout(() => {
-      setVisible(false)
-      setTimeout(() => onDismiss(item.id), 220)
-    }, 1500)
+    let timer: NodeJS.Timeout
+    if (item.variant !== 'error') {
+      timer = setTimeout(() => {
+        setVisible(false)
+        setTimeout(() => onDismiss(item.id), 220)
+      }, 3000)
+    }
     return () => {
       cancelAnimationFrame(enterRaf)
-      clearTimeout(timer)
+      if (timer) clearTimeout(timer)
     }
-  }, [item.id, onDismiss])
+  }, [item.id, onDismiss, item.variant])
 
   return (
     <div
