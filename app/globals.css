@@ -258,15 +258,15 @@ a, button, [role="button"], input, select, textarea {
 }
 
 /* ══════════════════════════════════════════════════════════
-   SETTINGS — PHONE LAYOUT (≤ 480px)
+   SETTINGS — PHONE LAYOUT (≤ 767px)
    ══════════════════════════════════════════════════════════ */
 
-@media (max-width: 480px) {
+@media (max-width: 767px) {
   .settings-shell {
     flex-direction: column !important;
   }
 
-  .settings-sidebar {
+  .cs-sidebar {
     width: 100% !important;
     border-right: none !important;
     border-bottom: 1px solid var(--text2);
@@ -276,11 +276,11 @@ a, button, [role="button"], input, select, textarea {
     -webkit-overflow-scrolling: touch;
   }
 
-  .settings-sidebar > div:first-child {
+  .cs-header {
     display: none !important;
   }
 
-  .settings-sidebar nav {
+  .cs-nav {
     display: flex !important;
     flex-direction: row !important;
     padding: 8px !important;
@@ -289,8 +289,7 @@ a, button, [role="button"], input, select, textarea {
     -webkit-overflow-scrolling: touch;
   }
 
-  .settings-sidebar nav a,
-  .settings-sidebar nav button {
+  .cs-item {
     border: none !important;
     padding: 6px 10px !important;
     margin: 0 !important;
@@ -304,10 +303,13 @@ a, button, [role="button"], input, select, textarea {
     gap: 4px !important;
   }
 
-  .settings-sidebar nav a[aria-current="page"],
-  .settings-sidebar nav button[aria-current="page"] {
+  .cs-item[aria-current="page"] {
     background: var(--pill-active-bg) !important;
     color: var(--pill-active-color) !important;
+  }
+
+  .sl-title {
+    display: none !important;
   }
 
   .settings-page {

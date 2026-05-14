@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.4.52
+- **Version:** v0.4.45
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,84 +16,63 @@
 
 ## Last Session Completed
 
-**Ticketing system, audit trail tool, Orb integrity rules, UX improvements — v0.4.46 → v0.4.52**
+**Settings stabilization, security hardening, Account page separation — v0.4.45**
 
-### Ticketing System (replaces friction logging)
-- Migration: `scripts/migrations/20260514_tickets.sql` — `tickets` table with RLS, migrated `orb_friction` data.
-- Server actions: `app/actions/ticket-actions.ts` — create, get, convert-to-todo, dismiss, delete (individual + bulk).
-- Settings UI: `components/settings/SettingsTickets.tsx` — full table with checkbox selection, filter tabs, expandable detail, convert-to-todo with project picker, bulk dismiss/delete with confirm.
-- Orb integration: `create_ticket` tool replaces `report_friction` — Orb files tickets silently.
+### Security — RLS owner-only policies
+- Stripped all admin bypass from RLS policies (`scripts/migrations/20260513_rls_owner_only_select.sql` — already executed). Dashboard now only shows own data for all roles.
+- Admin cross-user access is exclusively via server actions using `createAdminClient()`.
+- Role visibility: superadmin sees all, admins see everyone except superadmin, owners see only themselves.
 
-### Orb Integrity Rules Rewrite
-- Rewrote from 4 generic rules to 8 failure-class-specific rules in `lib/orb-contract.ts`.
-- Covers: backlog-as-snapshot-only, verify-before-asserting, max_results matching, uncertainty acknowledgment, capability gap logging.
+### Server actions created
+- `app/actions/get-user-detail.ts` — `getUserDetail`, `getUserProjects`, `getProjectTodos` with role-based visibility checks.
+- `app/actions/manage-todo.ts` — CRUD for todos via admin client. Default status fixed from `'pending'` to `'open'`.
+- `app/actions/manage-project.ts` — CRUD for projects. Code is now required, validated (uppercase alphanumeric, max 6 chars), uniqueness-checked.
+- `app/actions/list-users.ts` — Filters superadmin from admin view.
 
-### Audit Trail Tool (ORB-87 Item 5)
-- `query_audit_trail` tool added to `lib/orb-contract.ts`, handler in `app/actions/orb-converse.ts`, spec in `docs/api-spec.yaml`.
-- Orb can answer "who closed this?", "what changed last week?" by querying `audit_log` table.
+### Settings UI
+- **SettingsUserDetail** — Fully migrated from client-side Supabase to server actions. Column headings added to project list.
+- **SettingsProjectTodos** — Made read-only (view-only table). Todo CRUD belongs on the Todos page, not Settings.
+- **SettingsTopbar** — Dynamic breadcrumbs, all segments clickable. Breadcrumb override context for correct back-links from project detail pages.
+- **NavLink** — Navigation guard wrapper using Next.js `onNavigate` API for unsaved changes protection.
+- **UnsavedChangesProvider** — Context provider with beforeunload handler and dismissable toast. Wired into sidebar and topbar.
+- **BreadcrumbOverridesProvider** — Context for child components to fix breadcrumb paths (e.g., `/settings/projects` → `/settings/users/{ownerId}`).
 
-### UX Improvements
-- Orb long-press to return to quiet state from active conversation (AmbientDashboard.tsx).
-- Send button redesigned: paper plane SVG, `.oc-send-btn` class.
-- Phone font bump: media query scales up all `--fs-*` variables on touch devices ≤767px (e.g. `--fs-sm` 13→15px).
+### Account page separated
+- Moved Account from `/settings/account` to `/account` as a standalone page with its own topbar (`tv-topbar` + `sl-title`).
+- Removed Account from Settings sidebar. Settings index now redirects to `/settings/priorities`.
+- Dashboard user button links to `/account`.
 
-### Infrastructure
-- **psql installed:** `/opt/homebrew/opt/libpq/bin/psql` via `libpq`. Migrations can now be run directly via `DATABASE_URL` in `.env.local`.
-- **Direct SQL access** section added to AGENTS.md.
-- **Worktree patching** documented in AGENTS.md.
+### Bug fixes
+- **useVisibilityRefetch** — Removed aggressive `focus` listener that caused constant page reloads. Added 5-second minimum gap between refetches. Background refetches no longer flash "Loading..." state.
+- **Priority dropdown** — Fixed column name (`label` not `name`) in priorities query.
+- **Product codes** — Made required with validation and uniqueness check.
+- **Statuses** — Fixed all hardcoded `pending`/`in_progress`/`done` to real DB values (`open`, `in progress`, `on hold`, `closed`).
 
-### Backlog Changes
-- **ORB-87 closed** — resolution notes cover all 3 phases (context injection, integrity rules, audit trail).
-- **ORB-92 opened** — Task relationships and dependencies (from ORB-87 item 4).
-- **ORB-93 opened** — Custom fields for tasks (from ORB-87 item 6).
-
----
-
-## Uncommitted Changes
-
-All changes from v0.4.46 through v0.4.52 in the main working directory:
-
-- `.claude/settings.local.json`
-- `AGENTS.md` — worktree patching docs, direct SQL access section
-- `app/actions/orb-converse.ts` — query_audit_trail handler, create_ticket handler, backlog status tags
-- `app/actions/ticket-actions.ts` — NEW
-- `app/globals.css` — send button styles, phone font bump media query
-- `app/settings/tickets/page.tsx` — NEW
-- `components/AmbientDashboard.tsx` — long-press to quiet state
-- `components/OrbConversation.tsx` — send button redesign
-- `components/settings/SettingsSidebar.tsx` — friction → tickets nav
-- `components/settings/SettingsTickets.tsx` — NEW
-- `docs/api-spec.yaml` — query_audit_trail, create_ticket, integrity rules
-- `lib/orb-contract.ts` — query_audit_trail tool, create_ticket tool, integrity rules rewrite
-- `lib/version.ts` — v0.4.52
-- `package.json` — v0.4.52
-- `scripts/migrations/20260514_tickets.sql` — NEW
+### Consistency
+- TodoView and Account page both use `sl-title` for page titles, `tv-version-footer` for version display.
 
 ---
 
 ## Key Decisions
 
 - **Two-layer security model:** RLS for dashboard (owner-only at DB level), server actions for Settings (role-based admin access via `createAdminClient()`).
-- **Ticketing replaces friction logging.** System-wide scope, Orb files silently, admin-only visibility in Settings → Tickets.
-- **Integrity rules address failure classes, not individual bugs.**
-- **Git commands from Claude Code fail.** Always provide commit/push commands for Stan to run manually.
-- **Phone font scaling** uses CSS variable overrides in a media query — no individual class changes needed.
+- **Settings is for administration, not task management.** Todo CRUD removed from Settings; project todos are view-only. Use the Todos page for mutations.
+- **Account is not a Settings page.** It's a standalone page accessible from the dashboard user button.
+- **Product codes are required.** The conversational AI resolves todos by splitting task codes (e.g., `ORB-73`). Null codes break this.
 
 ---
 
 ## Next Priorities
 
-1. **Test mobile font scaling on iPhone** — verify phone font bump, adjust if needed.
-2. **Production push** — commit and push all uncommitted changes.
-3. **iPhone UI audit** — Stan wants to spend time on iPhone experience beyond fonts.
-4. **ORB-92** — Task relationships/dependencies (low priority, future).
-5. **ORB-93** — Custom fields (low priority, future).
+1. Create reusable page/component templates (topbar+back, CRUD list, detail view) so new pages are assembled from existing parts.
+2. Fetch live backlog at session start.
+3. Review open Orb tickets from the Friction Queue.
 
 ---
 
 ## AI Tool Used Last Session
 
-`2026-05-14 — Claude Code (Anthropic Claude Opus 4.6)`
+`2026-05-13 — Claude Code (Anthropic Claude Opus 4.6)`
 
 ---
 

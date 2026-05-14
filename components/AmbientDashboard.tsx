@@ -587,6 +587,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                         cursor: 'pointer',
                         pointerEvents: 'auto',
                         transform: `scale(${orbScale})`,
+                        transformOrigin: 'top center',
                         transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
                         WebkitTouchCallout: 'none',
                         userSelect: 'none',
