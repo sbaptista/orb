@@ -97,7 +97,7 @@ export async function orbConverse(req: OrbRequest) {
 
       const isProd = process.env.NODE_ENV === 'production'
       const userRole = ctx.currentUser?.roles?.name || ''
-      const canWrite = ['superadmin', 'admin'].includes(userRole)
+      const canWrite = ['super admin', 'admin'].includes(userRole.toLowerCase())
 
       let messages: any[] = [
         ...(req.history?.map(h => ({ role: h.role, content: h.text })) ?? []),
