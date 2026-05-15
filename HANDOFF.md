@@ -16,9 +16,11 @@
 
 ## Last Session Completed
 
-**Priority hardcoding elimination — v0.4.64 (committed)**
+**Priority hardcoding elimination + build fixes — v0.4.64 (committed)**
 
-### ORB-100 — Remove hardcoded priority colors and urgency thresholds
+### ORB-100 — Remove hardcoded priority colors and urgency thresholds (closed)
+- **Testing verified**: Priority 1 displays orange `#a05010`, no priority displays light gray `var(--border)`. System fully data-driven from DB.
+- **Resolution notes recorded** on ORB-100 in Orb app.
 - **Migration** (`20260515_priority_columns.sql`): Added `color` and `is_urgent` columns to priorities table. Set priority 1 as urgent with color `#a05010`.
 - **Code changes** (7 files):
   - **AmbientDashboard.tsx** — Fetches priorities on mount. `computeUrgency()` now accepts `urgentValues` set and checks `is_urgent` flag instead of `priority_value === 1`. Passes `priorityColorMap` to OrbConversation.
@@ -29,6 +31,11 @@
   - **SettingsFriction.tsx** — Looks up urgent priority via `is_urgent = true` query instead of hardcoded `1`. Uses `.maybeSingle()` to safely get the value.
   - **seed-can26.ts** — Queries urgent priority value from DB instead of hardcoded `1`.
 - **Debugging**: Added console.log to SettingsFriction for priority lookup. When testing Settings > Tickets, check browser console to confirm urgent priority is found.
+
+### Build fix — v0.4.64 (committed)
+- **Type error**: OrbDevPanel was missing `roleOverride` and `onRoleOverrideChange` props in AmbientDashboard.
+- **Fix**: Added `roleOverride` state to AmbientDashboard and passed props to OrbDevPanel.
+- **Build**: Should now pass TypeScript check and deploy successfully.
 
 ---
 
@@ -57,9 +64,16 @@
 - **archive-data.ts**, **archive-todos.ts** — Updated fallback status names.
 - **seed-can26.ts** — Updated status mapping (`done` → `closed`, `on-hold` → `on hold`).
 
-### Committed in v0.4.64
+### Commits in this session
 
-All changes committed:
+**v0.4.64** (priority hardcoding elimination):
+- f46a004: docs: Update HANDOFF — ORB-100 complete, mark remaining issues
+- Earlier: Priority refactor changes (7 files)
+
+**v0.4.64** (build fixes):
+- c91eaba: fix: Add missing roleOverride props to OrbDevPanel
+
+All changes committed to main:
 
 - `package.json` — version 0.4.64
 - `lib/version.ts` — version 0.4.64
@@ -93,10 +107,11 @@ All changes committed:
 
 ## Next Priorities
 
-1. **Settings > Tickets issue**: Priority lookup returns null when generating tickets. Debug logs added to SettingsFriction.tsx — check browser console when testing to see what the urgent priority query returns.
-2. **Orb query filtering issue**: When querying for multiple todos (e.g., "show ORB-102, ORB-103, ORB-104"), only the last one is returned. Likely in `app/actions/orb-converse.ts` query logic.
-3. Create reusable page/component templates (topbar+back, CRUD list, detail view) so new pages are assembled from existing parts.
-4. Review open Orb tickets from the Friction Queue.
+1. **Vercel deployment**: Latest commit (c91eaba) should now build successfully. Monitor the deployment.
+2. **Settings > Tickets priority lookup**: Returns null when generating tickets. Debug logs in SettingsFriction.tsx — check browser console to see what the urgent priority query returns. May be RLS or timing issue.
+3. **Orb multi-todo query filtering**: When asking for "show ORB-102, ORB-103, ORB-104", only ORB-104 is returned. Root cause in `app/actions/orb-converse.ts` query logic — likely not passing all matched todos to results.
+4. Create reusable page/component templates (topbar+back, CRUD list, detail view) so new pages are assembled from existing parts.
+5. Review open Orb tickets from the Friction Queue.
 
 ---
 
