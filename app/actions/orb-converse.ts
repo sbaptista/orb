@@ -96,6 +96,9 @@ export async function orbConverse(req: OrbRequest) {
       const priorityInfo = ctx.priorityList.map((p: any) => `${p.value}:${p.label}`).join(', ')
 
       const isProd = process.env.NODE_ENV === 'production'
+      const userRole = ctx.currentUser?.roles?.name || ''
+      const canWrite = ['superadmin', 'admin'].includes(userRole)
+
       let messages: any[] = [
         ...(req.history?.map(h => ({ role: h.role, content: h.text })) ?? []),
         { role: 'user', content: req.input }
@@ -115,7 +118,7 @@ export async function orbConverse(req: OrbRequest) {
           max_tokens: 1024,
           system: `You are the voice of the orb — the conversational layer of Orb.
 VOICE: Brief, direct. Plain text only. NO markdown.
-${isProd ? '\nENVIRONMENT: You are in the PRODUCTION environment. You are strictly in read-only mode for tasks. You CANNOT create, update, or delete tasks. If the user asks you to modify a task, you MUST REJECT the request immediately by saying exactly "This operation is not allowed." DO NOT use query_todos or any other tool to try to look up the task. DO NOT try to be helpful. Just reject it.' : ''}
+${isProd && !canWrite ? '\nENVIRONMENT: You are in the PRODUCTION environment. Task modifications (create, update, delete) are available to admins only. If the user asks you to modify a task, tell them: "Task management is available to admins. You can view and query your backlog."' : ''}
 ${ctx.currentUser ? `\nUSER CONTEXT: You are talking to ${ctx.currentUser.email} (Role: ${ctx.currentUser.roles?.name || 'Unknown'}).` : ''}
 
 ${ORB_INTEGRITY_RULES}
@@ -144,7 +147,7 @@ ${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.code}] ${k.tit
             stream.update({ speech: accumulatedSpeech, isStreaming: true })
           } else if (chunk.type === 'content_block_start' && chunk.content_block.type === 'tool_use') {
              let label = ORB_TOOL_LABELS[chunk.content_block.name] || 'Thinking...'
-             if (isProd && ['create_todo', 'update_todo', 'delete_todo'].includes(chunk.content_block.name)) {
+             if (isProd && !canWrite && ['create_todo', 'update_todo', 'delete_todo'].includes(chunk.content_block.name)) {
                  label = 'Operation not allowed'
              }
              stream.update({ speech: accumulatedSpeech, thought: label, isStreaming: true })
@@ -168,12 +171,11 @@ ${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.code}] ${k.tit
 
         const toolOutputs: any[] = []
         for (const tc of toolCalls) {
-          const isProd = process.env.NODE_ENV === 'production'
           const input = JSON.parse(tc.input)
           let output: any
 
-          if (isProd && ['create_todo', 'update_todo', 'delete_todo'].includes(tc.name)) {
-            output = { error: 'I am in read-only mode. Tell the user "This operation is not allowed."' }
+          if (isProd && !canWrite && ['create_todo', 'update_todo', 'delete_todo'].includes(tc.name)) {
+            output = { error: 'Task management is available to admins only. Tell the user they can view and query their backlog.' }
             stream.update({ speech: accumulatedSpeech, thought: 'Operation not allowed' })
           } else if (tc.name === 'create_todo') {
             const product = input.product_code

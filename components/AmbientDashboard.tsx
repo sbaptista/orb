@@ -16,6 +16,7 @@ import DistillModal from './DistillModal'
 import { VERSION } from '@/lib/version'
 import { useToast } from '@/components/ui/Toast'
 import MuralCanvas from './MuralCanvas'
+import HScrollNav from '@/components/ui/HScrollNav'
 
 type Product = { id: string; name: string; code: string | null; description: string | null; created_by: string }
 type Todo    = { id: string; title: string; status: string; priority_value: number | null }
@@ -119,8 +120,6 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const [distillTodo, setDistillTodo]           = useState<{ id: string; productId: string; title: string; suggestion: { title: string; content: string } } | null>(null)
     const [isInputFocused, setIsInputFocused]     = useState(false)
     const [isMobile, setIsMobile]                 = useState(false)
-    const [canScrollLeft, setCanScrollLeft]       = useState(false)
-    const [canScrollRight, setCanScrollRight]     = useState(false)
     const [userName, setUserName]                 = useState<string>('')
     const [userFullName, setUserFullName]         = useState<string>('')
 
@@ -269,19 +268,6 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const displayProductsRef = useRef(displayProducts)
     displayProductsRef.current = displayProducts
 
-    function updateProjectScrollState() {
-        const el = projectScrollRef.current
-        if (!el) return
-        setCanScrollLeft(el.scrollLeft > 2)
-        setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2)
-    }
-
-    function scrollProjects(dir: 'left' | 'right') {
-        const el = projectScrollRef.current
-        if (!el) return
-        el.scrollBy({ left: dir === 'left' ? -120 : 120, behavior: 'smooth' })
-    }
-
     // Auto-scroll to end when a project is added
     useEffect(() => {
         const el = projectScrollRef.current
@@ -289,7 +275,6 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
             el.scrollLeft = el.scrollWidth
         }
         prevDisplayProductLen.current = displayProducts.length
-        updateProjectScrollState()
     }, [displayProducts.length])
 
     const fetchTodos = useCallback(async () => {
@@ -771,24 +756,10 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                         <div className="dash-strip">
                             <div className="dash-strip-inner" style={displayProducts.length === 0 ? { justifyContent: 'center' } : undefined}>
                                 {displayProducts.length > 0 && (
-                                    <div className="dash-strip-scroll-wrap">
-                                        {canScrollLeft && (
-                                            <div className="dash-scroll-anchor dash-scroll-anchor-left">
-                                                <button
-                                                    type="button"
-                                                    className="scroll-arrow"
-                                                    onClick={() => scrollProjects('left')}
-                                                    aria-label="Scroll left"
-                                                >
-                                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                                        <path d="M15 18l-6-6 6-6"/>
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        )}
+                                    <HScrollNav scrollRef={projectScrollRef as React.RefObject<HTMLElement>}>
                                         <div
                                             ref={projectScrollRef}
-                                            onScroll={updateProjectScrollState}
+                                            onScroll={() => {}}
                                             className="dash-strip-scroll"
                                         >
                                             {displayProducts.map(p => (
@@ -817,21 +788,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                                                 </div>
                                             ))}
                                         </div>
-                                        {canScrollRight && (
-                                            <div className="dash-scroll-anchor dash-scroll-anchor-right">
-                                                <button
-                                                    type="button"
-                                                    className="scroll-arrow"
-                                                    onClick={() => scrollProjects('right')}
-                                                    aria-label="Scroll right"
-                                                >
-                                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                                        <path d="M9 18l6-6-6-6"/>
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
+                                    </HScrollNav>
                                 )}
                                 <div className="dash-strip-actions">
 

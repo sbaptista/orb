@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.4.45
+- **Version:** see `/Users/stanleybaptista/Projects/orb/package.json` (canonical)
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,7 +16,28 @@
 
 ## Last Session Completed
 
-**Settings stabilization, security hardening, Account page separation — v0.4.45**
+**Mobile layout, reusable components — v0.4.56 → v0.4.59**
+
+### Mobile Layout Fixes (v0.4.56–57)
+- Added a dedicated `viewport` export to `app/layout.tsx` to force `device-width` on mobile devices. Removed deprecated `themeColor` from `metadata`.
+- Moved `@media (max-width: 767px)` block in `app/globals.css` to the absolute bottom of the file to ensure source-order overrides work correctly.
+- Removed the absolute-positioned "Settings" title from `SettingsTopbar.tsx` (eliminated breadcrumb overlap on all platforms). Breadcrumb strip is now `position: sticky; top: 0`.
+- Moved sidebar width management from React inline styles into CSS (`.cs-sidebar { width: 220px }`, `.cs-sidebar[data-collapsed] { width: 48px }`) to remove specificity conflicts with mobile overrides.
+- Settings sidebar on iPhone now correctly switches to a full-width horizontal scroll strip (v0.4.57).
+
+### Horizontal Scroll Arrows (v0.4.58)
+- Added scroll-indicator arrows + gradient edge fades to `CollapsibleSidebar`. Arrows appear/disappear based on actual scroll position via `ResizeObserver`.
+
+### Reusable UI Components (v0.4.59)
+Extracted two shared components into `components/ui/`:
+
+- **`Breadcrumbs.tsx`** — Auto-derives breadcrumbs from `usePathname()`. Supports root override and `BreadcrumbOverridesProvider`. Breadcrumb links now correctly display with underlines (fixed `.sl-back { text-decoration: underline }` in CSS).
+- **`HScrollNav.tsx`** — Horizontal scroll container with left/right arrow buttons and gradient fade edges. Uses `cs-scroll-arrow` CSS by default; accepts `className` for per-callsite overrides. Accepts optional `scrollRef` for parent-managed scroll containers.
+
+Consumers migrated:
+- `CollapsibleSidebar.tsx` — all scroll logic removed, delegates to `<HScrollNav>`
+- `SettingsTopbar.tsx` — reduced to 8 lines, wraps `<Breadcrumbs />`
+- `AmbientDashboard.tsx` — project strip uses `<HScrollNav scrollRef={projectScrollRef}>`. Removed `canScrollLeft`, `canScrollRight`, `updateProjectScrollState`, `scrollProjects`.
 
 ### Security — RLS owner-only policies
 - Stripped all admin bypass from RLS policies (`scripts/migrations/20260513_rls_owner_only_select.sql` — already executed). Dashboard now only shows own data for all roles.
@@ -72,7 +93,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-05-13 — Claude Code (Anthropic Claude Opus 4.6)`
+`2026-05-13 — Claude Code (Anthropic Claude Sonnet 4.6)`
 
 ---
 

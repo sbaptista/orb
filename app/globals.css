@@ -257,95 +257,7 @@ a, button, [role="button"], input, select, textarea {
   .content-container { padding: 0 var(--sp-md); }
 }
 
-/* ══════════════════════════════════════════════════════════
-   SETTINGS — PHONE LAYOUT (≤ 767px)
-   ══════════════════════════════════════════════════════════ */
 
-@media (max-width: 767px) {
-  .settings-shell {
-    flex-direction: column !important;
-  }
-
-  .cs-sidebar {
-    width: 100% !important;
-    border-right: none !important;
-    border-bottom: 1px solid var(--text2);
-    flex-direction: row !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .cs-header {
-    display: none !important;
-  }
-
-  .cs-nav {
-    display: flex !important;
-    flex-direction: row !important;
-    padding: 8px !important;
-    gap: 6px;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .cs-item {
-    border: none !important;
-    padding: 6px 10px !important;
-    margin: 0 !important;
-    border-radius: 7px !important;
-    background: var(--bg) !important;
-    white-space: nowrap;
-    justify-content: center !important;
-    font-size: var(--fs-xs) !important;
-    flex-shrink: 0 !important;
-    width: auto !important;
-    gap: 4px !important;
-  }
-
-  .cs-item[aria-current="page"] {
-    background: var(--pill-active-bg) !important;
-    color: var(--pill-active-color) !important;
-  }
-
-  .sl-title {
-    display: none !important;
-  }
-
-  .settings-page {
-    padding: var(--sp-lg) !important;
-  }
-
-  .settings-grid-2col {
-    grid-template-columns: 1fr !important;
-  }
-
-  .settings-card-row {
-    flex-direction: column !important;
-    align-items: stretch !important;
-  }
-
-  .settings-card-actions {
-    flex-shrink: 1 !important;
-    align-self: flex-start;
-  }
-
-  .settings-list-row {
-    flex-wrap: wrap;
-    gap: var(--sp-sm) !important;
-    padding: var(--sp-md) var(--sp-md) !important;
-  }
-
-  .settings-list-row .settings-row-actions {
-    width: 100%;
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--sp-sm);
-    padding-top: var(--sp-xs);
-    border-top: 1px solid var(--border);
-    margin-top: var(--sp-xs);
-  }
-}
 
 /* ══════════════════════════════════════════════════════════
    FORM INPUTS
@@ -2354,6 +2266,7 @@ a, button, [role="button"], input, select, textarea {
 /* ── Collapsible sidebar (`.cs-*`) ── */
 
 .cs-sidebar {
+  width: 220px;
   transition: width 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   border-right: 1px solid var(--border);
   display: flex;
@@ -2361,6 +2274,10 @@ a, button, [role="button"], input, select, textarea {
   flex-shrink: 0;
   overflow: hidden;
   background: var(--bg2);
+}
+
+.cs-sidebar[data-collapsed] {
+  width: 48px;
 }
 
 .cs-header {
@@ -2394,6 +2311,17 @@ a, button, [role="button"], input, select, textarea {
 .cs-nav {
   flex: 1;
   padding: 8px 0;
+}
+
+.cs-nav-wrap {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+}
+
+/* Hidden on desktop; shown on mobile only */
+.cs-scroll-arrow {
+  display: none;
 }
 
 .cs-item {
@@ -2619,7 +2547,7 @@ a, button, [role="button"], input, select, textarea {
 .sl-back {
   font-size: var(--fs-sm);
   color: var(--muted);
-  text-decoration: none;
+  text-decoration: underline;
   white-space: nowrap;
 }
 
@@ -2642,4 +2570,132 @@ a, button, [role="button"], input, select, textarea {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
+}
+
+/* ══════════════════════════════════════════════════════════
+   SETTINGS — PHONE LAYOUT (≤ 767px)
+   ══════════════════════════════════════════════════════════ */
+
+@media (max-width: 767px) {
+  .settings-shell {
+    flex-direction: column !important;
+  }
+
+  .cs-sidebar {
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--text2);
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .cs-header {
+    display: none !important;
+  }
+
+  .cs-nav {
+    display: flex !important;
+    flex-direction: row !important;
+    padding: 8px !important;
+    gap: 6px;
+    scrollbar-width: none;
+  }
+
+  .cs-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .cs-nav-wrap {
+    overflow: hidden;
+  }
+
+  .cs-scroll-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 44px;
+    z-index: 10;
+    border: none;
+    cursor: pointer;
+    font-size: 26px;
+    font-weight: 300;
+    color: var(--text2);
+    padding: 0;
+    line-height: 1;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity 0.15s;
+  }
+
+  .cs-scroll-arrow-left {
+    left: 0;
+    background: linear-gradient(to right, var(--bg2) 45%, transparent 100%);
+  }
+
+  .cs-scroll-arrow-right {
+    right: 0;
+    background: linear-gradient(to left, var(--bg2) 45%, transparent 100%);
+  }
+
+  .cs-item {
+    border: none !important;
+    padding: 6px 10px !important;
+    margin: 0 !important;
+    border-radius: 7px !important;
+    background: var(--bg) !important;
+    white-space: nowrap;
+    justify-content: center !important;
+    font-size: var(--fs-xs) !important;
+    flex-shrink: 0 !important;
+    width: auto !important;
+    gap: 4px !important;
+  }
+
+  .cs-item[aria-current="page"] {
+    background: var(--pill-active-bg) !important;
+    color: var(--pill-active-color) !important;
+  }
+
+  .sl-title {
+    display: none !important;
+  }
+
+  .settings-page {
+    padding: var(--sp-lg) !important;
+  }
+
+  .settings-grid-2col {
+    grid-template-columns: 1fr !important;
+  }
+
+  .settings-card-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .settings-card-actions {
+    flex-shrink: 1 !important;
+    align-self: flex-start;
+  }
+
+  .settings-list-row {
+    flex-wrap: wrap;
+    gap: var(--sp-sm) !important;
+    padding: var(--sp-md) var(--sp-md) !important;
+  }
+
+  .settings-list-row .settings-row-actions {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--sp-sm);
+    padding-top: var(--sp-xs);
+    border-top: 1px solid var(--border);
+    margin-top: var(--sp-xs);
+  }
 }

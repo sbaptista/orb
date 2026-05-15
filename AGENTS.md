@@ -1,6 +1,6 @@
 ## Comprehension Check — Answer all questions below verbatim before any other response:
 
-1. Open package.json and return the exact "version" string.
+1. Return the exact "version" string from `/Users/stanleybaptista/Projects/orb/package.json` (the main directory — always canonical). If you are running in a worktree or isolated environment, also report your local `package.json` version and note any difference.
 2. What port does the dev server run on?
 3. What is the ORB API base URL and how is it authenticated?
 4. Where are resolution notes written and what else must be created when closing a todo?
@@ -40,7 +40,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 3. **Stan sets the pace.**
 4. **Schema-first.** Query `information_schema.columns` before writing any insert code.
 5. **Every local change gets a version bump — no exceptions.** Git pushes bundle several versions. The dev server always shows the current local version so Stan can confirm changes loaded.
-6. **Handoff is written silently to `~/Downloads/`. No narration about the act of writing it.**
+6. **Handoff lives in the main directory as `HANDOFF.md`.** Updated silently — no narration about the act of writing it.
 7. **Localhost-first development.** All implementation and testing on `localhost:3001`.
 8. **Every new form field gets a deliberate label and placeholder text at build time — not deferred.**
 9. **Closing a todo means writing `resolution_notes` AND creating a Knowledge Repo entry — always both.**
@@ -132,9 +132,9 @@ These rules are non-negotiable. They override convenience, speed, and user-pleas
 
 ## At session start
 
-1. **Read both files:**
-   - `AGENTS.md` → understand the system
-   - `HANDOFF.md` → understand current state
+1. **Read both files from the main directory:**
+   - `/Users/stanleybaptista/Projects/orb/AGENTS.md` → understand the system
+   - `/Users/stanleybaptista/Projects/orb/HANDOFF.md` → understand current state
 
 2. **Answer the comprehension check** (already at top of AGENTS.md)
 
@@ -148,7 +148,7 @@ These rules are non-negotiable. They override convenience, speed, and user-pleas
 
 When Stan asks "update the handoff" OR at natural session end:
 
-1. **Update HANDOFF.md** with:
+1. **Update `/Users/stanleybaptista/Projects/orb/HANDOFF.md`** with:
    - Current version (if bumped)
    - Complete list of uncommitted changes (file-by-file)
    - "Last Session Completed" — what was done this session (replaces prior)
@@ -180,19 +180,17 @@ Version bumps happen on every local change — no exceptions. Git pushes only ha
 
 **Bump protocol:** AI only bumps the patch (third node, e.g. `0.3.2→0.3.3`). Stan explicitly indicates when to bump minor (middle) or major (top) nodes.
 
-## Worktree Patching (Claude Code Desktop)
+## Working Directory
 
-The Claude Code desktop app runs every session in an isolated git worktree (`.claude/worktrees/<name>`). Changes made here are invisible to the dev server on `localhost:3001`, which runs against the main working directory.
+The source of truth is always `/Users/stanleybaptista/Projects/orb/` (the **main directory**). All AI tools — regardless of how they operate — must read and write files there.
 
-**Before asking Stan to test**, patch main:
+- **Direct-edit tools** (Gemini CLI, Antigravity) edit the main directory natively. No extra steps needed.
+- **Worktree-based tools** (Claude Code Desktop) run in an isolated copy (`.claude/worktrees/<name>`). Files there may be behind the main directory. Before asking Stan to test, patch main:
+  ```bash
+  git diff > /tmp/orb-patch.patch && git -C /Users/stanleybaptista/Projects/orb apply /tmp/orb-patch.patch
+  ```
 
-```bash
-git diff > /tmp/orb-patch.patch && git -C /Users/stanleybaptista/Projects/orb apply /tmp/orb-patch.patch
-```
-
-**At commit time**, Stan commits from the main directory — not the worktree.
-
-Other AI tools (Gemini CLI, etc.) edit main directly and do not need this step.
+**At commit time**, Stan commits from the main directory — always.
 
 ---
 
@@ -368,19 +366,16 @@ curl -s "https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/projects?select=id,nam
 
 # Handoff File Conventions
 
-Handoff files live in `~/Downloads/` with naming pattern `orb-handoff-YYYYMMDD[N].md` where `[N]` is a letter suffix (a, b, c...). Find the latest:
+The handoff is `/Users/stanleybaptista/Projects/orb/HANDOFF.md` — a single living file in the repo root, committed with each session's code changes.
 
-```bash
-ls ~/Downloads/orb-handoff-*.md
-```
+It contains:
+- App state (branch, dev server status)
+- Last session completed work + uncommitted changes
+- Key decisions
+- Next priorities
+- AI tool used last session
 
-The handoff is the session onboarding document. It contains:
-- 8 comprehension questions (AI must answer to prove it read the file)
-- Current session completed work + uncommitted changes
-- App state (version, branch, dev server status)
-- Open backlog (fetch-live instruction — never list inline)
-
-Everything else (rules, APIs, roles, localhost setup) is in this file (`AGENTS.md`). Do not duplicate it in the handoff.
+The version is not tracked in HANDOFF.md — `package.json` in the main directory is always canonical. Everything else (rules, APIs, roles, localhost setup) is in this file (`AGENTS.md`). Do not duplicate it in the handoff.
 
 ---
 

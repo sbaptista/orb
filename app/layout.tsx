@@ -19,7 +19,13 @@ const cormorant = Cormorant_Garamond({
 
 export const metadata: Metadata = {
   title: 'Orb',
+}
+
+export const viewport = {
   themeColor: '#d4e4d4',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

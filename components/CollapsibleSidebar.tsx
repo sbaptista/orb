@@ -3,6 +3,7 @@
 import NavLink from '@/components/settings/NavLink'
 import { useState } from 'react'
 import { VERSION } from '@/lib/version'
+import HScrollNav from '@/components/ui/HScrollNav'
 
 export type SidebarItem = {
   id: string
@@ -20,7 +21,7 @@ export default function CollapsibleSidebar({ items, defaultOpen = true }: Props)
   const [open, setOpen] = useState(defaultOpen)
 
   return (
-    <div className="cs-sidebar" style={{ width: open ? '220px' : '48px' }} {...(!open ? { 'data-collapsed': '' } : {})}>
+    <div className="cs-sidebar" {...(!open ? { 'data-collapsed': '' } : {})}>
       <div className="cs-header">
         <button
           onClick={() => setOpen(o => !o)}
@@ -38,28 +39,30 @@ export default function CollapsibleSidebar({ items, defaultOpen = true }: Props)
         {open && <span className="cs-version">Orb {VERSION}</span>}
       </div>
 
-      <nav className="cs-nav">
-        {items.map(item => {
-          const inner = (
-            <>
-              <span className="cs-icon">{item.icon}</span>
-              {open && item.label}
-            </>
-          )
-          if (item.href) {
-            return (
-              <NavLink key={item.id} href={item.href} className="cs-item" aria-current={item.active ? 'page' : undefined}>
-                {inner}
-              </NavLink>
+      <HScrollNav>
+        <nav className="cs-nav">
+          {items.map(item => {
+            const inner = (
+              <>
+                <span className="cs-icon">{item.icon}</span>
+                {open && item.label}
+              </>
             )
-          }
-          return (
-            <button key={item.id} onClick={item.onClick} className="cs-item" aria-current={item.active ? 'page' : undefined}>
-              {inner}
-            </button>
-          )
-        })}
-      </nav>
+            if (item.href) {
+              return (
+                <NavLink key={item.id} href={item.href} className="cs-item" aria-current={item.active ? 'page' : undefined}>
+                  {inner}
+                </NavLink>
+              )
+            }
+            return (
+              <button key={item.id} onClick={item.onClick} className="cs-item" aria-current={item.active ? 'page' : undefined}>
+                {inner}
+              </button>
+            )
+          })}
+        </nav>
+      </HScrollNav>
     </div>
   )
 }
