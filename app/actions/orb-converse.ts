@@ -128,7 +128,7 @@ ${ctx.currentUser ? `\nUSER CONTEXT: You are talking to ${ctx.currentUser.email}
 ${ORB_INTEGRITY_RULES}
 
 VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}
-SCOPE: ${req.scopeToProduct ? `Scoped to ${ctx.current?.code ?? ctx.current?.name}. Only discuss or query this project's todos unless the user explicitly asks about another project or says "all".` : 'All projects visible.'}
+SCOPE: ${req.scopeToProduct ? `Scoped to ${ctx.current?.code ?? ctx.current?.name}. Only discuss or query this project's todos unless the user explicitly asks about another project or says "all". IMPORTANT: When creating a todo, ALWAYS pass product_code="${ctx.current?.code}" explicitly — never omit it.` : 'All projects visible.'}
 BACKLOG:
 ${ctx.contextString}
 
@@ -184,6 +184,9 @@ ${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.code}] ${k.tit
             output = { error: 'Task management is available to admins only. Tell the user they can view and query their backlog.' }
             stream.update({ speech: accumulatedSpeech, thought: 'Operation not allowed' })
           } else if (tc.name === 'create_todo') {
+            if (!input.product_code && req.scopeToProduct) {
+              console.warn('[orbConverse] create_todo called without product_code while scoped to', ctx.current?.code, '— falling back to scoped project')
+            }
             const product = input.product_code
               ? ctx.productList.find((p: any) => p.code?.toUpperCase() === String(input.product_code).toUpperCase())
               : ctx.productList.find((p: any) => p.id === req.productId)

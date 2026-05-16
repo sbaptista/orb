@@ -13,22 +13,24 @@ export async function getUserDetail(targetUserId: string) {
 
   const admin = createAdminClient()
 
-  const { data: requester } = await admin
+  const { data: requester, error: reqErr } = await admin
     .from('users')
     .select('role_id')
     .eq('id', user.id)
     .single()
 
+  if (reqErr) console.error('[getUserDetail] requester lookup failed:', { userId: user.id, code: reqErr.code, message: reqErr.message })
   if (!requester || !ADMIN_ROLE_IDS.includes(requester.role_id)) {
     return { error: 'Admin access required', profile: null }
   }
 
-  const { data: target } = await admin
+  const { data: target, error: targetErr } = await admin
     .from('users')
     .select('first_name, last_name, email, role_id')
     .eq('id', targetUserId)
     .single()
 
+  if (targetErr) console.error('[getUserDetail] target lookup failed:', { targetUserId, code: targetErr.code, message: targetErr.message })
   if (!target) return { error: 'User not found', profile: null }
 
   if (target.role_id === SUPER_ADMIN_ROLE_ID && requester.role_id !== SUPER_ADMIN_ROLE_ID) {
@@ -45,22 +47,24 @@ export async function getUserProjects(targetUserId: string) {
 
   const admin = createAdminClient()
 
-  const { data: requester } = await admin
+  const { data: requester, error: reqErr } = await admin
     .from('users')
     .select('role_id')
     .eq('id', user.id)
     .single()
 
+  if (reqErr) console.error('[getUserProjects] requester lookup failed:', { userId: user.id, code: reqErr.code, message: reqErr.message })
   if (!requester || !ADMIN_ROLE_IDS.includes(requester.role_id)) {
     return { error: 'Admin access required', projects: [], todoCounts: {} }
   }
 
-  const { data: target } = await admin
+  const { data: target, error: targetErr } = await admin
     .from('users')
     .select('role_id')
     .eq('id', targetUserId)
     .single()
 
+  if (targetErr) console.error('[getUserProjects] target lookup failed:', { targetUserId, code: targetErr.code, message: targetErr.message })
   if (!target) return { error: 'User not found', projects: [], todoCounts: {} }
 
   if (target.role_id === SUPER_ADMIN_ROLE_ID && requester.role_id !== SUPER_ADMIN_ROLE_ID) {
@@ -90,29 +94,33 @@ export async function getProjectTodos(projectId: string) {
 
   const admin = createAdminClient()
 
-  const { data: requester } = await admin
+  const { data: requester, error: reqErr } = await admin
     .from('users')
     .select('role_id')
     .eq('id', user.id)
     .single()
 
+  if (reqErr) console.error('[getProjectTodos] requester lookup failed:', { userId: user.id, code: reqErr.code, message: reqErr.message })
   if (!requester || !ADMIN_ROLE_IDS.includes(requester.role_id)) {
     return { error: 'Admin access required', project: null, todos: [], statuses: [], priorities: [] }
   }
 
-  const { data: project } = await admin
+  const { data: project, error: projErr } = await admin
     .from('projects')
     .select('id, name, created_by')
     .eq('id', projectId)
     .single()
 
+  if (projErr) console.error('[getProjectTodos] project lookup failed:', { projectId, code: projErr.code, message: projErr.message })
   if (!project) return { error: 'Project not found', project: null, todos: [], statuses: [], priorities: [] }
 
-  const { data: owner } = await admin
+  const { data: owner, error: ownerErr } = await admin
     .from('users')
     .select('role_id')
     .eq('id', project.created_by)
     .single()
+
+  if (ownerErr) console.error('[getProjectTodos] owner lookup failed:', { ownerId: project.created_by, code: ownerErr.code, message: ownerErr.message })
 
   if (owner?.role_id === SUPER_ADMIN_ROLE_ID && requester.role_id !== SUPER_ADMIN_ROLE_ID) {
     return { error: 'Access denied', project: null, todos: [], statuses: [], priorities: [] }
