@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** see `/Users/stanleybaptista/Projects/orb/package.json` (canonical - currently v0.4.75)
+- **Version:** see `/Users/stanleybaptista/Projects/orb/package.json` (canonical - currently v0.4.76)
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,47 +16,63 @@
 
 ## Last Session Completed
 
-**Pre-Alpha Launch Planning, SMTP Configuration, User Details Release Program, and Onboarding Hardening — v0.4.75**
+**ORB-105 — UI Polish, Project Owner Support, Interactive Sorting, & Dynamic Redirects — 2026-05-17**
 
-### ORB-98 — Pre-Alpha Launch Planning (Phase 1 & 2 complete, Phase 3 in progress)
+### UI & UX Refinements
+- **User Dialogue Bubbles Left-Aligned:** In [OrbConversation.tsx](file:///Users/stanleybaptista/Projects/orb/components/OrbConversation.tsx), changed user dialogue card alignment from right (`flex-end`) to left (`flex-start`) to dramatically optimize reading flow on mobile devices.
+- **Clamped Email Column:** In [SettingsUsers.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsUsers.tsx), added text truncation and CSS clamping (`minWidth: 0` + `truncate` class) to keep long email addresses from pushing boundaries or causing layout overflows on narrow viewports.
 
-#### Invite & Onboarding Overhaul (v0.4.75)
-- **Email Delivery Integration:** Upgraded `inviteUser` action to use `supabase.auth.admin.inviteUserByEmail()`, firing real email invites via Resend custom SMTP instead of silent background account creation.
-- **Server-Side Onboarding (`completeOnboarding`):** Built [complete-onboarding.ts](file:///Users/stanleybaptista/Projects/orb/app/actions/complete-onboarding.ts) server action utilizing the Admin Client to bypass client-side RLS. It proactively sweeps and deletes any stale ghost records in `public.users` matching the invited email before performing a clean `upsert` of the new credentials. Wired [page.tsx](file:///Users/stanleybaptista/Projects/orb/app/auth/create-account/page.tsx) to consume this action.
-- **Hard-Delete Actions:** Upgraded [delete-user.ts](file:///Users/stanleybaptista/Projects/orb/app/actions/delete-user.ts) to execute a clean hard-delete on both the `public.users` database table and Supabase Auth. Wipes all traces of deleted testers, completely eliminating the "user already exists" invite trap.
+### Project Owner / User ID Support
+- **Backend update:** Modified the `updateProject` Server Action in [manage-project.ts](file:///Users/stanleybaptista/Projects/orb/app/actions/manage-project.ts) to accept `created_by?: string | null` in the payload parameter.
+- **CRUD resolved with listUsers:** Re-engineered [SettingsProjects.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsProjects.tsx) to fetch the full list of system users and map the `created_by` owner UUID to the user's full name or email address inside the Projects grid.
+- **Owner Select Menu:** Populated a beautifully integrated, dynamic select dropdown in the Add/Edit Project form to let admins assign and edit project ownership.
 
-#### Admin Panels & Dashboard Upgrades
-- **Settings Columns Alignment:** Realigned columns in [SettingsUsers.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsUsers.tsx) by wrapping the Role Select and Action Button sections in fixed-width containers (`130px` and `220px` respectively) to maintain a perfect, clean table alignment regardless of row actions.
-- **User Detail Release Program Selector:** Upgraded [SettingsUserDetail.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsUserDetail.tsx) and [get-user-detail.ts](file:///Users/stanleybaptista/Projects/orb/app/actions/get-user-detail.ts) to render an interactive "Release Program" panel. Allows admins to assign, modify, or revoke release stages (`pre-alpha`, `alpha`, `beta`) and displays the cohort enrollment dates.
-- **Reinstated Project Configuration:** Re-established the Project Settings page at `/settings/projects` using `SettingsCrudList` to allow admins to create new projects and check their "Shared" column status. Restored the Projects route in the sidebar navigation.
-- **Ambient Onboarding welcome flow:** Integrated onboardingwelcome hints and slash command autocomplete list (`/?`, `/tasks`, `/projects`, `/clear`) inside [AmbientDashboard.tsx](file:///Users/stanleybaptista/Projects/orb/components/AmbientDashboard.tsx) and [OrbConversation.tsx](file:///Users/stanleybaptista/Projects/orb/components/OrbConversation.tsx).
+### Interactive Invitations Column Sorting
+- **Table sorting upgrade:** Upgraded [SettingsInvitations.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsInvitations.tsx) to support complete client-side sorting of invitations.
+- **Column triggers:** Users can interactively sort invitations by Date, Email, Release Stage, Status, or Responded Date. Columns display active sort status indicators (`▲`/`▼`/`↕`).
+
+### Bulletproof Client-Side Dynamic Origin Passing
+- **Header bypass:** Solved Next.js local server internal header resolution quirks (e.g. Vercel proxy headers in mixed SSL environments overriding ports/origins) by shifting origin detection to the browser.
+- **Action signature update:** Modified `inviteUser` in [invite-user.ts](file:///Users/stanleybaptista/Projects/orb/app/actions/invite-user.ts) to accept `originInput?: string`, and updated [SettingsUsers.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsUsers.tsx) to hard-pass the address bar ground-truth (`window.location.origin`) directly. This guarantees invite redirect links always match your environment.
+- **Reverted Hardcoding:** Reverted all hardcoded `192.168.86.90` testing fallbacks in [email.ts](file:///Users/stanleybaptista/Projects/orb/lib/email.ts) to utilize standard production fallbacks (`https://orb-eight-lake.vercel.app`), as the runtime resolution is now 100% dynamic!
+
+---
+
+## Uncommitted Changes
+
+**Modified:**
+- `components/OrbConversation.tsx` — Left-aligned dialogue bubbles.
+- `components/settings/SettingsUsers.tsx` — Clamped email column, passed browser `window.location.origin` to `inviteUser`.
+- `components/settings/SettingsProjects.tsx` — Added User list fetching, Owner column, and Owner dropdown select.
+- `components/settings/SettingsInvitations.tsx` — Interactive column sorting with indicators.
+- `app/actions/manage-project.ts` — Added `created_by` updating in `updateProject` payload.
+- `app/actions/invite-user.ts` — Added dynamic `originInput` support and console logging statements.
+- `lib/email.ts` — Reverted default Site URL fallback to production.
 
 ---
 
 ## Key Decisions
 
-- **Two-layer security model:** RLS for dashboard (owner-only at DB level), server actions for Settings (role-based admin access via `createAdminClient()`).
-- **Production SMTP & Domain Authentication:** Connecting custom SMTP with a verified domain (like `stanbaptista.me`) is necessary to bypass sandbox subaddress blocks (like `+suffix` Gmail filters) in Resend.
-- **Server Action for Onboarding:** The `/auth/create-account` signup page must use a server action running on the server under admin privileges (`createAdminClient()`) to successfully delete old ghost rows. Client-side deletes violate RLS and silently fail.
-- **User Hard Delete:** Admins deleting a user in the UI triggers a clean hard-delete in both the database `public.users` table AND Supabase Auth, completely avoiding "ghost user" re-invite traps.
-- **Settings is for administration, not task management.** Todo CRUD removed from Settings; project todos are view-only. Use the Todos page for mutations.
-- **Account is not a Settings page.** It's a standalone page accessible from the dashboard user button.
-- **Product codes are required.** The conversational AI resolves todos by splitting task codes (e.g., `ORB-73`). Null codes break this.
-- **Status names are DB-driven.** The `statuses` table is the single source of truth. Code uses `is_open`/`is_closed` flags, never hardcoded status strings. FK with `ON UPDATE CASCADE` ensures renames propagate automatically.
+- **Client-Passed Origin:** Passing the address bar's literal `window.location.origin` as a parameter to Server Actions is far more robust than relying on Server-side HTTP headers (`headers().get('host')`) in local SSL development with Next.js, as internal scoping/proxies frequently mismatch ports.
+- **onboarded_at is the welcome gate:** Keeps the first-time user dashboard locked to onboarding until welcome submit.
+- **PKCE vs Implicit Flow redirects:** Supabase admin-generated verification links use Implicit flow (returning tokens in browser hash `#access_token=...`). If implicit flow token verification is parsed by the client SDK on `/auth/login`, ensure a dev-server restart and hard-reload is triggered to clear Next.js's route cache.
 
 ---
 
 ## Next Priorities
 
-1. **PWA Mobile Device Testing:** Verify standalone installation mode and first-run scaling on real devices (iOS/Android) once the pre-alpha invite link is clicked.
-2. **Draft Tester Invite Copy:** Finalize the drafted invite email containing PWA setup instructions, first-run tips, and instructions on logging bugs into the newly created shared "Orb Feedback" project.
-3. **Trigger Pre-Alpha cohort invite** to the 2 participants.
+1. **Verify Local Invite Link Routing:**
+   * Restart the local server (`npm run dev`) and force a browser hard refresh (`Cmd + Shift + R`) on the local settings page (`https://192.168.86.90:3001/settings/users`).
+   * Delete test user `stan.baptista+t1@gmail.com` from the Supabase dashboard.
+   * Send a fresh invitation, look at the terminal console for `[inviteUser] origin resolved to: https://192.168.86.90:3001`, and click the email link.
+   * Verify it routes smoothly to `https://192.168.86.90:3001/auth/callback`.
+2. **ORB-98 Phase 4:** Send invites (May 18 target), passive monitoring, Week 1 retro (May 25).
 
 ---
 
 ## AI Tool Used Last Session
 
-`2026-05-16 — Antigravity (Gemini 1.5 Pro)`
+`2026-05-17 — Gemini (Antigravity)`
 
 ---
 

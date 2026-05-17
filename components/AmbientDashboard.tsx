@@ -168,17 +168,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
         }
     }, [])
 
-    // Detect new user: no prior conversation, no products, welcome not yet dismissed
     const WELCOME_KEY = 'todos_welcome_shown'
-    useEffect(() => {
-        const alreadyShown = localStorage.getItem(WELCOME_KEY)
-        if (alreadyShown) return
-        const hasSavedConvo = !!sessionStorage.getItem(SS_CONVERSATION)
-        if (hasSavedConvo) return
-        // Mark new user — show welcome once products load (handled below)
-        setIsNewUser(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
 
     // Persist conversation to sessionStorage
     useEffect(() => {
@@ -249,22 +239,28 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
 
 
 
-    // Fetch current user's name for user button
+    // Fetch current user's profile + onboarding state
     useEffect(() => {
         async function load() {
             const { data: { user } } = await supabase.auth.getUser()
             if (user) {
                 const { data: profile } = await supabase
                     .from('users')
-                    .select('first_name, last_name')
+                    .select('first_name, last_name, onboarded_at')
                     .eq('id', user.id)
                     .single()
                 if (profile) {
                     const full = [profile.first_name, profile.last_name].filter(Boolean).join(' ')
                     setUserName(full || (user.email ?? ''))
                     setUserFullName(full)
+                    if (!profile.onboarded_at && !localStorage.getItem(WELCOME_KEY)) {
+                        setIsNewUser(true)
+                    }
                 } else {
                     setUserName(user.email?.charAt(0).toUpperCase() ?? '?')
+                    if (!localStorage.getItem(WELCOME_KEY)) {
+                        setIsNewUser(true)
+                    }
                 }
             }
         }
@@ -405,6 +401,12 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
         setIsNewUser(false)
         setInput('')
         sessionStorage.removeItem(SS_INPUT)
+        // Mark onboarding complete in DB
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            if (user) {
+                supabase.from('users').update({ onboarded_at: new Date().toISOString() }).eq('id', user.id).then(() => {})
+            }
+        })
         setMessages(prev => [
             ...prev,
             { id: genId(), type: 'user', text },

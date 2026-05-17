@@ -8,6 +8,7 @@ const NAV: SidebarItem[] = [
   { id: 'statuses',   href: '/settings/statuses',   label: 'Statuses',   icon: '◪', active: false },
   { id: 'projects',   href: '/settings/projects',   label: 'Projects',   icon: '◈', active: false },
   { id: 'users',      href: '/settings/users',      label: 'Users',      icon: '◎', active: false },
+  { id: 'invitations', href: '/settings/invitations', label: 'Invitations', icon: '✉', active: false },
   { id: 'tickets',    href: '/settings/tickets',    label: 'Tickets',    icon: '⚠', active: false },
   { id: 'data',       href: '/settings/data',       label: 'Data',       icon: '⬡', active: false },
 ]
@@ -15,7 +16,7 @@ const NAV: SidebarItem[] = [
 export default function SettingsSidebar({ isAdmin }: { isAdmin?: boolean }) {
   const pathname = usePathname()
   const items = NAV
-    .filter(item => !(['users', 'tickets', 'projects'].includes(item.id)) || isAdmin)
+    .filter(item => !(['users', 'tickets', 'projects', 'invitations'].includes(item.id)) || isAdmin)
     .map(item => ({ ...item, active: pathname === item.href || pathname.startsWith(item.href + '/') }))
   return <CollapsibleSidebar items={items} />
 }

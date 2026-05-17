@@ -77,6 +77,7 @@ export async function updateProject(id: string, data: {
   color?: string | null
   sort_order?: number
   is_shared?: boolean
+  created_by?: string | null
 }) {
   try {
     await assertAdmin()

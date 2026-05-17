@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
@@ -12,15 +13,46 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error && data.user) {
-      // Check if this user already has a row in our users table
-      const { data: existingUser } = await supabase
+      const admin = createAdminClient()
+
+      // Check for a pending invitation — if found, create user and accept
+      const { data: invitation } = await admin
+        .from('invitations')
+        .select('id, first_name, last_name, role_id')
+        .eq('email', data.user.email!)
+        .eq('status', 'pending')
+        .order('invited_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (invitation) {
+        // Create user record from invitation data (onboarded_at NULL so welcome shows)
+        await admin.from('users').upsert({
+          id: data.user.id,
+          email: data.user.email!,
+          first_name: invitation.first_name,
+          last_name: invitation.last_name,
+          role_id: invitation.role_id ?? 2,
+        })
+
+        // Mark invitation as accepted
+        await admin.from('invitations').update({
+          status: 'accepted',
+          responded_at: new Date().toISOString(),
+        }).eq('id', invitation.id)
+
+        return NextResponse.redirect(`${origin}/dashboard`)
+      }
+
+      // No invitation — check if user already exists
+      const { data: existingUser } = await admin
         .from('users')
         .select('id')
         .eq('id', data.user.id)
         .single()
 
       if (!existingUser) {
-        // New user — send to create-account to collect first + last name
+        // New user without invitation — send to create-account
         return NextResponse.redirect(`${origin}/auth/create-account`)
       }
 

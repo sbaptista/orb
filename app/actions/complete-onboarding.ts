@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { acceptInvitation } from './invitation-actions'
 
 export async function completeOnboarding(firstName: string, lastName: string) {
   try {
@@ -43,12 +44,15 @@ export async function completeOnboarding(firstName: string, lastName: string) {
         email,
         first_name: firstName,
         last_name: lastName,
+        onboarded_at: new Date().toISOString(),
       })
 
     if (upsertError) {
       console.error('[completeOnboarding] Upsert failed:', upsertError)
       return { error: upsertError.message }
     }
+
+    await acceptInvitation(email)
 
     return { ok: true }
   } catch (err: any) {

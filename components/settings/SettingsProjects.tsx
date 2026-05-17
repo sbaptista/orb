@@ -2,6 +2,7 @@
 
 import SettingsCrudList from './SettingsCrudList'
 import { getAdminProjects, createProject, deleteProject, updateProject } from '@/app/actions/manage-project'
+import { listUsers } from '@/app/actions/list-users'
 
 type Project = {
   id: string
@@ -18,9 +19,10 @@ type ProjectForm = {
   code: string
   description: string
   is_shared: boolean
+  ownerId: string
 }
 
-const EMPTY_FORM: ProjectForm = { name: '', code: '', description: '', is_shared: false }
+const EMPTY_FORM: ProjectForm = { name: '', code: '', description: '', is_shared: false, ownerId: '' }
 
 export default function SettingsProjects() {
   return (
@@ -34,16 +36,23 @@ export default function SettingsProjects() {
         layout: 'table',
         subtitle: items => `${items.length} project${items.length !== 1 ? 's' : ''}`,
         tableColumns: [
-          { label: 'Code',        width: '12%' },
-          { label: 'Name',        width: '25%' },
-          { label: 'Description', width: '30%' },
+          { label: 'Code',        width: '10%' },
+          { label: 'Name',        width: '20%' },
+          { label: 'Description', width: '25%' },
+          { label: 'Owner',       width: '17%' },
           { label: 'Shared',      width: '10%', align: 'center' },
-          { label: 'Actions',     width: '23%', align: 'right' },
+          { label: 'Actions',     width: '18%', align: 'right' },
         ],
 
         load: async (_supabase) => {
-          const res = await getAdminProjects()
-          return { items: (res.projects ?? []) as Project[] }
+          const [projectsRes, usersRes] = await Promise.all([
+            getAdminProjects(),
+            listUsers(),
+          ])
+          return {
+            items: (projectsRes.projects ?? []) as Project[],
+            extra: { users: usersRes.users ?? [] },
+          }
         },
 
         validate: (form, items, editingId) => {
@@ -60,6 +69,7 @@ export default function SettingsProjects() {
           code: form.code.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''),
           description: form.description.trim() || null,
           is_shared: form.is_shared,
+          created_by: form.ownerId || null,
         }),
 
         toForm: (item) => ({
@@ -67,6 +77,7 @@ export default function SettingsProjects() {
           code: item.code ?? '',
           description: item.description ?? '',
           is_shared: item.is_shared ?? false,
+          ownerId: item.created_by ?? '',
         }),
 
         getId: (item) => item.id,
@@ -76,6 +87,7 @@ export default function SettingsProjects() {
             name: record.name,
             code: record.code,
             description: record.description ?? null,
+            ownerId: record.created_by,
           })
           if (res.error) throw new Error(res.error)
         },
@@ -89,7 +101,7 @@ export default function SettingsProjects() {
           <>Delete project <strong>{item.name}</strong>? This will also delete all its todos.</>
         ),
 
-        renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving }) => (
+        renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving, extra }) => (
           <div className="s-form" style={{ padding: '12px 16px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
               <div>
@@ -123,6 +135,22 @@ export default function SettingsProjects() {
                 placeholder="Optional description"
               />
             </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label className="label">Owner</label>
+              <select
+                className="input"
+                style={{ width: '100%', padding: '6px var(--sp-sm)', height: '40px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}
+                value={form.ownerId}
+                onChange={e => onChange({ ...form, ownerId: e.target.value })}
+              >
+                <option value="">— Select Owner (defaults to you)</option>
+                {extra.users?.map((u: any) => (
+                  <option key={u.id} value={u.id}>
+                    {[u.first_name, u.last_name].filter(Boolean).join(' ') || u.email}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <input
                 type="checkbox"
@@ -144,7 +172,7 @@ export default function SettingsProjects() {
           </div>
         ),
 
-        renderRow: ({ item, onEdit, onDelete }) => (
+        renderRow: ({ item, onEdit, onDelete, extra }) => (
           <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
             <td className="audit-td" style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text2)', fontSize: '12px' }}>
               {item.code}
@@ -154,6 +182,13 @@ export default function SettingsProjects() {
             </td>
             <td className="audit-td" style={{ color: 'var(--muted)', fontSize: '12px' }}>
               {item.description ?? <span style={{ opacity: 0.4 }}>—</span>}
+            </td>
+            <td className="audit-td" style={{ color: 'var(--text)', fontSize: '12px' }}>
+              {(() => {
+                const owner = extra.users?.find((u: any) => u.id === item.created_by)
+                if (!owner) return <span style={{ opacity: 0.4 }}>—</span>
+                return [owner.first_name, owner.last_name].filter(Boolean).join(' ') || owner.email
+              })()}
             </td>
             <td className="audit-td" style={{ textAlign: 'center' }}>
               {item.is_shared ? (

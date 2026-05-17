@@ -82,6 +82,7 @@ export default function SettingsUsers() {
     const errs: Record<string, string> = {}
     if (!inviteForm.email.trim()) errs.email = 'Email is required'
     if (!inviteForm.firstName.trim()) errs.firstName = 'First name is required'
+    if (!inviteForm.lastName.trim()) errs.lastName = 'Last name is required'
     return errs
   }
 
@@ -95,7 +96,8 @@ export default function SettingsUsers() {
       inviteForm.email.trim(),
       inviteForm.firstName.trim(),
       inviteForm.lastName.trim(),
-      inviteForm.roleId
+      inviteForm.roleId,
+      window.location.origin
     )
     setSaving(false)
     if (err) { setError(err); return }
@@ -192,14 +194,14 @@ export default function SettingsUsers() {
                     style={inputStyle(!!inviteErrors.firstName)}
                   />
                 </FormField>
-                <FormField label="Last Name">
+                <FormField label="Last Name" required error={inviteErrors.lastName}>
                   <input
                     value={inviteForm.lastName}
-                    onChange={e => setInviteForm(f => ({ ...f, lastName: e.target.value }))}
-                    onFocus={e => Object.assign(e.currentTarget.style, inputFocusStyle())}
-                    onBlur={e => Object.assign(e.currentTarget.style, inputStyle())}
+                    onChange={e => { setInviteForm(f => ({ ...f, lastName: e.target.value })); clearInviteError('lastName') }}
+                    onFocus={e => Object.assign(e.currentTarget.style, inputFocusStyle(!!inviteErrors.lastName))}
+                    onBlur={e => Object.assign(e.currentTarget.style, inputStyle(!!inviteErrors.lastName))}
                     placeholder="Last name"
-                    style={inputStyle()}
+                    style={inputStyle(!!inviteErrors.lastName)}
                   />
                 </FormField>
               </div>
@@ -215,12 +217,9 @@ export default function SettingsUsers() {
                 </select>
               </FormField>
             </div>
-            <p className="text-xs text-muted mb-md" style={{ margin: 0 }}>
-              Invitation email delivery is not yet implemented. The user record will be created without sending an email.
-            </p>
             <div className="flex-row gap-sm">
               <button className="btn-primary" onClick={handleInvite} disabled={saving}>
-                {saving ? 'Creating…' : 'Create User'}
+                {saving ? 'Sending…' : 'Send Invitation'}
               </button>
               <button className="btn-cancel" onClick={() => setShowInvite(false)}>Cancel</button>
             </div>
@@ -302,13 +301,13 @@ export default function SettingsUsers() {
               className="settings-list-row s-row"
             >
               <div className="avatar">{avatarLetter}</div>
-              <div className="s-row-info">
+              <div className="s-row-info" style={{ minWidth: 0 }}>
                 <div className="text-sm truncate">
                   <Link href={`/settings/users/${user.id}`} style={{ fontWeight: 600, color: 'var(--pill-active-color)', textDecoration: 'underline', textUnderlineOffset: '3px' }}>
                     {[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}
                   </Link>
                 </div>
-                <div className="text-xs text-muted">{user.email}</div>
+                <div className="text-xs text-muted truncate">{user.email}</div>
               </div>
 
               {/* Role Column with fixed width */}

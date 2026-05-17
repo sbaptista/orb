@@ -6,10 +6,11 @@
 4. What is the handoff naming convention?
 5. Run git status and report whether there are any uncommitted changes.
 6. What AI Role are you?
+7. List every file from HANDOFF.md's "Uncommitted Changes" section that you re-read. Confirm all were loaded.
 
 **Instructions:**
 - Your first and only message before any tool use must be a numbered list answering all questions.
-- After answering, read `HANDOFF.md` before using any tools or continuing.
+- After answering, read `HANDOFF.md`, then **re-read every file listed in the "Uncommitted Changes" section** (both modified and new) before using any tools or continuing. This prevents stale-context overwrites when multiple AI tools edit the same directory.
 - Do not summarize. Do not say "ready." Do not ask "what do you need?" Answer every question directly.
 - If you cannot answer all accurately, do not proceed — say exactly which you're uncertain of.
 - When providing git commands or terminal scripts to the user, ALWAYS concatenate them with `&&` rather than listing them on separate lines.
@@ -188,3 +189,10 @@ All three must provide a fully functional experience. When making design or impl
 - **Touch-first on mobile** — hover-only interactions are unacceptable. All functionality must work via tap on iPad and iPhone.
 
 Test design decisions across all three form factors. When in doubt, err on the side of larger, more spacious, and more forgiving layouts.
+
+---
+
+# Known Gotchas
+
+- **Dev server**: User-started only. No AI tool can start it — always blocked. Assume it's running when Stan says it is; if you need it, ask.
+- **Version:** `package.json` is canonical; `lib/version.ts` mirrors it. Both updated together on every bump.
