@@ -28,7 +28,7 @@ export type OrbResponse = {
 
 export type OrbRequest = {
   input: string
-  productId: string
+  productId: string | null
   scopeToProduct?: boolean
   history?: Array<{ role: 'user' | 'assistant'; text: string }>
   dryRun?: boolean
@@ -41,7 +41,7 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
 // Tool Context & Helpers
 // ──────────────────────────────────────────────────────────────────────────
 
-async function buildContext(supabase: any, currentProductId: string, scopeToProduct: boolean = true) {
+async function buildContext(supabase: any, currentProductId: string | null, scopeToProduct: boolean = true) {
   const [
     { data: products }, 
     { data: todos }, 

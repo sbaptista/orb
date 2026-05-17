@@ -168,8 +168,6 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
         }
     }, [])
 
-    const WELCOME_KEY = 'todos_welcome_shown'
-
     // Persist conversation to sessionStorage
     useEffect(() => {
         if (messages.length > 0) {
@@ -244,21 +242,32 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
         async function load() {
             const { data: { user } } = await supabase.auth.getUser()
             if (user) {
+                // Clear session storage conversation transcript if user changed to prevent crossover leakage
+                const savedUserId = sessionStorage.getItem('todos_user_id')
+                if (savedUserId && savedUserId !== user.id) {
+                    sessionStorage.removeItem(SS_CONVERSATION)
+                    sessionStorage.removeItem(SS_INPUT)
+                    setMessages([])
+                    setConversationActive(false)
+                }
+                sessionStorage.setItem('todos_user_id', user.id)
+
                 const { data: profile } = await supabase
                     .from('users')
                     .select('first_name, last_name, onboarded_at')
                     .eq('id', user.id)
                     .single()
+                const userWelcomeKey = `todos_welcome_shown_${user.id}`
                 if (profile) {
                     const full = [profile.first_name, profile.last_name].filter(Boolean).join(' ')
                     setUserName(full || (user.email ?? ''))
                     setUserFullName(full)
-                    if (!profile.onboarded_at && !localStorage.getItem(WELCOME_KEY)) {
+                    if (!profile.onboarded_at && !localStorage.getItem(userWelcomeKey)) {
                         setIsNewUser(true)
                     }
                 } else {
                     setUserName(user.email?.charAt(0).toUpperCase() ?? '?')
-                    if (!localStorage.getItem(WELCOME_KEY)) {
+                    if (!localStorage.getItem(userWelcomeKey)) {
                         setIsNewUser(true)
                     }
                 }
@@ -270,8 +279,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     // Pre-fill welcome message once we have the user's first name
     useEffect(() => {
         if (!isNewUser || welcomeDismissedRef.current) return
-        if (!userFullName) return // wait for name to load
-        const firstName = userFullName.split(' ')[0] || 'there'
+        const firstName = userFullName ? (userFullName.split(' ')[0] || 'there') : 'there'
         const welcome = `Hi ${firstName}! I'm Orb. Thanks for joining the pre-alpha. Press Return or tap the send button → to get started.`
         setInput(prev => prev || welcome)
     }, [isNewUser, userFullName])
@@ -397,13 +405,13 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     // Handle welcome submission — fires hardcoded onboarding reply, free (no Claude call)
     function handleWelcomeSubmit(text: string) {
         welcomeDismissedRef.current = true
-        localStorage.setItem(WELCOME_KEY, '1')
         setIsNewUser(false)
         setInput('')
         sessionStorage.removeItem(SS_INPUT)
-        // Mark onboarding complete in DB
+        // Mark onboarding complete in DB and set user-specific welcome key
         supabase.auth.getUser().then(({ data: { user } }) => {
             if (user) {
+                localStorage.setItem(`todos_welcome_shown_${user.id}`, '1')
                 supabase.from('users').update({ onboarded_at: new Date().toISOString() }).eq('id', user.id).then(() => {})
             }
         })
@@ -434,11 +442,6 @@ Type /? anytime for a full command list. What would you like to work on?` },
             return
         }
 
-        if (!selectedId) {
-            toast.neutral('Add a project first.')
-            return
-        }
-
         if (text === '?' || text === '/?') {
             setShowHelp(true)
             setInput('')
@@ -455,6 +458,10 @@ Type /? anytime for a full command list. What would you like to work on?` },
             } else if (cmd === '/help' || cmd === '/?') {
                 setShowHelp(true)
             } else if (cmd === '/tasks') {
+                if (!selectedId) {
+                    toast.neutral('Add a project first.')
+                    return
+                }
                 // Shorthand for showing open tasks in current project
                 handleSubmit(`Show my open tasks in ${selected?.code ?? selected?.name ?? 'this project'}`)
             } else if (cmd === '/projects') {
@@ -490,6 +497,10 @@ Type /? anytime for a full command list. What would you like to work on?` },
                         setShowEditProduct(true)
                     }
                 } else {
+                    if (!selectedId) {
+                        toast.neutral('Add a project first.')
+                        return
+                    }
                     setShowEditProduct(true)
                 }
             } else if (cmd === '/orb') {

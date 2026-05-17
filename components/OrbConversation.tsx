@@ -365,7 +365,7 @@ export default function OrbConversation({
                             msg.type === 'user' ? (
                                 <div
                                     key={msg.id}
-                                    style={{ display: 'flex', justifyContent: 'flex-start', margin: '5px 2px' }}
+                                    style={{ display: 'flex', justifyContent: 'flex-end', margin: '5px 2px' }}
                                 >
                                     <div className="oc-user-bubble">
                                         {msg.text}

@@ -45,7 +45,8 @@ export async function inviteUser(
     if (linkErr) throw linkErr
     if (!linkData.user) return { error: 'Failed to generate invite link' }
 
-    const inviteLink = linkData.properties.action_link
+    const inviteLink = `${origin}/auth/callback?token_hash=${linkData.properties.hashed_token}&type=invite`
+    console.log('[inviteUser] Generated custom invite link:', inviteLink)
 
     // Create invitation record (user record is NOT created until acceptance)
     const { data: invitation, error: invErr } = await supabase

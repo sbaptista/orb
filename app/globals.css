@@ -1430,7 +1430,7 @@ a, button, [role="button"], input, select, textarea {
   color: var(--text);
   font-size: var(--fs-sm);
   line-height: 1.5;
-  text-align: right;
+  text-align: left;
   word-break: break-word;
 }
 
