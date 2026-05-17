@@ -16,7 +16,7 @@ export type OrbResponse = {
   thought?: string // A discrete "work step" completed by the Orb
   refresh?: boolean
   mutatedProductId?: string
-  mutationType?: 'create' | 'update' | 'delete'
+  mutationType?: 'create' | 'update' | 'delete' | 'project_create'
   results?: Array<{ id: string; code: string; title: string; status: string; priority_value: number | null }>
   queryLabel?: string
   clientAction?: { action: string; target?: string }
@@ -24,6 +24,7 @@ export type OrbResponse = {
   isStreaming?: boolean
   suggestedKnowledge?: { id: string; productId: string; title: string; suggestion: { title: string; content: string } }
   knowledgeResults?: Array<{ title: string; content: string; code?: string }>
+  newProject?: { id: string; name: string; code: string; description: string | null; created_by: string }
 }
 
 export type OrbRequest = {
@@ -151,7 +152,7 @@ ${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.code}] ${k.tit
             stream.update({ speech: accumulatedSpeech, isStreaming: true })
           } else if (chunk.type === 'content_block_start' && chunk.content_block.type === 'tool_use') {
              let label = ORB_TOOL_LABELS[chunk.content_block.name] || 'Thinking...'
-             if (enforceGate && !canWrite && ['create_todo', 'update_todo', 'delete_todo'].includes(chunk.content_block.name)) {
+             if (enforceGate && !canWrite && ['create_todo', 'update_todo', 'delete_todo', 'create_project'].includes(chunk.content_block.name)) {
                  label = 'Operation not allowed'
              }
              stream.update({ speech: accumulatedSpeech, thought: label, isStreaming: true })
@@ -180,7 +181,7 @@ ${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.code}] ${k.tit
           try { input = JSON.parse(tc.input || '{}') } catch { input = {} }
           let output: any
 
-          if (enforceGate && !canWrite && ['create_todo', 'update_todo', 'delete_todo'].includes(tc.name)) {
+          if (enforceGate && !canWrite && ['create_todo', 'update_todo', 'delete_todo', 'create_project'].includes(tc.name)) {
             output = { error: 'Task management is available to admins only. Tell the user they can view and query their backlog.' }
             stream.update({ speech: accumulatedSpeech, thought: 'Operation not allowed' })
           } else if (tc.name === 'create_todo') {
@@ -463,6 +464,30 @@ ${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.code}] ${k.tit
               }))
               output = { count: formatted.length, events: formatted }
               stream.update({ speech: accumulatedSpeech, thought: `Found ${formatted.length} audit events` })
+            }
+          } else if (tc.name === 'create_project') {
+            const admin = createAdminClient()
+            const code = String(input.code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+            if (!code) {
+              output = { error: 'Project code is required' }
+            } else {
+              const { data: conflict } = await admin.from('projects').select('id').ilike('code', code).maybeSingle()
+              if (conflict) {
+                output = { error: `Code "${code}" is already in use` }
+              } else {
+                const { data: { user } } = await supabase.auth.getUser()
+                const { data: project, error: createErr } = await admin.from('projects').insert({
+                  name: input.name,
+                  code,
+                  description: input.description ?? null,
+                  created_by: user!.id,
+                }).select('id, name, code, description, created_by').single()
+                if (createErr) output = { error: createErr.message }
+                else {
+                  output = { ok: true, code: project.code, name: project.name }
+                  stream.update({ speech: accumulatedSpeech, thought: `Created project ${project.code}`, refresh: true, mutationType: 'project_create', newProject: project })
+                }
+              }
             }
           } else if (tc.name === 'create_ticket') {
             const admin = createAdminClient()

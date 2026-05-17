@@ -152,20 +152,11 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     }
 
 
-    // Restore input and conversation from sessionStorage on mount
+    // Restore only input on mount — transcripts start fresh each session
     useEffect(() => {
+        sessionStorage.removeItem(SS_CONVERSATION)
         const savedInput = sessionStorage.getItem(SS_INPUT)
-        const savedConvo = sessionStorage.getItem(SS_CONVERSATION)
         if (savedInput) setInput(savedInput)
-        if (savedConvo) {
-            try {
-                const msgs = JSON.parse(savedConvo) as ConversationMessage[]
-                if (msgs.length > 0) {
-                    setMessages(msgs)
-                    setConversationActive(true)
-                }
-            } catch { /* ignore corrupted storage */ }
-        }
     }, [])
 
     // Persist conversation to sessionStorage
@@ -571,18 +562,25 @@ Type /? anytime for a full command list. What would you like to work on?` },
                 if (chunk.refresh) {
                     setPulse(true)
                     setTimeout(() => setPulse(false), 420)
-                    if (chunk.mutatedProductId === selectedId) fetchTodos()
-                    if (chunk.mutationType === 'create') toast.success('Todo created.')
-                    else if (chunk.mutationType === 'update') toast.success('Todo saved.')
-                    else if (chunk.mutationType === 'delete') toast.success('Todo deleted.')
-                    else toast.success('Todo updated.')
+                    if (chunk.mutationType === 'project_create' && chunk.newProject) {
+                        setProducts(prev => [...prev, chunk.newProject!])
+                        orbSwitchingRef.current = true
+                        setSelectedId(chunk.newProject.id)
+                        toast.success('Project created.')
+                    } else {
+                        if (chunk.mutatedProductId === selectedId) fetchTodos()
+                        if (chunk.mutationType === 'create') toast.success('Todo created.')
+                        else if (chunk.mutationType === 'update') toast.success('Todo saved.')
+                        else if (chunk.mutationType === 'delete') toast.success('Todo deleted.')
+                        else toast.success('Todo updated.')
+                    }
                 }
 
                 if (chunk.clientAction) {
                     const action = chunk.clientAction
                     if (action.action === 'switch_project' && action.target) {
-                        const t = products.find(p => 
-                            p.code?.toUpperCase() === action.target?.toUpperCase() || 
+                        const t = products.find(p =>
+                            p.code?.toUpperCase() === action.target?.toUpperCase() ||
                             p.name.toUpperCase() === action.target?.toUpperCase()
                         )
                         if (t) {

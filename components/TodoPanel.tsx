@@ -76,7 +76,11 @@ export default function TodoPanel({
       .select('*, groups(name), categories(name)')
       .single()
     setSaving(false)
-    if (err) { toast.error('Failed to save. Try again.'); return }
+    if (err) {
+      const isRLS = err.message?.includes('row-level security') || err.code === 'PGRST116'
+      toast.error(isRLS ? 'You do not have permission to modify this item.' : 'Failed to save. Try again.')
+      return
+    }
     if (data) {
       const justClosed = isDone && !(statuses.find(s => s.name === todo.status)?.is_closed ?? false)
       toast.success(justClosed ? 'Todo closed.' : 'Todo saved.')

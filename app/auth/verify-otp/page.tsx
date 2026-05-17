@@ -30,15 +30,7 @@ function VerifyOtpContent() {
       setError(error.message)
       setLoading(false)
     } else {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: existingUser } = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', user.id)
-          .single()
-        router.push(existingUser ? '/dashboard' : '/auth/create-account')
-      }
+      router.push('/dashboard')
     }
   }
 

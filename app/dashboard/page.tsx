@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { resolveUser } from '@/lib/resolve-user'
 import { redirect } from 'next/navigation'
 import AmbientDashboard from '@/components/AmbientDashboard'
 
@@ -7,15 +8,12 @@ type Product = { id: string; name: string; code: string | null; description: str
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/auth/login')
+  if (!user || !user.email) redirect('/auth/login')
 
-  const { data: currentUser } = await supabase
-    .from('users')
-    .select('role_id')
-    .eq('id', user.id)
-    .single()
+  const result = await resolveUser(user.id, user.email)
+  if (!result.ok) redirect(result.redirectTo)
 
-  const isAdmin = currentUser?.role_id === 1 || currentUser?.role_id === 3
+  const isAdmin = result.user.role_id === 1 || result.user.role_id === 3
 
   const { data } = await supabase
     .from('projects')

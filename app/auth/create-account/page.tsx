@@ -16,13 +16,13 @@ export default function CreateAccountPage() {
     setLoading(true)
     setError('')
 
-    const { error: onboardingError } = await completeOnboarding(
+    const result = await completeOnboarding(
       firstName.trim(),
       lastName.trim()
     )
 
-    if (onboardingError) {
-      setError(onboardingError)
+    if (result.error) {
+      setError(result.error)
       setLoading(false)
       return
     }

@@ -21,21 +21,41 @@ export async function inviteUser(
   }
 
   const origin = originInput || (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://orb-eight-lake.vercel.app')
-  console.log('[inviteUser] origin resolved to:', origin)
-  console.log('[inviteUser] generating link with redirectTo:', `${origin}/auth/callback`)
 
   const supabase = createAdminClient()
   const adminId = await getCurrentUserId()
 
   try {
-    // Clean up any existing Auth user with this email (allows re-inviting)
-    const { data: existingUsers } = await supabase.auth.admin.listUsers()
-    const existing = existingUsers?.users?.find(u => u.email === email)
-    if (existing) {
-      await supabase.auth.admin.deleteUser(existing.id)
+    // Block inviting existing users — this would replace their auth identity
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle()
+
+    if (existingUser) {
+      return { error: 'This email is already a registered user.' }
     }
 
-    // Generate the invite link without sending Supabase's default email
+    // Block duplicate pending invitations
+    const { data: existingInvite } = await supabase
+      .from('invitations')
+      .select('id')
+      .eq('email', email)
+      .eq('status', 'pending')
+      .maybeSingle()
+
+    if (existingInvite) {
+      return { error: 'This email already has a pending invitation.' }
+    }
+
+    // Clean up any stale auth entry so generateLink can create a fresh one
+    const { data: existingAuthUsers } = await supabase.auth.admin.listUsers()
+    const existingAuth = existingAuthUsers?.users?.find(u => u.email === email)
+    if (existingAuth) {
+      await supabase.auth.admin.deleteUser(existingAuth.id)
+    }
+
     const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
       type: 'invite',
       email,

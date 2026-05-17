@@ -8,6 +8,8 @@ const supabase = createClient(
   process.env.SUPABASE_SECRET_KEY!
 )
 
+const OWNER_PROJECT_CODE = process.argv[2] || 'ORB'
+
 const TITLE = 'Pre-Alpha Onboarding Lifecycle & OTP Token Hashing Architecture'
 
 const CONTENT = `ARCHITECTURAL SUMMARY: Pre-Alpha Invitation, Token Verification, and Onboarding
@@ -34,48 +36,43 @@ Removed global selectedId restrictions to allow project-less users to interact w
 async function populateKnowledge() {
   console.log('--- Registering Onboarding Revamp in Knowledge Repository ---')
 
-  // 1. Fetch all projects
-  const { data: projects, error: projectErr } = await supabase
+  // Check globally by title — one entry is enough, all authenticated users can read it
+  const { data: existing } = await supabase
+    .from('knowledge_repo')
+    .select('id')
+    .eq('title', TITLE)
+    .maybeSingle()
+
+  if (existing) {
+    console.log('Skipping: Entry already exists globally')
+    process.exit(0)
+  }
+
+  // Anchor to one project for RLS visibility — any authenticated user can read it
+  const { data: owner, error: ownerErr } = await supabase
     .from('projects')
     .select('id, name, code')
+    .eq('code', OWNER_PROJECT_CODE)
+    .maybeSingle()
 
-  if (projectErr || !projects || projects.length === 0) {
-    console.error('Failed to fetch projects:', projectErr?.message || 'No projects found')
+  if (ownerErr || !owner) {
+    console.error(`Owner project "${OWNER_PROJECT_CODE}" not found:`, ownerErr?.message || 'No match')
     process.exit(1)
   }
 
-  console.log(`Found ${projects.length} projects. Populating knowledge...`)
+  const { error: insertErr } = await supabase.from('knowledge_repo').insert({
+    product_id: owner.id,
+    title: TITLE,
+    content: CONTENT,
+    tags: ['onboarding', 'auth', 'security', 'otp', 'architecture']
+  })
 
-  for (const project of projects) {
-    console.log(`Syncing knowledge item for [${project.code}] ${project.name}...`)
-
-    // Check if a similar title already exists for this project to prevent duplicates
-    const { data: existing } = await supabase
-      .from('knowledge_repo')
-      .select('id')
-      .eq('product_id', project.id)
-      .eq('title', TITLE)
-      .maybeSingle()
-
-    if (existing) {
-      console.log(`  Skipping: Already exists for [${project.code}]`)
-      continue
-    }
-
-    const { error: insertErr } = await supabase.from('knowledge_repo').insert({
-      product_id: project.id,
-      title: TITLE,
-      content: CONTENT,
-      tags: ['onboarding', 'auth', 'security', 'otp', 'architecture']
-    })
-
-    if (insertErr) {
-      console.error(`  Error inserting for [${project.code}]:`, insertErr.message)
-    } else {
-      console.log(`  Success: Saved for [${project.code}]!`)
-    }
+  if (insertErr) {
+    console.error('Error inserting:', insertErr.message)
+    process.exit(1)
   }
 
+  console.log(`Success: Knowledge entry saved (anchored to [${owner.code}])`)
   console.log('--- Knowledge Repository Sync Complete ---')
   process.exit(0)
 }

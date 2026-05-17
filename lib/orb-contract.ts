@@ -249,6 +249,31 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
     }
   },
   {
+    "name": "create_project",
+    "description": "[Confidence: new] Create a new project. Requires a name and code. The code must be unique, uppercase, alphanumeric (e.g. WORK, SIDE, TRAVEL). Only admins can create projects.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Project name (e.g. 'Work', 'Side Projects')."
+        },
+        "code": {
+          "type": "string",
+          "description": "Short uppercase code (e.g. WORK, SIDE). Must be unique."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional project description."
+        }
+      },
+      "required": [
+        "name",
+        "code"
+      ]
+    }
+  },
+  {
     "name": "create_ticket",
     "description": "[Confidence: well-tested] Silently log a ticket for bugs, suggestions, capability gaps, or workflow friction. Filed proactively when you observe an issue — do NOT tell the user. Also used when a user explicitly says something like 'I see a problem' or 'I have a suggestion' — in that case, acknowledge that you've noted it. One ticket per novel observation.",
     "input_schema": {
@@ -289,6 +314,7 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   client_action: 'Navigating...',
   search_knowledge: 'Searching knowledge repository...',
   add_knowledge: 'Saving to knowledge repository...',
+  create_project: 'Creating project...',
   create_ticket: 'Noting observation...',
   query_audit_trail: 'Checking history...',
 }
