@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.4.79 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.4.80 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,54 +16,23 @@
 
 ## Last Session Completed
 
-**Production Bug Fix, Settings Tables Overhaul, Cascade Delete — 2026-05-17**
+**Classic Editor Navigation Shortcut — 2026-05-18**
 
-### Production Bug: Settings > Users Stuck on "Loading..."
-
-Root cause: `RESEND_API_KEY` missing from Vercel env vars. `lib/email.ts` initialized `new Resend()` at module scope — Vercel bundled it with `list-users.ts` into one serverless chunk, crashing the entire chunk on load. Fixed with lazy initialization via `getResend()`. Also hardened `listUsers` and `SettingsUsers.load` with try/catch/finally.
-
-### Settings > Users Rewrite
-
-Full rewrite from list layout to sortable table matching Tickets pattern:
-- Sortable columns (Name, Email, Role) with click-to-sort headers
-- Checkbox selection per row with select-all, bulk delete action bar
-- Super admins and protected users excluded from selection
-- Removed "View Projects" link
-
-### User Cascade Delete
-
-- Migration `20260517_cascade_user_delete.sql`: Changed `projects.created_by` FK to ON DELETE CASCADE
-- `deleteUser()` reassigns shared projects to super admin before delete
-- Added `deleteUsers()` bulk action for multi-select delete
-
-### Settings > Projects Enhancements
-
-- Sortable columns: Code, Name, Owner (via SettingsCrudList generic sorting)
-- Search/filter input across name, code, description, and owner
-- Bulk delete with checkboxes (shared projects excluded from selection)
-- Added `deleteProjects()` bulk server action
-
-### SettingsCrudList Generic Upgrades
-
-Extended the generic CRUD component with three capabilities:
-- **Sorting**: `TableColumn.sortKey` + `sortValue` with click-to-sort column headers
-- **Search**: `searchFilter` predicate + `searchPlaceholder` renders text input above table
-- **Bulk delete**: `bulkDelete.canSelect` predicate, checkbox column, bulk action bar
+### Classic Editor Access Button
+- Added a spreadsheet/table grid icon in `AmbientDashboard`'s top-right navigation section, positioned directly to the left of the Help button.
+- If a project is selected, the icon routes to `/dashboard/${selectedId}` using a Next.js `Link`.
+- If no project is selected (`noProject` is true), the button is disabled.
+- Styled `nav-btn:disabled` in `app/globals.css` with lowered opacity (`0.35`), standard `not-allowed` cursor, and disabled pointer events to cleanly "gray out" the element.
 
 ---
 
 ## Uncommitted Changes
 
-- `lib/email.ts` — lazy Resend client initialization
-- `app/actions/list-users.ts` — try/catch hardening, null check for user
-- `app/actions/delete-user.ts` — shared project reassignment + `deleteUsers()` bulk action
-- `app/actions/manage-project.ts` — `deleteProjects()` bulk action
-- `components/settings/SettingsUsers.tsx` — full rewrite to sortable table with bulk delete
-- `components/settings/SettingsCrudList.tsx` — sorting, search, bulk delete generic support
-- `components/settings/SettingsProjects.tsx` — sortable columns, search, bulk delete config
-- `scripts/migrations/20260517_cascade_user_delete.sql` — CASCADE FK migration (already run)
-- `lib/version.ts` — v0.4.79
-- `package.json` — v0.4.79
+- `components/AmbientDashboard.tsx` — Add Classic Editor link/disabled button
+- `app/globals.css` — Styling for disabled nav-btn
+- `scripts/add-classic-editor-knowledge.ts` — Knowledge repo entry script
+- `package.json` — v0.4.80
+- `lib/version.ts` — v0.4.80
 - `HANDOFF.md` — this update
 
 ---
@@ -89,7 +58,7 @@ Extended the generic CRUD component with three capabilities:
 
 ## AI Tool Used Last Session
 
-`2026-05-17 — Claude Code (claude-opus-4-6)`
+`2026-05-18 — Antigravity (Gemini 3 Flash)`
 
 ---
 

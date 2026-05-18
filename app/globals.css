@@ -812,6 +812,15 @@ a, button, [role="button"], input, select, textarea {
   background: #fff;
 }
 
+.nav-btn:disabled,
+.nav-btn-disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.4);
+  border-color: rgba(60, 110, 60, 0.1);
+}
+
 .scroll-arrow {
   pointer-events: auto;
   width: 24px;
