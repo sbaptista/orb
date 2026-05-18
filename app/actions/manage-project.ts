@@ -107,6 +107,19 @@ export async function updateProject(id: string, data: {
   return { project }
 }
 
+export async function deleteProjects(ids: string[]) {
+  try {
+    await assertAdmin()
+  } catch (e: any) {
+    return { error: e.message }
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin.from('projects').delete().in('id', ids)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
 export async function deleteProject(id: string) {
   try {
     await assertAdmin()

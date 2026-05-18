@@ -1,7 +1,7 @@
 'use client'
 
 import SettingsCrudList from './SettingsCrudList'
-import { getAdminProjects, createProject, deleteProject, updateProject } from '@/app/actions/manage-project'
+import { getAdminProjects, createProject, deleteProject, deleteProjects, updateProject } from '@/app/actions/manage-project'
 import { listUsers } from '@/app/actions/list-users'
 
 type Project = {
@@ -35,11 +35,27 @@ export default function SettingsProjects() {
         pageClass: 'settings-page s-page-wide',
         layout: 'table',
         subtitle: items => `${items.length} project${items.length !== 1 ? 's' : ''}`,
+        searchPlaceholder: 'Filter by name, code, or owner…',
+        searchFilter: (item: Project, query: string, extra: any) => {
+          const q = query.toLowerCase()
+          if (item.name.toLowerCase().includes(q)) return true
+          if (item.code?.toLowerCase().includes(q)) return true
+          if (item.description?.toLowerCase().includes(q)) return true
+          const owner = extra.users?.find((u: any) => u.id === item.created_by)
+          if (owner) {
+            const ownerName = [owner.first_name, owner.last_name].filter(Boolean).join(' ').toLowerCase()
+            if (ownerName.includes(q) || owner.email?.toLowerCase().includes(q)) return true
+          }
+          return false
+        },
         tableColumns: [
-          { label: 'Code',        width: '10%' },
-          { label: 'Name',        width: '20%' },
+          { label: 'Code',        width: '10%', sortKey: 'code',  sortValue: (p: Project) => p.code ?? '' },
+          { label: 'Name',        width: '20%', sortKey: 'name',  sortValue: (p: Project) => p.name },
           { label: 'Description', width: '25%' },
-          { label: 'Owner',       width: '17%' },
+          { label: 'Owner',       width: '17%', sortKey: 'owner', sortValue: (p: Project, extra: any) => {
+            const owner = extra.users?.find((u: any) => u.id === p.created_by)
+            return owner ? [owner.first_name, owner.last_name].filter(Boolean).join(' ') || owner.email : ''
+          }},
           { label: 'Shared',      width: '10%', align: 'center' },
           { label: 'Actions',     width: '18%', align: 'right' },
         ],
@@ -100,6 +116,15 @@ export default function SettingsProjects() {
         deleteWarning: (item) => (
           <>Delete project <strong>{item.name}</strong>? This will also delete all its todos.</>
         ),
+
+        bulkDelete: {
+          canSelect: (item: Project) => !item.is_shared,
+          confirmMessage: (count: number) => `Permanently delete ${count} project${count > 1 ? 's' : ''} and all their todos? This cannot be undone.`,
+          onDelete: async (_supabase: any, items: Project[]) => {
+            const res = await deleteProjects(items.map(p => p.id))
+            return res.error ? { error: res.error } : {}
+          },
+        },
 
         renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving, extra }) => (
           <div className="s-form" style={{ padding: '12px 16px' }}>
@@ -172,8 +197,9 @@ export default function SettingsProjects() {
           </div>
         ),
 
-        renderRow: ({ item, onEdit, onDelete, extra }) => (
+        renderRow: ({ item, onEdit, onDelete, extra, checkbox }) => (
           <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
+            {checkbox}
             <td className="audit-td" style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text2)', fontSize: '12px' }}>
               {item.code}
             </td>

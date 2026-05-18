@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.4.78 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.4.79 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,62 +16,55 @@
 
 ## Last Session Completed
 
-**Onboarding Re-Architecture & Shared Project Access — 2026-05-17**
+**Production Bug Fix, Settings Tables Overhaul, Cascade Delete — 2026-05-17**
 
-Major overhaul of the invitation/onboarding lifecycle. Root cause: Supabase `generateLink({ type: 'invite' })` replaces the auth.users UUID for an existing email, orphaning the `users` table row and all FK references. This caused Stan's production account to hit a "Create your account" page after a test invitation was sent to his own email.
+### Production Bug: Settings > Users Stuck on "Loading..."
 
-### Onboarding Re-Architecture
+Root cause: `RESEND_API_KEY` missing from Vercel env vars. `lib/email.ts` initialized `new Resend()` at module scope — Vercel bundled it with `list-users.ts` into one serverless chunk, crashing the entire chunk on load. Fixed with lazy initialization via `getResend()`. Also hardened `listUsers` and `SettingsUsers.load` with try/catch/finally.
 
-*   **`resolveUser()` — single source of truth** ([lib/resolve-user.ts](lib/resolve-user.ts)): New function that runs after every successful authentication. Looks up users **by email** (the only stable identifier), not by auth UUID. Handles four cases:
-    1. Existing user, same auth ID → normal login (no-op)
-    2. Existing user, different auth ID → atomic ID reconciliation via `reconcile_user_id()` Postgres function
-    3. No user row, pending invitation → creates user from invitation data, marks invitation accepted
-    4. No user, no invitation → redirects to `/auth/create-account`
-*   **`reconcile_user_id()` Postgres function** ([scripts/migrations/20260517_reconcile_user_id.sql](scripts/migrations/20260517_reconcile_user_id.sql)): Atomic transaction that migrates all FK references (`projects.created_by`, `invitations.invited_by`, `audit_log.user_id`) from old UUID to new UUID.
-*   **Callback route simplified** ([app/auth/callback/route.ts](app/auth/callback/route.ts)): 136 → 62 lines. Both branches (token_hash and code exchange) now delegate to `resolveUser()`. No user-creation logic in the route.
-*   **verify-otp simplified** ([app/auth/verify-otp/page.tsx](app/auth/verify-otp/page.tsx)): Removed client-side users table query. Just redirects to `/dashboard` after OTP success. Server-side guard in dashboard handles the rest.
-*   **Dashboard guard** ([app/dashboard/page.tsx](app/dashboard/page.tsx)): Calls `resolveUser()` on every load. Handles ID reconciliation transparently.
-*   **Ghost cleanup removed** ([app/actions/complete-onboarding.ts](app/actions/complete-onboarding.ts)): The old DELETE-by-email cleanup caused FK violations. Replaced by `resolveUser()` reconciliation.
-*   **Invite hardening** ([app/actions/invite-user.ts](app/actions/invite-user.ts)): Blocks inviting existing users ("This email is already a registered user") and duplicate pending invitations. Still cleans stale auth entries for genuinely new invites.
-*   **Friendly errors + auto-tickets**: All onboarding errors now show user-friendly messages. Raw DB errors auto-create tickets via `createTicket()`.
+### Settings > Users Rewrite
 
-### Shared Project Access (Orb Feedback)
+Full rewrite from list layout to sortable table matching Tickets pattern:
+- Sortable columns (Name, Email, Role) with click-to-sort headers
+- Checkbox selection per row with select-all, bulk delete action bar
+- Super admins and protected users excluded from selection
+- Removed "View Projects" link
 
-*   **Orb Feedback marked `is_shared = true`** in database. All users with `release_stage` set can now see it.
-*   **`release_stage` backfilled** to `'pre-alpha'` for all existing users. New invitees get it automatically from invitation data via `resolveUser()`.
-*   **Todos RLS updated** ([scripts/migrations/20260517_shared_todos_rls.sql](scripts/migrations/20260517_shared_todos_rls.sql)): Shared project todos allow **SELECT and INSERT** for all `release_stage` users. **UPDATE and DELETE** restricted to project owner or admins (role_id 1 or 3).
-*   **Permission-denied toast** ([components/TodoPanel.tsx](components/TodoPanel.tsx)): Non-admin users attempting to modify shared project todos see "You do not have permission to modify this item." instead of generic "Failed to save."
+### User Cascade Delete
 
-### Orb Conversational AI — Project Creation
+- Migration `20260517_cascade_user_delete.sql`: Changed `projects.created_by` FK to ON DELETE CASCADE
+- `deleteUser()` reassigns shared projects to super admin before delete
+- Added `deleteUsers()` bulk action for multi-select delete
 
-*   **`create_project` tool** added to [lib/orb-contract.ts](lib/orb-contract.ts) and handler in [app/actions/orb-converse.ts](app/actions/orb-converse.ts). Admin-gated. Creates project and auto-switches to it.
-*   **`project_create` mutation type**: New project appears in the project strip immediately without page reload.
+### Settings > Projects Enhancements
 
-### Other Fixes
+- Sortable columns: Code, Name, Owner (via SettingsCrudList generic sorting)
+- Search/filter input across name, code, description, and owner
+- Bulk delete with checkboxes (shared projects excluded from selection)
+- Added `deleteProjects()` bulk server action
 
-*   **Transcript clearing** ([components/AmbientDashboard.tsx](components/AmbientDashboard.tsx)): Conversation transcript now clears on every fresh mount. Previous sessions' transcripts no longer persist across logins. Invitee welcome messages unaffected (driven by `onboarded_at`).
-*   **Knowledge repo deduplication**: Removed 8 duplicate "Pre-Alpha Onboarding" entries from `knowledge_repo`. Updated [scripts/add-onboarding-knowledge.ts](scripts/add-onboarding-knowledge.ts) to insert one global entry (anchored to ORB project) with title-based uniqueness check.
+### SettingsCrudList Generic Upgrades
+
+Extended the generic CRUD component with three capabilities:
+- **Sorting**: `TableColumn.sortKey` + `sortValue` with click-to-sort column headers
+- **Search**: `searchFilter` predicate + `searchPlaceholder` renders text input above table
+- **Bulk delete**: `bulkDelete.canSelect` predicate, checkbox column, bulk action bar
 
 ---
 
 ## Uncommitted Changes
 
-- `lib/resolve-user.ts` (NEW) — resolveUser() function
-- `scripts/migrations/20260517_reconcile_user_id.sql` (NEW) — Postgres function for atomic ID reconciliation
-- `scripts/migrations/20260517_shared_todos_rls.sql` (NEW) — shared project todos RLS
-- `app/auth/callback/route.ts` — simplified to use resolveUser()
-- `app/auth/verify-otp/page.tsx` — removed client-side user lookup
-- `app/auth/create-account/page.tsx` — friendly error handling
-- `app/dashboard/page.tsx` — resolveUser() guard
-- `app/actions/complete-onboarding.ts` — removed ghost cleanup, friendly errors
-- `app/actions/invite-user.ts` — blocks existing users, duplicate invitations
-- `app/actions/orb-converse.ts` — create_project tool handler, project_create mutation type
-- `lib/orb-contract.ts` — create_project tool definition
-- `components/AmbientDashboard.tsx` — transcript clearing, project_create handling
-- `components/TodoPanel.tsx` — RLS permission-denied toast
-- `lib/version.ts` — v0.4.78
-- `package.json` — v0.4.78
-- `scripts/add-onboarding-knowledge.ts` — single-entry global dedup
+- `lib/email.ts` — lazy Resend client initialization
+- `app/actions/list-users.ts` — try/catch hardening, null check for user
+- `app/actions/delete-user.ts` — shared project reassignment + `deleteUsers()` bulk action
+- `app/actions/manage-project.ts` — `deleteProjects()` bulk action
+- `components/settings/SettingsUsers.tsx` — full rewrite to sortable table with bulk delete
+- `components/settings/SettingsCrudList.tsx` — sorting, search, bulk delete generic support
+- `components/settings/SettingsProjects.tsx` — sortable columns, search, bulk delete config
+- `scripts/migrations/20260517_cascade_user_delete.sql` — CASCADE FK migration (already run)
+- `lib/version.ts` — v0.4.79
+- `package.json` — v0.4.79
+- `HANDOFF.md` — this update
 
 ---
 
@@ -80,15 +73,17 @@ Major overhaul of the invitation/onboarding lifecycle. Root cause: Supabase `gen
 *   **Email is the stable identity, not auth UUID.** Supabase can replace auth UUIDs on invite/re-invite. All user lookups now go through `resolveUser()` which queries by email first.
 *   **Atomic ID reconciliation via Postgres function.** Supabase JS client can't do multi-statement transactions, so FK migration uses a server-side `reconcile_user_id()` function called via `rpc()`.
 *   **Shared project access is read+create for users, full access for admins.** Prevents invited users from modifying/deleting feedback they didn't create, while still allowing them to contribute.
-*   **Knowledge repo entries are global, not per-project.** One entry anchored to a single project for RLS, readable by all authenticated users. Deduplication by title.
+*   **Lazy SDK initialization in server actions.** Module-scope SDK constructors crash Vercel function chunks when env vars are missing. Always use lazy getClient() pattern.
+*   **Shared projects survive user deletion.** Reassigned to super admin in application code before CASCADE fires. Business rule kept in server action, not DB trigger.
+*   **SettingsCrudList for complex tables only.** Statuses and Priorities (short fixed lists) don't need sorting/search/bulk — keep them simple.
 
 ---
 
 ## Next Priorities
 
-1.  **Deploy v0.4.78 to production** and verify the full invitation flow end-to-end on the live domain.
-2.  **Monitor first invited users** — ensure Orb Feedback appears, todos can be created, and the welcome onboarding flow works.
-3.  **Test edge cases**: re-invite after deletion, expired links, same-email re-invite blocked.
+1.  **ORB-105 remaining items** — bulk edits for Priorities and Statuses were deemed overkill; review if any other sub-items remain.
+2.  **Monitor production** — verify Settings > Users and Projects pages work correctly after deploy.
+3.  **Test cascade delete** — delete a test user and confirm shared projects survive, non-shared projects cascade.
 
 ---
 

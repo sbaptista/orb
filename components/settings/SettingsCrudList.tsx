@@ -5,7 +5,13 @@ import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import { useToast } from '@/components/ui/Toast'
 
-type TableColumn = { label: string; width?: string; align?: 'left' | 'right' | 'center' }
+type TableColumn<T = any> = {
+  label: string
+  width?: string
+  align?: 'left' | 'right' | 'center'
+  sortKey?: string
+  sortValue?: (item: T, extra: any) => string | number
+}
 
 type CrudConfig<T, F> = {
   title: string
@@ -18,7 +24,7 @@ type CrudConfig<T, F> = {
   subtitle?: (items: T[]) => string
 
   layout?: 'list' | 'table'
-  tableColumns?: TableColumn[]
+  tableColumns?: TableColumn<T>[]
 
   load?: (supabase: any) => Promise<{ items: T[]; extra?: any }>
   validate?: (form: F, items: T[], editingId: string | null) => string | null
@@ -51,6 +57,7 @@ type CrudConfig<T, F> = {
     onMove?: (direction: 'up' | 'down') => void
     saving: boolean
     extra: any
+    checkbox?: ReactNode
   }) => ReactNode
 
   scopeFilter?: {
@@ -62,6 +69,15 @@ type CrudConfig<T, F> = {
   }
 
   onMove?: (supabase: any, item: T, items: T[], direction: 'up' | 'down') => Promise<void>
+
+  searchFilter?: (item: T, query: string, extra: any) => boolean
+  searchPlaceholder?: string
+
+  bulkDelete?: {
+    onDelete: (supabase: any, items: T[]) => Promise<{ error?: string }>
+    canSelect?: (item: T) => boolean
+    confirmMessage?: (count: number) => string
+  }
 }
 
 export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<T, F> }) {
@@ -81,6 +97,12 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const [scope, setScope] = useState(config.scopeFilter?.defaultScope ?? '')
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [search, setSearch] = useState('')
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  const canSelect = config.bulkDelete?.canSelect ?? (() => true)
 
   const load = useCallback(async () => {
     if (config.load) {
@@ -97,9 +119,29 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   useVisibilityRefetch(load)
   useEffect(() => { load() }, [load])
 
-  const displayed = config.scopeFilter
+  const scoped = config.scopeFilter
     ? items.filter(item => config.scopeFilter!.filterItem(item, scope))
     : items
+
+  const filtered = config.searchFilter && search.trim()
+    ? scoped.filter(item => config.searchFilter!(item, search.trim(), extra))
+    : scoped
+
+  const displayed = (() => {
+    if (!sortKey) return filtered
+    const col = config.tableColumns?.find(c => c.sortKey === sortKey)
+    if (!col?.sortValue) return filtered
+    return [...filtered].sort((a, b) => {
+      const av = col.sortValue!(a, extra)
+      const bv = col.sortValue!(b, extra)
+      const cmp = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv))
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  })()
+
+  const selectableIds = displayed.filter(canSelect).map(config.getId)
+  const allChecked = selectableIds.length > 0 && selectableIds.every(id => selectedIds.includes(id))
+  const someChecked = selectedIds.length > 0
 
   const idCol = config.idColumn ?? 'id'
   const isTable = config.layout === 'table'
@@ -206,9 +248,34 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     setSaving(false)
   }
 
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  function toggleSelectAll() {
+    if (allChecked) setSelectedIds([])
+    else setSelectedIds(selectableIds)
+  }
+
+  async function handleBulkDelete() {
+    if (!config.bulkDelete || selectedIds.length === 0) return
+    const count = selectedIds.length
+    const msg = config.bulkDelete.confirmMessage?.(count) ?? `Permanently delete ${count} item${count > 1 ? 's' : ''}? This cannot be undone.`
+    if (!confirm(msg)) return
+    setSaving(true)
+    const toDelete = displayed.filter(item => selectedIds.includes(config.getId(item)))
+    const res = await config.bulkDelete.onDelete(supabase, toDelete)
+    setSaving(false)
+    if (res.error) { toast.error(res.error); return }
+    toast.success(`${count} item${count > 1 ? 's' : ''} deleted.`)
+    setSelectedIds([])
+    load()
+  }
+
   if (loading) return <div className="s-loading">Loading…</div>
 
-  const colCount = config.tableColumns?.length ?? 1
+  const hasBulk = !!config.bulkDelete
+  const colCount = (config.tableColumns?.length ?? 1) + (hasBulk ? 1 : 0)
 
   function renderDeleteConfirm(item: T) {
     const deletable = config.canDelete ? config.canDelete(item, extra) : true
@@ -266,6 +333,20 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   }
 
   function renderItemRow(item: T, idx: number) {
+    const id = config.getId(item)
+    const selectable = hasBulk && canSelect(item)
+    const checkbox = hasBulk ? (
+      <td className="audit-td" style={{ textAlign: 'center' }}>
+        {selectable ? (
+          <input
+            type="checkbox"
+            checked={selectedIds.includes(id)}
+            onChange={() => toggleSelect(id)}
+            style={{ cursor: 'pointer' }}
+          />
+        ) : null}
+      </td>
+    ) : undefined
     const rowNode = config.renderRow({
       item,
       index: idx,
@@ -275,6 +356,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       onMove: config.onMove ? (dir) => handleMove(item, dir) : undefined,
       saving,
       extra,
+      checkbox,
     })
     if (isTable) return rowNode
     return <div key={config.getId(item)}>{rowNode}</div>
@@ -343,6 +425,56 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         </div>
       )}
 
+      {config.searchFilter && (
+        <div style={{ marginBottom: '12px' }}>
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={config.searchPlaceholder ?? 'Filter…'}
+            style={{
+              width: '100%',
+              maxWidth: '280px',
+              padding: '6px 10px',
+              fontSize: '13px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--r)',
+              background: 'var(--bg)',
+              color: 'var(--text)',
+            }}
+          />
+        </div>
+      )}
+
+      {hasBulk && someChecked && (
+        <div className="flex-row gap-sm" style={{
+          padding: '8px 12px',
+          background: 'var(--bg2)',
+          borderRadius: 'var(--r-md)',
+          marginBottom: '8px',
+          alignItems: 'center',
+        }}>
+          <span className="text-sm" style={{ fontWeight: 500 }}>
+            {selectedIds.length} selected
+          </span>
+          <button
+            className="oc-tool-btn"
+            onClick={handleBulkDelete}
+            disabled={saving}
+            style={{ fontSize: '12px', color: 'var(--error)', borderColor: 'var(--error)' }}
+          >
+            Delete
+          </button>
+          <button
+            className="text-btn text-sm"
+            onClick={() => setSelectedIds([])}
+            style={{ color: 'var(--muted)' }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {error && <p className="s-error">{error}</p>}
 
       {isTable ? (
@@ -354,12 +486,36 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
               <table className="audit-table">
                 <thead>
                   <tr style={{ background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
-                    {config.tableColumns?.map((col, i) => (
-                      <th key={i} className="audit-th"
-                        style={{ width: col.width, textAlign: col.align ?? 'left' }}>
-                        {col.label}
+                    {hasBulk && (
+                      <th className="audit-th" style={{ width: '36px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={allChecked}
+                          onChange={toggleSelectAll}
+                          style={{ cursor: 'pointer' }}
+                        />
                       </th>
-                    ))}
+                    )}
+                    {config.tableColumns?.map((col, i) => {
+                      const isSortable = !!col.sortKey
+                      const isActive = sortKey === col.sortKey
+                      return (
+                        <th key={i} className="audit-th"
+                          style={{
+                            width: col.width,
+                            textAlign: col.align ?? 'left',
+                            cursor: isSortable ? 'pointer' : undefined,
+                            userSelect: isSortable ? 'none' : undefined,
+                          }}
+                          onClick={isSortable ? () => {
+                            if (isActive) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+                            else { setSortKey(col.sortKey!); setSortDir('asc') }
+                          } : undefined}
+                        >
+                          {col.label}{isSortable ? (isActive ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕') : ''}
+                        </th>
+                      )
+                    })}
                   </tr>
                 </thead>
                 <tbody>

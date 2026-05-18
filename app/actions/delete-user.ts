@@ -7,6 +7,19 @@ import { logAuditEvent } from '@/lib/audit'
 const SUPER_ADMIN_ROLE_ID = 3
 const PROTECTED_EMAILS = ['dev@localhost.me', 'owner@test.local']
 
+export async function deleteUsers(userIds: string[]) {
+  try {
+    await assertAdmin()
+  } catch (e: any) {
+    return { error: e.message }
+  }
+
+  const results = await Promise.all(userIds.map(id => deleteUser(id)))
+  const failed = results.filter(r => r.error)
+  if (failed.length > 0) return { error: `${failed.length} of ${userIds.length} deletions failed` }
+  return { ok: true }
+}
+
 export async function deleteUser(userId: string) {
   try {
     await assertAdmin()
@@ -27,7 +40,23 @@ export async function deleteUser(userId: string) {
     if (target.role_id === SUPER_ADMIN_ROLE_ID) return { error: 'Cannot delete Super Admin' }
     if (PROTECTED_EMAILS.includes(target.email)) return { error: 'This test user cannot be deleted' }
 
-    // Delete from public.users table
+    // Reassign shared projects to super admin before cascade delete
+    const { data: superAdmin } = await supabase
+      .from('users')
+      .select('id')
+      .eq('role_id', SUPER_ADMIN_ROLE_ID)
+      .limit(1)
+      .single()
+
+    if (superAdmin) {
+      await supabase
+        .from('projects')
+        .update({ created_by: superAdmin.id })
+        .eq('created_by', userId)
+        .eq('is_shared', true)
+    }
+
+    // Delete user — cascades to their non-shared projects, todos, groups, etc.
     const { error: dbError } = await supabase
       .from('users')
       .delete()
