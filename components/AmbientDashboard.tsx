@@ -10,7 +10,7 @@ import QueryResultsModal from './QueryResultsModal'
 import OrbHelp from './OrbHelp'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { OrbDevPanel, type MoodOverride } from './OrbDevPanel'
-import { orbConverse, type OrbResponse } from '@/app/actions/orb-converse'
+import { orbConverse, orbGreeting, type OrbResponse } from '@/app/actions/orb-converse'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import DistillModal from './DistillModal'
 import { VERSION } from '@/lib/version'
@@ -135,6 +135,8 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const inactivityRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
     const prevSelectedId     = useRef<string | null>(null)
     const projectScrollRef   = useRef<HTMLDivElement>(null)
+    const greetingFiredRef   = useRef(false)
+    const prevUrgencyRef     = useRef<Urgency | null>(null)
     const orbLongPressRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
     const orbPressedRef      = useRef(false)
 
@@ -169,10 +171,12 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     }, [messages])
 
     const orbSwitchingRef = useRef(false)
+    const projectSwitchingRef = useRef(false)
 
-    // Reset conversation on project switch (not on initial mount)
+    // Reset conversation on project switch (not on initial mount) + project summary
     useEffect(() => {
         if (prevSelectedId.current !== null && prevSelectedId.current !== selectedId) {
+            projectSwitchingRef.current = true
             if (!orbSwitchingRef.current) {
                 setMessages([])
                 setConversationActive(false)
@@ -233,13 +237,16 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
         async function load() {
             const { data: { user } } = await supabase.auth.getUser()
             if (user) {
-                // Clear session storage conversation transcript if user changed to prevent crossover leakage
+                // Clear session storage if user changed or fresh login — prevents crossover and resets greeting
                 const savedUserId = sessionStorage.getItem('todos_user_id')
-                if (savedUserId && savedUserId !== user.id) {
+                if (!savedUserId || savedUserId !== user.id) {
                     sessionStorage.removeItem(SS_CONVERSATION)
                     sessionStorage.removeItem(SS_INPUT)
-                    setMessages([])
-                    setConversationActive(false)
+                    if (savedUserId) {
+                        setMessages([])
+                        setConversationActive(false)
+                    }
+                    greetingFiredRef.current = false
                 }
                 sessionStorage.setItem('todos_user_id', user.id)
 
@@ -283,6 +290,21 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
 
     const urgentValues = useMemo(() => new Set(priorities.filter(p => p.is_urgent).map(p => p.value)), [priorities])
     const priorityColorMap = useMemo(() => new Map(priorities.map(p => [p.value, p.color])), [priorities])
+
+    // ── Proactive greeting on login (cross-project, once per mount) ──
+    useEffect(() => {
+        if (greetingFiredRef.current || !selectedId || isNewUser || messages.length > 0) return
+        greetingFiredRef.current = true
+
+        orbGreeting(null).then(text => {
+            if (text) {
+                setMessages([{ id: genId(), type: 'orb', text }])
+                setConversationActive(true)
+                resetInactivity()
+            }
+        })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedId, isNewUser])
 
     // Derive display products based on owner filter
     const displayProducts = products
@@ -343,6 +365,66 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const speed     = ORB_SPEED[urgency]
     const selected  = products.find(p => p.id === selectedId)
     const noProject = !selectedId
+
+    // ── Project switch summary (client-side, no AI call) ──
+    useEffect(() => {
+        if (!projectSwitchingRef.current || noProject || todos.length === 0 && openTodos.length === 0) return
+        if (!selected) return
+        projectSwitchingRef.current = false
+
+        const open = openTodos
+        const urgentCount = open.filter(t => t.priority_value !== null && urgentValues.has(t.priority_value)).length
+        const inProgressCount = open.filter(t => t.status === 'in progress').length
+        const closedCount = todos.filter(t => t.status === 'closed').length
+
+        const parts: string[] = []
+        parts.push(`${selected.code ?? selected.name} — ${open.length} open`)
+        if (closedCount > 0) parts[0] += `, ${closedCount} closed`
+        if (urgentCount > 0) parts.push(`${urgentCount} at P1/P2`)
+        if (inProgressCount > 0) parts.push(`${inProgressCount} in progress`)
+        else if (open.length >= 3) parts.push('nothing in progress')
+
+        const summary = parts.join('. ') + '.'
+        addOrbMessage(summary)
+        prevUrgencyRef.current = urgency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [todos, selectedId])
+
+    // ── Urgency transition explanation (suppressed during project switch) ──
+    useEffect(() => {
+        if (noProject || prevUrgencyRef.current === null) {
+            prevUrgencyRef.current = urgency
+            return
+        }
+        if (projectSwitchingRef.current) {
+            prevUrgencyRef.current = urgency
+            return
+        }
+        const prev = prevUrgencyRef.current
+        if (prev === urgency) return
+        prevUrgencyRef.current = urgency
+
+        const urgentCount = openTodos.filter(t => t.priority_value !== null && urgentValues.has(t.priority_value)).length
+        let explanation = ''
+        if (prev === 'calm' && urgency === 'active') {
+            explanation = `Orb shifted active — ${openTodos.length} open tasks now.`
+        } else if (prev === 'calm' && urgency === 'urgent') {
+            explanation = `Orb shifted urgent — ${urgentCount} high-priority task${urgentCount !== 1 ? 's' : ''} detected.`
+        } else if (prev === 'active' && urgency === 'urgent') {
+            explanation = `Orb shifted urgent — ${urgentCount} high-priority task${urgentCount !== 1 ? 's' : ''} in the queue.`
+        } else if (prev === 'urgent' && urgency === 'active') {
+            explanation = 'Urgent queue cleared. Orb shifted back to active.'
+        } else if (prev === 'urgent' && urgency === 'calm') {
+            explanation = 'Backlog is light. Orb is calm.'
+        } else if (prev === 'active' && urgency === 'calm') {
+            explanation = 'Backlog thinned out. Orb is calm.'
+        }
+
+        if (explanation) {
+            addOrbMessage(explanation)
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [urgency, noProject])
 
     const NO_PROJECT_STYLE = {
         orbMid: '#d4dce4', orbLo: '#c0ccd8',

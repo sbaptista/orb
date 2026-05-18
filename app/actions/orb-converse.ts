@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
 import { ORB_TOOLS, ORB_TOOL_LABELS, ORB_INTEGRITY_RULES } from '@/lib/orb-contract'
+import { computeInsights, type InsightReport } from '@/lib/insights'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -43,20 +44,23 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
 // ──────────────────────────────────────────────────────────────────────────
 
 async function buildContext(supabase: any, currentProductId: string | null, scopeToProduct: boolean = true) {
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 86_400_000).toISOString()
   const [
-    { data: products }, 
-    { data: todos }, 
-    { data: statuses }, 
-    { data: priorities }, 
+    { data: products },
+    { data: todos },
+    { data: statuses },
+    { data: priorities },
     { data: knowledge },
-    { data: userAuth }
+    { data: userAuth },
+    { data: recentAudit }
   ] = await Promise.all([
     supabase.from('projects').select('id, name, code, description').order('sort_order'),
-    supabase.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, closed_at, resolution_notes').is('deleted_at', null),
+    supabase.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes').is('deleted_at', null),
     supabase.from('statuses').select('*').order('sort_order'),
     supabase.from('priorities').select('*').order('value'),
     supabase.from('knowledge_repo').select('*, projects(code)').order('created_at', { ascending: false }),
-    supabase.auth.getUser()
+    supabase.auth.getUser(),
+    supabase.from('audit_log').select('action, record_id, created_at, before, after').gte('created_at', fourteenDaysAgo).order('created_at', { ascending: false }).limit(200),
   ])
 
   let currentUser = null
@@ -70,7 +74,10 @@ async function buildContext(supabase: any, currentProductId: string | null, scop
   const statusList   = (statuses   ?? [])
   const priorityList = (priorities ?? [])
   const knowledgeList = (knowledge   ?? [])
+  const auditList    = (recentAudit ?? [])
   const current = productList.find((p: any) => p.id === currentProductId)
+
+  const insightReport = computeInsights(todoList, productList, statusList, auditList)
 
   const byProduct = productList.map((p: any) => {
     const header = `${p.code ?? p.name}${p.description ? ` (${p.description})` : ''}`
@@ -84,7 +91,7 @@ async function buildContext(supabase: any, currentProductId: string | null, scop
     return `${header}:\n${productTodos || '  (none open)'}`
   }).join('\n\n')
 
-  return { productList, todoList, statusList, priorityList, knowledgeList, current, currentUser, contextString: byProduct }
+  return { productList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, contextString: byProduct, insightReport }
 }
 
 export async function orbConverse(req: OrbRequest) {
@@ -135,7 +142,24 @@ ${ctx.contextString}
 
 KNOWLEDGE BASE (Recent):
 ${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.code}] ${k.title}: ${k.content.slice(0, 100)}...`).join('\n')}
-(Note: Use the 'search_knowledge' tool to query the full repository if the answer isn't here.)`,
+(Note: Use the 'search_knowledge' tool to query the full repository if the answer isn't here.)
+
+INSIGHTS (computed from live data across all projects):
+${ctx.insightReport.summary}
+${ctx.insightReport.insights.length > 0 ? ctx.insightReport.insights.map((i: any) => `- [${i.severity.toUpperCase()}] ${i.message}`).join('\n') : '- No patterns worth flagging right now.'}
+
+PROACTIVE BEHAVIOR:
+- When insights are present, weave the most relevant one into your response naturally — don't list them all.
+- After a mutation (close, create, update), briefly note if it changes the picture (e.g. "That clears the urgent queue.").
+- If the user asks "why?" or "what changed?" without specifying, assume they mean the orb's current state.
+- The user can tune your insight scope conversationally: "only report on ORB", "include everything", "skip JUNKAP". Respect their preference for the rest of the session.
+- Default: report across all projects unless the user narrows it.
+
+FEEDBACK TONE:
+- Factual and brief. Acknowledge effort, not just outcomes.
+- Skip praise for trivial actions.
+- No exclamation marks, no "amazing!", no "crushing it!", no cheerleading.
+- Examples of good feedback: "That clears the urgent queue." / "3 this week." / "ORB-86 was open 6 months. Good to see it resolved."`,
           messages,
           tools: ORB_TOOLS,
           stream: true,
@@ -524,4 +548,34 @@ ${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.code}] ${k.tit
   })()
 
   return stream.value
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Proactive greeting — fires once per session start
+// ──────────────────────────────────────────────────────────────────────────
+
+export async function orbGreeting(productId: string | null): Promise<string | null> {
+  try {
+    const supabase = await createClient()
+    const ctx = await buildContext(supabase, productId, false)
+    const report = ctx.insightReport
+
+    if (report.insights.length === 0) return null
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 200,
+      system: `You are the voice of the orb. Generate a brief, ambient opening observation (1-3 sentences) based on the insights below. Plain text, no markdown. Factual tone — no cheerleading. If only info-level insights exist, keep it to one sentence. Address the user directly ("you"). Do not greet them or say hello.`,
+      messages: [{
+        role: 'user',
+        content: `Current state: ${report.summary}\n\nInsights:\n${report.insights.map(i => `[${i.severity}] ${i.message}`).join('\n')}`,
+      }],
+    })
+
+    const text = (response.content[0] as any)?.text?.trim()
+    return text || null
+  } catch (err) {
+    console.error('[orbGreeting] Error:', err)
+    return null
+  }
 }
