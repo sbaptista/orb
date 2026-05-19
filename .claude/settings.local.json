@@ -136,7 +136,8 @@
       "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/projects?select=id,name,code&code=eq.ORB' -H 'apikey: __CMDSUB_OUTPUT__')",
       "Bash(curl -s https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/projects?select=id,name,code -H 'apikey: __CMDSUB_OUTPUT__')",
       "Bash(curl -s -X PATCH https://orb-eight-lake.vercel.app/api/tasks/514b2b2f-1bc8-4b01-8397-259c1835348e -H 'Authorization: __CMDSUB_OUTPUT__')",
-      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/projects?code=eq.ORB&select=id' -H 'apikey: __CMDSUB_OUTPUT__')"
+      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/projects?code=eq.ORB&select=id' -H 'apikey: __CMDSUB_OUTPUT__')",
+      "Bash(grep -rn \"p?\\\\.\\\\\\(code\\\\|name\\\\\\).*todo_number\\\\|code.*\\\\${p\" /Users/stanleybaptista/Projects/orb/app/actions/orb-converse.ts)"
     ]
   }
 }

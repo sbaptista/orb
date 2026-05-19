@@ -141,6 +141,8 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const prevUrgencyRef     = useRef<Urgency | null>(null)
     const orbLongPressRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
     const orbPressedRef      = useRef(false)
+    const abortConverseRef      = useRef(false)
+    const activeProcessingIdRef = useRef<string | null>(null)
 
     function resetInactivity() {
         if (inactivityRef.current) clearTimeout(inactivityRef.current)
@@ -148,6 +150,24 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
             setConversationActive(false)
         }, INACTIVITY_MS)
     }
+
+    const handleStop = useCallback(() => {
+        abortConverseRef.current = true
+        const activeId = activeProcessingIdRef.current
+        if (activeId) {
+            setMessages(prev => prev.map(m => {
+                if (m.id === activeId) {
+                    return {
+                        ...m,
+                        isStreaming: false,
+                        text: m.text === 'Processing…' ? 'Stopped.' : m.text
+                    }
+                }
+                return m
+            }))
+        }
+        setSubmitting(false)
+    }, [])
 
     function addOrbMessage(text: string) {
         setMessages(prev => [...prev, { id: genId(), type: 'orb', text }])
@@ -621,10 +641,14 @@ Type /? anytime for a full command list. What would you like to work on?` },
         setSubmitting(true)
         resetInactivity()
 
+        abortConverseRef.current = false
+        activeProcessingIdRef.current = processingId
+
         try {
             const stream = await orbConverse({ input: text, productId: selectedId, scopeToProduct, history, dryRun })
             
             for await (const chunk of readStreamableValue(stream)) {
+                if (abortConverseRef.current) break
                 if (!chunk) continue
 
                 setMessages(prev => prev.map(m => {
@@ -693,12 +717,27 @@ Type /? anytime for a full command list. What would you like to work on?` },
             }
         } catch (err) {
             console.error('[orbSubmit]', err)
-            setMessages(prev => prev.map(m => m.id === processingId
-                ? { ...m, text: 'Something went wrong. Try again?' }
-                : m
-            ))
+            if (!abortConverseRef.current) {
+                setMessages(prev => prev.map(m => m.id === processingId
+                    ? { ...m, text: 'Something went wrong. Try again?' }
+                    : m
+                ))
+            }
         } finally {
             setSubmitting(false)
+            activeProcessingIdRef.current = null
+            if (abortConverseRef.current) {
+                setMessages(prev => prev.map(m => {
+                    if (m.id === processingId) {
+                        return {
+                            ...m,
+                            isStreaming: false,
+                            text: m.text === 'Processing…' ? 'Stopped.' : m.text
+                        }
+                    }
+                    return m
+                }))
+            }
         }
     }
 
@@ -933,6 +972,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     onClearTranscript={() => { setMessages([]); setConversationActive(false); sessionStorage.removeItem(SS_CONVERSATION) }}
                     onInputChange={v => { setInput(v); sessionStorage.setItem(SS_INPUT, v) }}
                     onSubmit={handleSubmit}
+                    onStop={handleStop}
                     onShowResults={handleShowResults}
                     onScopeChange={v => setScopeToProduct(v)}
                     onFocusChange={setIsInputFocused}

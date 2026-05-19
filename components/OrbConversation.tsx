@@ -33,6 +33,7 @@ type Props = {
     conversationActive?: boolean
     onRestoreConversation?: () => void
     onClearTranscript?: () => void
+    onStop?: () => void
     projectStrip?: React.ReactNode
     orbElement?: React.ReactNode
 }
@@ -174,6 +175,7 @@ export default function OrbConversation({
     conversationActive = true,
     onRestoreConversation,
     onClearTranscript,
+    onStop,
     projectStrip,
     orbElement,
 }: Props) {
@@ -588,18 +590,49 @@ export default function OrbConversation({
 
                             <div className="flex-1" />
 
-                            <button
-                                type="submit"
-                                className="oc-send-btn"
-                                disabled={!input.trim() || submitting}
-                                title="Send (Shift+Enter)"
-                                aria-label="Send"
-                            >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <line x1="22" y1="2" x2="11" y2="13"/>
-                                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                                </svg>
-                            </button>
+                            {submitting ? (
+                                <button
+                                    type="button"
+                                    className="oc-stop-btn"
+                                    onClick={onStop}
+                                    title="Stop processing"
+                                    aria-label="Stop processing"
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: '28px',
+                                        height: '28px',
+                                        borderRadius: '50%',
+                                        border: 'none',
+                                        background: 'rgba(200, 0, 0, 0.08)',
+                                        color: '#c00',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease',
+                                        animation: 'voice-pulse 1.2s ease-in-out infinite',
+                                    }}
+                                >
+                                    <span style={{
+                                        width: '8px',
+                                        height: '8px',
+                                        background: '#c00',
+                                        borderRadius: '1px',
+                                    }} />
+                                </button>
+                            ) : (
+                                <button
+                                    type="submit"
+                                    className="oc-send-btn"
+                                    disabled={!input.trim()}
+                                    title="Send (Shift+Enter)"
+                                    aria-label="Send"
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="22" y1="2" x2="11" y2="13"/>
+                                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                                    </svg>
+                                </button>
+                            )}
                         </div>
                     </form>
                 </div>

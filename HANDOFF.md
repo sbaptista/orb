@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.4.89 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.4.90 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -18,40 +18,25 @@
 
 **Single source of truth for Orb AI — 2026-05-19**
 
-Stan identified a fundamental trust problem: the Orb was parroting numbers from a pre-computed INSIGHTS engine that its own tools couldn't verify. When challenged, the AI admitted it couldn't reproduce the counts. Multiple data paths were producing conflicting numbers.
-
-### 1. Removed INSIGHTS injection from system prompt (v0.4.88)
-
-`computeInsights()` was injected into every AI conversation turn — a summary line with counts and pattern-detection insights. The AI treated these as authoritative and quoted them without verification. Removed:
-
-- `computeInsights()` call from `buildContext()` (code preserved in `lib/insights.ts`)
-- INSIGHTS block + PROACTIVE BEHAVIOR instructions from AI system prompt
-- Greeting reworked to use backlog context (same ACTIVE/PARKED split the conversation sees)
-
-### 2. query_todos made trustworthy (v0.4.89)
-
-- **`status_group` param** — `"active"` (open + in progress) or `"parked"` (deferred + on hold), using `isActive()`/`isParked()` from `status-groups.ts`. Same source of truth as the backlog context.
-- **Default `max_results` raised** from 10 to 100 — if there are 44 non-closed items, the AI returns all 44.
-- **`show_results` flag** — defaults true. Set false for internal queries so the UI doesn't show an irrelevant list when the AI is counting or verifying.
-
-### 3. Eliminated undefined display codes (v0.4.89)
-
-Dormant project (CAN26) todos were in `todoList` but their project wasn't in `productList` (excluded by `visibleProjectsQuery`). Result: `undefined-10`, `undefined-23`, etc.
-
-- `todoList` now filtered to visible projects only — dormant project todos excluded at the source
-- `todoCode()` helper — all display code construction goes through one function, falls back to `'???'` never `undefined`
-
-### 4. Dormant project visibility for admins (v0.4.89)
-
-- Dormant projects listed in backlog context as a DORMANT section (code only, no todos, no CRUD)
-- System prompt tells AI to answer dormant questions from context, not query
-- `set_dormancy` tool already supports awakening — admin can say "wake up CAN26" in Orb
+1. **Stop Processing button built (ORB-118)**
+   - Exposed `onStop` callback prop from `AmbientDashboard` to `OrbConversation`.
+   - Replaced Send button with a red pulsing Stop button when `submitting` is true.
+   - Handled stream cancellation gracefully by breaking the chunk loop, resetting loading state immediately, and preventing error notifications when aborted by the user.
+2. **Restored building rule in AGENTS.md**
+   - Added rule to `AGENTS.md` to prevent building/implementing changes without explicit permission/confirmation from Stan.
+3. **Bumped version**
+   - Bumped to `0.4.90` in `package.json` and `lib/version.ts`.
 
 ---
 
 ## Uncommitted Changes
 
-None — all pushed.
+- **[AGENTS.md](file:///Users/stanleybaptista/Projects/orb/AGENTS.md)**: Added rule to never build/implement changes without explicit permission from Stan.
+- **[components/OrbConversation.tsx](file:///Users/stanleybaptista/Projects/orb/components/OrbConversation.tsx)**: Added stop button layout & styling and destructured `onStop`.
+- **[components/AmbientDashboard.tsx](file:///Users/stanleybaptista/Projects/orb/components/AmbientDashboard.tsx)**: Handled stop control refs, `handleStop` function, and chunk loop exit.
+- **[package.json](file:///Users/stanleybaptista/Projects/orb/package.json)**: Bumped version to `0.4.90`.
+- **[lib/version.ts](file:///Users/stanleybaptista/Projects/orb/lib/version.ts)**: Bumped version to `v0.4.90`.
+- **[.claude/settings.local.json](file:///Users/stanleybaptista/Projects/orb/.claude/settings.local.json)**: Local settings updated.
 
 ---
 
@@ -79,15 +64,15 @@ None — all pushed.
 
 1. **Test count consistency** — Verify Orb greeting, conversation, and query_todos all report matching numbers after deploy.
 2. **Close ORB-113** — move_todo + auth consolidation was completed but not formally closed. Write resolution notes + knowledge repo entry.
-3. **ORB-116** — Build Helm-style offline page to replace OfflineBanner.
-4. **ORB-109** — Session persistence.
+3. **ORB-109** — Session persistence.
+4. **ORB-116** — Build Helm-style offline page.
 5. **Re-evaluate INSIGHTS** — If a future use case emerges (e.g., pattern detection as a separate tool the AI can choose to call), the code is ready in `lib/insights.ts`.
 
 ---
 
 ## AI Tool Used Last Session
 
-`2026-05-19 — Claude Code (claude-opus-4-6)`
+`2026-05-19 — Antigravity (Gemini 2.5 Pro)`
 
 ---
 

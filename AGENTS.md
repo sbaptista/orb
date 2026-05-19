@@ -9,6 +9,7 @@
 7. List every file from HANDOFF.md's "Uncommitted Changes" section that you re-read. Confirm all were loaded.
 
 **Instructions:**
+- **Never build/implement changes without explicit permission/confirmation from Stan.**
 - Your first and only message before any tool use must be a numbered list answering all questions.
 - After answering, read `HANDOFF.md`, then **re-read every file listed in the "Uncommitted Changes" section** (both modified and new) before using any tools or continuing. This prevents stale-context overwrites when multiple AI tools edit the same directory.
 - Do not summarize. Do not say "ready." Do not ask "what do you need?" Answer every question directly.
