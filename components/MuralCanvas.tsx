@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-type Urgency = 'calm' | 'active' | 'urgent'
+type Urgency = 'calm' | 'busy' | 'urgent'
 
 type MuralProps = {
   urgency: Urgency
@@ -20,7 +20,7 @@ const COLOR_MAPS: Record<Urgency, Array<[number, number, number]>> = {
     [15, 60, 40],
     [232, 237, 232],
   ],
-  active: [
+  busy: [
     [232, 232, 237],
     [200, 180, 220],
     [160, 120, 200],
@@ -142,13 +142,13 @@ function renderFrame(
 
 const ZOOM_SPEED: Record<Urgency, number> = {
   calm: 0.000125,
-  active: 0.00025,
+  busy: 0.00025,
   urgent: 0.0005,
 }
 
 const COLOR_SHIFT_SPEED: Record<Urgency, number> = {
   calm: 0.00125,
-  active: 0.003,
+  busy: 0.003,
   urgent: 0.005,
 }
 

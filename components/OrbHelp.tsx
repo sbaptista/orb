@@ -32,7 +32,7 @@ const TOPICS: Topic[] = [
           <h2 className="help-h2">Query</h2>
           <ul className="help-ul">
             <li className="help-li">"What's most urgent right now?"</li>
-            <li className="help-li">"Show me all open [project] todos"</li>
+            <li className="help-li">"Show me all active [project] todos"</li>
             <li className="help-li">"What did I say about the auth work?"</li>
           </ul>
         </div>
@@ -139,9 +139,9 @@ const TOPICS: Topic[] = [
           <h2 className="help-h2">States</h2>
           <div style={{ borderTop: '1px solid var(--border)' }}>
             {([
-              ['CALM', 'All open items are low priority or the backlog is light'],
-              ['ACTIVE', 'More than 5 open items'],
-              ['URGENT', 'One or more P1 (urgent priority) items are open'],
+              ['CALM', 'All active items are low priority or the backlog is light'],
+              ['BUSY', 'More than 5 active items (Open + In Progress)'],
+              ['URGENT', 'One or more P1 (urgent priority) items are active'],
             ] as [string, string][]).map(([state, desc]) => (
               <div key={state} className="help-key-row">
                 <span className="help-key-cell" style={{ fontFamily: 'var(--font-ui)', letterSpacing: '0.06em' }}>{state}</span>
@@ -152,16 +152,32 @@ const TOPICS: Topic[] = [
         </div>
 
         <div className="help-section">
+          <h2 className="help-h2">Counting</h2>
+          <div style={{ borderTop: '1px solid var(--border)' }}>
+            {([
+              ['ACTIVE', 'Open + In Progress — the number on the orb and the default view'],
+              ['PARKED', 'Deferred + On Hold — tracked but not counted as active'],
+              ['CLOSED', 'Done — hidden by default'],
+            ] as [string, string][]).map(([group, desc]) => (
+              <div key={group} className="help-key-row">
+                <span className="help-key-cell" style={{ fontFamily: 'var(--font-ui)', letterSpacing: '0.06em' }}>{group}</span>
+                <span className="help-desc-cell">{desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="help-section">
           <h2 className="help-h2">Signals</h2>
           <p className="help-p">
-            Urgency is communicated through multiple signals simultaneously — color, glow size, animation speed, and solar flares in urgent mode. Any one signal can be removed (or disabled via <span className="help-mono">prefers-reduced-motion</span>) without losing the information.
+            State is communicated through multiple signals simultaneously — color, glow size, animation speed, and solar flares in urgent mode. Any one signal can be removed (or disabled via <span className="help-mono">prefers-reduced-motion</span>) without losing the information.
           </p>
         </div>
 
         <div className="help-section">
           <h2 className="help-h2">Navigation</h2>
           <ul className="help-ul">
-            <li className="help-li">The number in the center is your open todo count for the selected project.</li>
+            <li className="help-li">The number in the center is your active todo count for the selected project.</li>
             <li className="help-li">Tap or click the orb to open the full todo list.</li>
             <li className="help-li">The project pills at the bottom switch which backlog you are viewing.</li>
           </ul>
@@ -179,7 +195,7 @@ const TOPICS: Topic[] = [
           Orb is a personal project issue tracker built around a single idea: your work should have a presence, not just a list.
         </p>
         <p className="help-p">
-          Most todo apps put you in charge of the list. Orb puts the orb in charge of your attention. The orb reads your open work across all your projects and reflects it back — calm when things are light, active when the backlog builds, urgent when something needs your attention now. Color, motion, glow, and animation all carry the same signal independently, so nothing gets lost.
+          Most todo apps put you in charge of the list. Orb puts the orb in charge of your attention. The orb reads your active work across all your projects and reflects it back — calm when things are light, busy when the backlog builds, urgent when something needs your attention now. Color, motion, glow, and animation all carry the same signal independently, so nothing gets lost.
         </p>
         <p className="help-p">
           The orb is also conversational. Type plain English and it handles the rest — create a todo, ask what's most pressing, update a priority, mark something done. You don't navigate menus or fill out forms. You just talk to it.

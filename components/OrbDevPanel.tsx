@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import type { ConversationMessage } from './OrbConversation'
 
-export type MoodOverride = 'calm' | 'active' | 'urgent' | null
+export type MoodOverride = 'calm' | 'busy' | 'urgent' | null
 export type RoleOverride = 'Super Admin' | 'Admin' | 'Owner' | null
 export type Speech = { text: string; autoFade?: number } | null
 
@@ -57,8 +57,8 @@ function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChan
           <button type="button" className="dev-btn" aria-pressed={override === 'calm'} onClick={() => onChange('calm')}>
             Calm
           </button>
-          <button type="button" className="dev-btn" aria-pressed={override === 'active'} onClick={() => onChange('active')}>
-            Active
+          <button type="button" className="dev-btn" aria-pressed={override === 'busy'} onClick={() => onChange('busy')}>
+            Busy
           </button>
           <button type="button" className="dev-btn" aria-pressed={override === 'urgent'} onClick={() => onChange('urgent')}>
             Urgent

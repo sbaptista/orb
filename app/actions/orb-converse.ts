@@ -7,6 +7,7 @@ import { logAuditEvent } from '@/lib/audit'
 import { ORB_TOOLS, ORB_TOOL_LABELS, ORB_INTEGRITY_RULES } from '@/lib/orb-contract'
 import { computeInsights, type InsightReport } from '@/lib/insights'
 import { visibleProjectsQuery } from '@/lib/projects'
+import { isActive } from '@/lib/status-groups'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -53,7 +54,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     { data: knowledge },
     { data: recentAudit }
   ] = await Promise.all([
-    visibleProjectsQuery(supabase, 'id, name, code, description'),
+    visibleProjectsQuery(supabase, 'id, name, code, description, created_by'),
     supabase.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes').is('deleted_at', null),
     supabase.from('statuses').select('*').order('sort_order'),
     supabase.from('priorities').select('*').order('value'),
@@ -72,18 +73,26 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   const auditList    = (recentAudit ?? []).filter((a: any) => todoIds.has(a.record_id))
   const current = productList.find((p: any) => p.id === currentProductId)
 
-  const insightReport = computeInsights(todoList, productList, statusList, auditList)
+  const insightReport = computeInsights(todoList, productList, statusList, auditList, auth.user.id, auth.isAdmin)
 
   const byProduct = productList.map((p: any) => {
     const header = `${p.code ?? p.name}${p.description ? ` (${p.description})` : ''}`
     if (scopeToProduct && p.id !== currentProductId) {
       return `${header}: (not in scope)`
     }
-    const productTodos = todoList
-      .filter((t: any) => t.product_id === p.id && !statusList.find((s: any) => s.name === t.status)?.is_closed)
+    const pTodos = todoList.filter((t: any) => t.product_id === p.id && !statusList.find((s: any) => s.name === t.status)?.is_closed)
+    const activeLine = pTodos
+      .filter((t: any) => isActive(t.status))
       .map((t: any) => `  ${p.code ?? p.name}-${t.todo_number} [P${t.priority_value ?? '-'}] [${t.status}] ${t.title}`)
       .join('\n')
-    return `${header}:\n${productTodos || '  (none open)'}`
+    const parkedLine = pTodos
+      .filter((t: any) => !isActive(t.status))
+      .map((t: any) => `  ${p.code ?? p.name}-${t.todo_number} [P${t.priority_value ?? '-'}] [${t.status}] ${t.title}`)
+      .join('\n')
+    let body = ''
+    if (activeLine) body += `  ACTIVE:\n${activeLine}`
+    if (parkedLine) body += `${activeLine ? '\n' : ''}  PARKED (on hold/deferred):\n${parkedLine}`
+    return `${header}:\n${body || '  (none active)'}`
   }).join('\n\n')
 
   return { productList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, contextString: byProduct, insightReport }
@@ -126,6 +135,7 @@ ${ctx.currentUser ? `\nUSER CONTEXT: You are talking to ${ctx.currentUser.email}
 ${ORB_INTEGRITY_RULES}
 
 VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}
+STATUS LANGUAGE: "active" = open + in progress ONLY. "parked" = deferred + on hold. Never count parked tasks as active. When reporting counts, active count excludes parked. The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering. When the user asks "how many tasks" or "my tasks" without specifying, report the ACTIVE count. If parked tasks exist, mention them separately (e.g. "5 active, 3 parked"). "open" as a status means status=open specifically — if the user says "open tasks", query status=open.
 SCOPE: ${req.scopeToProduct ? `Scoped to ${ctx.current?.code ?? ctx.current?.name}. Only discuss or query this project's todos unless the user explicitly asks about another project or says "all". IMPORTANT: When creating a todo, ALWAYS pass product_code="${ctx.current?.code}" explicitly — never omit it. When querying, ALWAYS pass product_code explicitly — the tool does NOT auto-scope. For cross-project insight follow-ups, omit product_code to search all projects.` : 'All projects visible.'}
 BACKLOG:
 ${ctx.contextString}

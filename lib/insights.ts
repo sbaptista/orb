@@ -1,3 +1,5 @@
+import { filterActive, filterParked } from './status-groups'
+
 type Todo = {
   id: string
   todo_number: number
@@ -10,7 +12,7 @@ type Todo = {
   closed_at: string | null
 }
 
-type Product = { id: string; name: string; code: string | null }
+type Product = { id: string; name: string; code: string | null; created_by?: string }
 type Status = { name: string; is_closed: boolean; is_open: boolean }
 type AuditEvent = { action: string; record_id: string; created_at: string; before: any; after: any }
 
@@ -38,12 +40,13 @@ export function computeInsights(
   products: Product[],
   statuses: Status[],
   auditEvents: AuditEvent[],
+  userId?: string,
+  isAdmin?: boolean,
 ): InsightReport {
   const closedStatuses = new Set(statuses.filter(s => s.is_closed).map(s => s.name))
-  const parkedStatuses = new Set(['on hold', 'deferred'])
   const nonClosedTodos = todos.filter(t => !closedStatuses.has(t.status))
-  const openTodos = nonClosedTodos.filter(t => !parkedStatuses.has(t.status))
-  const parkedTodos = nonClosedTodos.filter(t => parkedStatuses.has(t.status))
+  const activeTodos = filterActive(nonClosedTodos)
+  const parkedTodos = filterParked(nonClosedTodos)
   const insights: Insight[] = []
 
   const productCode = (pid: string) => products.find(p => p.id === pid)?.code ?? '???'
@@ -67,21 +70,21 @@ export function computeInsights(
     })
   }
 
-  // ── Priority distribution (open only — excludes on hold/deferred) ──
-  const urgentTodos = openTodos.filter(t => t.priority_value !== null && t.priority_value <= 2)
-  const lowTodos = openTodos.filter(t => t.priority_value === null || t.priority_value >= 4)
+  // ── Priority distribution (active only — excludes on hold/deferred) ──
+  const urgentTodos = activeTodos.filter(t => t.priority_value !== null && t.priority_value <= 2)
+  const lowTodos = activeTodos.filter(t => t.priority_value === null || t.priority_value >= 4)
 
   if (urgentTodos.length >= 4) {
     insights.push({
       type: 'priority_overload',
       severity: 'warning',
-      message: `${urgentTodos.length} open tasks at P1/P2. That's a heavy urgent queue — consider whether all of them are truly urgent.`,
+      message: `${urgentTodos.length} active tasks at P1/P2. That's a heavy urgent queue — consider whether all of them are truly urgent.`,
     })
-  } else if (openTodos.length > 0 && urgentTodos.length === 0 && lowTodos.length === openTodos.length) {
+  } else if (activeTodos.length > 0 && urgentTodos.length === 0 && lowTodos.length === activeTodos.length) {
     insights.push({
       type: 'all_low_priority',
       severity: 'info',
-      message: `All ${openTodos.length} open tasks are P4 or lower. Quiet sprint, or should something be elevated?`,
+      message: `All ${activeTodos.length} active tasks are P4 or lower. Quiet sprint, or should something be elevated?`,
     })
   }
 
@@ -107,12 +110,12 @@ export function computeInsights(
   }
 
   // ── Focus gap (nothing in progress) ──
-  const inProgress = openTodos.filter(t => t.status === 'in progress')
-  if (openTodos.length >= 3 && inProgress.length === 0) {
+  const inProgress = activeTodos.filter(t => t.status === 'in progress')
+  if (activeTodos.length >= 3 && inProgress.length === 0) {
     insights.push({
       type: 'focus_gap',
       severity: 'nudge',
-      message: `${openTodos.length} open tasks but nothing is "in progress". Want to pick one to focus on?`,
+      message: `${activeTodos.length} active tasks but nothing is "in progress". Want to pick one to focus on?`,
     })
   }
 
@@ -136,14 +139,15 @@ export function computeInsights(
       if (todo) recentlyTouchedProductIds.add(todo.product_id)
     }
   }
-  const productsWithOpenTodos = new Set(nonClosedTodos.map(t => t.product_id))
-  const neglected = products.filter(p => productsWithOpenTodos.has(p.id) && !recentlyTouchedProductIds.has(p.id))
+  const productsWithNonClosedTodos = new Set(nonClosedTodos.map(t => t.product_id))
+  const productsWithActiveTodos = new Set(activeTodos.map(t => t.product_id))
+  const neglected = products.filter(p => productsWithNonClosedTodos.has(p.id) && !recentlyTouchedProductIds.has(p.id))
   if (neglected.length > 0) {
     const names = neglected.map(p => p.code ?? p.name).join(', ')
     insights.push({
       type: 'neglected_projects',
       severity: 'nudge',
-      message: `No activity in 14+ days on projects with open tasks: ${names}.`,
+      message: `No activity in 14+ days on projects with active tasks: ${names}.`,
     })
   }
 
@@ -159,17 +163,25 @@ export function computeInsights(
   }
 
   // ── Build summary ──
-  const warnings = insights.filter(i => i.severity === 'warning')
-  const nudges = insights.filter(i => i.severity === 'nudge')
   const parkedNote = parkedTodos.length > 0 ? `, ${parkedTodos.length} on hold/deferred` : ''
-  let summary: string
 
-  if (insights.length === 0) {
-    summary = `${openTodos.length} open tasks${parkedNote} across ${productsWithOpenTodos.size} projects. No patterns worth flagging.`
-  } else if (warnings.length > 0) {
-    summary = `${openTodos.length} open tasks${parkedNote}. ${warnings.length} warning${warnings.length > 1 ? 's' : ''}, ${nudges.length} nudge${nudges.length > 1 ? 's' : ''}.`
+  // For admins who see all users' data, split "yours" vs "all"
+  const ownProjectIds = isAdmin && userId
+    ? new Set(products.filter(p => p.created_by === userId).map(p => p.id))
+    : null
+  const ownActiveTodos = ownProjectIds
+    ? activeTodos.filter(t => ownProjectIds.has(t.product_id))
+    : activeTodos
+  const ownParkedTodos = ownProjectIds
+    ? parkedTodos.filter(t => ownProjectIds.has(t.product_id))
+    : parkedTodos
+  const ownParkedNote = ownParkedTodos.length > 0 ? `, ${ownParkedTodos.length} on hold/deferred` : ''
+
+  let summary: string
+  if (ownProjectIds && activeTodos.length !== ownActiveTodos.length) {
+    summary = `${ownActiveTodos.length} active tasks in your projects${ownParkedNote}. ${activeTodos.length} active across all projects${parkedNote}.`
   } else {
-    summary = `${openTodos.length} open tasks${parkedNote}. ${nudges.length} nudge${nudges.length > 1 ? 's' : ''} worth mentioning.`
+    summary = `${activeTodos.length} active tasks${parkedNote} across ${productsWithActiveTodos.size} project${productsWithActiveTodos.size !== 1 ? 's' : ''}.`
   }
 
   return { insights, summary }

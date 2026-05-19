@@ -18,11 +18,12 @@ import { VERSION } from '@/lib/version'
 import { useToast } from '@/components/ui/Toast'
 import MuralCanvas from './MuralCanvas'
 import HScrollNav from '@/components/ui/HScrollNav'
+import { isActive } from '@/lib/status-groups'
 
 type Product  = { id: string; name: string; code: string | null; description: string | null; created_by: string }
 type Todo     = { id: string; title: string; status: string; priority_value: number | null }
 type Priority = { value: number; label: string; color: string; is_urgent: boolean }
-type Urgency  = 'calm' | 'active' | 'urgent'
+type Urgency  = 'calm' | 'busy' | 'urgent'
 
 type Props = { initialProducts?: Product[]; isAdmin?: boolean }
 
@@ -36,21 +37,21 @@ function genId() {
 }
 
 function computeUrgency(todos: Todo[], urgentValues: Set<number>): Urgency {
-    const open = todos.filter(t => t.status !== 'closed')
-    if (open.some(t => t.priority_value !== null && urgentValues.has(t.priority_value))) return 'urgent'
-    if (open.length > 5) return 'active'
+    const active = todos.filter(t => isActive(t.status))
+    if (active.some(t => t.priority_value !== null && urgentValues.has(t.priority_value))) return 'urgent'
+    if (active.length > 5) return 'busy'
     return 'calm'
 }
 
 const ORB_SPEED: Record<Urgency, string> = {
     calm:   '5.5s',
-    active: '3.5s',
+    busy:   '3.5s',
     urgent: '3.5s',
 }
 
 const ORB_GLOW: Record<Urgency, { inset: string; blur: string }> = {
     calm:   { inset: '-24px', blur: '28px' },
-    active: { inset: '-38px', blur: '36px' },
+    busy:   { inset: '-38px', blur: '36px' },
     urgent: { inset: '-56px', blur: '46px' },
 }
 
@@ -62,7 +63,7 @@ const ORB_STYLE: Record<Urgency, {
         glow: 'rgba(80,130,80,0.38)',
         countColor: '#2d5a2d', labelColor: '#7a9e7a',
     },
-    active: {
+    busy: {
         orbMid: '#e4daf4', orbLo: '#d0c4ee',
         glow: 'rgba(130,90,200,0.45)',
         countColor: '#5a3090', labelColor: '#9a7ac8',
@@ -76,7 +77,7 @@ const ORB_STYLE: Record<Urgency, {
 
 const ORB_ANIMATION: Record<Urgency, string> = {
     calm:   'todos-orb-calm',
-    active: 'todos-orb-active',
+    busy:   'todos-orb-busy',
     urgent: 'todos-orb-urgent',
 }
 
@@ -360,7 +361,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
         return () => { supabase.removeChannel(channel) }
     }, [selectedId, supabase, fetchTodos])
 
-    const openTodos = todos.filter(t => t.status !== 'closed')
+    const activeTodos = todos.filter(t => isActive(t.status))
     const urgency   = moodOverride ?? computeUrgency(todos, urgentValues)
     const style     = ORB_STYLE[urgency]
     const speed     = ORB_SPEED[urgency]
@@ -368,28 +369,30 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const noProject = !selectedId
 
     // ── Project switch summary (client-side, no AI call) ──
+    // Depends only on `todos` — NOT `selectedId`. The selectedId effect sets
+    // projectSwitchingRef=true, then fetchTodos runs async. When the fetch
+    // completes and todos updates, this effect fires with the correct data.
+    // Including selectedId would fire this with stale todos from the previous project.
     useEffect(() => {
-        if (!projectSwitchingRef.current || noProject || todos.length === 0 && openTodos.length === 0) return
+        if (!projectSwitchingRef.current || noProject || todos.length === 0 && activeTodos.length === 0) return
         if (!selected) return
         projectSwitchingRef.current = false
 
-        const open = openTodos
-        const urgentCount = open.filter(t => t.priority_value !== null && urgentValues.has(t.priority_value)).length
-        const inProgressCount = open.filter(t => t.status === 'in progress').length
-        const closedCount = todos.filter(t => t.status === 'closed').length
+        const active = activeTodos
+        const urgentCount = active.filter(t => t.priority_value !== null && urgentValues.has(t.priority_value)).length
+        const inProgressCount = active.filter(t => t.status === 'in progress').length
 
         const parts: string[] = []
-        parts.push(`${selected.code ?? selected.name} — ${open.length} open`)
-        if (closedCount > 0) parts[0] += `, ${closedCount} closed`
+        parts.push(`${selected.code ?? selected.name} — ${active.length} active`)
         if (urgentCount > 0) parts.push(`${urgentCount} at P1/P2`)
         if (inProgressCount > 0) parts.push(`${inProgressCount} in progress`)
-        else if (open.length >= 3) parts.push('nothing in progress')
+        else if (active.length >= 3) parts.push('nothing in progress')
 
         const summary = parts.join('. ') + '.'
         addOrbMessage(summary)
         prevUrgencyRef.current = urgency
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [todos, selectedId])
+    }, [todos])
 
     // ── Urgency transition explanation (suppressed during project switch) ──
     useEffect(() => {
@@ -405,19 +408,19 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
         if (prev === urgency) return
         prevUrgencyRef.current = urgency
 
-        const urgentCount = openTodos.filter(t => t.priority_value !== null && urgentValues.has(t.priority_value)).length
+        const urgentCount = activeTodos.filter(t => t.priority_value !== null && urgentValues.has(t.priority_value)).length
         let explanation = ''
-        if (prev === 'calm' && urgency === 'active') {
-            explanation = `Orb shifted active — ${openTodos.length} open tasks now.`
+        if (prev === 'calm' && urgency === 'busy') {
+            explanation = `Orb shifted busy — ${activeTodos.length} active tasks now.`
         } else if (prev === 'calm' && urgency === 'urgent') {
             explanation = `Orb shifted urgent — ${urgentCount} high-priority task${urgentCount !== 1 ? 's' : ''} detected.`
-        } else if (prev === 'active' && urgency === 'urgent') {
+        } else if (prev === 'busy' && urgency === 'urgent') {
             explanation = `Orb shifted urgent — ${urgentCount} high-priority task${urgentCount !== 1 ? 's' : ''} in the queue.`
-        } else if (prev === 'urgent' && urgency === 'active') {
-            explanation = 'Urgent queue cleared. Orb shifted back to active.'
+        } else if (prev === 'urgent' && urgency === 'busy') {
+            explanation = 'Urgent queue cleared. Orb shifted back to busy.'
         } else if (prev === 'urgent' && urgency === 'calm') {
             explanation = 'Backlog is light. Orb is calm.'
-        } else if (prev === 'active' && urgency === 'calm') {
+        } else if (prev === 'busy' && urgency === 'calm') {
             explanation = 'Backlog thinned out. Orb is calm.'
         }
 
@@ -495,7 +498,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
             { id: genId(), type: 'orb', text: `Here's how to get started:
 
 • Add a task: "Add task: review the onboarding flow"
-• See your list: "Show my open tasks"
+• See your list: "Show my active tasks"
 • Create a project: "Create a project called Work"
 
 If you run into a bug or have a suggestion, just tell me — I'll log a ticket automatically. You can also say things like "I have a suggestion" or "something's broken" and I'll capture it.
@@ -537,7 +540,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     return
                 }
                 // Shorthand for showing open tasks in current project
-                handleSubmit(`Show my open tasks in ${selected?.code ?? selected?.name ?? 'this project'}`)
+                handleSubmit(`Show my active tasks in ${selected?.code ?? selected?.name ?? 'this project'}`)
             } else if (cmd === '/projects') {
                 setMessages(prev => [
                     ...prev,
@@ -760,7 +763,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                         WebkitTouchCallout: 'none',
                         userSelect: 'none',
                     }}
-                    aria-label={noProject ? 'No project selected — add a project to get started' : `${openTodos.length} open todos — tap to view list, long press to return to ambient`}
+                    aria-label={noProject ? 'No project selected — add a project to get started' : `${activeTodos.length} active todos — tap to view list, long press to return to ambient`}
                     role="button"
                     tabIndex={0}
                     onKeyDown={e => {
@@ -888,7 +891,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                             lineHeight: 1,
                             transition: 'color 0.8s',
                         }}>
-                            {noProject ? '—' : openTodos.length}
+                            {noProject ? '—' : activeTodos.length}
                         </span>
                         <span style={{
                             fontFamily: 'var(--font-ui)',
@@ -899,7 +902,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                             color: noProject ? NO_PROJECT_STYLE.labelColor : style.labelColor,
                             transition: 'color 0.8s',
                         }}>
-                            {noProject ? 'no project' : 'open'}
+                            {noProject ? 'no project' : 'active'}
                         </span>
                     </div>
                 </div>
@@ -1145,12 +1148,12 @@ Type /? anytime for a full command list. What would you like to work on?` },
           0%, 100% { transform: scale(1);    opacity: 0.92; }
           50%      { transform: scale(1.05); opacity: 1; }
         }
-        @keyframes todos-orb-active {
+        @keyframes todos-orb-busy {
           0%, 100% { transform: scale(1);     border-radius: 50% 50% 50% 50%; }
           33%      { transform: scale(1.04);  border-radius: 48% 52% 51% 49%; }
           66%      { transform: scale(1.025); border-radius: 51% 49% 48% 52%; }
         }
-        @keyframes todos-glow-active {
+        @keyframes todos-glow-busy {
           0%, 100% { transform: scale(1);    opacity: 0.88; }
           50%      { transform: scale(1.12); opacity: 1; }
         }

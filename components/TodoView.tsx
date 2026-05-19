@@ -11,6 +11,7 @@ import TodoForm from './TodoForm'
 import ProductConfigPanel from './ProductConfigPanel'
 import DistillModal from './DistillModal'
 import { logAudit } from '@/app/actions/log-audit'
+import { ACTIVE_STATUSES, PARKED_STATUSES } from '@/lib/status-groups'
 
 export type Todo = {
   id: string
@@ -51,7 +52,7 @@ export default function TodoView({ productId }: { productId: string }) {
   const [statuses, setStatuses] = useState<StatusDef[]>([])
   const [loading, setLoading]   = useState(true)
 
-  const [filterStatus,   setFilterStatus]   = useState('open') // 'open' hides done by default
+  const [filterStatus,   setFilterStatus]   = useState('active') // 'active' = open + in progress
   const [filterPriority, setFilterPriority] = useState('all')
   const [showFilters,    setShowFilters]    = useState(false)
 
@@ -202,14 +203,18 @@ export default function TodoView({ productId }: { productId: string }) {
   const statusColor    = useCallback((status: string) => `var(--status-${status.replace(/\s+/g, '-')})`, [])
 
 
+  const activeStatuses   = ACTIVE_STATUSES
+  const inactiveStatuses = PARKED_STATUSES
+
   const filtered = todos.filter(t => {
-    if (filterStatus === 'open' && isClosed(t.status)) return false
-    if (filterStatus !== 'open' && filterStatus !== 'all' && t.status !== filterStatus) return false
+    if (filterStatus === 'active' && !activeStatuses.has(t.status)) return false
+    if (filterStatus === 'inactive' && !inactiveStatuses.has(t.status)) return false
+    if (filterStatus !== 'active' && filterStatus !== 'inactive' && filterStatus !== 'all' && t.status !== filterStatus) return false
     if (filterPriority !== 'all' && String(t.priority_value) !== filterPriority) return false
     return true
   })
 
-  const doneTodos = filterStatus === 'open'
+  const doneTodos = filterStatus === 'active'
     ? todos.filter(t => {
         if (!isClosed(t.status)) return false
         if (filterPriority !== 'all' && String(t.priority_value) !== filterPriority) return false
@@ -309,11 +314,14 @@ export default function TodoView({ productId }: { productId: string }) {
             className="tv-select"
             aria-label="Filter by status"
           >
-            <option value="open">Open only</option>
-            <option value="all">All statuses</option>
-            {statuses.map(s => (
-              <option key={s.id} value={s.name}>{s.name.charAt(0).toUpperCase() + s.name.slice(1)}</option>
-            ))}
+            <option value="all">All</option>
+            <option value="active">Active (Open + In Progress)</option>
+            <option value="inactive">Inactive (Deferred + On Hold)</option>
+            <option value="open">Open</option>
+            <option value="in progress">In Progress</option>
+            <option value="deferred">Deferred</option>
+            <option value="on hold">On Hold</option>
+            <option value="closed">Closed</option>
           </select>
 
           <select
@@ -340,7 +348,7 @@ export default function TodoView({ productId }: { productId: string }) {
           </p>
         ) : filtered.length === 0 ? (
           <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>
-            {filterStatus === 'open' ? 'Nothing open — you\'re clear.' : 'No todos found.'}
+            {filterStatus === 'active' ? 'Nothing active — you\'re clear.' : 'No todos found.'}
           </p>
         ) : (
           <div className="tv-list-card">
@@ -444,7 +452,7 @@ export default function TodoView({ productId }: { productId: string }) {
         )}
 
         {/* Done section — collapsed by default, only shown in open filter mode */}
-        {filterStatus === 'open' && doneTodos.length > 0 && (
+        {filterStatus === 'active' && doneTodos.length > 0 && (
           <div className="tv-done-section">
             <button
               className="tv-done-header"

@@ -112,7 +112,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "query_todos",
-    "description": "[Confidence: well-tested] Find todos matching criteria. Use code for single-todo lookup (e.g. \"ORB-73\"), or codes for multi-todo lookup (e.g. [\"ORB-102\", \"ORB-103\"]). Otherwise filters by status, product, priority, or text. Returns open tasks by default — pass status to include closed.",
+    "description": "[Confidence: well-tested] Find todos matching criteria. Use code for single-todo lookup (e.g. \"ORB-73\"), or codes for multi-todo lookup (e.g. [\"ORB-102\", \"ORB-103\"]). Otherwise filters by status, product, priority, or text. Returns non-closed tasks by default (includes deferred/on-hold). To get only active tasks, check status in results: active = open + in progress. Pass status to filter by a specific status, or status=\"any\" for all including closed.",
     "input_schema": {
       "type": "object",
       "properties": {
