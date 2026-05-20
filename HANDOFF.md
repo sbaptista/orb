@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.4.96 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.4.97 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -44,6 +44,8 @@
    - Integrated into `OfflineBanner` as an overlay so that the main application state and form/draft inputs are preserved in the DOM while offline.
    - Added a "Simulate Offline" toggle button inside the `OrbDevPanel` (under a new "Connectivity" section) in local development to easily test this screen without disabling hardware network adapters.
    - Raised the `z-index` of the development panel to `100000` (above the offline page's `99999`) to ensure it remains overlayed and interactive during simulation testing.
+   - Refactored the `OfflinePage` visuals to implement a dynamic, morphing Canvas-based Julia Set fractal background colored in nightfall/moonlight hues, paired with a central moonlight-silver glowing Orb pulsing at a Calm tempo.
+   - Saved the concentric planetary orbits graphic code commented out at the bottom of `OfflinePage.tsx` for future restoration if needed.
 
 ---
 
