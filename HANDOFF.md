@@ -1,13 +1,13 @@
 # HANDOFF.md
 
 > Living session-to-session context for the Orb project.  
-> Every AI reads this at session start. Every AI updates it at session end.  
+> Every AI reads at session start. Every AI updates it at session end.  
 > Committed with each session's code changes. No Downloads exports needed.
 
 
 ## App State
 
-- **Version:** v0.5.0 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.5.5 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,57 +16,36 @@
 
 ## Last Session Completed
 
-**Single source of truth for Orb AI — 2026-05-19 (Session 3)**
+**Invitation Decline & Acceptance Notifications — 2026-05-20 (Session 4)**
 
-1. **Admin Self-Deletion Protection (ORB-119)**
-   - Added safety checks in `deleteUser` and `deleteUsers` in `app/actions/delete-user.ts` to reject self-deletion.
-   - Updated `listUsers` in `app/actions/list-users.ts` to return the current authenticated user's ID (`currentUserId`).
-   - Updated `components/settings/SettingsUsers.tsx` to store `currentUserId`, disable selection, and hide the "Delete" button for the logged-in administrator.
-2. **Offline Page Wordmark Refinements**
-   - Centered the wordmark absolutely inside the pulsing moonlight sphere on the off-network overlay page (`components/ui/OfflinePage.tsx`).
-   - Spelled it `"ORB"` (all caps) and changed the text color to `#142414` (dark nightfall sage-green) for high contrast and readability against the white-silver-sage glowing background gradient.
-   - Added custom centered keyframe animation (`orbFadeUpCentered`) and negative right margin (`margin-right: -0.3em`) to offset `letter-spacing` and preserve perfect visual alignment.
+1. **Diagnostic Verification of Resend Notifications**
+   - Verified Resend email delivery using the `agent-diagnostic-decline-email.ts` script. Emails successfully dispatch to both admin addresses (`stan.baptista@gmail.com` and `stan.baptista+admin@gmail.com`).
+   - Added detailed runtime logging to the event notification dispatcher (`lib/notifications.ts`) to trace database lookup of admin emails, template selection, and individual Resend api responses.
+   - Built a temporary API endpoint (`app/api/test-decline/route.ts`) to execute the decline workflow inside the actual running dev server environment. Verified that the handler completes successfully without error and triggers correct notifications.
+   - Confirmed that the admin notification flow is fully working locally, and identified that it has not been active in production simply because these changes are currently uncommitted/undeployed to the live Vercel site.
+2. **Environment-Aware Admin Notification Links**
+   - Refactored `lib/notifications.ts` to dynamically retrieve the host and protocol from request headers at runtime using Next.js `'next/headers'`.
+   - Updated the `sendInvitationAcceptedEmail` and `sendInvitationDeclinedEmail` templates in `lib/email.ts` to accept an optional `origin` parameter and generate environment-aware links. This ensures that admin notification emails generated during local development link back to the dev server (including LAN IPs), while production events link to the production URL.
+3. **Audit Trail Logging on Decline & Acceptance**
+   - Integrated `logAuditEvent` in `app/actions/invitation-actions.ts`.
+   - On invitation decline, we now log a structured audit event to the `audit_log` database table with action `invitation_decline`, record ID pointing to the invitation UUID, status changes (`pending` to `declined`), the optional decline reason, and actor set to `'invitee'`.
+   - On invitation acceptance, we log a matching audit event with action `invitation_accept`, and pass the newly created user's UUID so the event is associated with their user profile in the audit history.
+4. **Resolution of ORB-121**
+   - Closed todo `ORB-121` (`"Push notifications: email first, SMS later"`) in the database, setting its status to `'closed'` and filling in detailed `resolution_notes`.
+   - Populated the `knowledge_repo` with a comprehensive entry capturing the reusable event notification dispatcher, Next.js header parsing logic for dynamic host matching, and audit log mapping.
+5. **Version Bump**
+   - Bumped version to `v0.5.5` per the session update protocol.
 
-**Single source of truth for Orb AI — 2026-05-19 (Session 2)**
+---
 
-1. **Admin Ticket Email Notifications**
-   - Implemented `sendTicketNotificationEmail` in `lib/email.ts` to construct a beautifully styled, color-coded HTML email using Resend.
-   - Configured custom tag colors for ticket types (Bug, Suggestion, Capability Gap, Workflow Friction).
-   - Updated `createTicket` in `app/actions/ticket-actions.ts` to query all admin users (`role_id` is 1 or 3) and dispatch notifications to them in parallel.
-   - Covered the notification dispatch in a try-catch block to guarantee ticket creation never fails even if email API keys are missing (e.g. in dev).
-   - Refactored `app/actions/orb-converse.ts` tool runner to use `createTicket` rather than performing a direct insert into the `tickets` table, so conversational AI creations automatically send emails too.
+## Uncommitted Changes
 
-**Single source of truth for Orb AI — 2026-05-19 (Session 1)**
-
-1. **Timezone-Agnostic Due Dates & Reminders (ORB-96 / ORB-97)**
-   - Added `todos.due_at` (`timestamp without time zone`) and `todos.reminded_at` (`timestamp with time zone`) columns.
-   - Added `users.urgency_threshold_hours` (`integer`) and `users.timezone` (`text`) columns.
-   - Created datetime-local input fields across task edit forms/modals to modify due dates.
-   - Configured dynamic timezone detection on mount to keep `users.timezone` synchronized.
-   - Updated the warning check condition to trigger when `now >= dueUTC - urgency_threshold_hours` to dispatch warning emails ahead of time.
-   - Refactored email template delivery to use a custom Resend template for invitations and warning reminders.
-   - Created a Vercel cron endpoint `/api/cron/reminders` running once per day.
-2. **Settings Urgency Custom Subpage**
-   - Created `/settings/urgency` and `SettingsUrgency.tsx` for managing warning thresholds.
-   - Structured styling with high-fidelity select controls and icons.
-3. **Slash Commands Discovery Dialog & Fixes**
-   - Created a `/` toggle button and `/` + `[Enter]` listener to open an interactive commands dialog box above the input field.
-   - Moved all autocomplete menus and dialogs outside the `overflow: hidden` boundaries of `.oc-input-border` to the parent `.oc-input-wrap` relative container to prevent clipping on all viewports.
-   - Fixed focus loss / text selection race conditions using `onMouseDown={(e) => e.preventDefault()}` on all interactive dialog controls.
-   - Set the toolbar `/` button to automatically populate `/` into the chat textarea.
-4. **Dynamic Welcome Message for Invitees**
-   - Fetched the user's `release_stage` on dashboard mount and stored it in state.
-   - Prefilled the welcome conversation prompt dynamically using the user's release stage (e.g. `alpha`, `beta`, `pre-alpha`) rather than hardcoding `"pre-alpha"`.
-5. **Helm-style Offline Page Overlay (ORB-116)**
-   - Created the `/api/health` API endpoint to monitor connection health.
-   - Created the `useOnlineStatus` hook to poll health and handle offline event listeners.
-   - Built a premium, full-screen `OfflinePage` component featuring background stars, twinkling animations, diagonal shooting meteors, and rotating concentric planetary orbits centered around a pulsing glowing Orb.
-   - Integrated into `OfflineBanner` as an overlay so that the main application state and form/draft inputs are preserved in the DOM while offline.
-   - Added a "Simulate Offline" toggle button inside the `OrbDevPanel` (under a new "Connectivity" section) in local development to easily test this screen without disabling hardware network adapters.
-   - Raised the `z-index` of the development panel to `100000` (above the offline page's `99999`) to ensure it remains overlayed and interactive during simulation testing.
-   - Refactored the `OfflinePage` visuals to implement a dynamic, morphing Canvas-based Julia Set fractal background colored in nightfall/moonlight hues, paired with a central moonlight-silver glowing Orb pulsing at a Calm tempo.
-   - Saved the concentric planetary orbits graphic code commented out at the bottom of `OfflinePage.tsx` for future restoration if needed.
-   - Moved the "Orb" wordmark to be positioned absolutely inside the central visual container, just below the moonlight pulsing sphere.
+- **[package.json](file:///Users/stanleybaptista/Projects/orb/package.json) / [lib/version.ts](file:///Users/stanleybaptista/Projects/orb/lib/version.ts)**: Bumped patch version to `0.5.5`.
+- **[app/actions/invitation-actions.ts](file:///Users/stanleybaptista/Projects/orb/app/actions/invitation-actions.ts)**: Integrates acceptance and decline admin notification hooks (`dispatchNotification`), strengthens pending row update checks, and records audit trail events.
+- **[lib/resolve-user.ts](file:///Users/stanleybaptista/Projects/orb/lib/resolve-user.ts)**: Refactored onboarding callback to use `acceptInvitation` Server Action to ensure notifications and audit logging fire on acceptance, passing the new user's UUID.
+- **[lib/email.ts](file:///Users/stanleybaptista/Projects/orb/lib/email.ts)**: Implemented `sendInvitationAcceptedEmail` and `sendInvitationDeclinedEmail` templates with responsive, custom HTML designs and support for dynamic origin links.
+- **[lib/notifications.ts](file:///Users/stanleybaptista/Projects/orb/lib/notifications.ts)**: Core notification dispatch engine with database admin user resolver, dynamic request origin detection, and console logging.
+- **[scripts/agent-diagnostic-decline-email.ts](file:///Users/stanleybaptista/Projects/orb/scripts/agent-diagnostic-decline-email.ts)**: Utility script to manually test delivery.
 
 ---
 
@@ -93,14 +72,14 @@
 
 ## Next Priorities
 
-1. **Test count consistency** — Verify Orb greeting, conversation, and query_todos all report matching numbers after deploy.
-2. **Re-evaluate INSIGHTS** — If a future use case emerges (e.g., pattern detection as a separate tool the AI can choose to call), the code is ready in `lib/insights.ts`.
+1. **Deploy to production** — Commit all local changes and push to Vercel to activate invitation acceptance and decline notifications on the live app.
+2. **Test count consistency** — Verify Orb greeting, conversation, and query_todos all report matching numbers after deploy.
 
 ---
 
 ## AI Tool Used Last Session
 
-`2026-05-19 — Antigravity (Gemini 2.5 Pro)`
+`2026-05-20 — Antigravity (Gemini 2.5 Pro)`
 
 ---
 

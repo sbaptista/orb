@@ -3,6 +3,11 @@
 import { requireAdmin, getAuthContext } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendInviteEmail } from '@/lib/email'
+import { logAuditEvent } from '@/lib/audit'
+import {
+  dispatchNotification,
+  type InvitationNotificationPayload,
+} from '@/lib/notifications'
 
 export type Invitation = {
     id: string
@@ -13,6 +18,29 @@ export type Invitation = {
     invited_at: string
     responded_at: string | null
     decline_reason: string | null
+}
+
+const INVITATION_NOTIFY_SELECT =
+  'id, email, first_name, last_name, release_stage, responded_at, decline_reason'
+
+function toNotificationPayload(row: {
+  id: string
+  email: string
+  first_name: string | null
+  last_name: string | null
+  release_stage: string
+  responded_at: string
+  decline_reason?: string | null
+}): InvitationNotificationPayload {
+  return {
+    id: row.id,
+    email: row.email,
+    first_name: row.first_name,
+    last_name: row.last_name,
+    release_stage: row.release_stage,
+    responded_at: row.responded_at,
+    decline_reason: row.decline_reason ?? null,
+  }
 }
 
 export async function getInvitations(status?: string) {
@@ -81,43 +109,112 @@ export async function deleteInvitations(ids: string[]) {
     return { ok: true }
 }
 
-export async function acceptInvitation(email: string) {
+export async function acceptInvitation(email: string, userId?: string) {
     const admin = createAdminClient()
-    const { error } = await admin
+    const { data: inv, error: fetchErr } = await admin
         .from('invitations')
-        .update({ status: 'accepted', responded_at: new Date().toISOString() })
+        .select(INVITATION_NOTIFY_SELECT)
         .eq('email', email)
         .eq('status', 'pending')
-    if (error) {
-        console.error('acceptInvitation error:', error)
-        return { error: error.message }
+        .order('invited_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+    if (fetchErr) {
+        console.error('acceptInvitation fetch error:', fetchErr)
+        return { error: fetchErr.message }
     }
-    return { ok: true }
+
+    if (!inv) {
+        return { ok: true, changed: false }
+    }
+
+    const respondedAt = new Date().toISOString()
+    const { data: updated, error: updateErr } = await admin
+        .from('invitations')
+        .update({ status: 'accepted', responded_at: respondedAt })
+        .eq('id', inv.id)
+        .eq('status', 'pending')
+        .select('id')
+
+    if (updateErr) {
+        console.error('acceptInvitation error:', updateErr)
+        return { error: updateErr.message }
+    }
+
+    const changed = (updated?.length ?? 0) > 0
+    if (changed) {
+        await logAuditEvent({
+            action: 'invitation_accept',
+            table_name: 'invitations',
+            record_id: inv.id,
+            before: { status: 'pending' },
+            after: { status: 'accepted' },
+            actor: 'invitee',
+            user_id: userId,
+        })
+        await dispatchNotification('invitation.accepted', toNotificationPayload({
+            ...inv,
+            responded_at: respondedAt,
+        }))
+    }
+
+    return { ok: true, changed }
 }
 
 export async function declineInvitation(token: string, reason?: string) {
     const admin = createAdminClient()
     const { data: inv, error: fetchErr } = await admin
         .from('invitations')
-        .select('id, email, status')
+        .select(INVITATION_NOTIFY_SELECT)
         .eq('id', token)
-        .single()
+        .eq('status', 'pending')
+        .maybeSingle()
 
-    if (fetchErr || !inv) return { error: 'Invitation not found or already responded.' }
-    if (inv.status !== 'pending') return { error: 'This invitation has already been responded to.' }
+    if (fetchErr) {
+        console.error('declineInvitation fetch error:', fetchErr)
+        return { error: fetchErr.message }
+    }
+    if (!inv) {
+        return { error: 'Invitation not found or already responded.' }
+    }
 
-    const { error } = await admin
+    const respondedAt = new Date().toISOString()
+    const { data: updated, error: updateErr } = await admin
         .from('invitations')
         .update({
             status: 'declined',
-            responded_at: new Date().toISOString(),
+            responded_at: respondedAt,
             decline_reason: reason || null,
         })
         .eq('id', inv.id)
+        .eq('status', 'pending')
+        .select('id')
 
-    if (error) {
-        console.error('declineInvitation error:', error)
-        return { error: error.message }
+    if (updateErr) {
+        console.error('declineInvitation error:', updateErr)
+        return { error: updateErr.message }
     }
-    return { ok: true }
+
+    if (!updated?.length) {
+        console.warn('[declineInvitation] Update matched 0 rows for', token)
+        return { error: 'This invitation has already been responded to.' }
+    }
+
+    await logAuditEvent({
+        action: 'invitation_decline',
+        table_name: 'invitations',
+        record_id: inv.id,
+        before: { status: 'pending' },
+        after: { status: 'declined', decline_reason: reason || null },
+        actor: 'invitee',
+    })
+
+    await dispatchNotification('invitation.declined', toNotificationPayload({
+        ...inv,
+        responded_at: respondedAt,
+        decline_reason: reason || null,
+    }))
+
+    return { ok: true, changed: true }
 }

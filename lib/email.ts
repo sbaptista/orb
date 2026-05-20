@@ -164,3 +164,154 @@ export async function sendTicketNotificationEmail({
   return { ok: true, messageId: data?.id }
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function invitationDisplayName(inv: {
+  first_name: string | null
+  last_name: string | null
+  email: string
+}): string {
+  const full = [inv.first_name, inv.last_name].filter(Boolean).join(' ').trim()
+  return full || inv.email
+}
+
+type InvitationEmailPayload = {
+  id: string
+  email: string
+  first_name: string | null
+  last_name: string | null
+  release_stage: string | null
+  responded_at: string
+  decline_reason?: string | null
+}
+
+function invitationNotificationHtml(
+  title: string,
+  subtitle: string,
+  accentBg: string,
+  inv: InvitationEmailPayload,
+  extraBody?: string,
+  origin?: string,
+): string {
+  const name = escapeHtml(invitationDisplayName(inv))
+  const email = escapeHtml(inv.email)
+  const stage = escapeHtml(inv.release_stage ?? 'pre-alpha')
+  const responded = escapeHtml(new Date(inv.responded_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }))
+  const siteUrl = origin ?? SITE_URL
+
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; color: #2d3748; line-height: 1.6; background-color: #f7fafc;">
+  <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <img src="${ICON_URL}" alt="Orb" width="48" height="48" style="border-radius: 50%;" />
+      <h2 style="margin-top: 12px; margin-bottom: 4px; color: #1a202c; font-size: 20px; font-weight: 700;">${title}</h2>
+      <p style="margin: 0; color: #718096; font-size: 14px;">${subtitle}</p>
+    </div>
+
+    <div style="border-top: 1px solid #edf2f7; border-bottom: 1px solid #edf2f7; padding: 20px 0; margin: 20px 0;">
+      <span style="display: inline-block; padding: 4px 10px; background-color: ${accentBg}; color: #ffffff; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px;">
+        ${stage}
+      </span>
+      <h3 style="margin: 0 0 8px 0; color: #2d3748; font-size: 18px; font-weight: 600;">${name}</h3>
+      <p style="margin: 0 0 4px 0; color: #4a5568; font-size: 15px;"><a href="mailto:${email}" style="color: #2d5a2d;">${email}</a></p>
+      <p style="margin: 12px 0 0 0; color: #718096; font-size: 14px;">Responded: ${responded}</p>
+      ${extraBody ?? ''}
+    </div>
+
+    <div style="text-align: center; margin-top: 28px;">
+      <a href="${siteUrl}/settings/invitations" style="display: inline-block; padding: 12px 28px; background: #2d5a2d; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
+        View Invitations
+      </a>
+    </div>
+  </div>
+  <p style="text-align: center; font-size: 12px; color: #a0aec0; margin-top: 20px;">
+    Sent automatically by Orb.
+  </p>
+</body>
+</html>`
+}
+
+export async function sendInvitationAcceptedEmail({
+  to,
+  invitation,
+  origin,
+}: {
+  to: string
+  invitation: InvitationEmailPayload
+  origin?: string
+}) {
+  const name = invitationDisplayName(invitation)
+  const html = invitationNotificationHtml(
+    'Invitation Accepted',
+    'Someone accepted an Orb invitation and can now sign in.',
+    '#2d5a2d',
+    invitation,
+    undefined,
+    origin,
+  )
+
+  const { data, error } = await getResend().emails.send({
+    from: FROM_EMAIL,
+    to,
+    subject: `[Orb] Invitation accepted: ${name}`,
+    html,
+  })
+
+  if (error) {
+    console.error('[sendInvitationAcceptedEmail] Resend error:', error)
+    return { error: error.message }
+  }
+
+  return { ok: true, messageId: data?.id }
+}
+
+export async function sendInvitationDeclinedEmail({
+  to,
+  invitation,
+  origin,
+}: {
+  to: string
+  invitation: InvitationEmailPayload
+  origin?: string
+}) {
+  const name = invitationDisplayName(invitation)
+  const reasonHtml = invitation.decline_reason
+    ? `<div style="margin-top: 16px; background: #f7fafc; border-left: 4px solid #cbd5e0; border-radius: 0 6px 6px 0; padding: 12px;">
+        <strong style="font-size: 14px; color: #4a5568; display: block; margin-bottom: 4px;">Decline reason</strong>
+        <p style="margin: 0; font-size: 14px; color: #2d3748;">${escapeHtml(invitation.decline_reason)}</p>
+       </div>`
+    : ''
+
+  const html = invitationNotificationHtml(
+    'Invitation Declined',
+    'Someone declined an Orb invitation.',
+    '#4a5568',
+    invitation,
+    reasonHtml,
+    origin,
+  )
+
+  const { data, error } = await getResend().emails.send({
+    from: FROM_EMAIL,
+    to,
+    subject: `[Orb] Invitation declined: ${name}`,
+    html,
+  })
+
+  if (error) {
+    console.error('[sendInvitationDeclinedEmail] Resend error:', error)
+    return { error: error.message }
+  }
+
+  return { ok: true, messageId: data?.id }
+}
+

@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createTicket } from '@/app/actions/ticket-actions'
+import { acceptInvitation } from '@/app/actions/invitation-actions'
 
 export type ResolvedUser = {
   id: string
@@ -87,10 +88,10 @@ export async function resolveUser(authId: string, email: string): Promise<Resolv
         return { ok: false, redirectTo: '/auth/login?error=resolve_failed' }
       }
 
-      await admin
-        .from('invitations')
-        .update({ status: 'accepted', responded_at: new Date().toISOString() })
-        .eq('id', invitation.id)
+      const acceptResult = await acceptInvitation(email, authId)
+      if ('error' in acceptResult && acceptResult.error) {
+        console.error('[resolveUser] acceptInvitation failed:', acceptResult.error)
+      }
 
       return { ok: true as const, user: newUser as ResolvedUser, isNew: true }
     }
