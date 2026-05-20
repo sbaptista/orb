@@ -67,7 +67,10 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
           "type": "string",
           "enum": [
             "open",
-            "done"
+            "in progress",
+            "deferred",
+            "on hold",
+            "closed"
           ],
           "description": "New status value."
         },

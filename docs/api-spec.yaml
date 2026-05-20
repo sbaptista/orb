@@ -142,7 +142,7 @@ components:
           nullable: true
         status:
           type: string
-          enum: [open, done]
+          enum: [open, in progress, deferred, on hold, closed]
         priority_value:
           type: integer
           nullable: true
@@ -198,10 +198,10 @@ components:
           type: string
         status:
           type: string
-          enum: [open, done]
+          enum: [open, in progress, deferred, on hold, closed]
           description: |
-            Setting to "done" automatically sets closed_at to now.
-            Setting to anything else automatically clears closed_at.
+            Setting to a closed status (e.g. "closed") automatically sets closed_at to now.
+            Setting to any other status automatically clears closed_at.
         priority_value:
           type: integer
         resolution_notes:

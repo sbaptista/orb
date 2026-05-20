@@ -24,7 +24,7 @@ const TOPICS: Topic[] = [
           <ul className="help-ul">
             <li className="help-li">"Add a note to review the API docs, high priority"</li>
             <li className="help-li">"Remind me to follow up on the proposal"</li>
-            <li className="help-li">"[Project] needs a login page"</li>
+            <li className="help-li">"[Project] needs a login page due Friday at 5pm"</li>
           </ul>
         </div>
 
@@ -41,19 +41,17 @@ const TOPICS: Topic[] = [
           <h2 className="help-h2">Update</h2>
           <ul className="help-ul">
             <li className="help-li">"Mark [project]-14 as done"</li>
-            <li className="help-li">"Move the invoice todo to high priority"</li>
             <li className="help-li">"Set the accessibility task to in progress"</li>
+            <li className="help-li">"Move [project]-10 to deferred"</li>
+            <li className="help-li">"Set due date for [project]-12 to tomorrow at 3pm"</li>
           </ul>
         </div>
 
         <div className="help-section">
-          <h2 className="help-h2">
-            Delete{' '}
-            <span className="text-xs text-muted" style={{ fontWeight: 400, letterSpacing: '0.04em' }}>coming soon</span>
-          </h2>
+          <h2 className="help-h2">Delete</h2>
           <ul className="help-ul">
-            <li className="help-li text-muted">"Delete the invoice todo"</li>
-            <li className="help-li text-muted">"Remove all done items from [project]"</li>
+            <li className="help-li">"Delete the invoice todo"</li>
+            <li className="help-li">"Delete [project]-14"</li>
           </ul>
         </div>
 
