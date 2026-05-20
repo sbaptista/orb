@@ -14,7 +14,7 @@ import { OrbDevPanel, type MoodOverride } from './OrbDevPanel'
 import { orbConverse, orbGreeting, type OrbResponse } from '@/app/actions/orb-converse'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import DistillModal from './DistillModal'
-import { VERSION } from '@/lib/version'
+import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import { useToast } from '@/components/ui/Toast'
 import MuralCanvas from './MuralCanvas'
 import HScrollNav from '@/components/ui/HScrollNav'
@@ -1134,9 +1134,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
             </div>
 
             {/* ── Version ── */}
-            <div className="dash-version">
-                Orb {VERSION}
-            </div>
+            <OrbVersionLabel as="div" className="dash-version" />
 
             {/* ── Modals ── */}
             {showHelp && <OrbHelp onClose={() => setShowHelp(false)} />}

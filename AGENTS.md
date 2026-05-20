@@ -30,6 +30,11 @@ The following file contains cross-project rules, conventions, and shared resourc
 
 **@/Users/stanleybaptista/Projects/shared/AGENTS.md**
 
+### Knowledge Repository (agents)
+
+- **Research reads:** Use `SUPABASE_SECRET_KEY` in curl (see shared AGENTS.md). The publishable key is RLS-restricted and often returns empty results — that is why the repo can look unused when it is not.
+- **When closing a todo:** Search `knowledge_repo` for the same topic; supersede or link — don't assume old entries are still true (shared working rule #12).
+
 ---
 
 # Project

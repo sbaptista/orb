@@ -2,7 +2,7 @@
 
 import NavLink from '@/components/settings/NavLink'
 import { useState } from 'react'
-import { VERSION } from '@/lib/version'
+import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import HScrollNav from '@/components/ui/HScrollNav'
 
 export type SidebarItem = {
@@ -36,7 +36,7 @@ export default function CollapsibleSidebar({ items, defaultOpen = true }: Props)
             )}
           </svg>
         </button>
-        {open && <span className="cs-version">Orb {VERSION}</span>}
+        {open && <OrbVersionLabel className="cs-version" />}
       </div>
 
       <HScrollNav>

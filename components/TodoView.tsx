@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { visibleProjectsQuery } from '@/lib/projects'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
-import { VERSION } from '@/lib/version'
+import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import TodoPanel from './TodoPanel'
 import TodoForm from './TodoForm'
 import ProductConfigPanel from './ProductConfigPanel'
@@ -741,7 +741,7 @@ export default function TodoView({ productId }: { productId: string }) {
 
       {/* Version */}
       <div className="tv-version-footer">
-        <span className="tv-version-text">Orb {VERSION}</span>
+        <OrbVersionLabel className="tv-version-text" />
       </div>
     </div>
   )

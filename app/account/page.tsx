@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import SettingsAccount from '@/components/settings/SettingsAccount'
-import { VERSION } from '@/lib/version'
+import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 
 export default async function AccountPage() {
   const supabase = await createClient()
@@ -19,7 +19,7 @@ export default async function AccountPage() {
         <SettingsAccount />
       </main>
       <div className="tv-version-footer">
-        <span className="tv-version-text">Orb {VERSION}</span>
+        <OrbVersionLabel className="tv-version-text" />
       </div>
     </>
   )

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { VERSION } from '@/lib/version'
+import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 
 export default function OfflinePage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -436,7 +436,7 @@ export default function OfflinePage() {
           </div>
         </main>
 
-        <div className="orb-version-footer">v{VERSION}</div>
+        <OrbVersionLabel as="div" className="orb-version-footer" format="version" />
       </div>
     </>
   )

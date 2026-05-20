@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { VERSION } from '@/lib/version'
+import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 
 
 export default function LoginPage() {
@@ -86,7 +86,7 @@ export default function LoginPage() {
       </div>
 
       <div className="auth-version">
-        <span className="auth-version-text">Orb {VERSION}</span>
+        <OrbVersionLabel className="auth-version-text" />
       </div>
     </div>
   )

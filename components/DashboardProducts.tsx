@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { visibleProjectsQuery } from '@/lib/projects'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
-import { VERSION } from '@/lib/version'
+import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 
 type Product = {
   id: string
@@ -389,7 +389,7 @@ export default function DashboardProducts() {
         )}
       </div>
       <div className="auth-version" style={{ position: 'static' }}>
-        <span className="auth-version-text">Orb {VERSION}</span>
+        <OrbVersionLabel className="auth-version-text" />
       </div>
     </main>
   )
