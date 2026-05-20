@@ -4,7 +4,6 @@ import { requireAdmin } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 
 const SUPER_ADMIN_ROLE_ID = 3
-const PROTECTED_EMAILS = ['dev@localhost.me', 'owner@test.local']
 
 export async function updateUser(userId: string, data: {
   first_name?: string
@@ -28,11 +27,10 @@ export async function updateUser(userId: string, data: {
     if (!target) return { error: 'User not found' }
     if (target.role_id === SUPER_ADMIN_ROLE_ID) return { error: 'Cannot modify Super Admin' }
 
-    const isProtected = PROTECTED_EMAILS.includes(target.email)
     const update: Record<string, any> = {}
 
-    if (data.first_name !== undefined && !isProtected) update.first_name = data.first_name
-    if (data.last_name !== undefined && !isProtected) update.last_name = data.last_name
+    if (data.first_name !== undefined) update.first_name = data.first_name
+    if (data.last_name !== undefined) update.last_name = data.last_name
     if (data.role_id !== undefined) update.role_id = data.role_id
 
     if (Object.keys(update).length === 0) return { error: 'No changes to apply' }

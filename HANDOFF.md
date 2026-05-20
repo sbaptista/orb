@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.4.100 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.5.0 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -15,6 +15,17 @@
 ---
 
 ## Last Session Completed
+
+**Single source of truth for Orb AI — 2026-05-19 (Session 3)**
+
+1. **Admin Self-Deletion Protection (ORB-119)**
+   - Added safety checks in `deleteUser` and `deleteUsers` in `app/actions/delete-user.ts` to reject self-deletion.
+   - Updated `listUsers` in `app/actions/list-users.ts` to return the current authenticated user's ID (`currentUserId`).
+   - Updated `components/settings/SettingsUsers.tsx` to store `currentUserId`, disable selection, and hide the "Delete" button for the logged-in administrator.
+2. **Offline Page Wordmark Refinements**
+   - Centered the wordmark absolutely inside the pulsing moonlight sphere on the off-network overlay page (`components/ui/OfflinePage.tsx`).
+   - Spelled it `"ORB"` (all caps) and changed the text color to `#142414` (dark nightfall sage-green) for high contrast and readability against the white-silver-sage glowing background gradient.
+   - Added custom centered keyframe animation (`orbFadeUpCentered`) and negative right margin (`margin-right: -0.3em`) to offset `letter-spacing` and preserve perfect visual alignment.
 
 **Single source of truth for Orb AI — 2026-05-19 (Session 2)**
 

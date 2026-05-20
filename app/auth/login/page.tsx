@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { VERSION } from '@/lib/version'
 
-const isDev = process.env.NODE_ENV === 'development'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -27,28 +26,6 @@ export default function LoginPage() {
     try {
       const supabase = createClient()
 
-      if (isDev && (email === 'dev@dev.local' || email === 'owner@test.local')) {
-        const isOwner = email === 'owner@test.local'
-        const { data, error: signInError } = await supabase.auth.signInWithPassword({
-          email: isOwner ? 'owner@test.local' : process.env.NEXT_PUBLIC_DEV_EMAIL!,
-          password: isOwner ? 'orb123456' : process.env.NEXT_PUBLIC_DEV_PASSWORD!,
-        })
-        if (signInError) {
-          setError(`Dev login failed: ${signInError.message}`)
-          setLoading(false)
-          return
-        }
-        if (data.user) {
-          const { data: existingUser } = await supabase
-            .from('users')
-            .select('id')
-            .eq('id', data.user.id)
-            .single()
-          router.push(existingUser ? '/dashboard' : '/auth/create-account')
-        }
-        setLoading(false)
-        return
-      }
 
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email,
@@ -105,21 +82,6 @@ export default function LoginPage() {
             </div>
           )}
 
-          {isDev && (
-            <div className="auth-dev-banner">
-              <p className="text-xs" style={{ color: 'var(--warning)', margin: 0 }}>
-                <strong>Dev mode:</strong> use{' '}
-                <code className="auth-dev-code" onClick={() => setEmail('dev@dev.local')}>
-                  dev@dev.local
-                </code>{' '}
-                (admin) or{' '}
-                <code className="auth-dev-code" onClick={() => setEmail('owner@test.local')}>
-                  owner@test.local
-                </code>{' '}
-                (owner)
-              </p>
-            </div>
-          )}
         </div>
       </div>
 

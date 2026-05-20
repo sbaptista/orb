@@ -27,7 +27,7 @@ type SortKey = 'name' | 'email' | 'role'
 type SortDir = 'asc' | 'desc'
 
 const SUPER_ADMIN_ROLE_ID = 3
-const PROTECTED_EMAILS = ['dev@localhost.me', 'owner@test.local']
+
 const EMPTY_INVITE_FORM = { email: '', firstName: '', lastName: '', roleId: 2 }
 
 export default function SettingsUsers() {
@@ -38,6 +38,7 @@ export default function SettingsUsers() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   const [showInvite, setShowInvite] = useState(false)
   const [inviteForm, setInviteForm] = useState(EMPTY_INVITE_FORM)
@@ -58,6 +59,7 @@ export default function SettingsUsers() {
       if (result.error) setError(result.error)
       setUsers((result.users ?? []) as UserRow[])
       setRoles((result.roles ?? []) as RoleRow[])
+      if (result.currentUserId) setCurrentUserId(result.currentUserId)
     } catch {
       setError('Failed to load users.')
     } finally {
@@ -70,7 +72,7 @@ export default function SettingsUsers() {
 
   const assignableRoles = roles.filter(r => r.id !== SUPER_ADMIN_ROLE_ID)
   const roleName = (roleId: number) => roles.find(r => r.id === roleId)?.name ?? 'Unknown'
-  const isProtectedUser = (email: string) => PROTECTED_EMAILS.includes(email)
+
 
   function displayName(u: UserRow) {
     return [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email
@@ -99,7 +101,7 @@ export default function SettingsUsers() {
   }
 
   function toggleSelectAll() {
-    const selectableIds = sortedUsers.filter(u => u.role_id !== SUPER_ADMIN_ROLE_ID && !isProtectedUser(u.email)).map(u => u.id)
+    const selectableIds = sortedUsers.filter(u => u.role_id !== SUPER_ADMIN_ROLE_ID && u.id !== currentUserId).map(u => u.id)
     if (selectableIds.every(id => selectedIds.includes(id))) {
       setSelectedIds([])
     } else {
@@ -175,20 +177,16 @@ export default function SettingsUsers() {
     setError('')
   }
 
-  async function handleSave(userId: string, email: string) {
-    const isProtected = isProtectedUser(email)
+  async function handleSave(userId: string) {
     const errs: Record<string, string> = {}
-    if (!isProtected) {
-      if (!editForm.firstName.trim()) errs.firstName = 'First name is required'
-    }
+    if (!editForm.firstName.trim()) errs.firstName = 'First name is required'
     if (Object.keys(errs).length > 0) { setEditErrors(errs); return }
 
-    const payload: { first_name?: string; last_name?: string; role_id?: number } = {}
-    if (!isProtected) {
-      payload.first_name = editForm.firstName.trim()
-      payload.last_name = editForm.lastName.trim()
+    const payload: { first_name?: string; last_name?: string; role_id?: number } = {
+      first_name: editForm.firstName.trim(),
+      last_name: editForm.lastName.trim(),
+      role_id: editForm.roleId,
     }
-    payload.role_id = editForm.roleId
 
     setSaving(true)
     setError('')
@@ -214,7 +212,7 @@ export default function SettingsUsers() {
 
   if (loading) return <div className="s-loading">Loading…</div>
 
-  const selectableIds = sortedUsers.filter(u => u.role_id !== SUPER_ADMIN_ROLE_ID && !isProtectedUser(u.email)).map(u => u.id)
+  const selectableIds = sortedUsers.filter(u => u.role_id !== SUPER_ADMIN_ROLE_ID && u.id !== currentUserId).map(u => u.id)
   const allChecked = selectableIds.length > 0 && selectableIds.every(id => selectedIds.includes(id))
   const someChecked = selectedIds.length > 0
 
@@ -325,40 +323,32 @@ export default function SettingsUsers() {
       {editingId && (() => {
         const user = users.find(u => u.id === editingId)
         if (!user) return null
-        const protectedUser = isProtectedUser(user.email)
         return (
           <div className="s-form" style={{ marginBottom: '12px' }}>
             <p className="text-sm" style={{ fontWeight: 600, marginBottom: '8px' }}>
               Editing {displayName(user)}
             </p>
-            {!protectedUser && (
-              <div className="grid-2col mb-md">
-                <FormField label="First Name" required error={editErrors.firstName}>
-                  <input
-                    value={editForm.firstName}
-                    onChange={e => { setEditForm(f => ({ ...f, firstName: e.target.value })); clearEditError('firstName') }}
-                    onFocus={e => Object.assign(e.currentTarget.style, inputFocusStyle(!!editErrors.firstName))}
-                    onBlur={e => Object.assign(e.currentTarget.style, inputStyle(!!editErrors.firstName))}
-                    style={inputStyle(!!editErrors.firstName)}
-                    autoFocus
-                  />
-                </FormField>
-                <FormField label="Last Name">
-                  <input
-                    value={editForm.lastName}
-                    onChange={e => setEditForm(f => ({ ...f, lastName: e.target.value }))}
-                    onFocus={e => Object.assign(e.currentTarget.style, inputFocusStyle())}
-                    onBlur={e => Object.assign(e.currentTarget.style, inputStyle())}
-                    style={inputStyle()}
-                  />
-                </FormField>
-              </div>
-            )}
-            {protectedUser && (
-              <p className="text-sm text-muted mb-md" style={{ margin: 0 }}>
-                Name cannot be changed for this test user.
-              </p>
-            )}
+            <div className="grid-2col mb-md">
+              <FormField label="First Name" required error={editErrors.firstName}>
+                <input
+                  value={editForm.firstName}
+                  onChange={e => { setEditForm(f => ({ ...f, firstName: e.target.value })); clearEditError('firstName') }}
+                  onFocus={e => Object.assign(e.currentTarget.style, inputFocusStyle(!!editErrors.firstName))}
+                  onBlur={e => Object.assign(e.currentTarget.style, inputStyle(!!editErrors.firstName))}
+                  style={inputStyle(!!editErrors.firstName)}
+                  autoFocus
+                />
+              </FormField>
+              <FormField label="Last Name">
+                <input
+                  value={editForm.lastName}
+                  onChange={e => setEditForm(f => ({ ...f, lastName: e.target.value }))}
+                  onFocus={e => Object.assign(e.currentTarget.style, inputFocusStyle())}
+                  onBlur={e => Object.assign(e.currentTarget.style, inputStyle())}
+                  style={inputStyle()}
+                />
+              </FormField>
+            </div>
             <FormField label="Role">
               <select
                 value={editForm.roleId}
@@ -371,7 +361,7 @@ export default function SettingsUsers() {
               </select>
             </FormField>
             <div className="flex-row gap-sm mt-md">
-              <button className="btn-primary" onClick={() => handleSave(user.id, user.email)} disabled={saving}>
+              <button className="btn-primary" onClick={() => handleSave(user.id)} disabled={saving}>
                 {saving ? 'Saving…' : 'Save'}
               </button>
               <button className="btn-cancel" onClick={() => setEditingId(null)}>Cancel</button>
@@ -438,8 +428,8 @@ export default function SettingsUsers() {
               <tbody>
                 {sortedUsers.map(user => {
                   const isSuperAdmin = user.role_id === SUPER_ADMIN_ROLE_ID
-                  const protectedUser = isProtectedUser(user.email)
-                  const selectable = !isSuperAdmin && !protectedUser
+                  const isSelf = user.id === currentUserId
+                  const selectable = !isSuperAdmin && !isSelf
 
                   return (
                     <tr
@@ -499,7 +489,7 @@ export default function SettingsUsers() {
                       </td>
                       <td className="audit-td" style={{ textAlign: 'right' }}>
                         <div className="flex-row gap-xs" style={{ justifyContent: 'flex-end' }}>
-                          {!isSuperAdmin && !protectedUser && (
+                          {!isSuperAdmin && (
                             <>
                               <button
                                 className="text-btn"
@@ -508,13 +498,15 @@ export default function SettingsUsers() {
                               >
                                 Edit
                               </button>
-                              <button
-                                className="text-btn"
-                                onClick={() => { setConfirmDeleteId(user.id); setEditingId(null) }}
-                                style={{ color: 'var(--error)', padding: '4px', fontSize: '12px' }}
-                              >
-                                Delete
-                              </button>
+                              {!isSelf && (
+                                <button
+                                  className="text-btn"
+                                  onClick={() => { setConfirmDeleteId(user.id); setEditingId(null) }}
+                                  style={{ color: 'var(--error)', padding: '4px', fontSize: '12px' }}
+                                >
+                                  Delete
+                                </button>
+                              )}
                             </>
                           )}
                         </div>

@@ -252,15 +252,18 @@ export default function OfflinePage() {
 
         .orb-wordmark {
           position: absolute;
-          top: calc(50% + 52px); /* 40px for sphere radius + 12px offset */
+          top: 50%;
+          left: 50%;
+          z-index: 3;
           font-family: var(--font-ui), sans-serif;
-          font-weight: 500;
+          font-weight: 600;
           font-size: 12px;
           letter-spacing: 0.3em;
+          margin-right: -0.3em; /* offset the trailing letter-spacing to center properly */
           text-transform: uppercase;
-          color: #a2bca2;
+          color: #142414; /* dark shade for high contrast inside the glowing sphere */
           opacity: 0;
-          animation: orbFadeUp 0.8s ease forwards 0.2s;
+          animation: orbFadeUpCentered 0.8s ease forwards 0.2s;
           pointer-events: none;
         }
 
@@ -354,6 +357,10 @@ export default function OfflinePage() {
           from { opacity: 0; transform: translateY(12px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes orbFadeUpCentered {
+          from { opacity: 0; transform: translate(-50%, calc(-50% + 10px)); }
+          to { opacity: 1; transform: translate(-50%, -50%); }
+        }
         @keyframes orbFadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
@@ -404,7 +411,7 @@ export default function OfflinePage() {
             aria-hidden="true"
           />
           <div className="orb-moonlight-sphere" />
-          <div className="orb-wordmark">Orb</div>
+          <div className="orb-wordmark">ORB</div>
         </div>
 
         {/* Content Panel */}

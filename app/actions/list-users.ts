@@ -23,7 +23,7 @@ export async function listUsers() {
       ? (users ?? [])
       : (users ?? []).filter((u: any) => u.role_id !== SUPER_ADMIN_ROLE_ID)
 
-    return { users: filtered, roles: roles ?? [] }
+    return { users: filtered, roles: roles ?? [], currentUserId: ctx.user.id }
   } catch (e: any) {
     console.error('[listUsers] Unexpected error:', e)
     return { error: e.message ?? 'Failed to load users', users: [], roles: [] }

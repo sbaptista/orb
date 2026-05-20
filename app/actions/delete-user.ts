@@ -4,13 +4,17 @@ import { requireAdmin } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 
 const SUPER_ADMIN_ROLE_ID = 3
-const PROTECTED_EMAILS = ['dev@localhost.me', 'owner@test.local']
 
 export async function deleteUsers(userIds: string[]) {
+  let ctx
   try {
-    await requireAdmin()
+    ctx = await requireAdmin()
   } catch (e: any) {
     return { error: e.message }
+  }
+
+  if (userIds.includes(ctx.user.id)) {
+    return { error: 'Cannot delete yourself' }
   }
 
   const results = await Promise.all(userIds.map(id => deleteUser(id)))
@@ -27,6 +31,10 @@ export async function deleteUser(userId: string) {
     return { error: e.message }
   }
 
+  if (userId === ctx.user.id) {
+    return { error: 'Cannot delete yourself' }
+  }
+
   try {
     const { data: target } = await ctx.admin
       .from('users')
@@ -36,7 +44,6 @@ export async function deleteUser(userId: string) {
 
     if (!target) return { error: 'User not found' }
     if (target.role_id === SUPER_ADMIN_ROLE_ID) return { error: 'Cannot delete Super Admin' }
-    if (PROTECTED_EMAILS.includes(target.email)) return { error: 'This test user cannot be deleted' }
 
     const { error: dbError } = await ctx.admin
       .from('users')
