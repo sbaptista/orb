@@ -32,6 +32,23 @@ const SPEECH_PRESETS: Record<string, Speech> = {
 
 function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChange, onSpeak, onSubmit, dryRun, onDryRunChange, messages, onForceQuiet }: Props) {
   const [open, setOpen] = useState(false)
+  const [simulatedOffline, setSimulatedOffline] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('todos_dev_simulate_offline') === 'true'
+    }
+    return false
+  })
+
+  const toggleSimulateOffline = () => {
+    const nextVal = !simulatedOffline
+    setSimulatedOffline(nextVal)
+    if (nextVal) {
+      localStorage.setItem('todos_dev_simulate_offline', 'true')
+    } else {
+      localStorage.removeItem('todos_dev_simulate_offline')
+    }
+    window.dispatchEvent(new Event('todos-dev-offline-change'))
+  }
 
   const copyTranscript = () => {
     const text = messages.map(m => `${m.type.toUpperCase()}: ${m.text}`).join('\n\n')
@@ -107,6 +124,11 @@ function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChan
           </button>
           <button type="button" className="dev-btn" aria-pressed={roleOverride === 'Owner'} onClick={() => onRoleOverrideChange('Owner')}>
             Owner (read-only)
+          </button>
+
+          <div className="dev-section">Connectivity</div>
+          <button type="button" className="dev-btn" aria-pressed={simulatedOffline} onClick={toggleSimulateOffline}>
+            Simulate Offline {simulatedOffline ? '✓' : ''}
           </button>
 
           <div className="dev-section">Claude API</div>
