@@ -8,6 +8,7 @@ import { ORB_TOOLS, ORB_TOOL_LABELS, ORB_INTEGRITY_RULES } from '@/lib/orb-contr
 // computeInsights suspended — code preserved in lib/insights.ts for future use
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, isParked } from '@/lib/status-groups'
+import { createTicket } from '@/app/actions/ticket-actions'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -611,14 +612,14 @@ FEEDBACK TONE:
               }
             }
           } else if (tc.name === 'create_ticket') {
-            const { error } = await auth.admin.from('tickets').insert({
+            const res = await createTicket({
               source: 'orb-auto',
-              type: input.type,
+              type: input.type as any,
               summary: input.summary,
               detail: input.detail ? { detail: input.detail } : {},
               conversation_snippet: req.input,
             })
-            if (error) output = { error: error.message }
+            if (res.error) output = { error: res.error }
             else {
               output = { ok: true }
               stream.update({ speech: accumulatedSpeech, thought: 'Noted' })

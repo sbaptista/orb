@@ -1,6 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendTicketNotificationEmail } from '@/lib/email'
 
 export type Ticket = {
     id: string
@@ -32,6 +33,33 @@ export async function createTicket({ source, type, summary, detail, conversation
         console.error('createTicket error:', error)
         return { error: error.message }
     }
+
+    // Dispatch admin emails asynchronously
+    try {
+        const { data: admins, error: adminsError } = await admin
+            .from('users')
+            .select('email')
+            .in('role_id', [1, 3])
+
+        if (adminsError) {
+            console.error('[createTicket] Failed to fetch admins for email notification:', adminsError)
+        } else if (admins && admins.length > 0) {
+            const adminEmails = admins.map(u => u.email).filter(Boolean) as string[]
+            await Promise.all(
+                adminEmails.map(email =>
+                    sendTicketNotificationEmail({
+                        to: email,
+                        ticket: data,
+                    }).catch(err => {
+                        console.error(`[createTicket] Failed to send email to admin ${email}:`, err)
+                    })
+                )
+            )
+        }
+    } catch (emailErr) {
+        console.error('[createTicket] Unexpected error dispatching admin emails:', emailErr)
+    }
+
     return { ok: true, data }
 }
 

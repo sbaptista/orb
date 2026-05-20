@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.4.98 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.4.100 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,7 +16,16 @@
 
 ## Last Session Completed
 
-**Single source of truth for Orb AI — 2026-05-19**
+**Single source of truth for Orb AI — 2026-05-19 (Session 2)**
+
+1. **Admin Ticket Email Notifications**
+   - Implemented `sendTicketNotificationEmail` in `lib/email.ts` to construct a beautifully styled, color-coded HTML email using Resend.
+   - Configured custom tag colors for ticket types (Bug, Suggestion, Capability Gap, Workflow Friction).
+   - Updated `createTicket` in `app/actions/ticket-actions.ts` to query all admin users (`role_id` is 1 or 3) and dispatch notifications to them in parallel.
+   - Covered the notification dispatch in a try-catch block to guarantee ticket creation never fails even if email API keys are missing (e.g. in dev).
+   - Refactored `app/actions/orb-converse.ts` tool runner to use `createTicket` rather than performing a direct insert into the `tickets` table, so conversational AI creations automatically send emails too.
+
+**Single source of truth for Orb AI — 2026-05-19 (Session 1)**
 
 1. **Timezone-Agnostic Due Dates & Reminders (ORB-96 / ORB-97)**
    - Added `todos.due_at` (`timestamp without time zone`) and `todos.reminded_at` (`timestamp with time zone`) columns.
