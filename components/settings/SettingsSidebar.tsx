@@ -13,6 +13,7 @@ const NAV: SidebarItem[] = [
   { id: 'invitations', href: '/settings/invitations', label: 'Invitations', icon: '✉', active: false },
   { id: 'tickets',    href: '/settings/tickets',    label: 'Tickets',    icon: '⚠', active: false },
   { id: 'data',       href: '/settings/data',       label: 'Data',       icon: '⬡', active: false },
+  { id: 'whats-new',  href: '/settings/whats-new',  label: "What's New", icon: '✨', active: false },
 ]
 
 export default function SettingsSidebar({ isAdmin }: { isAdmin?: boolean }) {

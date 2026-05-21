@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.5.10 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.5.13 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,53 +16,55 @@
 
 ## Last Session Completed
 
-**Access Hardening, Email Change Tracking & Ticket Notification System with Dynamic Routing — 2026-05-21 (Session 6)**
+**Version Update Notification, "What's New" Settings & Global Toast Relocation — 2026-05-21 (Session 7)**
 
-1. **Invitation-Only Access Blocker**
-   - Created the `checkLoginAllowed(email)` server action in `auth-actions.ts`.
-   - Updated the Login page (`app/auth/login/page.tsx`) to check if the email has a pending invitation or is already registered in the DB before dispatching OTP codes.
-   - Blocks OTP delivery and displays a user-friendly invitation-only warning notice to uninvited users.
-   - Wrapped `LoginForm` in `<Suspense>` to handle `useSearchParams()` safely.
+1. **Version Update Notification Banner**
+   - Created `/api/version` returning the active deployment version with cache-busting headers.
+   - Built the client-side `UpdateBanner` component to poll the version API (on mount, focus, and every 5m) and show a sliding top layout row with an "Update" button plus a neutral toast.
+   - Rendered the banner inside `<Providers>` in `layout.tsx` to hook into `ToastContext`.
 
-2. **Email Change Detection & Synchronization**
-   - Refactored `resolveUser` in `lib/resolve-user.ts` to first query by the stable auth ID (`authId`).
-   - If a mismatch is detected between the Auth email and the Database email, it automatically updates both `public.users` and `public.invitations` tables, and records a `user_update` event in the `audit_log` database table with before/after email states.
-   - Refactored `completeOnboarding` in `complete-onboarding.ts` to verify the user resolution status before allowing onboarding.
+2. **Update Developer Simulation**
+   - Added a "Simulate Update Available" button in the DEV panel which manages a `todos_dev_simulate_update` localStorage key and dispatches a custom `'todos-dev-update-change'` event for immediate client-side simulation.
 
-3. **Admin Notifications for New Tickets**
-   - Modified `createTicket` in `app/actions/ticket-actions.ts` to retrieve both user IDs and emails for all admins (`role_id` in `[1, 3]`).
-   - Trigger both an email via Resend (`sendTicketNotificationEmail`) and a Web Push Alert via the VAPID push manager (`sendPushToUser`) in parallel when a ticket is created.
-   - Configured push payloads with category titles (`New Ticket: [Type]`), summary bodies, unique tags (`ticket-[ticketId]`), and redirection URLs pointing to `/settings/tickets`.
+3. **"What's New" Settings Feed**
+   - Created `lib/changelog.ts` with release definitions and histories.
+   - Designed the `SettingsWhatsNew` component with a beautiful timeline UI showcasing latest release indicators, release dates, and change items.
+   - Created the `/settings/whats-new` routing path and added it to the Settings sidebar navigation list with a sparkle icon (`✨`).
 
-4. **Dynamic Environment Routing for Ticket Emails**
-   - Updated `createTicket` to dynamically inspect request headers (`x-forwarded-host`, `host`, `x-forwarded-proto`) via Next.js `headers()`. Reconstructs the exact requesting environment origin (e.g. `http://localhost:3001` or a staging URL) dynamically.
-   - Isolated the header lookup in a `try/catch` to fail gracefully (returning `undefined`) when invoked outside a request context (like in cron triggers or dev scripts).
-   - Updated `sendTicketNotificationEmail` to accept `origin?: string` and construct the dashboard redirection URL `${siteUrl}/settings/tickets`, fallback to production `SITE_URL` when `origin` is absent.
-   - Preserved `ICON_URL` using production `SITE_URL` to ensure the logo renders correctly in external email clients.
+4. **Offline Layout Consolidation**
+   - Deleted the obsolete `OfflineBanner` component.
+   - Moved all online connectivity checking directly into `OfflinePage` via `useOnlineStatus()`, automatically showing the breathing Julia fractal overlay when offline and returning `null` when online.
 
-5. **Migrations & Scripts**
-   - Created `scripts/test-ticket-notification.ts` to trigger new tickets and verify push/email delivery locally.
+5. **Global Toast Relocation**
+   - Repositioned the global toast notifications container to `top: calc(24px + var(--sat))` and slide down from `-8px` to align perfectly with the top update banner.
+
+6. **Release Verification Guidelines**
+   - Updated the `AGENTS.md` file to mandate patch version bumping (`package.json` + `lib/version.ts`) and static entry documentation (`lib/changelog.ts`) before any production release.
+   - Configured the agent Comprehension Check to prompt for release documentation rules and verify rule comprehension verbatim at session startup.
 
 ---
 
 ## Uncommitted Changes
 
 ### Modified
-- **[package.json](file:///Users/stanleybaptista/Projects/orb/package.json)** — version bump to 0.5.10
-- **[lib/version.ts](file:///Users/stanleybaptista/Projects/orb/lib/version.ts)** — version bump to v0.5.10
-- **[app/actions/complete-onboarding.ts](file:///Users/stanleybaptista/Projects/orb/app/actions/complete-onboarding.ts)** — onboarding authorization check
-- **[app/actions/ticket-actions.ts](file:///Users/stanleybaptista/Projects/orb/app/actions/ticket-actions.ts)** — email, push alerts, and dynamic origin resolution for admins on ticket submission
-- **[app/auth/login/page.tsx](file:///Users/stanleybaptista/Projects/orb/app/auth/login/page.tsx)** — login access verification and error handling
-- **[lib/email.ts](file:///Users/stanleybaptista/Projects/orb/lib/email.ts)** — dynamic origin routing support for new ticket notification links
-- **[lib/resolve-user.ts](file:///Users/stanleybaptista/Projects/orb/lib/resolve-user.ts)** — stable ID resolution, email change synchronization, and auditing
+- **[package.json](file:///Users/stanleybaptista/Projects/orb/package.json)** — version bump to 0.5.13
+- **[lib/version.ts](file:///Users/stanleybaptista/Projects/orb/lib/version.ts)** — version bump to v0.5.13
+- **[app/layout.tsx](file:///Users/stanleybaptista/Projects/orb/app/layout.tsx)** — mount UpdateBanner and swap OfflineBanner for OfflinePage
+- **[components/OrbDevPanel.tsx](file:///Users/stanleybaptista/Projects/orb/components/OrbDevPanel.tsx)** — simulated update available toggle button and event emitter
+- **[components/settings/SettingsSidebar.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsSidebar.tsx)** — navigation link for What's New settings page
+- **[components/ui/OfflinePage.tsx](file:///Users/stanleybaptista/Projects/orb/components/ui/OfflinePage.tsx)** — handle useOnlineStatus natively to render fullscreen overlay
+- **[components/ui/Toast.tsx](file:///Users/stanleybaptista/Projects/orb/components/ui/Toast.tsx)** — relocate toast notifications to the top globally
+- **[AGENTS.md](file:///Users/stanleybaptista/Projects/orb/AGENTS.md)** — comprehension checks, verbatim rules, and production release guidelines
 
+### Deleted
+- **[components/ui/OfflineBanner.tsx](file:///Users/stanleybaptista/Projects/orb/components/ui/OfflineBanner.tsx)** — removed obsolete banner component
 
 ### New
-- **[app/actions/auth-actions.ts](file:///Users/stanleybaptista/Projects/orb/app/actions/auth-actions.ts)** — pre-login authorization checker
-- **[scripts/add-access-hardening-knowledge.ts](file:///Users/stanleybaptista/Projects/orb/scripts/add-access-hardening-knowledge.ts)** — registers access hardening and ticket alert knowledge to the database repository
-- **[scripts/test-ticket-notification.ts](file:///Users/stanleybaptista/Projects/orb/scripts/test-ticket-notification.ts)** — integration test for ticket alerts
-
-
+- **[app/api/version/route.ts](file:///Users/stanleybaptista/Projects/orb/app/api/version/route.ts)** — route handler returning deployment version
+- **[components/UpdateBanner.tsx](file:///Users/stanleybaptista/Projects/orb/components/UpdateBanner.tsx)** — client-side version comparison and layout banner
+- **[lib/changelog.ts](file:///Users/stanleybaptista/Projects/orb/lib/changelog.ts)** — release data structures and historical entries
+- **[app/settings/whats-new/page.tsx](file:///Users/stanleybaptista/Projects/orb/app/settings/whats-new/page.tsx)** — WhatsNew page wrapper routing settings
+- **[components/settings/SettingsWhatsNew.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsWhatsNew.tsx)** — timeline view of release changelogs
 
 ---
 
@@ -86,19 +88,21 @@
 *   **Outer container layout for floating menus.** Interactive absolute-positioned dropdowns must live outside overflow-clipped cards to prevent clipping, positioned relatively to the parent container wrapper.
 *   **Push notifications fire from all mutation paths.** Both Orb conversation (`orb-converse.ts`) and direct UI edits (`TodoPanel`, `TodoView`, `TodoForm`) use shared `snapshotUrgency` / `checkAndNotifyEscalation` to detect urgency escalation.
 *   **Slash commands are fill-only.** Selecting a command fills the input with placeholder selected — never auto-submits. Consistent with Claude Code's slash command behavior.
+*   **Client-side dynamic version comparisons.** Server routes with cache headers guarantee clean responses bypassing cache networks.
+*   **Consolidated connectivity gates.** Centralized online validation in fullscreen pages keeps modular UI elements clean of duplicate connection hook listeners.
 
 ---
 
 ## Next Priorities
 
-1. **Deploy to production** — push changes to remote repository and deploy on Vercel.
-2. **Verify notifications in production** — verify Safari/Chrome push subscriptions on the live site after deployment.
+1. **Deploy to production** — push version 0.5.12 to remote repository and deploy on Vercel.
+2. **Verify live update flow** — verify Simulated/Real client-side update updates and cache clearance on production deployment.
 
 ---
 
 ## AI Tool Used Last Session
 
-`2026-05-21 — Antigravity (Gemini 2.0 Flash)`
+`2026-05-21 — Antigravity`
 
 ---
 

@@ -7,9 +7,11 @@
 5. Run git status and report whether there are any uncommitted changes.
 6. What AI Role are you?
 7. List every file from HANDOFF.md's "Uncommitted Changes" section that you re-read. Confirm all were loaded.
+8. What is the release documentation protocol for production releases? (Repeat the rule verbatim)
 
 **Instructions:**
 - **Never build/implement changes without explicit permission/confirmation from Stan.**
+- **Repeat verbatim the release documentation rule at the start of every session:** Before any code push/release, the agent must document all changes in `lib/changelog.ts` by adding a new `Release` entry with the bumped version, release date, and details of changes, and bump the patch version in both `package.json` and `lib/version.ts`.
 - **Knowledge Repository Access:** The knowledgebase is stored in the database (`knowledge_repo` table). Always query it at the start of a task using the `SUPABASE_SECRET_KEY` (service role) to bypass Row Level Security (RLS) constraints. See the **Knowledge Repository Access** section below for connection details and query examples.
 - Your first and only message before any tool use must be a numbered list answering all questions.
 - After answering, read `HANDOFF.md`, then **re-read every file listed in the "Uncommitted Changes" section** (both modified and new) before using any tools or continuing. This prevents stale-context overwrites when multiple AI tools edit the same directory.
@@ -230,6 +232,15 @@ Test design decisions across all three form factors. When in doubt, err on the s
 
 - **Dev server**: User-started only. No AI tool can start it — always blocked. Assume it's running when Stan says it is; if you need it, ask.
 - **Version:** `package.json` is canonical; `lib/version.ts` mirrors it. Both updated together on every bump.
+
+---
+
+# Production Releases & "What's New"
+
+Before any production release or code push, you must document all changes in the "What's New" release documentation file.
+- **File:** `/Users/stanleybaptista/Projects/orb/lib/changelog.ts`
+- **Action:** Bump the patch version in both `package.json` and `lib/version.ts`, and add a new entry to the `CHANGELOG` array in `lib/changelog.ts` with the new version string, release date, and detailed bullet points describing the changes.
+- **Verification:** Ensure that clicking the "Update" button in the client forces a tab refresh and fetches the new server version cleanly.
 
 ---
 

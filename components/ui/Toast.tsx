@@ -99,7 +99,7 @@ function ToastItemComp({ item, onDismiss }: { item: ToastItem; onDismiss: (id: s
         minWidth: '240px',
         maxWidth: '380px',
         opacity: visible ? 1 : 0,
-        transform: visible ? 'translateY(0) scale(1)' : 'translateY(8px) scale(0.97)',
+        transform: visible ? 'translateY(0) scale(1)' : 'translateY(-8px) scale(0.97)',
         transition: 'opacity 0.2s ease, transform 0.2s ease',
         pointerEvents: 'auto',
       }}
@@ -160,7 +160,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         aria-atomic="false"
         style={{
           position: 'fixed',
-          bottom: 'calc(24px + var(--sab))',
+          top: 'calc(24px + var(--sat))',
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 9999,

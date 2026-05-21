@@ -38,6 +38,12 @@ function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChan
     }
     return false
   })
+  const [simulatedUpdate, setSimulatedUpdate] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('todos_dev_simulate_update') === 'true'
+    }
+    return false
+  })
 
   const toggleSimulateOffline = () => {
     const nextVal = !simulatedOffline
@@ -48,6 +54,17 @@ function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChan
       localStorage.removeItem('todos_dev_simulate_offline')
     }
     window.dispatchEvent(new Event('todos-dev-offline-change'))
+  }
+
+  const toggleSimulateUpdate = () => {
+    const nextVal = !simulatedUpdate
+    setSimulatedUpdate(nextVal)
+    if (nextVal) {
+      localStorage.setItem('todos_dev_simulate_update', 'true')
+    } else {
+      localStorage.removeItem('todos_dev_simulate_update')
+    }
+    window.dispatchEvent(new Event('todos-dev-update-change'))
   }
 
   const copyTranscript = () => {
@@ -129,6 +146,9 @@ function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChan
           <div className="dev-section">Connectivity</div>
           <button type="button" className="dev-btn" aria-pressed={simulatedOffline} onClick={toggleSimulateOffline}>
             Simulate Offline {simulatedOffline ? '✓' : ''}
+          </button>
+          <button type="button" className="dev-btn" aria-pressed={simulatedUpdate} onClick={toggleSimulateUpdate}>
+            Simulate Update Available {simulatedUpdate ? '✓' : ''}
           </button>
 
           <div className="dev-section">Claude API</div>
