@@ -203,3 +203,22 @@ Test design decisions across all three form factors. When in doubt, err on the s
 
 - **Dev server**: User-started only. No AI tool can start it — always blocked. Assume it's running when Stan says it is; if you need it, ask.
 - **Version:** `package.json` is canonical; `lib/version.ts` mirrors it. Both updated together on every bump.
+
+---
+
+# WIP & Multi-Agent Transition Protocol (Resilience to Usage Caps)
+
+When working on complex tasks, an agent's usage limits may expire mid-session, leaving the workspace in an incomplete state. To prevent losing valuable context, design plans, and code drafts locked in the expired chat history, apply these mitigation strategies:
+
+1. **Write a `WIP.md` at key milestones**:
+   Immediately after aligning on a plan, designing an architecture, or completing a sub-task, write a brief `WIP.md` in the repository root detailing:
+   - **Current status**: What has been implemented so far.
+   - **Design decisions**: Crucial choices, API specifications, or database schema additions.
+   - **Immediate next steps**: Exact instructions for the next agent to resume work.
+   - Delete `WIP.md` only at the very end of the session when staging the final `HANDOFF.md` commit.
+
+2. **Commit draft code to a local WIP branch**:
+   If you have written significant uncommitted changes, you can stage and commit them to a local scratch branch (e.g., `wip/feature-name`) with a descriptive message. The incoming agent can inspect the branch diff to see exactly where you left off.
+
+3. **Use Scratch Files for complex code drafts**:
+   Save raw code drafts, research summaries, or temporary API responses in the `scripts/` or `scratch/` directory. Do not leave them only in the chat history.

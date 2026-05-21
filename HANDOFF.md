@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.5.6 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.5.7 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -36,15 +36,17 @@
 5. **Agent Documentation Updates (RLS/Keys)**
    - Updated project-specific `AGENTS.md` and shared `/Users/stanleybaptista/Projects/shared/AGENTS.md` to add highly prominent warnings about Row Level Security (RLS) policies on publishable/anonymous Supabase keys.
    - Explicitly instructed future agents to use the Service Role key (`SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`) to ensure they retrieve the full repository contents rather than RLS-restricted empty sets or partial tables.
-6. **Version Bumps**
-   - Bumped version to `v0.5.6` per the session update protocol.
+6. **WIP & Multi-Agent Transition Protocol**:
+   - Added a new protocol to both `AGENTS.md` files defining standard practices (e.g. creating a `WIP.md` at key milestones, committing draft branches, and using scratch files) to prevent loss of context when agents run out of usage mid-session.
+7. **Version Bumps**
+   - Bumped version to `v0.5.7` per the session update protocol.
 
 ---
 
 ## Uncommitted Changes
 
-- **[package.json](file:///Users/stanleybaptista/Projects/orb/package.json) / [lib/version.ts](file:///Users/stanleybaptista/Projects/orb/lib/version.ts)**: Bumped patch version to `0.5.6`.
-- **[AGENTS.md](file:///Users/stanleybaptista/Projects/orb/AGENTS.md)**: Updated with instructions on service keys vs publishable keys.
+- **[package.json](file:///Users/stanleybaptista/Projects/orb/package.json) / [lib/version.ts](file:///Users/stanleybaptista/Projects/orb/lib/version.ts)**: Bumped patch version to `0.5.7`.
+- **[AGENTS.md](file:///Users/stanleybaptista/Projects/orb/AGENTS.md)**: Updated with instructions on WIP Transition Protocol.
 - **[HANDOFF.md](file:///Users/stanleybaptista/Projects/orb/HANDOFF.md)**: Live app state tracking.
 
 ---
