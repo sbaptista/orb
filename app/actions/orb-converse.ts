@@ -9,7 +9,7 @@ import { ORB_TOOLS, ORB_TOOL_LABELS, ORB_INTEGRITY_RULES } from '@/lib/orb-contr
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, isParked } from '@/lib/status-groups'
 import { computeUrgency, type Urgency } from '@/lib/orb-state'
-import { checkAndNotifyEscalation } from '@/lib/push'
+import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
 import { createTicket } from '@/app/actions/ticket-actions'
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -114,14 +114,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, contextString: byProduct + dormantSection }
 }
 
-/** Compute current urgency from context (used for beforeUrgency snapshot in conversations) */
-function contextUrgency(ctx: any): Urgency {
-  const urgentValues = new Set<number>(
-    ctx.priorityList.filter((p: any) => p.is_urgent).map((p: any) => p.value as number)
-  )
-  const thresholdHours = 24 // default; could be per-user
-  return computeUrgency(ctx.todoList, urgentValues, thresholdHours)
-}
+
 
 export async function orbConverse(req: OrbRequest) {
   const stream = createStreamableValue<OrbResponse>()
@@ -131,7 +124,7 @@ export async function orbConverse(req: OrbRequest) {
       const auth = await getAuthContext()
       const supabase = auth.supabase
       const ctx = await buildContext(supabase, auth, req.productId, req.scopeToProduct ?? true)
-      const beforeUrgency = contextUrgency(ctx)
+      const beforeUrgency = await snapshotUrgency(supabase, auth.user.id)
       let hasMutated = false
       const statusNames = ctx.statusList.map((s: any) => s.name).join(', ')
       const priorityInfo = ctx.priorityList.map((p: any) => `${p.value}:${p.label}`).join(', ')
