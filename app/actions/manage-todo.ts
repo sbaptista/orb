@@ -1,6 +1,7 @@
 'use server'
 
 import { requireAdmin } from '@/lib/auth'
+import { snapshotUrgency, checkAndNotifyEscalation } from '@/lib/push'
 
 export async function createTodo(data: {
   title: string
@@ -14,6 +15,8 @@ export async function createTodo(data: {
   } catch (e: any) {
     return { error: e.message }
   }
+
+  const beforeUrgency = await snapshotUrgency(ctx.admin, ctx.user.id)
 
   let defaultStatus = data.status
   if (!defaultStatus) {
@@ -33,6 +36,10 @@ export async function createTodo(data: {
     .single()
 
   if (error) return { error: error.message }
+
+  // Fire-and-forget: check if urgency escalated
+  checkAndNotifyEscalation(ctx.user.id, beforeUrgency, ctx.admin)
+
   return { todo }
 }
 
@@ -48,6 +55,8 @@ export async function updateTodo(id: string, data: {
     return { error: e.message }
   }
 
+  const beforeUrgency = await snapshotUrgency(ctx.admin, ctx.user.id)
+
   const { data: todo, error } = await ctx.admin
     .from('todos')
     .update(data)
@@ -56,6 +65,10 @@ export async function updateTodo(id: string, data: {
     .single()
 
   if (error) return { error: error.message }
+
+  // Fire-and-forget: check if urgency escalated
+  checkAndNotifyEscalation(ctx.user.id, beforeUrgency, ctx.admin)
+
   return { todo }
 }
 
@@ -67,7 +80,15 @@ export async function deleteTodo(id: string) {
     return { error: e.message }
   }
 
+  const beforeUrgency = await snapshotUrgency(ctx.admin, ctx.user.id)
+
   const { error } = await ctx.admin.from('todos').delete().eq('id', id)
   if (error) return { error: error.message }
+
+  // Fire-and-forget: check if urgency de-escalated won't push (only escalation),
+  // but snapshot is needed in case delete shifts urgency up (e.g. removing a calm task
+  // while urgent ones remain doesn't change, but pattern is consistent)
+  checkAndNotifyEscalation(ctx.user.id, beforeUrgency, ctx.admin)
+
   return { success: true }
 }

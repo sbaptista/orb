@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.5.7 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.5.9 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,38 +16,93 @@
 
 ## Last Session Completed
 
-**Invitation Decline & Acceptance Notifications — 2026-05-20 (Session 4)**
+**Slash Commands, Knowledge CRUD, Web Push Notifications — 2026-05-20 (Session 5)**
 
-1. **Diagnostic Verification of Resend Notifications**
-   - Verified Resend email delivery using the `agent-diagnostic-decline-email.ts` script. Emails successfully dispatch to both admin addresses (`stan.baptista@gmail.com` and `stan.baptista+admin@gmail.com`).
-   - Added detailed runtime logging to the event notification dispatcher (`lib/notifications.ts`) to trace database lookup of admin emails, template selection, and individual Resend api responses.
-   - Built a temporary API endpoint (`app/api/test-decline/route.ts`) to execute the decline workflow inside the actual running dev server environment. Verified that the handler completes successfully without error and triggers correct notifications.
-   - Confirmed that the admin notification flow is fully working locally, and identified that it has not been active in production simply because these changes are currently uncommitted/undeployed to the live Vercel site.
-2. **Environment-Aware Admin Notification Links**
-   - Refactored `lib/notifications.ts` to dynamically retrieve the host and protocol from request headers at runtime using Next.js `'next/headers'`.
-   - Updated the `sendInvitationAcceptedEmail` and `sendInvitationDeclinedEmail` templates in `lib/email.ts` to accept an optional `origin` parameter and generate environment-aware links. This ensures that admin notification emails generated during local development link back to the dev server (including LAN IPs), while production events link to the production URL.
-3. **Audit Trail Logging on Decline & Acceptance**
-   - Integrated `logAuditEvent` in `app/actions/invitation-actions.ts`.
-   - On invitation decline, we now log a structured audit event to the `audit_log` database table with action `invitation_decline`, record ID pointing to the invitation UUID, status changes (`pending` to `declined`), the optional decline reason, and actor set to `'invitee'`.
-   - On invitation acceptance, we log a matching audit event with action `invitation_accept`, and pass the newly created user's UUID so the event is associated with their user profile in the audit history.
-4. **Resolution of ORB-121**
-   - Closed todo `ORB-121` (`"Push notifications: email first, SMS later"`) in the database, setting its status to `'closed'` and filling in detailed `resolution_notes`.
-   - Populated the `knowledge_repo` with a comprehensive entry capturing the reusable event notification dispatcher, Next.js header parsing logic for dynamic host matching, and audit log mapping.
-5. **Agent Documentation Updates (RLS/Keys)**
-   - Updated project-specific `AGENTS.md` and shared `/Users/stanleybaptista/Projects/shared/AGENTS.md` to add highly prominent warnings about Row Level Security (RLS) policies on publishable/anonymous Supabase keys.
-   - Explicitly instructed future agents to use the Service Role key (`SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`) to ensure they retrieve the full repository contents rather than RLS-restricted empty sets or partial tables.
-6. **WIP & Multi-Agent Transition Protocol**:
-   - Added a new protocol to both `AGENTS.md` files defining standard practices (e.g. creating a `WIP.md` at key milestones, committing draft branches, and using scratch files) to prevent loss of context when agents run out of usage mid-session.
-7. **Version Bumps**
-   - Bumped version to `v0.5.7` per the session update protocol.
+1. **Slash Command System Overhaul**
+   - Unified two competing slash menu implementations (inline typing + button dialog) into a single `.oc-slash-menu`
+   - Trimmed to 8 essential commands with group headers (Todos: `/add`, `/close`; Projects: `/create`, `/drop`, `/edit`, `/switch`; Session: `/clear`, `/settings`)
+   - Fill-only behavior — selecting a command populates the input with placeholder selected, never auto-submits
+   - Escape dismisses menu without clearing input; active item scrolls into view via `scrollIntoView`
+   - Removed ~90 lines of dead `.oc-commands-*` CSS
+   - Added catch-all `toast.neutral('Unknown command')` for unrecognized commands
+   - Added DISAMBIGUATION rule to `lib/orb-contract.ts`: bare "create X" = todo, "create a project" = project
+
+2. **Todo Delete Bug Fix**
+   - Supabase `.delete()` silently returns no error when RLS blocks zero rows
+   - Fixed by chaining `.select().maybeSingle()` and checking `if (!deleted)`
+
+3. **Knowledge Base Settings — Full CRUD Table**
+   - Rewrote `SettingsKnowledge.tsx` from read-only accordion to `SettingsCrudList` table with search, sort, bulk delete, and edit form
+
+4. **Table Hover Highlights**
+   - Added `.audit-table tbody tr:hover td { background: var(--bg3) }` for Projects and Knowledge tables
+
+5. **PWA Foundation**
+   - Enhanced `app/manifest.ts` with `id`, `orientation`, `categories`, 192/512 icon entries
+   - Created `app/icon-192/route.tsx` and `app/icon-512/route.tsx` generated orb icons
+   - Created `lib/orb-state.ts` — shared urgency computation (`computeUrgency`, `computeOrbState`, `isDueWithinWarning`)
+   - Created `app/api/orb-state/route.ts` — GET endpoint with dual auth (session cookie or API key)
+   - Created `lib/email.ts` — `sendDigestEmail()` with orb-styled HTML template
+
+6. **Web Push Notifications — Full End-to-End**
+   - Generated VAPID keys, added to `.env.local` and Vercel
+   - Created `lib/push.ts` — server-side push via `web-push` package with `sendPushToUser()`, `snapshotUrgency()`, `checkAndNotifyEscalation()`
+   - Created `lib/push-client.ts` — client-side subscription management
+   - Created `app/api/push/route.ts` — POST subscribe, DELETE unsubscribe
+   - Created `public/sw.js` — service worker for push events and notification clicks
+   - Created `components/ServiceWorkerRegistrar.tsx` — registers SW on mount (added to layout)
+   - Created `components/settings/SettingsNotifications.tsx` — enable/disable push UI with state detection
+   - Created `app/settings/notifications/page.tsx` — settings route
+   - Added Notifications link to `SettingsSidebar.tsx`
+   - Created `app/actions/push-actions.ts` — `getUrgencySnapshot()` and `notifyIfEscalated()` server actions for client components
+   - Urgency escalation triggers push from **both** Orb conversations and direct UI edits (TodoPanel, TodoView, TodoForm)
+   - Refactored `orb-converse.ts` to use shared `checkAndNotifyEscalation` instead of inline implementation
+
+7. **Migrations Applied**
+   - `20260520_knowledge_repo_crud_rls.sql` — UPDATE and DELETE policies for knowledge_repo
+   - `20260520_push_subscriptions.sql` — push_subscriptions table with RLS
+
+8. **Version Bump** — v0.5.9
 
 ---
 
 ## Uncommitted Changes
 
-- **[package.json](file:///Users/stanleybaptista/Projects/orb/package.json) / [lib/version.ts](file:///Users/stanleybaptista/Projects/orb/lib/version.ts)**: Bumped patch version to `0.5.7`.
-- **[AGENTS.md](file:///Users/stanleybaptista/Projects/orb/AGENTS.md)**: Updated with instructions on WIP Transition Protocol.
-- **[HANDOFF.md](file:///Users/stanleybaptista/Projects/orb/HANDOFF.md)**: Live app state tracking.
+### Modified
+- **[package.json](file:///Users/stanleybaptista/Projects/orb/package.json) / [lib/version.ts](file:///Users/stanleybaptista/Projects/orb/lib/version.ts)** — version bump to 0.5.9
+- **[app/actions/orb-converse.ts](file:///Users/stanleybaptista/Projects/orb/app/actions/orb-converse.ts)** — urgency escalation refactored to shared helper, delete fix, disambiguation rule
+- **[app/actions/manage-todo.ts](file:///Users/stanleybaptista/Projects/orb/app/actions/manage-todo.ts)** — added urgency escalation checks on create/update/delete
+- **[app/globals.css](file:///Users/stanleybaptista/Projects/orb/app/globals.css)** — slash menu group headers, scroll fix, table hover, removed dead CSS
+- **[app/layout.tsx](file:///Users/stanleybaptista/Projects/orb/app/layout.tsx)** — added ServiceWorkerRegistrar
+- **[app/manifest.ts](file:///Users/stanleybaptista/Projects/orb/app/manifest.ts)** — enhanced PWA manifest
+- **[components/AmbientDashboard.tsx](file:///Users/stanleybaptista/Projects/orb/components/AmbientDashboard.tsx)** — slash command handlers, imports from shared orb-state
+- **[components/OrbConversation.tsx](file:///Users/stanleybaptista/Projects/orb/components/OrbConversation.tsx)** — unified slash menu, fill-only behavior
+- **[components/OrbHelp.tsx](file:///Users/stanleybaptista/Projects/orb/components/OrbHelp.tsx)** — updated slash commands section
+- **[components/TodoForm.tsx](file:///Users/stanleybaptista/Projects/orb/components/TodoForm.tsx)** — urgency escalation on create
+- **[components/TodoPanel.tsx](file:///Users/stanleybaptista/Projects/orb/components/TodoPanel.tsx)** — urgency escalation on save/delete
+- **[components/TodoView.tsx](file:///Users/stanleybaptista/Projects/orb/components/TodoView.tsx)** — urgency escalation on toggle done, bulk ops
+- **[components/settings/SettingsKnowledge.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsKnowledge.tsx)** — full CRUD table rewrite
+- **[components/settings/SettingsSidebar.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsSidebar.tsx)** — added Notifications link
+- **[lib/email.ts](file:///Users/stanleybaptista/Projects/orb/lib/email.ts)** — digest email template
+- **[lib/orb-contract.ts](file:///Users/stanleybaptista/Projects/orb/lib/orb-contract.ts)** — DISAMBIGUATION rule
+- **[package-lock.json](file:///Users/stanleybaptista/Projects/orb/package-lock.json)** — web-push dependency
+
+### New
+- **[app/actions/push-actions.ts](file:///Users/stanleybaptista/Projects/orb/app/actions/push-actions.ts)** — server actions for client-side urgency escalation
+- **[app/api/orb-state/route.ts](file:///Users/stanleybaptista/Projects/orb/app/api/orb-state/route.ts)** — orb state API endpoint
+- **[app/api/push/route.ts](file:///Users/stanleybaptista/Projects/orb/app/api/push/route.ts)** — push subscribe/unsubscribe API
+- **[app/icon-192/route.tsx](file:///Users/stanleybaptista/Projects/orb/app/icon-192/route.tsx)** — 192px generated icon
+- **[app/icon-512/route.tsx](file:///Users/stanleybaptista/Projects/orb/app/icon-512/route.tsx)** — 512px generated icon
+- **[app/settings/notifications/page.tsx](file:///Users/stanleybaptista/Projects/orb/app/settings/notifications/page.tsx)** — notifications settings route
+- **[components/ServiceWorkerRegistrar.tsx](file:///Users/stanleybaptista/Projects/orb/components/ServiceWorkerRegistrar.tsx)** — SW registration component
+- **[components/settings/SettingsNotifications.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsNotifications.tsx)** — push notification settings UI
+- **[lib/orb-state.ts](file:///Users/stanleybaptista/Projects/orb/lib/orb-state.ts)** — shared urgency computation
+- **[lib/push.ts](file:///Users/stanleybaptista/Projects/orb/lib/push.ts)** — server-side push + escalation helpers
+- **[lib/push-client.ts](file:///Users/stanleybaptista/Projects/orb/lib/push-client.ts)** — client-side push subscription management
+- **[public/sw.js](file:///Users/stanleybaptista/Projects/orb/public/sw.js)** — service worker
+- **[scripts/migrations/20260520_knowledge_repo_crud_rls.sql](file:///Users/stanleybaptista/Projects/orb/scripts/migrations/20260520_knowledge_repo_crud_rls.sql)**
+- **[scripts/migrations/20260520_push_subscriptions.sql](file:///Users/stanleybaptista/Projects/orb/scripts/migrations/20260520_push_subscriptions.sql)**
+- **[scripts/test-push.ts](file:///Users/stanleybaptista/Projects/orb/scripts/test-push.ts)** — push notification test script
 
 ---
 
@@ -69,19 +124,22 @@
 *   **INSIGHTS suspended from AI prompt.** `computeInsights()` code preserved in `lib/insights.ts` but not injected into system prompt. Value didn't override the trust cost — AI parroted unverifiable numbers. Greeting and conversation now use the same backlog context as the single data path.
 *   **query_todos is the AI's single verification path.** `status_group`, `show_results`, and raised default limit ensure the AI can reproduce any number it states.
 *   **Outer container layout for floating menus.** Interactive absolute-positioned dropdowns must live outside overflow-clipped cards to prevent clipping, positioned relatively to the parent container wrapper.
+*   **Push notifications fire from all mutation paths.** Both Orb conversation (`orb-converse.ts`) and direct UI edits (`TodoPanel`, `TodoView`, `TodoForm`) use shared `snapshotUrgency` / `checkAndNotifyEscalation` to detect urgency escalation.
+*   **Slash commands are fill-only.** Selecting a command fills the input with placeholder selected — never auto-submits. Consistent with Claude Code's slash command behavior.
 
 ---
 
 ## Next Priorities
 
-1. **Deploy to production** — Commit all local changes and push to Vercel to activate invitation acceptance and decline notifications on the live app.
-2. **Test count consistency** — Verify Orb greeting, conversation, and query_todos all report matching numbers after deploy.
+1. **Test push notifications in production** — verify Safari/Chrome on live site after deploy
+2. **PWA widget phases 5-6** — scheduled escalation checks (cron), email digest integration
+3. **Comet browser notifications** — Comet's Notification API doesn't bridge to macOS; investigate or document as known limitation
 
 ---
 
 ## AI Tool Used Last Session
 
-`2026-05-20 — Antigravity (Gemini 2.5 Pro)`
+`2026-05-20 — Claude Code (Claude Opus 4)`
 
 ---
 

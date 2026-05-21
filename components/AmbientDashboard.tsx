@@ -19,11 +19,11 @@ import { useToast } from '@/components/ui/Toast'
 import MuralCanvas from './MuralCanvas'
 import HScrollNav from '@/components/ui/HScrollNav'
 import { isActive } from '@/lib/status-groups'
+import { computeUrgency, isDueWithinWarning, type Urgency } from '@/lib/orb-state'
 
 type Product  = { id: string; name: string; code: string | null; description: string | null; created_by: string }
-type Todo     = { id: string; title: string; status: string; priority_value: number | null; due_at: string | null }
+type Todo     = { id: string; title: string; status: string; priority_value: number | null; due_at: string | null; product_id: string }
 type Priority = { value: number; label: string; color: string; is_urgent: boolean }
-type Urgency  = 'calm' | 'busy' | 'urgent'
 
 type Props = { initialProducts?: Product[]; isAdmin?: boolean }
 
@@ -36,29 +36,6 @@ function genId() {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 }
 
-function parseLocalDatetime(str: string): Date {
-    const [datePart, timePart] = str.split('T')
-    const [year, month, day] = datePart.split('-').map(Number)
-    const [hours, minutes] = timePart.split(':').map(Number)
-    return new Date(year, month - 1, day, hours, minutes)
-}
-
-function isDueWithinWarning(dueAtStr: string, warningHours: number): boolean {
-    const due = parseLocalDatetime(dueAtStr)
-    const now = new Date()
-    const thresholdMs = warningHours * 60 * 60 * 1000
-    return due.getTime() - now.getTime() <= thresholdMs
-}
-
-function computeUrgency(todos: Todo[], urgentValues: Set<number>, urgencyThreshold: number): Urgency {
-    const active = todos.filter(t => isActive(t.status))
-    const hasUrgentPriority = active.some(t => t.priority_value !== null && urgentValues.has(t.priority_value))
-    const hasUrgentDueDate = active.some(t => t.due_at && isDueWithinWarning(t.due_at, urgencyThreshold))
-
-    if (hasUrgentPriority || hasUrgentDueDate) return 'urgent'
-    if (active.length > 5) return 'busy'
-    return 'calm'
-}
 
 const ORB_SPEED: Record<Urgency, string> = {
     calm:   '5.5s',
@@ -581,36 +558,48 @@ Type /? anytime for a full command list. What would you like to work on?` },
                 router.push('/settings')
             } else if (cmd === '/help' || cmd === '/?') {
                 setShowHelp(true)
-            } else if (cmd === '/tasks') {
-                if (!selectedId) {
-                    toast.neutral('Add a project first.')
-                    return
-                }
-                // Shorthand for showing open tasks in current project
-                handleSubmit(`Show my active tasks in ${selected?.code ?? selected?.name ?? 'this project'}`)
-            } else if (cmd === '/projects') {
-                setMessages(prev => [
-                    ...prev,
-                    { id: genId(), type: 'user', text },
-                    { id: genId(), type: 'orb', text: products.length === 0
-                        ? 'You have no projects yet. Say "Create a project called [name]" to add one.'
-                        : `Your projects:\n${products.map(p => `• ${p.code ?? p.name}${p.description ? ' — ' + p.description : ''}`).join('\n')}` },
-                ])
-                setConversationActive(true)
-                resetInactivity()
             } else if (cmd === '/clear') {
                 setMessages([])
                 setConversationActive(false)
                 sessionStorage.removeItem(SS_CONVERSATION)
-            } else if (cmd === '/switch') {
-                const target = args.join(' ')
-                const t = products.find(p => 
-                    p.code?.toUpperCase() === target.toUpperCase() || 
+            } else if (cmd === '/add') {
+                const task = args.join(' ').trim()
+                if (!task) {
+                    toast.neutral('Usage: /add Buy groceries')
+                    return
+                }
+                handleSubmit(`Add a todo: ${task}`)
+            } else if (cmd === '/close') {
+                const task = args.join(' ').trim()
+                if (!task) {
+                    toast.neutral('Usage: /close ORB-12')
+                    return
+                }
+                handleSubmit(`Close ${task}`)
+            } else if (cmd === '/create') {
+                const name = args.join(' ').trim()
+                if (!name) {
+                    toast.neutral('Usage: /create Project Name')
+                    return
+                }
+                handleSubmit(`Create a project called "${name}"`)
+            } else if (cmd === '/drop') {
+                const target = args.join(' ').trim()
+                if (!target) {
+                    toast.neutral('Usage: /drop [project code]')
+                    return
+                }
+                const t = products.find(p =>
+                    p.code?.toUpperCase() === target.toUpperCase() ||
                     p.name.toUpperCase() === target.toUpperCase()
                 )
-                if (t) setSelectedId(t.id)
+                if (!t) {
+                    toast.neutral(`Project "${target}" not found.`)
+                    return
+                }
+                handleSubmit(`Delete the project ${t.code ?? t.name}`)
             } else if (cmd === '/edit') {
-                const target = args.join(' ')
+                const target = args.join(' ').trim()
                 if (target) {
                     const t = products.find(p =>
                         p.code?.toUpperCase() === target.toUpperCase() ||
@@ -619,6 +608,8 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     if (t) {
                         setSelectedId(t.id)
                         setShowEditProduct(true)
+                    } else {
+                        toast.neutral(`Project "${target}" not found.`)
                     }
                 } else {
                     if (!selectedId) {
@@ -627,14 +618,20 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     }
                     setShowEditProduct(true)
                 }
-            } else if (cmd === '/orb') {
-                setMessages(prev => [
-                    ...prev,
-                    { id: genId(), type: 'user', text },
-                    { id: genId(), type: 'orb', text: 'I\'m the orb — your conversational interface to Orb.\n• Create: "Add a high priority todo to [project]"\n• Query: "What\'s most urgent?"\n• Update: "Mark the invoice task as done"\n• Navigate: "Switch to [project]" or "Open settings"\nType /? for full help.' },
-                ])
-                setConversationActive(true)
-                resetInactivity()
+            } else if (cmd === '/switch') {
+                const target = args.join(' ').trim()
+                if (!target) {
+                    toast.neutral('Usage: /switch [project code]')
+                    return
+                }
+                const t = products.find(p =>
+                    p.code?.toUpperCase() === target.toUpperCase() ||
+                    p.name.toUpperCase() === target.toUpperCase()
+                )
+                if (t) setSelectedId(t.id)
+                else toast.neutral(`Project "${target}" not found.`)
+            } else {
+                toast.neutral(`Unknown command: ${cmd}`)
             }
             return
         }

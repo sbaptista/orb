@@ -768,6 +768,11 @@ a, button, [role="button"], input, select, textarea {
   white-space: nowrap;
 }
 
+.audit-table tbody tr:hover td {
+  background: var(--bg3);
+  transition: background 0.15s ease;
+}
+
 .knowledge-tag {
   font-size: 10px;
   background: var(--bg2);
@@ -1551,6 +1556,19 @@ a, button, [role="button"], input, select, textarea {
   padding: 4px;
   z-index: 50;
   min-width: 200px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.oc-slash-group-header {
+  padding: 6px 10px 2px;
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  user-select: none;
 }
 
 .oc-slash-item {
@@ -2749,90 +2767,4 @@ a, button, [role="button"], input, select, textarea {
   }
 }
 
-/* ── Orb Commands Dialog ── */
-.oc-commands-dialog {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  right: 0;
-  margin-bottom: 8px;
-  background: var(--bg);
-  border: 1.5px solid var(--border-focus);
-  border-radius: var(--r-xl);
-  box-shadow: var(--shadow-lg);
-  z-index: 100;
-  display: flex;
-  flex-direction: column;
-  max-height: min(220px, 35vh);
-  overflow: hidden;
-  animation: oc-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes oc-slide-up {
-  from { transform: translateY(8px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.oc-commands-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-}
-
-.oc-commands-close {
-  background: none;
-  border: none;
-  font-size: 16px;
-  cursor: pointer;
-  color: var(--muted);
-  padding: 0 4px;
-  line-height: 1;
-}
-
-.oc-commands-close:hover {
-  color: var(--text);
-}
-
-.oc-commands-list {
-  overflow-y: auto;
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  -webkit-overflow-scrolling: touch;
-}
-
-.oc-commands-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  border-radius: var(--r-md);
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.oc-commands-item:hover {
-  background: var(--bg2);
-}
-
-.oc-commands-cmd {
-  font-family: monospace;
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--text);
-}
-
-.oc-commands-desc {
-  font-size: 10px;
-  color: var(--muted);
-}
 

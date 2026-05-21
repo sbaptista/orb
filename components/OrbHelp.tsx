@@ -72,12 +72,16 @@ const TOPICS: Topic[] = [
         </div>
 
         <div className="help-section">
-          <h2 className="help-h2">Navigation</h2>
+          <h2 className="help-h2">Slash commands</h2>
           <ul className="help-ul">
-            <li className="help-li">"Switch to [project]" or <span className="help-mono">/switch [project]</span></li>
-            <li className="help-li">"Open settings" or <span className="help-mono">/settings</span></li>
-            <li className="help-li">Edit current project: <span className="help-mono">/edit</span></li>
-            <li className="help-li">Edit a specific project: <span className="help-mono">/edit [project]</span></li>
+            <li className="help-li"><span className="help-mono">/add [task]</span> — create a todo</li>
+            <li className="help-li"><span className="help-mono">/close [task]</span> — mark a todo as done</li>
+            <li className="help-li"><span className="help-mono">/create [name]</span> — create a project</li>
+            <li className="help-li"><span className="help-mono">/drop [project]</span> — delete a project</li>
+            <li className="help-li"><span className="help-mono">/edit [project]</span> — edit a project</li>
+            <li className="help-li"><span className="help-mono">/switch [project]</span> — switch projects</li>
+            <li className="help-li"><span className="help-mono">/clear</span> — clear the conversation</li>
+            <li className="help-li"><span className="help-mono">/settings</span> — open settings</li>
           </ul>
           <p className="help-p text-sm text-muted" style={{ marginTop: '10px', marginBottom: 0 }}>
             Type <span className="help-mono">/</span> in the input field to see all available commands.

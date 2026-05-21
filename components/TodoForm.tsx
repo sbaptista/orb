@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { useToast } from '@/components/ui/Toast'
 import type { Todo, Product, Priority } from './TodoView'
 
@@ -37,6 +38,8 @@ export default function TodoForm({
     setSaving(true)
     setError('')
 
+    const beforeUrgency = await getUrgencySnapshot()
+
     const { data: openStatus } = await supabase
       .from('statuses').select('name').eq('is_open', true).limit(1).single()
 
@@ -60,7 +63,11 @@ export default function TodoForm({
 
     setSaving(false)
     if (err) { toast.error('Failed to create todo. Try again.'); return }
-    if (data) { toast.success('Todo created'); onCreate(data as Todo) }
+    if (data) {
+      toast.success('Todo created')
+      notifyIfEscalated(beforeUrgency)
+      onCreate(data as Todo)
+    }
   }
 
   return (

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import Providers from '@/components/Providers'
 import OfflineBanner from '@/components/ui/OfflineBanner'
+import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar'
 import './globals.css'
 
 const dmSans = DM_Sans({
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body suppressHydrationWarning>
         <a href="#main-content" className="skip-link">Skip to content</a>
         <OfflineBanner />
+        <ServiceWorkerRegistrar />
         <Providers>{children}</Providers>
       </body>
     </html>

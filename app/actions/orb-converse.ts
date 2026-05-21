@@ -8,6 +8,8 @@ import { ORB_TOOLS, ORB_TOOL_LABELS, ORB_INTEGRITY_RULES } from '@/lib/orb-contr
 // computeInsights suspended — code preserved in lib/insights.ts for future use
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, isParked } from '@/lib/status-groups'
+import { computeUrgency, type Urgency } from '@/lib/orb-state'
+import { checkAndNotifyEscalation } from '@/lib/push'
 import { createTicket } from '@/app/actions/ticket-actions'
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -112,6 +114,15 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, contextString: byProduct + dormantSection }
 }
 
+/** Compute current urgency from context (used for beforeUrgency snapshot in conversations) */
+function contextUrgency(ctx: any): Urgency {
+  const urgentValues = new Set<number>(
+    ctx.priorityList.filter((p: any) => p.is_urgent).map((p: any) => p.value as number)
+  )
+  const thresholdHours = 24 // default; could be per-user
+  return computeUrgency(ctx.todoList, urgentValues, thresholdHours)
+}
+
 export async function orbConverse(req: OrbRequest) {
   const stream = createStreamableValue<OrbResponse>()
 
@@ -120,6 +131,8 @@ export async function orbConverse(req: OrbRequest) {
       const auth = await getAuthContext()
       const supabase = auth.supabase
       const ctx = await buildContext(supabase, auth, req.productId, req.scopeToProduct ?? true)
+      const beforeUrgency = contextUrgency(ctx)
+      let hasMutated = false
       const statusNames = ctx.statusList.map((s: any) => s.name).join(', ')
       const priorityInfo = ctx.priorityList.map((p: any) => `${p.value}:${p.label}`).join(', ')
 
@@ -207,6 +220,10 @@ FEEDBACK TONE:
         messages.push({ role: 'assistant', content: assistantContent })
 
         if (toolCalls.length === 0) {
+          if (hasMutated) {
+            checkAndNotifyEscalation(auth.user.id, beforeUrgency, supabase)
+              .catch(err => console.error('[orbConverse] Push check failed:', err))
+          }
           stream.done({ speech: accumulatedSpeech, isStreaming: false })
           return
         }
@@ -240,6 +257,7 @@ FEEDBACK TONE:
               else {
                 output = { ok: true, code: `${product.code}-${data.todo_number}` }
                 stream.update({ speech: accumulatedSpeech, thought: `Created ${product.code}-${data.todo_number}`, refresh: true, mutatedProductId: product.id, mutationType: 'create' })
+                hasMutated = true
                 await logAuditEvent({
                   action: 'todo_create',
                   table_name: 'todos',
@@ -343,6 +361,7 @@ FEEDBACK TONE:
               else {
                 output = { ok: true }
                 stream.update({ speech: accumulatedSpeech, thought: `Updated ${input.code}`, refresh: true, mutatedProductId: todo.product_id, mutationType: 'update' })
+                hasMutated = true
                 await logAuditEvent({
                   action: closingStatus && !todo.closed_at ? 'todo_close' : 'todo_update',
                   table_name: 'todos',
@@ -417,11 +436,13 @@ FEEDBACK TONE:
 
             if (!todo) output = { error: 'todo not found' }
             else {
-              const { error } = await supabase.from('todos').delete().eq('id', todo.id)
+              const { data: deleted, error } = await supabase.from('todos').delete().eq('id', todo.id).select().maybeSingle()
               if (error) output = { error: error.message }
+              else if (!deleted) output = { error: 'delete failed — row was not removed' }
               else {
                 output = { ok: true, code: input.code }
                 stream.update({ speech: accumulatedSpeech, thought: `Deleted ${input.code}`, refresh: true, mutatedProductId: todo.product_id, mutationType: 'delete' })
+                hasMutated = true
                 await logAuditEvent({
                   action: 'todo_delete',
                   table_name: 'todos',
@@ -488,6 +509,7 @@ FEEDBACK TONE:
                   const newCode = `${targetProject.code}-${nextNum}`
                   output = { ok: true, old_code: oldCode, new_code: newCode }
                   stream.update({ speech: accumulatedSpeech, thought: `Moved ${oldCode} → ${newCode}`, refresh: true, mutatedProductId: sourceProject?.id, mutationType: 'update' })
+                  hasMutated = true
                   await logAuditEvent({
                     action: 'todo_move',
                     table_name: 'todos',
@@ -597,6 +619,56 @@ FEEDBACK TONE:
                 }
               }
             }
+          } else if (tc.name === 'update_project') {
+            const code = String(input.project_code || '').toUpperCase()
+            const { data: project } = await supabase.from('projects').select('id, code, name, description, created_by').ilike('code', code).maybeSingle()
+            if (!project) {
+              output = { error: `Project ${code} not found` }
+            } else if (project.created_by !== auth.user.id && !auth.isAdmin) {
+              output = { error: 'You can only update your own projects' }
+            } else {
+              const updates: any = {}
+              if (input.new_name) updates.name = input.new_name
+              if (input.new_description !== undefined) updates.description = input.new_description || null
+              if (input.new_code) {
+                const cleanCode = String(input.new_code).trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+                if (!cleanCode) { output = { error: 'Project code is required' }; toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) }); continue }
+                const { data: conflict } = await auth.admin.from('projects').select('id').ilike('code', cleanCode).neq('id', project.id).maybeSingle()
+                if (conflict) { output = { error: `Code "${cleanCode}" is already in use` }; toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) }); continue }
+                updates.code = cleanCode
+              }
+              if (Object.keys(updates).length === 0) {
+                output = { error: 'Nothing to update' }
+              } else {
+                const client = auth.isAdmin ? auth.admin : supabase
+                const { data: updated, error: updateErr } = await client.from('projects').update(updates).eq('id', project.id).select('id, name, code, description, created_by').single()
+                if (updateErr) output = { error: updateErr.message }
+                else {
+                  output = { ok: true, code: updated.code, name: updated.name }
+                  stream.update({ speech: accumulatedSpeech, thought: `Updated project ${updated.code}`, refresh: true, mutationType: 'project_create' })
+                }
+              }
+            }
+          } else if (tc.name === 'delete_project') {
+            if (!input.confirmed) {
+              output = { error: 'Confirmation required. Ask the user to confirm before deleting.' }
+            } else {
+              const code = String(input.project_code || '').toUpperCase()
+              const { data: project } = await supabase.from('projects').select('id, code, name, created_by').ilike('code', code).maybeSingle()
+              if (!project) {
+                output = { error: `Project ${code} not found` }
+              } else if (project.created_by !== auth.user.id && !auth.isAdmin) {
+                output = { error: 'You can only delete your own projects' }
+              } else {
+                const client = auth.isAdmin ? auth.admin : supabase
+                const { error: delErr } = await client.from('projects').delete().eq('id', project.id)
+                if (delErr) output = { error: delErr.message }
+                else {
+                  output = { ok: true, code: project.code }
+                  stream.update({ speech: accumulatedSpeech, thought: `Deleted project ${project.code}`, refresh: true, mutationType: 'dormancy' })
+                }
+              }
+            }
           } else if (tc.name === 'set_dormancy') {
             const code = String(input.project_code || '').toUpperCase()
             const { data: project } = await auth.admin.from('projects').select('id, code, name').ilike('code', code).maybeSingle()
@@ -634,6 +706,11 @@ FEEDBACK TONE:
 
         // Slight artificial delay between turns to make thoughts readable
         await new Promise(r => setTimeout(r, 600))
+      }
+      // Check if urgency escalated after mutations
+      if (hasMutated) {
+        checkAndNotifyEscalation(auth.user.id, beforeUrgency, supabase)
+          .catch(err => console.error('[orbConverse] Push check failed:', err))
       }
       // Reached MAX_TURNS without a no-tool-call response — close the stream
       // so the client's for-await loop doesn't hang.

@@ -11,6 +11,7 @@ import TodoForm from './TodoForm'
 import ProductConfigPanel from './ProductConfigPanel'
 import DistillModal from './DistillModal'
 import { logAudit } from '@/app/actions/log-audit'
+import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { checkReminders } from '@/app/actions/reminder-actions'
 import { ACTIVE_STATUSES, PARKED_STATUSES } from '@/lib/status-groups'
 
@@ -150,6 +151,7 @@ export default function TodoView({ productId }: { productId: string }) {
 
   async function handleToggleDone(e: React.MouseEvent, todo: Todo) {
     e.stopPropagation()
+    const beforeUrgency = await getUrgencySnapshot()
     const closedStatus = statuses.find(s => s.is_closed)?.name ?? 'closed'
     const openStatus = statuses.find(s => s.is_open)?.name ?? 'open'
     const newStatus = isClosed(todo.status) ? openStatus : closedStatus
@@ -174,6 +176,7 @@ export default function TodoView({ productId }: { productId: string }) {
         before: { status: todo.status },
         after: { status: newStatus, title: todo.title }
       })
+      notifyIfEscalated(beforeUrgency)
 
       if (isClosed(newStatus)) {
         setDistillTodo(updated)
@@ -201,6 +204,7 @@ export default function TodoView({ productId }: { productId: string }) {
   async function handleBulkMarkDone() {
     if (selectedIds.length === 0) return
     const ids = [...selectedIds]
+    const beforeUrgency = await getUrgencySnapshot()
     const closedStatus = statuses.find(s => s.is_closed)?.name ?? 'closed'
     await supabase.from('todos').update({
       status: closedStatus,
@@ -211,6 +215,7 @@ export default function TodoView({ productId }: { productId: string }) {
       table_name: 'todos',
       after: { count: ids.length, ids }
     })
+    notifyIfEscalated(beforeUrgency)
     await fetchTodos()
     setSelectedIds([])
     setSelectMode(false)
@@ -219,12 +224,14 @@ export default function TodoView({ productId }: { productId: string }) {
   async function handleBulkDelete() {
     if (selectedIds.length === 0) return
     const ids = [...selectedIds]
+    const beforeUrgency = await getUrgencySnapshot()
     await supabase.from('todos').delete().in('id', ids)
     logAudit({
       action: 'todo_bulk_delete',
       table_name: 'todos',
       before: { count: ids.length, ids }
     })
+    notifyIfEscalated(beforeUrgency)
     setTodos(prev => prev.filter(t => !ids.includes(t.id)))
     if (selectedTodo && ids.includes(selectedTodo.id)) setSelectedTodo(null)
     setSelectedIds([])

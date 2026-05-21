@@ -258,23 +258,20 @@ export default function OrbConversation({
     const [historyIndex, setHistoryIndex] = useState<number>(-1)
 
     const [slashIndex, setSlashIndex] = useState(0)
-    const [showCommandsDialog, setShowCommandsDialog] = useState(false)
 
-    const SLASH_COMMANDS = [
-        { cmd: '/?', desc: 'Show help overlay' },
-        { cmd: '/help', desc: 'Show help overlay' },
-        { cmd: '/tasks', desc: 'Show open tasks in current project' },
-        { cmd: '/projects', desc: 'List all your projects' },
-        { cmd: '/clear', desc: 'Clear the conversation' },
-        { cmd: '/switch [project]', desc: 'Switch to a project' },
-        { cmd: '/edit', desc: 'Edit current project' },
-        { cmd: '/edit [project]', desc: 'Switch and edit a project' },
-        { cmd: '/settings', desc: 'Open settings panel' },
-        { cmd: '/orb', desc: 'What can the orb do?' },
+    const SLASH_COMMANDS: { cmd: string; desc: string; group: string }[] = [
+        { cmd: '/add [task]', desc: 'Create a todo in current project', group: 'Todos' },
+        { cmd: '/close [task]', desc: 'Mark a todo as done', group: 'Todos' },
+        { cmd: '/create [name]', desc: 'Create a new project', group: 'Projects' },
+        { cmd: '/drop [project]', desc: 'Delete a project', group: 'Projects' },
+        { cmd: '/edit [project]', desc: 'Edit a project', group: 'Projects' },
+        { cmd: '/switch [project]', desc: 'Switch to a project', group: 'Projects' },
+        { cmd: '/clear', desc: 'Clear the conversation', group: 'Session' },
+        { cmd: '/settings', desc: 'Open settings panel', group: 'Session' },
     ]
 
     const activeSlashCommands = SLASH_COMMANDS.filter(c => c.cmd.toLowerCase().startsWith(input.toLowerCase()))
-    const showSlashMenu = inputFocused && input.startsWith('/') && activeSlashCommands.length > 0 && historyIndex === -1 && !slashMenuDismissed.current && !showCommandsDialog
+    const showSlashMenu = inputFocused && input.startsWith('/') && activeSlashCommands.length > 0 && historyIndex === -1 && !slashMenuDismissed.current
 
     function handleFormSubmit(e?: React.FormEvent, overrideValue?: string) {
         e?.preventDefault()
@@ -296,16 +293,16 @@ export default function OrbConversation({
         slashMenuDismissed.current = true
         onInputChange(cmd)
         setSlashIndex(0)
-        const idx = cmd.indexOf('[project]')
-        if (idx !== -1) {
+        const match = cmd.match(/\[([^\]]+)\]/)
+        if (match) {
             setTimeout(() => {
                 const el = textareaRef.current
                 if (!el) return
                 el.focus()
-                el.setSelectionRange(idx, idx + '[project]'.length)
+                el.setSelectionRange(match.index!, match.index! + match[0].length)
             }, 0)
         } else {
-            handleFormSubmit(undefined, cmd)
+            textareaRef.current?.focus()
         }
     }
 
@@ -316,11 +313,6 @@ export default function OrbConversation({
         }
     }, [])
 
-    useEffect(() => {
-        if (input && input !== '/' && showCommandsDialog) {
-            setShowCommandsDialog(false)
-        }
-    }, [input, showCommandsDialog])
 
     function handleHistoryUp() {
         if (history.length === 0) return
@@ -405,54 +397,29 @@ export default function OrbConversation({
             <div className="oc-input-wrap" style={{ position: 'relative' }}>
                 {showSlashMenu && (
                     <div className="oc-slash-menu">
-                        {activeSlashCommands.map((c, i) => (
-                            <div
-                                key={c.cmd}
-                                className="oc-slash-item"
-                                style={{ background: slashIndex === i ? 'var(--bg2)' : 'transparent' }}
-                                onMouseDown={(e) => {
-                                    e.preventDefault()
-                                    fillCommand(c.cmd)
-                                }}
-                            >
-                                <span style={{ fontFamily: 'monospace', fontSize: 'var(--fs-xs)', color: 'var(--text)', fontWeight: slashIndex === i ? 600 : 400 }}>{c.cmd}</span>
-                                <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{c.desc}</span>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {showCommandsDialog && (
-                    <div className="oc-commands-dialog">
-                        <div className="oc-commands-header">
-                            <span>Available Commands</span>
-                            <button 
-                                type="button" 
-                                className="oc-commands-close"
-                                onMouseDown={(e) => {
-                                    e.preventDefault()
-                                    setShowCommandsDialog(false)
-                                }}
-                            >
-                                &times;
-                            </button>
-                        </div>
-                        <div className="oc-commands-list">
-                            {SLASH_COMMANDS.map((c) => (
-                                <div
-                                    key={c.cmd}
-                                    className="oc-commands-item"
-                                    onMouseDown={(e) => {
-                                        e.preventDefault()
-                                        fillCommand(c.cmd)
-                                        setShowCommandsDialog(false)
-                                    }}
-                                >
-                                    <div className="oc-commands-cmd">{c.cmd}</div>
-                                    <div className="oc-commands-desc">{c.desc}</div>
+                        {activeSlashCommands.map((c, i) => {
+                            const prevGroup = i > 0 ? activeSlashCommands[i - 1].group : null
+                            const showHeader = c.group !== prevGroup
+                            return (
+                                <div key={c.cmd}>
+                                    {showHeader && (
+                                        <div className="oc-slash-group-header">{c.group}</div>
+                                    )}
+                                    <div
+                                        className="oc-slash-item"
+                                        ref={slashIndex === i ? el => el?.scrollIntoView({ block: 'nearest' }) : undefined}
+                                        style={{ background: slashIndex === i ? 'var(--bg2)' : 'transparent' }}
+                                        onMouseDown={(e) => {
+                                            e.preventDefault()
+                                            fillCommand(c.cmd)
+                                        }}
+                                    >
+                                        <span style={{ fontFamily: 'monospace', fontSize: 'var(--fs-xs)', color: 'var(--text)', fontWeight: slashIndex === i ? 600 : 400 }}>{c.cmd}</span>
+                                        <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{c.desc}</span>
+                                    </div>
                                 </div>
-                            ))}
-                        </div>
+                            )
+                        })}
                     </div>
                 )}
 
@@ -475,11 +442,9 @@ export default function OrbConversation({
                             onKeyDown={e => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault()
-                                    if (input.trim() === '/') {
-                                        setShowCommandsDialog(true)
-                                    } else if (showSlashMenu && activeSlashCommands[slashIndex]) {
+                                    if (showSlashMenu && activeSlashCommands[slashIndex]) {
                                         fillCommand(activeSlashCommands[slashIndex].cmd)
-                                    } else {
+                                    } else if (input.trim() !== '/') {
                                         handleFormSubmit()
                                     }
                                 } else if (e.key === 'ArrowUp') {
@@ -497,18 +462,15 @@ export default function OrbConversation({
                                         handleHistoryDown()
                                     }
                                 } else if (e.key === 'Escape') {
-                                    if (showCommandsDialog) {
-                                        setShowCommandsDialog(false)
-                                    } else if (showSlashMenu) {
-                                        onInputChange('')
+                                    if (showSlashMenu) {
+                                        slashMenuDismissed.current = true
+                                        setSlashIndex(0)
                                     }
                                 }
                             }}
                             onFocus={() => setInputFocused(true)}
                             onBlur={() => {
                                 setInputFocused(false)
-                                // Close the dialog on blur so it doesn't float indefinitely
-                                setTimeout(() => setShowCommandsDialog(false), 150)
                             }}
                             disabled={submitting}
                             placeholder=""
@@ -519,12 +481,11 @@ export default function OrbConversation({
                                 type="button"
                                 className="oc-tool-btn"
                                 onClick={() => {
-                                    const nextShow = !showCommandsDialog
-                                    setShowCommandsDialog(nextShow)
-                                    if (nextShow) {
-                                        if (!input.startsWith('/')) {
-                                            onInputChange('/')
-                                        }
+                                    if (input.startsWith('/')) {
+                                        onInputChange('')
+                                    } else {
+                                        slashMenuDismissed.current = false
+                                        onInputChange('/')
                                     }
                                     textareaRef.current?.focus()
                                 }}

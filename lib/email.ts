@@ -315,3 +315,113 @@ export async function sendInvitationDeclinedEmail({
   return { ok: true, messageId: data?.id }
 }
 
+// ── Orb Digest ──
+
+type DigestProject = {
+  code: string
+  name: string
+  count: number
+  urgency: 'calm' | 'busy' | 'urgent'
+}
+
+const URGENCY_COLOR: Record<string, string> = {
+  calm: '#6a9a7a',
+  busy: '#B8860B',
+  urgent: '#c0392b',
+}
+
+const URGENCY_BG: Record<string, string> = {
+  calm: '#e8f0e8',
+  busy: '#fdf6e3',
+  urgent: '#fde8e8',
+}
+
+export async function sendDigestEmail({
+  to,
+  firstName,
+  projects,
+  overallCount,
+  overallUrgency,
+}: {
+  to: string
+  firstName: string
+  projects: DigestProject[]
+  overallCount: number
+  overallUrgency: 'calm' | 'busy' | 'urgent'
+}) {
+  const projectRows = projects
+    .filter(p => p.count > 0)
+    .map(p => `
+      <tr>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #edf2f7; font-family: monospace; font-weight: 600; font-size: 14px; color: #2d3748;">${escapeHtml(p.code)}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #edf2f7; font-size: 14px; color: #4a5568;">${escapeHtml(p.name)}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #edf2f7; text-align: center; font-weight: 600; font-size: 14px;">${p.count}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #edf2f7; text-align: center;">
+          <span style="display: inline-block; padding: 2px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: ${URGENCY_BG[p.urgency]}; color: ${URGENCY_COLOR[p.urgency]};">
+            ${p.urgency}
+          </span>
+        </td>
+      </tr>
+    `)
+    .join('')
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; color: #2d3748; line-height: 1.6; background-color: #f7fafc;">
+  <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <img src="${ICON_URL}" alt="Orb" width="48" height="48" style="border-radius: 50%;" />
+    </div>
+
+    <div style="text-align: center; margin-bottom: 28px;">
+      <div style="display: inline-block; width: 72px; height: 72px; border-radius: 50%; background: radial-gradient(circle at 36% 30%, #ffffff, ${URGENCY_BG[overallUrgency]} 45%, ${URGENCY_COLOR[overallUrgency]} 100%); line-height: 72px; text-align: center; font-size: 24px; font-weight: 700; color: #ffffff; box-shadow: 0 0 20px ${URGENCY_COLOR[overallUrgency]}40;">
+        ${overallCount}
+      </div>
+      <p style="margin: 12px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: ${URGENCY_COLOR[overallUrgency]};">${overallUrgency}</p>
+    </div>
+
+    <p style="margin: 0 0 20px; color: #4a5568; font-size: 15px;">Hi ${escapeHtml(firstName)}, here's your Orb snapshot — ${overallCount} active task${overallCount !== 1 ? 's' : ''} across ${projects.filter(p => p.count > 0).length} project${projects.filter(p => p.count > 0).length !== 1 ? 's' : ''}.</p>
+
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+      <thead>
+        <tr style="background: #f7fafc;">
+          <th style="padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #718096; border-bottom: 2px solid #e2e8f0;">Code</th>
+          <th style="padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #718096; border-bottom: 2px solid #e2e8f0;">Project</th>
+          <th style="padding: 8px 12px; text-align: center; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #718096; border-bottom: 2px solid #e2e8f0;">Active</th>
+          <th style="padding: 8px 12px; text-align: center; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #718096; border-bottom: 2px solid #e2e8f0;">State</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${projectRows || '<tr><td colspan="4" style="padding: 16px; text-align: center; color: #a0aec0;">All clear — nothing active.</td></tr>'}
+      </tbody>
+    </table>
+
+    <div style="text-align: center; margin-top: 28px;">
+      <a href="${SITE_URL}" style="display: inline-block; padding: 12px 28px; background: #2d5a2d; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
+        Open Orb
+      </a>
+    </div>
+  </div>
+  <p style="text-align: center; font-size: 12px; color: #a0aec0; margin-top: 20px;">
+    Sent automatically by Orb.
+  </p>
+</body>
+</html>`
+
+  const { data, error } = await getResend().emails.send({
+    from: FROM_EMAIL,
+    to,
+    subject: `[Orb] ${overallUrgency === 'urgent' ? '🔴' : overallUrgency === 'busy' ? '🟡' : '🟢'} ${overallCount} active — ${overallUrgency}`,
+    html,
+  })
+
+  if (error) {
+    console.error('[sendDigestEmail] Resend error:', error)
+    return { error: error.message }
+  }
+
+  return { ok: true, messageId: data?.id }
+}
+
