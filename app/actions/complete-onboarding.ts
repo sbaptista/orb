@@ -16,7 +16,10 @@ export async function completeOnboarding(firstName: string, lastName: string) {
     }
 
     // Reconcile auth ID if needed (handles orphaned rows from invite flow)
-    await resolveUser(user.id, user.email)
+    const resolveResult = await resolveUser(user.id, user.email)
+    if (!resolveResult.ok) {
+      return { error: 'You are not authorized to onboard. Orb is by invitation only.' }
+    }
 
     const admin = createAdminClient()
     const { error: upsertError } = await admin

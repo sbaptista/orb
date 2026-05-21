@@ -72,6 +72,7 @@ export async function sendInviteEmail({
 export async function sendTicketNotificationEmail({
   to,
   ticket,
+  origin,
 }: {
   to: string
   ticket: {
@@ -82,6 +83,7 @@ export async function sendTicketNotificationEmail({
     detail?: any
     conversation_snippet?: string | null
   }
+  origin?: string
 }) {
   let typeBg = '#4a5568'
   switch (ticket.type) {
@@ -107,6 +109,7 @@ export async function sendTicketNotificationEmail({
        </div>`
     : ''
 
+  const siteUrl = origin ?? SITE_URL
   const html = `
 <!DOCTYPE html>
 <html>
@@ -138,7 +141,7 @@ export async function sendTicketNotificationEmail({
     </div>
 
     <div style="text-align: center; margin-top: 28px;">
-      <a href="${SITE_URL}/settings/tickets" style="display: inline-block; padding: 12px 28px; background: #5a3090; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px rgba(90, 48, 144, 0.2);">
+      <a href="${siteUrl}/settings/tickets" style="display: inline-block; padding: 12px 28px; background: #5a3090; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px rgba(90, 48, 144, 0.2);">
         View Tickets Dashboard
       </a>
     </div>

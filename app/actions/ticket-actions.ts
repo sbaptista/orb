@@ -2,6 +2,8 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendTicketNotificationEmail } from '@/lib/email'
+import { sendPushToUser } from '@/lib/push'
+import { headers } from 'next/headers'
 
 export type Ticket = {
     id: string
@@ -34,30 +36,61 @@ export async function createTicket({ source, type, summary, detail, conversation
         return { error: error.message }
     }
 
-    // Dispatch admin emails asynchronously
+    // Dispatch admin notifications (emails & push alerts) asynchronously
     try {
         const { data: admins, error: adminsError } = await admin
             .from('users')
-            .select('email')
+            .select('id, email')
             .in('role_id', [1, 3])
 
         if (adminsError) {
-            console.error('[createTicket] Failed to fetch admins for email notification:', adminsError)
+            console.error('[createTicket] Failed to fetch admins for notifications:', adminsError)
         } else if (admins && admins.length > 0) {
-            const adminEmails = admins.map(u => u.email).filter(Boolean) as string[]
+            const ticketType = type.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())
+            
+            // Resolve request origin dynamically (e.g. localhost, staging) from headers
+            let origin: string | undefined
+            try {
+                const headersList = await headers()
+                const host = headersList.get('x-forwarded-host') || headersList.get('host')
+                const protocol = headersList.get('x-forwarded-proto') || 'https'
+                if (host) {
+                    origin = `${protocol}://${host}`
+                }
+            } catch {
+                // Ignore if headers() throws outside request context (e.g. scripts/test-ticket-notification.ts)
+            }
+
             await Promise.all(
-                adminEmails.map(email =>
-                    sendTicketNotificationEmail({
-                        to: email,
-                        ticket: data,
-                    }).catch(err => {
-                        console.error(`[createTicket] Failed to send email to admin ${email}:`, err)
-                    })
-                )
+                admins.flatMap(adm => {
+                    const tasks: Promise<any>[] = []
+                    if (adm.email) {
+                        tasks.push(
+                            sendTicketNotificationEmail({
+                                to: adm.email,
+                                ticket: data,
+                                origin,
+                            }).catch(err => {
+                                console.error(`[createTicket] Failed to send email to admin ${adm.email}:`, err)
+                            })
+                        )
+                    }
+                    tasks.push(
+                        sendPushToUser(adm.id, {
+                            title: `New Ticket: ${ticketType}`,
+                            body: summary,
+                            url: '/settings/tickets',
+                            tag: `ticket-${data.id}`,
+                        }).catch(err => {
+                            console.error(`[createTicket] Failed to send push alert to admin ${adm.id}:`, err)
+                        })
+                    )
+                    return tasks
+                })
             )
         }
-    } catch (emailErr) {
-        console.error('[createTicket] Unexpected error dispatching admin emails:', emailErr)
+    } catch (notifyErr) {
+        console.error('[createTicket] Unexpected error dispatching admin notifications:', notifyErr)
     }
 
     return { ok: true, data }
