@@ -8,6 +8,7 @@ import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import TodoPanel from './TodoPanel'
 import TodoForm from './TodoForm'
+import InlineEditPopover from './InlineEditPopover'
 import ProductConfigPanel from './ProductConfigPanel'
 import DistillModal from './DistillModal'
 import { logAudit } from '@/app/actions/log-audit'
@@ -77,6 +78,7 @@ export default function TodoView({ productId }: { productId: string }) {
   const [confirmBulkDelete, setConfirmBulkDelete]  = useState(false)
   const [distillTodo,       setDistillTodo]       = useState<Todo | null>(null)
   const [sortAsc,           setSortAsc]           = useState(true)
+  const [inlineEdit,        setInlineEdit]        = useState<{ todo: Todo; rect: DOMRect } | null>(null)
 
   const fetchTodos = useCallback(async () => {
     let todoQuery = supabase
@@ -408,6 +410,12 @@ export default function TodoView({ productId }: { productId: string }) {
                 <div
                   key={todo.id}
                   onClick={() => selectMode ? toggleId(todo.id) : setSelectedTodo(todo)}
+                  onContextMenu={e => {
+                    if (selectMode || isDone) return
+                    e.preventDefault()
+                    const row = (e.currentTarget as HTMLElement)
+                    setInlineEdit({ todo, rect: row.getBoundingClientRect() })
+                  }}
                   onMouseEnter={() => setHoveredId(todo.id)}
                   onMouseLeave={() => setHoveredId(null)}
                   tabIndex={0}
@@ -514,6 +522,29 @@ export default function TodoView({ productId }: { productId: string }) {
                       </div>
                     )
                   })()}
+
+                  {/* Quick-edit trigger — hidden in select mode and on done items */}
+                  {!selectMode && !isDone && (
+                    <button
+                      className="ie-trigger"
+                      onClick={e => {
+                        e.stopPropagation()
+                        const row = (e.currentTarget as HTMLElement).closest('.tv-row')
+                        if (row) setInlineEdit({ todo, rect: row.getBoundingClientRect() })
+                      }}
+                      style={{
+                        opacity: isHovered || isSelected ? 1 : 0,
+                      }}
+                      aria-label="Quick edit"
+                      title="Quick edit (right-click)"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="12" cy="5" r="2"/>
+                        <circle cx="12" cy="12" r="2"/>
+                        <circle cx="12" cy="19" r="2"/>
+                      </svg>
+                    </button>
+                  )}
 
                   {/* Done toggle — hidden in select mode */}
                   {!selectMode && (
@@ -690,6 +721,21 @@ export default function TodoView({ productId }: { productId: string }) {
           initialContent={distillTodo.resolution_notes || distillTodo.description || ''}
           onClose={() => setDistillTodo(null)}
           onSaved={() => setDistillTodo(null)}
+        />
+      )}
+
+      {inlineEdit && (
+        <InlineEditPopover
+          todo={inlineEdit.todo}
+          priorities={priorities}
+          statuses={statuses}
+          anchorRect={inlineEdit.rect}
+          onClose={() => setInlineEdit(null)}
+          onSave={updated => {
+            setTodos(prev => prev.map(t => t.id === updated.id ? updated : t))
+            if (selectedTodo?.id === updated.id) setSelectedTodo(updated)
+            setInlineEdit(ie => ie ? { ...ie, todo: updated } : null)
+          }}
         />
       )}
 

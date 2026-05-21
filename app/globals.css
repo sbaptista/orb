@@ -2000,6 +2000,118 @@ a, button, [role="button"], input, select, textarea {
 
 .save-btn:disabled { cursor: default; opacity: 0.6; }
 
+/* ── Inline edit popover (`.ie-*`) ── */
+
+.ie-popover {
+  background: var(--bg2);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-lg);
+  font-family: var(--font-ui);
+}
+
+.ie-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ie-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ie-chip {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  padding: 6px 12px;
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text2);
+  cursor: pointer;
+  transition: all var(--transition);
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ie-chip:hover {
+  border-color: var(--border-focus);
+  background: var(--bg3);
+}
+
+.ie-chip-active {
+  border-color: var(--chip-color, var(--pill-active-border));
+  background: var(--pill-active-bg);
+  color: var(--pill-active-color);
+  font-weight: 500;
+}
+
+.ie-chip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.ie-saving-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--pill-active-color);
+  animation: ie-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes ie-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.ie-hint {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.ie-status-bar-saving {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  text-align: center;
+  padding: 2px 0;
+}
+
+/* Three-dot edit trigger button */
+.ie-trigger {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  border-radius: var(--r);
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+  padding: 0;
+}
+
+.ie-trigger:hover {
+  background: var(--bg3);
+  color: var(--text2);
+}
+
+/* On touch devices, always show the trigger for better discoverability */
+@media (pointer: coarse) {
+  .ie-trigger { opacity: 1 !important; }
+}
+
 /* ── Query results modal (`.qr-*`) ── */
 
 .qr-label {
