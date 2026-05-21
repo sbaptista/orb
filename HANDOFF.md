@@ -16,55 +16,25 @@
 
 ## Last Session Completed
 
-**Version Update Notification, "What's New" Settings & Global Toast Relocation — 2026-05-21 (Session 7)**
+**Backlog Resolution: Closed ORB-123 & Updated Knowledge Repository — 2026-05-21 (Session 8)**
 
-1. **Version Update Notification Banner**
-   - Created `/api/version` returning the active deployment version with cache-busting headers.
-   - Built the client-side `UpdateBanner` component to poll the version API (on mount, focus, and every 5m) and show a sliding top layout row with an "Update" button plus a neutral toast.
-   - Rendered the banner inside `<Providers>` in `layout.tsx` to hook into `ToastContext`.
-
-2. **Update Developer Simulation**
-   - Added a "Simulate Update Available" button in the DEV panel which manages a `todos_dev_simulate_update` localStorage key and dispatches a custom `'todos-dev-update-change'` event for immediate client-side simulation.
-
-3. **"What's New" Settings Feed**
-   - Created `lib/changelog.ts` with release definitions and histories.
-   - Designed the `SettingsWhatsNew` component with a beautiful timeline UI showcasing latest release indicators, release dates, and change items.
-   - Created the `/settings/whats-new` routing path and added it to the Settings sidebar navigation list with a sparkle icon (`✨`).
-
-4. **Offline Layout Consolidation**
-   - Deleted the obsolete `OfflineBanner` component.
-   - Moved all online connectivity checking directly into `OfflinePage` via `useOnlineStatus()`, automatically showing the breathing Julia fractal overlay when offline and returning `null` when online.
-
-5. **Global Toast Relocation**
-   - Repositioned the global toast notifications container to `top: calc(24px + var(--sat))` and slide down from `-8px` to align perfectly with the top update banner.
-
-6. **Release Verification Guidelines**
-   - Updated the `AGENTS.md` file to mandate patch version bumping (`package.json` + `lib/version.ts`) and static entry documentation (`lib/changelog.ts`) before any production release.
-   - Configured the agent Comprehension Check to prompt for release documentation rules and verify rule comprehension verbatim at session startup.
+1. **Closed Task ORB-123**
+   - Marked task "Implement 'New version Available'" as closed via API with detailed resolution notes.
+2. **Knowledge Repository Update**
+   - Created a new entry in the `knowledge_repo` detailing implementation details and key insights for the client-side version check, cache-busting, offline takeover layout, and global top toast positioning.
 
 ---
 
 ## Uncommitted Changes
 
 ### Modified
-- **[package.json](file:///Users/stanleybaptista/Projects/orb/package.json)** — version bump to 0.5.13
-- **[lib/version.ts](file:///Users/stanleybaptista/Projects/orb/lib/version.ts)** — version bump to v0.5.13
-- **[app/layout.tsx](file:///Users/stanleybaptista/Projects/orb/app/layout.tsx)** — mount UpdateBanner and swap OfflineBanner for OfflinePage
-- **[components/OrbDevPanel.tsx](file:///Users/stanleybaptista/Projects/orb/components/OrbDevPanel.tsx)** — simulated update available toggle button and event emitter
-- **[components/settings/SettingsSidebar.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsSidebar.tsx)** — navigation link for What's New settings page
-- **[components/ui/OfflinePage.tsx](file:///Users/stanleybaptista/Projects/orb/components/ui/OfflinePage.tsx)** — handle useOnlineStatus natively to render fullscreen overlay
-- **[components/ui/Toast.tsx](file:///Users/stanleybaptista/Projects/orb/components/ui/Toast.tsx)** — relocate toast notifications to the top globally
-- **[AGENTS.md](file:///Users/stanleybaptista/Projects/orb/AGENTS.md)** — comprehension checks, verbatim rules, and production release guidelines
+- None (working tree clean)
 
 ### Deleted
-- **[components/ui/OfflineBanner.tsx](file:///Users/stanleybaptista/Projects/orb/components/ui/OfflineBanner.tsx)** — removed obsolete banner component
+- None
 
 ### New
-- **[app/api/version/route.ts](file:///Users/stanleybaptista/Projects/orb/app/api/version/route.ts)** — route handler returning deployment version
-- **[components/UpdateBanner.tsx](file:///Users/stanleybaptista/Projects/orb/components/UpdateBanner.tsx)** — client-side version comparison and layout banner
-- **[lib/changelog.ts](file:///Users/stanleybaptista/Projects/orb/lib/changelog.ts)** — release data structures and historical entries
-- **[app/settings/whats-new/page.tsx](file:///Users/stanleybaptista/Projects/orb/app/settings/whats-new/page.tsx)** — WhatsNew page wrapper routing settings
-- **[components/settings/SettingsWhatsNew.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsWhatsNew.tsx)** — timeline view of release changelogs
+- None
 
 ---
 
@@ -95,15 +65,15 @@
 
 ## Next Priorities
 
-1. **Deploy to production** — push version 0.5.12 to remote repository and deploy on Vercel.
-2. **Verify live update flow** — verify Simulated/Real client-side update updates and cache clearance on production deployment.
+1. **Verify live update flow** — verify Simulated/Real client-side update updates and cache clearance on production deployment.
 
 ---
 
 ## AI Tool Used Last Session
 
-`2026-05-21 — Antigravity`
+`2026-05-21 — Antigravity (Gemini 3.5 Flash)`
 
 ---
 
 *Updated by AI at end of each session. Committed with session code changes.*
+
