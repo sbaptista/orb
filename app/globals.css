@@ -2715,6 +2715,7 @@ a, button, [role="button"], input, select, textarea {
   align-items: center;
   gap: var(--sp-md);
   padding: 0 var(--sp-2xl);
+  padding-left: calc(var(--sp-2xl) + var(--sal));
   flex-shrink: 0;
 }
 
