@@ -2715,8 +2715,15 @@ a, button, [role="button"], input, select, textarea {
   align-items: center;
   gap: var(--sp-md);
   padding: 0 var(--sp-2xl);
-  padding-left: calc(var(--sp-2xl) + var(--sal));
+  padding-left: max(var(--sp-2xl), calc(var(--sal) + var(--sp-2xl)));
   flex-shrink: 0;
+}
+
+/* iPad standalone — avoid window control overlap */
+@media (display-mode: standalone) and (min-width: 768px) {
+  .sl-topbar {
+    padding-left: calc(var(--sp-2xl) + 80px);
+  }
 }
 
 .sl-back {

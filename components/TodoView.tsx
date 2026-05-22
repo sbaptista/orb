@@ -479,7 +479,7 @@ export default function TodoView({ productId }: { productId: string }) {
                     opacity: isDone ? 0.4 : 1,
                   }} />
 
-                  {/* Title + meta */}
+                  {/* Title + meta + due date */}
                   <div className="flex-1" style={{ minWidth: 0, marginRight: '12px' }}>
                     <p className="tv-todo-title" style={{
                       fontSize: 'var(--fs-base)',
@@ -489,58 +489,61 @@ export default function TodoView({ productId }: { productId: string }) {
                       {todo.title}
                     </p>
 
-                    {todoRef && (
-                      <p className="text-xs text-muted" style={{ marginTop: '2px' }}>
-                        {todoRef}
-                      </p>
+                    {(todoRef || todo.due_at) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                      {todoRef && (
+                        <span className="text-xs text-muted">
+                          {todoRef}
+                        </span>
+                      )}
+
+                      {todo.due_at && (() => {
+                        const isOverdue = !isDone && parseLocalDatetime(todo.due_at) < new Date()
+                        const isDueToday = !isDone && parseLocalDatetime(todo.due_at).toDateString() === new Date().toDateString()
+                        return (
+                          <div className="tv-due-badge" style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '11px',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            background: isOverdue
+                              ? 'rgba(239, 68, 68, 0.1)'
+                              : isDueToday
+                                ? 'rgba(245, 158, 11, 0.1)'
+                                : 'rgba(100, 116, 139, 0.1)',
+                            color: isOverdue
+                              ? 'var(--error)'
+                              : isDueToday
+                                ? '#d97706'
+                                : 'var(--muted)',
+                            border: `1px solid ${
+                              isOverdue
+                                ? 'rgba(239, 68, 68, 0.2)'
+                                : isDueToday
+                                  ? 'rgba(245, 158, 11, 0.2)'
+                                  : 'rgba(100, 116, 139, 0.15)'
+                            }`,
+                            whiteSpace: 'nowrap',
+                          }}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                              <line x1="16" y1="2" x2="16" y2="6" />
+                              <line x1="8" y1="2" x2="8" y2="6" />
+                              <line x1="3" y1="10" x2="21" y2="10" />
+                            </svg>
+                            <span>
+                              {parseLocalDatetime(todo.due_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                              {' at '}
+                              {parseLocalDatetime(todo.due_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        )
+                      })()}
+                    </div>
                     )}
                   </div>
-
-                  {todo.due_at && (() => {
-                    const isOverdue = !isDone && parseLocalDatetime(todo.due_at) < new Date()
-                    const isDueToday = !isDone && parseLocalDatetime(todo.due_at).toDateString() === new Date().toDateString()
-                    return (
-                      <div className="tv-due-badge" style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '11px',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        background: isOverdue 
-                          ? 'rgba(239, 68, 68, 0.1)' 
-                          : isDueToday 
-                            ? 'rgba(245, 158, 11, 0.1)' 
-                            : 'rgba(100, 116, 139, 0.1)',
-                        color: isOverdue 
-                          ? 'var(--error)' 
-                          : isDueToday 
-                            ? '#d97706' 
-                            : 'var(--muted)',
-                        border: `1px solid ${
-                          isOverdue 
-                            ? 'rgba(239, 68, 68, 0.2)' 
-                            : isDueToday 
-                              ? 'rgba(245, 158, 11, 0.2)' 
-                              : 'rgba(100, 116, 139, 0.15)'
-                        }`,
-                        marginRight: '8px',
-                        whiteSpace: 'nowrap',
-                      }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                          <line x1="16" y1="2" x2="16" y2="6" />
-                          <line x1="8" y1="2" x2="8" y2="6" />
-                          <line x1="3" y1="10" x2="21" y2="10" />
-                        </svg>
-                        <span>
-                          {parseLocalDatetime(todo.due_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                          {' at '}
-                          {parseLocalDatetime(todo.due_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    )
-                  })()}
 
                   {/* Edit + Quick Edit triggers — hidden in select mode and on done items */}
                   {!selectMode && !isDone && (
