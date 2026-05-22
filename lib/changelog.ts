@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.16',
+    date: '2026-05-22',
+    changes: [
+      'Fixed settings topbar overlap with iPad Stage Manager window controls (safe-area left inset).',
+      'Added viewport-fit: cover for proper safe-area support on all devices.',
+      'Auth resilience: stale sessions now show a toast and redirect to login instead of failing silently.',
+    ]
+  },
+  {
     version: 'v0.5.15',
     date: '2026-05-22',
     changes: [
