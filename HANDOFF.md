@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.5.13 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.5.14 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,25 +16,39 @@
 
 ## Last Session Completed
 
-**Backlog Resolution: Closed ORB-123 & Updated Knowledge Repository — 2026-05-21 (Session 8)**
+**RLS initplan optimization (ORB-131) — 2026-05-22 (Session 10)**
 
-1. **Closed Task ORB-123**
-   - Marked task "Implement 'New version Available'" as closed via API with detailed resolution notes.
-2. **Knowledge Repository Update**
-   - Created a new entry in the `knowledge_repo` detailing implementation details and key insights for the client-side version check, cache-busting, offline takeover layout, and global top toast positioning.
+1. **Fixed RLS initplan policies** (`scripts/migrations/20260522_rls_initplan_fix.sql`)
+   - Rewrote all 39 RLS policies to wrap `auth.uid()` in `(select auth.uid())` and `auth.role()` in `(select auth.role())`.
+   - Postgres now evaluates auth functions once per query (InitPlan) instead of once per row.
+   - Root cause of Supabase disk I/O budget depletion.
+
+2. **Consolidated priorities policies**
+   - Dropped 3 redundant individual policies (insert/update/delete) that overlapped with the `ALL` policy.
+   - Total policies: 43 → 40.
+
+3. **Dropped duplicate index**
+   - `statuses_name_unique` constraint was identical to `statuses_name_key`. Removed.
+
+4. **Verified clean state**
+   - Zero policies with bare `auth.uid()` remaining.
+   - Dead tuple counts minimal, autovacuum running normally.
+   - `orb_friction` and `tickets` tables confirmed correct (RLS on, no policies = service-role-only access).
+
+5. **Closed ORB-130 (duplicate) and ORB-131** with resolution notes + knowledge repo entry.
 
 ---
 
 ## Uncommitted Changes
 
 ### Modified
-- None (working tree clean)
+- `HANDOFF.md` — this file
 
 ### Deleted
 - None
 
 ### New
-- None
+- `scripts/migrations/20260522_rls_initplan_fix.sql` — RLS initplan fix migration (already executed)
 
 ---
 
@@ -65,13 +79,15 @@
 
 ## Next Priorities
 
-1. **Verify live update flow** — verify Simulated/Real client-side update updates and cache clearance on production deployment.
+1. **ORB-129 Phase 5 (iOS widget)** — shelved until Xcode + Apple Developer account are available. Phases 1–3 complete.
+2. **ORB-129 Phase 4 (Email digest)** — daily/weekly orb state summary via Resend. Infrastructure exists.
+3. **Offline editing with sync** — discussed but requires full data layer rewrite (IndexedDB + conflict resolution). Not scoped yet.
 
 ---
 
 ## AI Tool Used Last Session
 
-`2026-05-21 — Antigravity (Gemini 3.5 Flash)`
+`2026-05-22 — Claude Code (Opus 4.6)`
 
 ---
 
