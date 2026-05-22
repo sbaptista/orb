@@ -2084,7 +2084,7 @@ a, button, [role="button"], input, select, textarea {
   padding: 2px 0;
 }
 
-/* Three-dot edit trigger button */
+/* Row edit trigger buttons */
 .ie-trigger {
   flex-shrink: 0;
   width: 28px;
@@ -2105,11 +2105,6 @@ a, button, [role="button"], input, select, textarea {
 .ie-trigger:hover {
   background: var(--bg3);
   color: var(--text2);
-}
-
-/* On touch devices, always show the trigger for better discoverability */
-@media (pointer: coarse) {
-  .ie-trigger { opacity: 1 !important; }
 }
 
 /* ── Query results modal (`.qr-*`) ── */

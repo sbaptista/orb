@@ -17,6 +17,7 @@ import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import DistillModal from './DistillModal'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import { useToast } from '@/components/ui/Toast'
+import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
 import MuralCanvas from './MuralCanvas'
 import HScrollNav from '@/components/ui/HScrollNav'
 import { isActive } from '@/lib/status-groups'
@@ -385,9 +386,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     // Sync the overall urgency ref when todos list updates or project switches
     useEffect(() => {
         getUrgencySnapshot().then(val => {
-            prevOverallUrgencyRef.current = val
-        }).catch(err => {
-            console.error('[AmbientDashboard] Failed to initialize overall urgency snapshot:', err)
+            if (val) prevOverallUrgencyRef.current = val
         })
     }, [todos])
 
@@ -398,20 +397,17 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
             setTick(t => t + 1)
 
             // Check overall urgency escalation
-            try {
-                const currentOverall = await getUrgencySnapshot()
-                if (prevOverallUrgencyRef.current) {
-                    const SEVERITY: Record<Urgency, number> = { calm: 0, busy: 1, urgent: 2 }
-                    const prevSev = SEVERITY[prevOverallUrgencyRef.current]
-                    const currSev = SEVERITY[currentOverall]
-                    if (currSev > prevSev) {
-                        await notifyIfEscalated(prevOverallUrgencyRef.current)
-                    }
+            const currentOverall = await getUrgencySnapshot()
+            if (!currentOverall) return // auth expired — skip silently
+            if (prevOverallUrgencyRef.current) {
+                const SEVERITY: Record<Urgency, number> = { calm: 0, busy: 1, urgent: 2 }
+                const prevSev = SEVERITY[prevOverallUrgencyRef.current]
+                const currSev = SEVERITY[currentOverall]
+                if (currSev > prevSev) {
+                    await notifyIfEscalated(prevOverallUrgencyRef.current)
                 }
-                prevOverallUrgencyRef.current = currentOverall
-            } catch (err) {
-                console.error('[AmbientDashboard] Periodic urgency check failed:', err)
             }
+            prevOverallUrgencyRef.current = currentOverall
         }, 60000) // every 60 seconds
 
         return () => clearInterval(interval)
@@ -779,6 +775,10 @@ Type /? anytime for a full command list. What would you like to work on?` },
             }
         } catch (err) {
             console.error('[orbSubmit]', err)
+            if (isAuthError(String(err))) {
+                handleSessionExpired(toast)
+                return
+            }
             if (!abortConverseRef.current) {
                 setMessages(prev => prev.map(m => m.id === processingId
                     ? { ...m, text: 'Something went wrong. Try again?' }

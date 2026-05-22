@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.15',
+    date: '2026-05-22',
+    changes: [
+      'Replaced three-dot quick-edit trigger with a lightning bolt icon for clarity.',
+      'Added pencil icon button to open the full detail panel — row tap action is now visually discoverable.',
+      'All row action buttons (edit, quick edit, close) are now always visible instead of hover-only.',
+      'Strengthened the close/done toggle visibility — thicker border and tooltip added.',
+      'Fixed RLS initplan policies across all tables to reduce Supabase disk I/O usage.',
+    ]
+  },
+  {
     version: 'v0.5.14',
     date: '2026-05-21',
     changes: [

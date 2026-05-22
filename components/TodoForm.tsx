@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { useToast } from '@/components/ui/Toast'
+import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
 import type { Todo, Product, Priority } from './TodoView'
 
 type Props = {
@@ -62,10 +63,13 @@ export default function TodoForm({
       .single()
 
     setSaving(false)
-    if (err) { toast.error('Failed to create todo. Try again.'); return }
+    if (err) {
+      if (isAuthError(err.message)) { handleSessionExpired(toast); return }
+      toast.error('Failed to create todo. Try again.'); return
+    }
     if (data) {
       toast.success('Todo created')
-      notifyIfEscalated(beforeUrgency)
+      if (beforeUrgency) notifyIfEscalated(beforeUrgency)
       onCreate(data as Todo)
     }
   }

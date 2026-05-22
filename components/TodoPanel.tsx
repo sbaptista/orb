@@ -7,6 +7,7 @@ import DistillModal from './DistillModal'
 import { logAudit } from '@/app/actions/log-audit'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { useToast } from '@/components/ui/Toast'
+import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
 
 type Props = {
   todo: Todo
@@ -81,8 +82,9 @@ export default function TodoPanel({
       .single()
     setSaving(false)
     // Fire-and-forget: check urgency escalation
-    notifyIfEscalated(beforeUrgency)
+    if (beforeUrgency) notifyIfEscalated(beforeUrgency)
     if (err) {
+      if (isAuthError(err.message)) { handleSessionExpired(toast); return }
       const isRLS = err.message?.includes('row-level security') || err.code === 'PGRST116'
       toast.error(isRLS ? 'You do not have permission to modify this item.' : 'Failed to save. Try again.')
       return
@@ -108,7 +110,10 @@ export default function TodoPanel({
     setDeleting(true)
     const beforeUrgency = await getUrgencySnapshot()
     const { error: err } = await supabase.from('todos').delete().eq('id', todo.id)
-    if (err) { toast.error('Failed to delete. Try again.'); setDeleting(false); return }
+    if (err) {
+      if (isAuthError(err.message)) { handleSessionExpired(toast); return }
+      toast.error('Failed to delete. Try again.'); setDeleting(false); return
+    }
     logAudit({
       action: 'todo_delete',
       table_name: 'todos',
@@ -117,7 +122,7 @@ export default function TodoPanel({
     })
     setDeleting(false)
     toast.success('Todo deleted.')
-    notifyIfEscalated(beforeUrgency)
+    if (beforeUrgency) notifyIfEscalated(beforeUrgency)
     onDelete(todo.id)
   }
 

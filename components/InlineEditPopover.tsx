@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { logAudit } from '@/app/actions/log-audit'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { useToast } from '@/components/ui/Toast'
+import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
 import type { Todo, Priority, StatusDef } from './TodoView'
 
 type Props = {
@@ -127,6 +128,7 @@ export default function InlineEditPopover({
       setSaving(null)
 
       if (error) {
+        if (isAuthError(error.message)) { handleSessionExpired(toast); return }
         const isRLS =
           error.message?.includes('row-level security') || error.code === 'PGRST116'
         toast.error(
@@ -146,7 +148,7 @@ export default function InlineEditPopover({
           before: { [field]: (todo as Record<string, unknown>)[field] },
           after: { [field]: value, title: todo.title },
         })
-        notifyIfEscalated(beforeUrgency)
+        if (beforeUrgency) notifyIfEscalated(beforeUrgency)
       }
     },
     [supabase, todo, onSave, toast],

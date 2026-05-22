@@ -15,6 +15,8 @@ import { logAudit } from '@/app/actions/log-audit'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { checkReminders } from '@/app/actions/reminder-actions'
 import { ACTIVE_STATUSES, PARKED_STATUSES } from '@/lib/status-groups'
+import { useToast } from '@/components/ui/Toast'
+import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
 
 export type Todo = {
   id: string
@@ -57,6 +59,7 @@ const PRIORITY_DOT: Record<number, string> = {
 export default function TodoView({ productId }: { productId: string }) {
   const isAll = productId === 'all'
   const supabase = useMemo(() => createClient(), [])
+  const toast = useToast()
 
   const [todos, setTodos]       = useState<Todo[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -157,7 +160,7 @@ export default function TodoView({ productId }: { productId: string }) {
     const closedStatus = statuses.find(s => s.is_closed)?.name ?? 'closed'
     const openStatus = statuses.find(s => s.is_open)?.name ?? 'open'
     const newStatus = isClosed(todo.status) ? openStatus : closedStatus
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('todos')
       .update({
         status: newStatus,
@@ -166,6 +169,12 @@ export default function TodoView({ productId }: { productId: string }) {
       .eq('id', todo.id)
       .select('*, groups(name), categories(name)')
       .single()
+
+    if (error) {
+      if (isAuthError(error.message)) { handleSessionExpired(toast); return }
+      toast.error('Failed to update. Try again.')
+      return
+    }
 
     if (data) {
       const updated = data as Todo
@@ -178,7 +187,7 @@ export default function TodoView({ productId }: { productId: string }) {
         before: { status: todo.status },
         after: { status: newStatus, title: todo.title }
       })
-      notifyIfEscalated(beforeUrgency)
+      if (beforeUrgency) notifyIfEscalated(beforeUrgency)
 
       if (isClosed(newStatus)) {
         setDistillTodo(updated)
@@ -208,16 +217,21 @@ export default function TodoView({ productId }: { productId: string }) {
     const ids = [...selectedIds]
     const beforeUrgency = await getUrgencySnapshot()
     const closedStatus = statuses.find(s => s.is_closed)?.name ?? 'closed'
-    await supabase.from('todos').update({
+    const { error } = await supabase.from('todos').update({
       status: closedStatus,
       closed_at: new Date().toISOString(),
     }).in('id', ids)
+    if (error) {
+      if (isAuthError(error.message)) { handleSessionExpired(toast); return }
+      toast.error('Failed to close items. Try again.')
+      return
+    }
     logAudit({
       action: 'todo_bulk_close',
       table_name: 'todos',
       after: { count: ids.length, ids }
     })
-    notifyIfEscalated(beforeUrgency)
+    if (beforeUrgency) notifyIfEscalated(beforeUrgency)
     await fetchTodos()
     setSelectedIds([])
     setSelectMode(false)
@@ -227,13 +241,18 @@ export default function TodoView({ productId }: { productId: string }) {
     if (selectedIds.length === 0) return
     const ids = [...selectedIds]
     const beforeUrgency = await getUrgencySnapshot()
-    await supabase.from('todos').delete().in('id', ids)
+    const { error } = await supabase.from('todos').delete().in('id', ids)
+    if (error) {
+      if (isAuthError(error.message)) { handleSessionExpired(toast); return }
+      toast.error('Failed to delete items. Try again.')
+      return
+    }
     logAudit({
       action: 'todo_bulk_delete',
       table_name: 'todos',
       before: { count: ids.length, ids }
     })
-    notifyIfEscalated(beforeUrgency)
+    if (beforeUrgency) notifyIfEscalated(beforeUrgency)
     setTodos(prev => prev.filter(t => !ids.includes(t.id)))
     if (selectedTodo && ids.includes(selectedTodo.id)) setSelectedTodo(null)
     setSelectedIds([])
@@ -523,27 +542,37 @@ export default function TodoView({ productId }: { productId: string }) {
                     )
                   })()}
 
-                  {/* Quick-edit trigger — hidden in select mode and on done items */}
+                  {/* Edit + Quick Edit triggers — hidden in select mode and on done items */}
                   {!selectMode && !isDone && (
-                    <button
-                      className="ie-trigger"
-                      onClick={e => {
-                        e.stopPropagation()
-                        const row = (e.currentTarget as HTMLElement).closest('.tv-row')
-                        if (row) setInlineEdit({ todo, rect: row.getBoundingClientRect() })
-                      }}
-                      style={{
-                        opacity: isHovered || isSelected ? 1 : 0,
-                      }}
-                      aria-label="Quick edit"
-                      title="Quick edit (right-click)"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                        <circle cx="12" cy="5" r="2"/>
-                        <circle cx="12" cy="12" r="2"/>
-                        <circle cx="12" cy="19" r="2"/>
-                      </svg>
-                    </button>
+                    <>
+                      <button
+                        className="ie-trigger ie-trigger--edit"
+                        onClick={e => {
+                          e.stopPropagation()
+                          setSelectedTodo(todo)
+                        }}
+                        aria-label="Edit task"
+                        title="Edit task"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                        </svg>
+                      </button>
+                      <button
+                        className="ie-trigger ie-trigger--quick"
+                        onClick={e => {
+                          e.stopPropagation()
+                          const row = (e.currentTarget as HTMLElement).closest('.tv-row')
+                          if (row) setInlineEdit({ todo, rect: row.getBoundingClientRect() })
+                        }}
+                        aria-label="Quick edit"
+                        title="Edit status, priority, and due date"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                        </svg>
+                      </button>
+                    </>
                   )}
 
                   {/* Done toggle — hidden in select mode */}
@@ -552,11 +581,11 @@ export default function TodoView({ productId }: { productId: string }) {
                       className="tv-done-toggle"
                       onClick={e => handleToggleDone(e, todo)}
                       style={{
-                        border: `1.5px solid ${isDone ? statusColor(todo.status) : 'var(--border)'}`,
+                        border: `2px solid ${isDone ? statusColor(todo.status) : 'var(--muted)'}`,
                         background: isDone ? statusColor(todo.status) : 'transparent',
-                        opacity: isHovered || isSelected || isDone ? 1 : 0,
                       }}
                       aria-label={isDone ? 'Reopen' : 'Close'}
+                      title={isDone ? 'Reopen task' : 'Close task'}
                     >
                       {isDone && (
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
