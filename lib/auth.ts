@@ -5,9 +5,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 const ADMIN_ROLE_IDS = [1, 3] // Admin, Super Admin
 
-/** Sentinel error message for auth failures — used by client-side error handlers */
-export const AUTH_ERROR_MSG = 'Not authenticated'
-
 export type AuthContext = {
   user: { id: string; email: string }
   role: string
