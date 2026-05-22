@@ -41,6 +41,10 @@ export async function sendInviteEmail({
     <a href="${inviteLink}" style="display: inline-block; padding: 14px 32px; background: #2d5a2d; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Get started with Orb</a>
   </div>
 
+  <h3 style="margin-top: 28px; margin-bottom: 12px;">A few things to know:</h3>
+  <p style="margin-bottom: 12px;"><strong>Your data is visible to me.</strong> As the developer and admin, I can see your projects and tasks. This helps me improve the app and troubleshoot issues. I won't share your data with anyone. Please do not put any confidential information in Orb.</p>
+  <p style="margin-bottom: 12px;"><strong>Availability is not guaranteed.</strong> Orb is a personal project under active development. Features may change, and access may be modified or discontinued at any time. Think of it as an early preview — not a permanent service.</p>
+
   <p style="font-size: 14px; color: #555;">Orb works on most modern browsers: Safari, Chrome, Firefox, Edge, and Comet. On iPhone or iPad, you can install it as an app — open the link above in Safari, then tap Share → Add to Home Screen.</p>
 
   <h3 style="margin-top: 28px; margin-bottom: 12px;">How to give feedback:</h3>

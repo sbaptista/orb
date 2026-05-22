@@ -559,6 +559,8 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
 • See your list: "Show my active tasks"
 • Create a project: "Create a project called Work"
 
+A couple of things to be aware of: your projects and tasks are visible to the developer (Stan) for troubleshooting and improvement purposes — please don't store anything confidential here. Also, Orb is under active development, so features may change and access isn't guaranteed long-term.
+
 If you run into a bug or have a suggestion, just tell me — I'll log a ticket automatically. You can also say things like "I have a suggestion" or "something's broken" and I'll capture it.
 
 Type /? anytime for a full command list. What would you like to work on?` },
