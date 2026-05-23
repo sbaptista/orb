@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.18',
+    date: '2026-05-23',
+    changes: [
+      'Admin project search: admins can now search and navigate to any user\'s project from the TodoView topbar (ORB-138).',
+      'Login speed improvements: OTP reduced from 8 to 6 digits, added "Signing in…" feedback after verification, optimized TodoView to only fetch active todos by default — closed todos load on demand (ORB-139).',
+      'Dashboard nav labels: all icon buttons now show visible text labels (List, Print, Help, Settings, Account). Tooltips restored (ORB-140).',
+    ]
+  },
+  {
     version: 'v0.5.17',
     date: '2026-05-23',
     changes: [

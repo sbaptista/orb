@@ -10,6 +10,7 @@ function VerifyOtpContent() {
   const email = searchParams.get('email') || ''
   const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
+  const [verified, setVerified] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
 
@@ -37,6 +38,7 @@ function VerifyOtpContent() {
         setError(error.message)
         setLoading(false)
       } else {
+        setVerified(true)
         router.push('/dashboard')
       }
     } catch (err: any) {
@@ -56,7 +58,7 @@ function VerifyOtpContent() {
           <div className="auth-header">
             <h1 className="auth-title">Check your email</h1>
             <p className="auth-subtitle">
-              Enter the 8-digit code sent to<br />
+              Enter the 6-digit code sent to<br />
               <span style={{ fontWeight: 'var(--fw-medium)', color: 'var(--text2)' }}>{email}</span>
             </p>
           </div>
@@ -69,17 +71,17 @@ function VerifyOtpContent() {
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
-                maxLength={8}
+                maxLength={6}
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                 required
-                placeholder="12345678"
+                placeholder="123456"
                 className="auth-otp-input"
               />
             </div>
 
-            <button type="submit" disabled={loading || otp.length !== 8} className="auth-submit">
-              {loading ? 'Verifying…' : 'Verify'}
+            <button type="submit" disabled={loading || verified || otp.length !== 6} className="auth-submit">
+              {verified ? 'Signing in…' : loading ? 'Verifying…' : 'Verify'}
             </button>
           </form>
 

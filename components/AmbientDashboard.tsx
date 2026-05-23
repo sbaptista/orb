@@ -240,7 +240,9 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                 }
                 return
             }
-            const { data } = await visibleProjectsQuery(supabase, 'id, name, code, description, created_by')
+            const { data: { user: authUser } } = await supabase.auth.getUser()
+            const q = visibleProjectsQuery(supabase, 'id, name, code, description, created_by')
+            const { data } = authUser ? await q.eq('created_by', authUser.id) : await q
             const list = (data ?? []) as Product[]
             setProducts(list)
             if (list.length > 0) {
@@ -735,7 +737,9 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     setPulse(true)
                     setTimeout(() => setPulse(false), 420)
                     if (chunk.mutationType === 'dormancy') {
-                        const { data: freshProjects } = await visibleProjectsQuery(supabase, 'id, name, code, description, created_by')
+                        const { data: { user: authUser } } = await supabase.auth.getUser()
+                        const dq = visibleProjectsQuery(supabase, 'id, name, code, description, created_by')
+                        const { data: freshProjects } = authUser ? await dq.eq('created_by', authUser.id) : await dq
                         const list = (freshProjects ?? []) as Product[]
                         setProducts(list)
                         if (list.length > 0 && !list.find(p => p.id === selectedId)) {
@@ -1111,8 +1115,8 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     <button
                         className="nav-btn"
                         disabled
-                        title="Classic Editor"
-                        aria-label="Classic Editor"
+                        title="List"
+                        aria-label="List"
                     >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -1121,13 +1125,14 @@ Type /? anytime for a full command list. What would you like to work on?` },
                             <line x1="3" y1="9" x2="21" y2="9" />
                             <line x1="3" y1="15" x2="21" y2="15" />
                         </svg>
+                        <span className="nav-btn-label">List</span>
                     </button>
                 ) : (
                     <Link
                         href={`/dashboard/${selectedId}`}
                         className="nav-btn"
-                        title="Classic Editor"
-                        aria-label="Classic Editor"
+                        title="List"
+                        aria-label="List"
                     >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -1136,19 +1141,21 @@ Type /? anytime for a full command list. What would you like to work on?` },
                             <line x1="3" y1="9" x2="21" y2="9" />
                             <line x1="3" y1="15" x2="21" y2="15" />
                         </svg>
+                        <span className="nav-btn-label">List</span>
                     </Link>
                 )}
                 <button
                     className="nav-btn"
                     onClick={() => setShowPrint(true)}
-                    title="Print / Export PDF"
-                    aria-label="Print / Export PDF"
+                    title="Print"
+                    aria-label="Print"
                 >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="6 9 6 2 18 2 18 9"/>
                         <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
                         <rect x="6" y="14" width="12" height="8"/>
                     </svg>
+                    <span className="nav-btn-label">Print</span>
                 </button>
                 <button
                     className="nav-btn"
@@ -1161,6 +1168,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                         <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
                         <line x1="12" y1="17" x2="12.01" y2="17"/>
                     </svg>
+                    <span className="nav-btn-label">Help</span>
                 </button>
                 <Link
                     href="/settings"
@@ -1172,15 +1180,16 @@ Type /? anytime for a full command list. What would you like to work on?` },
                         <circle cx="12" cy="12" r="3"/>
                         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                     </svg>
+                    <span className="nav-btn-label">Settings</span>
                 </Link>
                 <button
                     className="nav-btn"
                     onClick={() => router.push('/account')}
-                    title={userFullName || 'Account'}
+                    title="Account"
                     aria-label="Account"
-                    style={{ fontWeight: 600, fontSize: '14px' }}
                 >
-                    {userName.charAt(0).toUpperCase()}
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>{userName.charAt(0).toUpperCase()}</span>
+                    <span className="nav-btn-label">Account</span>
                 </button>
             </div>
 

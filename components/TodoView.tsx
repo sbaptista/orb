@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { visibleProjectsQuery } from '@/lib/projects'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
@@ -56,9 +57,12 @@ const PRIORITY_DOT: Record<number, string> = {
   3: 'var(--muted)',  // low — muted
 }
 
-export default function TodoView({ productId }: { productId: string }) {
+type AdminProject = { id: string; name: string; code: string | null; owner_name: string }
+
+export default function TodoView({ productId, isAdmin = false }: { productId: string; isAdmin?: boolean }) {
   const isAll = productId === 'all'
   const supabase = useMemo(() => createClient(), [])
+  const router = useRouter()
   const toast = useToast()
 
   const [todos, setTodos]       = useState<Todo[]>([])
@@ -83,6 +87,11 @@ export default function TodoView({ productId }: { productId: string }) {
   const [sortAsc,           setSortAsc]           = useState(true)
   const [inlineEdit,        setInlineEdit]        = useState<{ todo: Todo; rect: DOMRect } | null>(null)
 
+  // Admin project search
+  const [adminSearch,       setAdminSearch]       = useState('')
+  const [adminProjects,     setAdminProjects]     = useState<AdminProject[]>([])
+  const [adminSearchOpen,   setAdminSearchOpen]   = useState(false)
+
   const fetchTodos = useCallback(async () => {
     let todoQuery = supabase
       .from('todos')
@@ -90,12 +99,31 @@ export default function TodoView({ productId }: { productId: string }) {
       .is('deleted_at', null)
     todoQuery = todoQuery.order('todo_number', { ascending: sortAsc })
     if (!isAll) todoQuery = todoQuery.eq('product_id', productId)
+
+    // Push status filter to the query — don't fetch rows we won't display
+    if (filterStatus === 'active') {
+      const include = showDone ? [...ACTIVE_STATUSES, ...PARKED_STATUSES] : [...ACTIVE_STATUSES]
+      // Fetch active + closed (if showDone), but always exclude parked unless filter is 'all'
+      // Actually: active view shows ACTIVE_STATUSES in main list, closed in toggle
+      if (showDone) {
+        // Need active + closed — exclude only parked
+        todoQuery = todoQuery.not('status', 'in', `(${[...PARKED_STATUSES].join(',')})`)
+      } else {
+        todoQuery = todoQuery.in('status', [...ACTIVE_STATUSES])
+      }
+    } else if (filterStatus === 'inactive') {
+      todoQuery = todoQuery.in('status', [...PARKED_STATUSES])
+    } else if (filterStatus !== 'all') {
+      // Specific status selected
+      todoQuery = todoQuery.eq('status', filterStatus)
+    }
+
     const { data } = await todoQuery
     setTodos((data as Todo[]) ?? [])
-    
+
     // Check and trigger email reminders in the background
     checkReminders().catch(err => console.error('Reminder check failed:', err))
-  }, [productId, isAll, supabase, sortAsc])
+  }, [productId, isAll, supabase, sortAsc, filterStatus, showDone])
 
   useVisibilityRefetch(fetchTodos)
 
@@ -130,6 +158,28 @@ export default function TodoView({ productId }: { productId: string }) {
 
     return () => { supabase.removeChannel(channel) }
   }, [productId, isAll, supabase, fetchTodos])
+
+  // Fetch all projects with owner names for admin search
+  useEffect(() => {
+    if (!isAdmin) return
+    async function loadAdminProjects() {
+      const { data } = await supabase
+        .from('projects')
+        .select('id, name, code, is_dormant, users!created_by(first_name, last_name)')
+        .eq('is_dormant', false)
+        .order('name')
+      const list: AdminProject[] = ((data ?? []) as any[]).map(p => ({
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        owner_name: p.users
+          ? [p.users.first_name, p.users.last_name].filter(Boolean).join(' ')
+          : 'Unknown',
+      }))
+      setAdminProjects(list)
+    }
+    loadAdminProjects()
+  }, [isAdmin, supabase])
 
   useEffect(() => {
     async function updateTimezone() {
@@ -288,6 +338,17 @@ export default function TodoView({ productId }: { productId: string }) {
 
   const currentProduct = products.find(p => p.id === productId)
 
+  // Admin search results — filter by name, code, or owner
+  const adminSearchResults = useMemo(() => {
+    if (!adminSearch.trim()) return adminProjects
+    const q = adminSearch.trim().toLowerCase()
+    return adminProjects.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      (p.code?.toLowerCase().includes(q)) ||
+      p.owner_name.toLowerCase().includes(q)
+    )
+  }, [adminProjects, adminSearch])
+
   return (
     <div id="main-content" className="tv-page">
 
@@ -302,6 +363,67 @@ export default function TodoView({ productId }: { productId: string }) {
         )}
         {isAll && (
           <span className="sl-title">All Products</span>
+        )}
+
+        {/* Admin project search */}
+        {isAdmin && (
+          <div className="tv-admin-search" style={{ position: 'relative' }}>
+            <div className="admin-search-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="admin-search-icon">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input
+                type="text"
+                className="admin-search-input"
+                placeholder="Search projects or owners…"
+                value={adminSearch}
+                onChange={e => { setAdminSearch(e.target.value); setAdminSearchOpen(true) }}
+                onFocus={() => setAdminSearchOpen(true)}
+                aria-label="Search all projects by name or owner"
+              />
+              {adminSearch && (
+                <button
+                  type="button"
+                  className="admin-search-clear"
+                  onClick={() => { setAdminSearch(''); setAdminSearchOpen(false) }}
+                  aria-label="Clear search"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              )}
+            </div>
+            {adminSearchOpen && (
+              <>
+                <div className="admin-search-backdrop" onClick={() => setAdminSearchOpen(false)} />
+                <div className="admin-search-dropdown">
+                  {adminSearchResults.length === 0 ? (
+                    <div className="admin-search-empty">No projects found</div>
+                  ) : (
+                    adminSearchResults.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className="admin-search-result"
+                        data-active={p.id === productId ? '' : undefined}
+                        onClick={() => {
+                          router.push(`/dashboard/${p.id}`)
+                          setAdminSearchOpen(false)
+                          setAdminSearch('')
+                        }}
+                      >
+                        <span className="admin-search-result-name">
+                          {p.code ? `${p.code} — ${p.name}` : p.name}
+                        </span>
+                        <span className="admin-search-result-owner">{p.owner_name}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         )}
 
         <div className="tv-toolbar">
@@ -604,7 +726,7 @@ export default function TodoView({ productId }: { productId: string }) {
         )}
 
         {/* Done section — collapsed by default, only shown in open filter mode */}
-        {filterStatus === 'active' && doneTodos.length > 0 && (
+        {filterStatus === 'active' && (showDone ? doneTodos.length > 0 : true) && (
           <div className="tv-done-section">
             <button
               className="tv-done-header"
@@ -617,7 +739,7 @@ export default function TodoView({ productId }: { productId: string }) {
                 display: 'inline-block',
                 transform: showDone ? 'rotate(90deg)' : 'rotate(0deg)',
               }}>▶</span>
-              Done ({doneTodos.length})
+              {showDone ? `Done (${doneTodos.length})` : 'Show completed'}
             </button>
 
             {showDone && (

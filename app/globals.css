@@ -787,34 +787,31 @@ a, button, [role="button"], input, select, textarea {
    ══════════════════════════════════════════════════════════ */
 
 .nav-btn {
-  background: rgba(255, 255, 255, 0.7);
-  border: 1.5px solid rgba(60, 110, 60, 0.25);
-  border-radius: 50%;
+  background: none;
+  border: none;
   cursor: pointer;
   color: var(--muted);
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  max-width: 36px;
-  min-height: 36px;
-  max-height: 36px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 3px;
   line-height: 1;
-  transition: all 0.15s;
-  padding: 0;
+  transition: color 0.15s;
+  padding: 4px 6px;
   flex-shrink: 0;
   appearance: none;
   -webkit-appearance: none;
-  aspect-ratio: 1 / 1;
   text-decoration: none;
+  font-family: var(--font-ui);
+}
+.nav-btn-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
 .nav-btn:hover {
-  border-color: rgba(60, 110, 60, 0.5);
   color: var(--text2);
-  background: #fff;
 }
 
 .nav-btn:disabled,
@@ -822,8 +819,6 @@ a, button, [role="button"], input, select, textarea {
   opacity: 0.35;
   cursor: not-allowed;
   pointer-events: none;
-  background: rgba(255, 255, 255, 0.4);
-  border-color: rgba(60, 110, 60, 0.1);
 }
 
 .scroll-arrow {
@@ -1193,6 +1188,115 @@ a, button, [role="button"], input, select, textarea {
   color: var(--text2);
   flex: 1;
   text-align: center;
+}
+
+/* ── Admin project search (TodoView) ── */
+.tv-admin-search {
+  flex-shrink: 0;
+}
+.admin-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+.admin-search-icon {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.admin-search-input {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  width: 180px;
+  padding: 6px 26px 6px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg2);
+  color: var(--text);
+  outline: none;
+  transition: border-color var(--transition), width 0.2s;
+}
+.admin-search-input:focus {
+  border-color: var(--border-focus);
+  width: 240px;
+}
+.admin-search-input::placeholder {
+  color: var(--muted);
+  font-size: 13px;
+}
+.admin-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+}
+.admin-search-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+}
+.admin-search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: 320px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-md);
+  padding: 4px;
+}
+.admin-search-empty {
+  padding: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.admin-search-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--r);
+  text-align: left;
+  transition: background 0.1s;
+}
+.admin-search-result:hover {
+  background: var(--bg3);
+}
+.admin-search-result[data-active] {
+  background: var(--pill-active-bg);
+}
+.admin-search-result-name {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-search-result-owner {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tv-toolbar {
