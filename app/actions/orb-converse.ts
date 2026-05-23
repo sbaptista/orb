@@ -608,6 +608,9 @@ FEEDBACK TONE:
                 if (createErr) output = { error: createErr.message }
                 else {
                   output = { ok: true, code: project.code, name: project.name }
+                  // Push into live context so subsequent tool calls (e.g. create_todo)
+                  // in the same turn can resolve the new project code (fixes ORB-136)
+                  ctx.productList.push(project)
                   stream.update({ speech: accumulatedSpeech, thought: `Created project ${project.code}`, refresh: true, mutationType: 'project_create', newProject: project })
                 }
               }

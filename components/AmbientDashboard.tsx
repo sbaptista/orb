@@ -22,6 +22,7 @@ import MuralCanvas from './MuralCanvas'
 import HScrollNav from '@/components/ui/HScrollNav'
 import { isActive } from '@/lib/status-groups'
 import { computeUrgency, isDueWithinWarning, type Urgency } from '@/lib/orb-state'
+import PrintModal from './PrintModal'
 
 type Product  = { id: string; name: string; code: string | null; description: string | null; created_by: string }
 type Todo     = { id: string; title: string; status: string; priority_value: number | null; due_at: string | null; product_id: string }
@@ -119,6 +120,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const [showQueryResults, setShowQueryResults] = useState(false)
     const [scopeToProduct, setScopeToProduct]     = useState(true)
     const [distillTodo, setDistillTodo]           = useState<{ id: string; productId: string; title: string; suggestion: { title: string; content: string } } | null>(null)
+    const [showPrint, setShowPrint]               = useState(false)
     const [isInputFocused, setIsInputFocused]     = useState(false)
     const [isMobile, setIsMobile]                 = useState(false)
     const [userName, setUserName]                 = useState<string>('')
@@ -1138,6 +1140,18 @@ Type /? anytime for a full command list. What would you like to work on?` },
                 )}
                 <button
                     className="nav-btn"
+                    onClick={() => setShowPrint(true)}
+                    title="Print / Export PDF"
+                    aria-label="Print / Export PDF"
+                >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="6 9 6 2 18 2 18 9"/>
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                        <rect x="6" y="14" width="12" height="8"/>
+                    </svg>
+                </button>
+                <button
+                    className="nav-btn"
                     onClick={() => setShowHelp(true)}
                     title="Help"
                     aria-label="Help"
@@ -1175,6 +1189,14 @@ Type /? anytime for a full command list. What would you like to work on?` },
 
             {/* ── Modals ── */}
             {showHelp && <OrbHelp onClose={() => setShowHelp(false)} />}
+
+            {showPrint && (
+                <PrintModal
+                    onClose={() => setShowPrint(false)}
+                    selectedProductId={selectedId}
+                    selectedProductName={selected?.name ?? null}
+                />
+            )}
 
             {showQueryResults && queryResults && (
                 <QueryResultsModal

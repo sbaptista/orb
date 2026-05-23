@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.5.14 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.5.17 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,26 +16,17 @@
 
 ## Last Session Completed
 
-**RLS initplan optimization (ORB-131) — 2026-05-22 (Session 10)**
+**Print feature + bug fix — 2026-05-23 (Session 12)**
 
-1. **Fixed RLS initplan policies** (`scripts/migrations/20260522_rls_initplan_fix.sql`)
-   - Rewrote all 39 RLS policies to wrap `auth.uid()` in `(select auth.uid())` and `auth.role()` in `(select auth.role())`.
-   - Postgres now evaluates auth functions once per query (InitPlan) instead of once per row.
-   - Root cause of Supabase disk I/O budget depletion.
+1. **Print / Export PDF (ORB-137)** — implemented browser-native print-to-PDF export as an offboarding tool. Printer icon in dashboard topbar opens a scope selector modal (All Projects / Current Project). Opens a dedicated print route (`/dashboard/print`) that fetches all non-deleted todos across all statuses, groups by project then status group (Active/Parked/Closed), and renders print-optimized HTML. Auto-triggers `window.print()`. No external dependencies.
 
-2. **Consolidated priorities policies**
-   - Dropped 3 redundant individual policies (insert/update/delete) that overlapped with the `ALL` policy.
-   - Total policies: 43 → 40.
+2. **create_project race condition fix (ORB-136)** — `buildContext()` snapshots `ctx.productList` once at turn start. When the AI called `create_project` then `create_todo` in the same multi-tool turn, `create_todo` searched the stale list and failed with "product not found". Fix: push new project into `ctx.productList` after successful creation.
 
-3. **Dropped duplicate index**
-   - `statuses_name_unique` constraint was identical to `statuses_name_key`. Removed.
+3. **Skip-link fix** — hid the root layout "Skip to content" link on the print page (both screen and print output).
 
-4. **Verified clean state**
-   - Zero policies with bare `auth.uid()` remaining.
-   - Dead tuple counts minimal, autovacuum running normally.
-   - `orb_friction` and `tickets` tables confirmed correct (RLS on, no policies = service-role-only access).
+4. **Closed ORB-136, ORB-137** with resolution notes + knowledge repo entries.
 
-5. **Closed ORB-130 (duplicate) and ORB-131** with resolution notes + knowledge repo entry.
+5. **Version bump** — v0.5.16 → v0.5.17.
 
 ---
 
@@ -48,7 +39,7 @@
 - None
 
 ### New
-- `scripts/migrations/20260522_rls_initplan_fix.sql` — RLS initplan fix migration (already executed)
+- None
 
 ---
 
@@ -74,22 +65,26 @@
 *   **Slash commands are fill-only.** Selecting a command fills the input with placeholder selected — never auto-submits. Consistent with Claude Code's slash command behavior.
 *   **Client-side dynamic version comparisons.** Server routes with cache headers guarantee clean responses bypassing cache networks.
 *   **Consolidated connectivity gates.** Centralized online validation in fullscreen pages keeps modular UI elements clean of duplicate connection hook listeners.
+*   **Print is browser-native window.print().** No jspdf/html2canvas dependencies. Dedicated server-rendered print route with @media print CSS. One of two offboarding paths (JSON export is the other, not yet built).
 
 ---
 
 ## Next Priorities
 
-1. **ORB-129 Phase 5 (iOS widget)** — shelved until Xcode + Apple Developer account are available. Phases 1–3 complete.
-2. **ORB-129 Phase 4 (Email digest)** — daily/weekly orb state summary via Resend. Infrastructure exists.
-3. **Offline editing with sync** — discussed but requires full data layer rewrite (IndexedDB + conflict resolution). Not scoped yet.
+1. **ORB-132** — Verify RLS initplan fix impact on Supabase disk I/O budget (due May 24, high priority).
+2. **JSON export/import** — second offboarding path (complement to print/PDF).
+3. **Test invitation flow** — Stan is testing invite emails with privacy/availability notices.
+4. **iPhone update flow retest** — Stan deleted Home Screen PWA and will test UpdateBanner on next version bump.
+5. **ORB-129 Phase 5 (iOS widget)** — shelved until Xcode + Apple Developer account are available. Phases 1–3 complete.
+6. **ORB-129 Phase 4 (Email digest)** — daily/weekly orb state summary via Resend. Infrastructure exists.
+7. **Offline editing with sync** — discussed but requires full data layer rewrite (IndexedDB + conflict resolution). Not scoped yet.
 
 ---
 
 ## AI Tool Used Last Session
 
-`2026-05-22 — Claude Code (Opus 4.6)`
+`2026-05-23 — Claude Code (Opus 4.6)`
 
 ---
 
 *Updated by AI at end of each session. Committed with session code changes.*
-
