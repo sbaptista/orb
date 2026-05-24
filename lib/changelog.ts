@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.24',
+    date: '2026-05-24',
+    changes: [
+      'AI context audit: Orb now maps project owners to user names — can answer "who owns this project?" and match users to their projects.',
+      'Todos now include group, category, and URL count in AI context for richer answers.',
+      'Priority urgency flags visible to AI — Orb knows which priority levels trigger the urgent state.',
+      'Knowledge repo tags and audit log actor field now included in AI context.',
+    ]
+  },
+  {
     version: 'v0.5.23',
     date: '2026-05-24',
     changes: [

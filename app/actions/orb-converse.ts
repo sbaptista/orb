@@ -72,11 +72,11 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   ] = await Promise.all([
     visibleProjectsQuery(supabase, 'id, name, code, description, created_by'),
     auth.isAdmin ? supabase.from('projects').select('id, name, code').eq('is_dormant', true).order('sort_order') : Promise.resolve({ data: [] }),
-    supabase.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes, due_at').is('deleted_at', null),
+    supabase.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes, due_at, urls, group_id, category_id, groups(name), categories(name)').is('deleted_at', null),
     supabase.from('statuses').select('*').order('sort_order'),
     supabase.from('priorities').select('*').order('value'),
     supabase.from('knowledge_repo').select('*, projects(code, name)').order('created_at', { ascending: false }),
-    supabase.from('audit_log').select('action, record_id, created_at, before, after', { count: 'exact' }).gte('created_at', fourteenDaysAgo).order('created_at', { ascending: false }).limit(200),
+    supabase.from('audit_log').select('action, record_id, created_at, before, after, actor', { count: 'exact' }).gte('created_at', fourteenDaysAgo).order('created_at', { ascending: false }).limit(200),
     supabase.from('users').select('urgency_threshold_hours, timezone').eq('id', auth.user.id).maybeSingle(),
     // ── Additional context (ORB-146) ──
     supabase.from('categories').select('id, name, product_id').is('deleted_at', null).order('sort_order'),
@@ -106,20 +106,44 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   const todoIds = new Set(todoList.map((t: any) => t.id))
   const auditList    = (recentAudit ?? []).filter((a: any) => todoIds.has(a.record_id))
   const current = productList.find((p: any) => p.id === currentProductId)
+  const userList = (allUsers ?? [])
+
+  // Build a user lookup map for project ownership (admin sees all users, regular users see just themselves)
+  const userMap = new Map<string, string>()
+  for (const u of userList) {
+    const name = [u.first_name, u.last_name].filter(Boolean).join(' ')
+    userMap.set(u.id, name || u.email)
+  }
+  // Ensure the current user is always in the map
+  if (!userMap.has(auth.user.id)) {
+    userMap.set(auth.user.id, auth.user.email ?? 'you')
+  }
+
+  function todoLine(t: any): string {
+    const parts = [`  ${todoCode(t, productList)} [P${t.priority_value ?? '-'}] [${t.status}] ${t.title}`]
+    if (t.due_at) parts.push(`[Due: ${t.due_at.replace('T', ' ')}]`)
+    if (t.groups?.name) parts.push(`[Group: ${t.groups.name}]`)
+    if (t.categories?.name) parts.push(`[Cat: ${t.categories.name}]`)
+    const urlList = Array.isArray(t.urls) ? t.urls : []
+    if (urlList.length > 0) parts.push(`[${urlList.length} URL${urlList.length > 1 ? 's' : ''}]`)
+    return parts.join(' ')
+  }
 
   const byProduct = productList.map((p: any) => {
-    const header = `${p.code ?? p.name}${p.description ? ` (${p.description})` : ''}`
+    const ownerName = userMap.get(p.created_by)
+    const ownerTag = ownerName ? ` [Owner: ${ownerName}]` : ''
+    const header = `${p.code ?? p.name}${p.description ? ` (${p.description})` : ''}${ownerTag}`
     if (scopeToProduct && p.id !== currentProductId) {
       return `${header}: (not in scope)`
     }
     const pTodos = todoList.filter((t: any) => t.product_id === p.id && !statusList.find((s: any) => s.name === t.status)?.is_closed)
     const activeLine = pTodos
       .filter((t: any) => isActive(t.status))
-      .map((t: any) => `  ${todoCode(t, productList)} [P${t.priority_value ?? '-'}] [${t.status}] ${t.title}${t.due_at ? ` [Due: ${t.due_at.replace('T', ' ')}]` : ''}`)
+      .map(todoLine)
       .join('\n')
     const parkedLine = pTodos
       .filter((t: any) => !isActive(t.status))
-      .map((t: any) => `  ${todoCode(t, productList)} [P${t.priority_value ?? '-'}] [${t.status}] ${t.title}${t.due_at ? ` [Due: ${t.due_at.replace('T', ' ')}]` : ''}`)
+      .map(todoLine)
       .join('\n')
     let body = ''
     if (activeLine) body += `  ACTIVE:\n${activeLine}`
@@ -138,7 +162,6 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   const platformList = (platforms ?? [])
   const frictionList = (frictionLogs ?? [])
   const invitationList = (invitations ?? [])
-  const userList = (allUsers ?? [])
 
   const categoriesSection = categoryList.length > 0
     ? `\n\nCATEGORIES:\n${categoryList.map((c: any) => {
@@ -199,8 +222,8 @@ export async function orbConverse(req: OrbRequest) {
       const ctx = await buildContext(supabase, auth, req.productId, req.scopeToProduct ?? true)
       const beforeUrgency = await snapshotUrgency(supabase, auth.user.id)
       let hasMutated = false
-      const statusNames = ctx.statusList.map((s: any) => s.name).join(', ')
-      const priorityInfo = ctx.priorityList.map((p: any) => `${p.value}:${p.label}`).join(', ')
+      const statusNames = ctx.statusList.map((s: any) => `${s.name}${s.is_closed ? ' (closed)' : s.is_open ? ' (default)' : ''}`).join(', ')
+      const priorityInfo = ctx.priorityList.map((p: any) => `${p.value}:${p.label}${p.is_urgent ? ' (URGENT)' : ''}`).join(', ')
 
       const userRole = req.roleOverride || auth.role
 
@@ -235,7 +258,10 @@ BACKLOG (includes DORMANT section if any exist — answer dormant project questi
 ${ctx.contextString}
 
 KNOWLEDGE BASE (Recent):
-${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.name || k.projects?.code}] ${k.title}: ${k.content.slice(0, 100)}...`).join('\n')}
+${ctx.knowledgeList.slice(0, 5).map((k: any) => {
+  const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
+  return `- [${k.projects?.name || k.projects?.code}] ${k.title}${tags}: ${k.content.slice(0, 100)}...`
+}).join('\n')}
 (Note: Use the 'search_knowledge' tool to query the full repository if the answer isn't here.)
 
 SCOPE TRANSPARENCY (mandatory):
