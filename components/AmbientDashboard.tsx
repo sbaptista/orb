@@ -1094,7 +1094,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
             </div>
 
             {/* ── Top right — help + settings + account ── */}
-            <div className="dash-nav">
+            <div className="dash-nav" data-mode={conversationActive ? 'dialogue' : 'ambient'}>
                 {noProject ? (
                     <button
                         className="nav-btn"

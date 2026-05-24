@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.5.29 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.5.30 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,46 +16,39 @@
 
 ## Last Session Completed
 
-**Implemented Manual Maintenance Mode (ORB-141) — 2026-05-24 (Session 15)**
+**Resolved UI Alignment Overlap in Dialogue Mode (ORB-150) — 2026-05-24 (Session 16)**
 
-1. **Created `system_settings` table** — added database table with composite RLS policies allowing public reads and admin-only writes.
-2. **Created `MaintenancePage` & route** — client component with breathing Julia Set canvas, shooting meteors, starfield, and the calm pulsing Moonlight Orb with centered "ORB" text. Under `/maintenance`.
-3. **Created `MaintenanceOverlay`** — client-side polling component that checks `/api/version` and overlays the UI when the user is locked out.
-4. **Updated API and middleware** — added optimized cache (15s TTL) in middleware to redirect non-admins, return 503 for APIs, and support admin role bypass.
-5. **Added settings page** — created `/settings/maintenance` for admins to toggle the flag, with audit log writing (`maintenance_enable` / `maintenance_disable`).
-6. **Added admin warning banner** — displays a persistent warning banner at the top of the viewport for other logged-in admins to notify them when maintenance mode is active.
-7. **Version bump** — v0.5.28 → v0.5.29.
+1. **Created todo ORB-150** — confirmed task exists, fixed, and closed it in database with resolution notes.
+2. **Fixed top-right navigation overlap** — added `data-mode` attribute to the `.dash-nav` container in [components/AmbientDashboard.tsx](file:///Users/stanleybaptista/Projects/orb/components/AmbientDashboard.tsx).
+3. **Styled shift offset in CSS** — positioned `.dash-nav[data-mode="dialogue"]` to shift `right: 88px` with a matching `0.6s` cubic-bezier transition in [app/globals.css](file:///Users/stanleybaptista/Projects/orb/app/globals.css) to slide the buttons away from the scaled-down Orb.
+4. **Created Knowledge Repository entry** — documented layout lessons regarding dynamic CSS translation offsets and absolute elements in Supabase.
+5. **Version bump** — bumped version to `0.5.30` across package.json, version.ts, and changelog.ts.
+6. **Verification** — verified successful Next.js build.
 
 ---
 
 ## Uncommitted Changes
 
 ### Modified
-- `package.json` — Version bump to v0.5.29
-- `lib/version.ts` — Version bump to v0.5.29
-- `lib/changelog.ts` — Added v0.5.29 release notes
-- `middleware.ts` — Cache-optimized database maintenance check, redirects, and API 503 intercepts
-- `app/layout.tsx` — Registered global MaintenanceOverlay listener and MaintenanceBanner
-- `app/api/version/route.ts` — Dynamic version check endpoint with maintenance lockout status
-- `components/settings/SettingsSidebar.tsx` — Added Maintenance Mode settings page to navigation (admin only)
+- `package.json` — Version bump to v0.5.30
+- `lib/version.ts` — Version bump to v0.5.30
+- `lib/changelog.ts` — Added v0.5.30 release notes
+- `app/globals.css` — Shift top-right navigation bar to the left in dialogue mode
+- `components/AmbientDashboard.tsx` — Add data-mode attribute to .dash-nav container
 - `HANDOFF.md` — this file
 
 ### Deleted
 - None
 
 ### New
-- `scripts/migrations/20260524_system_settings.sql` — Database migration for configuration table
-- `components/ui/MaintenancePage.tsx` — Breathing Julia Set canvas + calm Moonlight Orb centered visual component
-- `components/MaintenanceOverlay.tsx` — Dynamic client-side background poller for session lockout
-- `components/MaintenanceBanner.tsx` — Warning banner for logged-in admins when maintenance is active
-- `components/settings/SettingsMaintenance.tsx` — Settings view toggle with upsert and audit logging
-- `app/maintenance/page.tsx` — Standalone /maintenance route
-- `app/settings/maintenance/page.tsx` — Standalone /settings/maintenance admin route
+- None
 
 ---
 
 ## Key Decisions
 
+*   **Shift top-right navigation instead of hiding.** Hiding the navigation buttons (List, Print, Help, Settings, Account) in dialogue mode degrades the user experience by locking the user out of core dashboard options. Moving them 88px to the left clears the visual space of the scaled-down Orb at `right: 10px` without cluttering the left side of the header.
+*   **Coordinate motion curves.** Synchronized the transition time and easing curve of the `.dash-nav` shift (`transition: right 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)`) with the Orb's scaling animation to maintain visual alignment and fluid motion.
 *   **Decoupled Maintenance Mode check with edge cache.** Checking maintenance status via database on every single request in middleware degrades performance. Querying a lightweight `system_settings` table and caching it in middleware memory (15-second TTL) ensures sub-millisecond route resolution while remaining responsive to status updates. Fallback to `true` on database connection errors self-heals during database downtime.
 *   **Non-destructive client session preservation.** Fullscreen overlays block user interactions during maintenance without forcing logout. This preserves active user session cookies so they can resume work seamlessly without re-authenticating when maintenance ends.
 *   **PWA standalone mode top-left layout safety.** Window controls in standalone mode (iPad Stage Manager, macOS) can obscure top-left interactive elements (like back links). Offset layout headers using a `(display-mode: standalone)` media query wrapper to ensure comfortable hit targets and readability.

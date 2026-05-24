@@ -1144,6 +1144,11 @@ a, button, [role="button"], input, select, textarea {
   align-items: flex-start;
   gap: var(--sp-md);
   z-index: 20;
+  transition: right 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dash-nav[data-mode="dialogue"] {
+  right: 88px;
 }
 
 .dash-version {

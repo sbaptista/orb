@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.30',
+    date: '2026-05-24',
+    changes: [
+      'UI Alignment Fix (ORB-150): Shifted the top-right navigation bar (.dash-nav) to the left dynamically when the conversation is active (data-mode="dialogue") to prevent it from overlapping with the scaled-down Orb. Added a matching smooth transition curve.',
+    ]
+  },
+  {
     version: 'v0.5.29',
     date: '2026-05-24',
     changes: [
