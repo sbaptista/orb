@@ -794,7 +794,8 @@ a, button, [role="button"], input, select, textarea {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  justify-content: flex-start;
+  gap: 2px;
   line-height: 1;
   transition: color 0.15s;
   padding: 4px 6px;
@@ -803,6 +804,14 @@ a, button, [role="button"], input, select, textarea {
   -webkit-appearance: none;
   text-decoration: none;
   font-family: var(--font-ui);
+  min-width: 40px;
+}
+.nav-btn-icon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .nav-btn-label {
   font-size: 10px;
@@ -1132,7 +1141,7 @@ a, button, [role="button"], input, select, textarea {
   top: calc(var(--sp-lg) + var(--sat));
   right: var(--sp-lg);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--sp-md);
   z-index: 20;
 }
@@ -1602,37 +1611,6 @@ a, button, [role="button"], input, select, textarea {
   align-items: center;
   transition: color 0.2s;
   opacity: 0.5;
-}
-
-.oc-results-card {
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  background: var(--bg2);
-  overflow: hidden;
-}
-
-.oc-result-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.oc-show-list-btn {
-  margin-top: 6px;
-  font-family: var(--font-ui);
-  font-size: var(--fs-xs);
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  padding: 5px 14px;
-  border-radius: 16px;
-  border: 1px solid var(--pill-active-border);
-  color: var(--pill-active-color);
-  background: var(--pill-active-bg);
-  cursor: pointer;
 }
 
 .oc-input-wrap {

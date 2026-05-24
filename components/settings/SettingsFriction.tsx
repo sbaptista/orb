@@ -34,7 +34,7 @@ export default function SettingsFriction() {
   useVisibilityRefetch(load)
   useEffect(() => { load() }, [load])
 
-  async function handleGenerateTicket(log: OrbFriction) {
+  async function handleGenerateTodo(log: OrbFriction) {
     setSaving(true)
     
     try {
@@ -55,7 +55,7 @@ export default function SettingsFriction() {
             if (p.data) projName = p.data.name
         }
         
-        if (!projId) throw new Error("No project available to attach the ticket to.")
+        if (!projId) throw new Error("No project available to attach the todo to.")
 
         const { data: urgentPri, error: priErr } = await supabase
             .from('priorities')
@@ -70,7 +70,7 @@ export default function SettingsFriction() {
             .from('statuses').select('name').eq('is_open', true).limit(1).single()
 
         const { error: insertErr } = await supabase.from('todos').insert({
-            title: `Trouble Ticket: ${log.summary}`,
+            title: `[${log.category}] ${log.summary}`,
             description: `Auto-generated from Orb Issue log (${log.category}).${snippetStr}${detailsStr}`,
             status: openStatus?.name ?? 'open',
             priority_value: urgentPri?.value ?? null,
@@ -82,10 +82,10 @@ export default function SettingsFriction() {
         const { error: deleteErr } = await deleteFrictionLog(log.id)
         if (deleteErr) throw new Error(deleteErr)
 
-        toast.success(`Ticket generated in project '${projName || 'Unknown'}' and issue cleared.`)
+        toast.success(`Todo created in '${projName || 'Unknown'}' and issue cleared.`)
         setLogs(prev => prev.filter(l => l.id !== log.id))
     } catch (err: any) {
-        toast.error(`Failed to generate ticket: ${err.message}`)
+        toast.error(`Failed to create todo: ${err.message}`)
     } finally {
         setSaving(false)
     }
@@ -167,12 +167,12 @@ export default function SettingsFriction() {
                         <div className="flex-row gap-xs" style={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                             <button 
                                 className="btn-primary" 
-                                onClick={() => handleGenerateTicket(log)} 
+                                onClick={() => handleGenerateTodo(log)} 
                                 disabled={saving} 
                                 style={{ padding: '4px 8px', fontSize: '12px' }}
                                 title="Convert to an urgent Todo and clear log"
                             >
-                              Generate Ticket
+                              Create Todo
                             </button>
                             <button 
                                 className="text-btn" 

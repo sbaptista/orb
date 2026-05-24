@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { visibleProjectsQuery } from '@/lib/projects'
+import { isActive, isParked } from '@/lib/status-groups'
 import PrintStyles from '@/components/print/PrintStyles'
 
 type Project = { id: string; name: string; code: string | null; description: string | null }
@@ -28,14 +29,14 @@ const STATUS_ORDER: Record<string, number> = {
 }
 
 const GROUP_LABELS: Record<string, string> = {
-  active: 'Active',
-  parked: 'Parked',
+  active: 'Active (open + in progress)',
+  parked: 'Parked (deferred + on hold)',
   closed: 'Closed',
 }
 
 function getStatusGroup(status: string): 'active' | 'parked' | 'closed' {
-  if (status === 'open' || status === 'in progress') return 'active'
-  if (status === 'deferred' || status === 'on hold') return 'parked'
+  if (isActive(status)) return 'active'
+  if (isParked(status)) return 'parked'
   return 'closed'
 }
 
@@ -255,7 +256,7 @@ export default async function PrintPage({
         ))}
         <div className="print-summary-row print-summary-total">
           <span>Total across {projects.length} project{projects.length !== 1 ? 's' : ''}</span>
-          <span>{totalTodos} todos — {totalActive} active, {totalParked} parked, {totalClosed} closed</span>
+          <span>{totalTodos} todos — {totalActive} active (open + in progress), {totalParked} parked (deferred + on hold), {totalClosed} closed</span>
         </div>
       </div>
 

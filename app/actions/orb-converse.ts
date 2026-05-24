@@ -7,7 +7,7 @@ import { logAuditEvent } from '@/lib/audit'
 import { ORB_TOOLS, ORB_TOOL_LABELS, ORB_INTEGRITY_RULES } from '@/lib/orb-contract'
 // computeInsights suspended — code preserved in lib/insights.ts for future use
 import { visibleProjectsQuery } from '@/lib/projects'
-import { isActive, isParked } from '@/lib/status-groups'
+import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { computeUrgency, type Urgency } from '@/lib/orb-state'
 import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
 import { createTicket } from '@/app/actions/ticket-actions'
@@ -23,8 +23,6 @@ export type OrbResponse = {
   refresh?: boolean
   mutatedProductId?: string
   mutationType?: 'create' | 'update' | 'delete' | 'project_create' | 'dormancy'
-  results?: Array<{ id: string; code: string; title: string; status: string; priority_value: number | null }>
-  queryLabel?: string
   clientAction?: { action: string; target?: string }
   error?: string
   isStreaming?: boolean
@@ -62,8 +60,15 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     { data: statuses },
     { data: priorities },
     { data: knowledge },
-    { data: recentAudit },
-    { data: userProfile }
+    { data: recentAudit, count: auditTotalCount },
+    { data: userProfile },
+    { data: categories },
+    { data: groups },
+    { data: roles },
+    { data: platforms },
+    { data: frictionLogs, count: frictionTotalCount },
+    { data: invitations },
+    { data: allUsers },
   ] = await Promise.all([
     visibleProjectsQuery(supabase, 'id, name, code, description, created_by'),
     auth.isAdmin ? supabase.from('projects').select('id, name, code').eq('is_dormant', true).order('sort_order') : Promise.resolve({ data: [] }),
@@ -71,8 +76,22 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     supabase.from('statuses').select('*').order('sort_order'),
     supabase.from('priorities').select('*').order('value'),
     supabase.from('knowledge_repo').select('*, projects(code, name)').order('created_at', { ascending: false }),
-    supabase.from('audit_log').select('action, record_id, created_at, before, after').gte('created_at', fourteenDaysAgo).order('created_at', { ascending: false }).limit(200),
+    supabase.from('audit_log').select('action, record_id, created_at, before, after', { count: 'exact' }).gte('created_at', fourteenDaysAgo).order('created_at', { ascending: false }).limit(200),
     supabase.from('users').select('urgency_threshold_hours, timezone').eq('id', auth.user.id).maybeSingle(),
+    // ── Additional context (ORB-146) ──
+    supabase.from('categories').select('id, name, product_id').is('deleted_at', null).order('sort_order'),
+    supabase.from('groups').select('id, name, product_id').is('deleted_at', null).order('sort_order'),
+    supabase.from('roles').select('id, name').order('id'),
+    supabase.from('platforms').select('id, name').order('id'),
+    auth.isAdmin
+      ? auth.admin.from('orb_friction').select('id, category, summary, created_at', { count: 'exact' }).order('created_at', { ascending: false }).limit(20)
+      : Promise.resolve({ data: [], count: 0 }),
+    auth.isAdmin
+      ? auth.admin.from('invitations').select('id, email, first_name, last_name, status, release_stage, invited_at, responded_at').order('invited_at', { ascending: false })
+      : Promise.resolve({ data: [] }),
+    auth.isAdmin
+      ? auth.admin.from('users').select('id, email, first_name, last_name, role_id, onboarded_at, release_stage').order('created_at')
+      : Promise.resolve({ data: [] }),
   ])
 
   const currentUser = { id: auth.user.id, email: auth.user.email, roles: { name: auth.role } }
@@ -112,7 +131,60 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     ? `\n\nDORMANT (hidden from active views, no CRUD — use set_dormancy to wake):\n${dormantList.map((p: any) => `  ${p.code ?? p.name}`).join(', ')}`
     : ''
 
-  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, contextString: byProduct + dormantSection }
+  // ── Additional context sections (ORB-146) ──
+  const categoryList = (categories ?? [])
+  const groupList = (groups ?? [])
+  const roleList = (roles ?? [])
+  const platformList = (platforms ?? [])
+  const frictionList = (frictionLogs ?? [])
+  const invitationList = (invitations ?? [])
+  const userList = (allUsers ?? [])
+
+  const categoriesSection = categoryList.length > 0
+    ? `\n\nCATEGORIES:\n${categoryList.map((c: any) => {
+        const proj = productList.find((p: any) => p.id === c.product_id)
+        return `  ${c.name}${proj ? ` (${proj.code ?? proj.name})` : ''}`
+      }).join('\n')}`
+    : ''
+
+  const groupsSection = groupList.length > 0
+    ? `\n\nGROUPS:\n${groupList.map((g: any) => {
+        const proj = productList.find((p: any) => p.id === g.product_id)
+        return `  ${g.name}${proj ? ` (${proj.code ?? proj.name})` : ''}`
+      }).join('\n')}`
+    : ''
+
+  const rolesSection = roleList.length > 0
+    ? `\n\nROLES: ${roleList.map((r: any) => r.name).join(', ')}`
+    : ''
+
+  const platformsSection = platformList.length > 0
+    ? `\n\nPLATFORMS: ${platformList.map((p: any) => p.name).join(', ')}`
+    : ''
+
+  // Admin-only sections
+  const frictionTotal = frictionTotalCount ?? frictionList.length
+  const frictionLabel = frictionList.length < frictionTotal
+    ? `showing ${frictionList.length} of ${frictionTotal}`
+    : `${frictionList.length} total`
+  const frictionSection = auth.isAdmin && frictionList.length > 0
+    ? `\n\nFRICTION LOGS (${frictionLabel}, admin view):\n${frictionList.map((f: any) => `  [${f.category}] ${f.summary} (${new Date(f.created_at).toLocaleDateString()})`).join('\n')}`
+    : ''
+
+  const invitationsSection = auth.isAdmin && invitationList.length > 0
+    ? `\n\nINVITATIONS (admin view):\n${invitationList.map((i: any) => `  ${i.email} (${i.first_name ?? ''} ${i.last_name ?? ''}) — ${i.status}${i.release_stage ? `, ${i.release_stage}` : ''}`).join('\n')}`
+    : ''
+
+  const usersSection = auth.isAdmin && userList.length > 0
+    ? `\n\nUSERS (admin view, ${userList.length} total):\n${userList.map((u: any) => {
+        const role = roleList.find((r: any) => r.id === u.role_id)
+        return `  ${u.email} (${[u.first_name, u.last_name].filter(Boolean).join(' ') || 'no name'}) — ${role?.name ?? 'unknown role'}${u.onboarded_at ? ', onboarded' : ', not onboarded'}${u.release_stage ? `, ${u.release_stage}` : ''}`
+      }).join('\n')}`
+    : ''
+
+  const extraContext = categoriesSection + groupsSection + rolesSection + platformsSection + frictionSection + invitationsSection + usersSection
+
+  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, contextString: byProduct + dormantSection + extraContext }
 }
 
 
@@ -156,7 +228,8 @@ ${ctx.currentUser ? `\nUSER CONTEXT: You are talking to ${ctx.currentUser.email}
 ${ORB_INTEGRITY_RULES}
 
 VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}
-STATUS LANGUAGE: "active" = open + in progress ONLY. "parked" = deferred + on hold. Never count parked tasks as active. When reporting counts, active count excludes parked. The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering. When the user asks "how many tasks" or "my tasks" without specifying, report the ACTIVE count. If parked tasks exist, mention them separately (e.g. "5 active, 3 parked"). "open" as a status means status=open specifically — if the user says "open tasks", query status=open.
+${STATUS_VOCABULARY}
+The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering. When the user asks "how many tasks" or "my tasks" without specifying, report the ACTIVE count. If parked tasks exist, mention them separately.
 SCOPE: ${req.scopeToProduct ? `Scoped to the "${ctx.current?.name}" project. Only discuss or query this project's todos unless the user explicitly asks about another project or says "all". IMPORTANT: When calling tools (like create_todo or query_todos), ALWAYS pass the project code (e.g. product_code="${ctx.current?.code}") — never omit it. The tools require codes, but when speaking to the user, always refer to the project by its display name "${ctx.current?.name}".` : 'All projects visible.'}
 BACKLOG (includes DORMANT section if any exist — answer dormant project questions from here, do not query):
 ${ctx.contextString}
@@ -315,8 +388,7 @@ FEEDBACK TONE:
               return out
             })
             output = { count: results.length, returned }
-            const showInUI = input.show_results !== false
-            stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length} items`, ...(showInUI ? { results: returned, queryLabel: req.input } : {}) })
+            stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length} items` })
           } else if (tc.name === 'update_todo') {
             const productCode = input.code?.split('-')[0]
             const todoNum = parseInt(input.code?.split('-')[1] || '0')
@@ -734,7 +806,7 @@ export async function orbGreeting(productId: string | null): Promise<string | nu
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 200,
-      system: `You are the voice of the orb. Generate a brief, ambient opening observation (1-2 sentences) based on the backlog below. Plain text, no markdown. Factual tone — no cheerleading. Address the user directly ("you"). Do not greet them or say hello. SCOPE TRANSPARENCY: Every number you cite must state its scope — say "across all projects" or name the specific projects by their display names (e.g. "across Orb, Helm"). Never present a count without saying where it comes from. Only state facts visible in the backlog — do not infer patterns or compute statistics.`,
+      system: `You are the voice of the orb. Generate a brief, ambient opening observation (1-2 sentences) based on the backlog below. Plain text, no markdown. Factual tone — no cheerleading. Address the user directly ("you"). Do not greet them or say hello. SCOPE TRANSPARENCY: Every number you cite must state its scope — say "across all projects" or name the specific projects by their display names (e.g. "across Orb, Helm"). Never present a count without saying where it comes from. Only state facts visible in the backlog — do not infer patterns or compute statistics.\n\n${STATUS_VOCABULARY}`,
       messages: [{
         role: 'user',
         content: `Backlog:\n${ctx.contextString}`,

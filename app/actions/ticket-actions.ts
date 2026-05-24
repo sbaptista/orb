@@ -5,34 +5,63 @@ import { sendTicketNotificationEmail } from '@/lib/email'
 import { sendPushToUser } from '@/lib/push'
 import { headers } from 'next/headers'
 
-export type Ticket = {
-    id: string
-    source: 'orb-auto' | 'user-request' | 'admin'
-    type: 'bug' | 'suggestion' | 'capability_gap' | 'workflow_friction'
-    summary: string
-    detail: any
-    conversation_snippet: string | null
-    status: 'open' | 'converted' | 'dismissed'
-    converted_todo_id: string | null
-    created_at: string
-}
+// The Tickets project receives all auto-generated feedback (bugs, suggestions,
+// capability gaps, workflow friction). Orb will eventually have CRU access
+// (no delete) to this project's todos.
+const TICKETS_PROJECT_CODE = 'TICKETS'
+
+export type TicketType = 'bug' | 'suggestion' | 'capability_gap' | 'workflow_friction'
 
 export async function createTicket({ source, type, summary, detail, conversation_snippet }: {
-    source: Ticket['source']
-    type: Ticket['type']
+    source: 'orb-auto' | 'user-request' | 'admin'
+    type: TicketType
     summary: string
     detail?: any
     conversation_snippet?: string
 }) {
     const admin = createAdminClient()
-    const { data, error } = await admin.from('tickets').insert({
-        source, type, summary,
-        detail: detail ?? {},
-        conversation_snippet: conversation_snippet ?? null,
-    }).select().single()
+
+    // Resolve the Tickets project
+    const { data: project } = await admin
+        .from('projects')
+        .select('id')
+        .eq('code', TICKETS_PROJECT_CODE)
+        .maybeSingle()
+
+    if (!project) {
+        console.error('[createTicket] Tickets project not found')
+        return { error: 'Tickets project not found' }
+    }
+
+    // Build description from ticket metadata
+    const typeLabel = type.replace(/_/g, ' ')
+    const parts = [`Source: ${source} | Type: ${typeLabel}`]
+    if (conversation_snippet) parts.push(`\nContext:\n${conversation_snippet}`)
+    if (detail && Object.keys(detail).length > 0) {
+        parts.push(`\nDetails:\n${JSON.stringify(detail, null, 2)}`)
+    }
+
+    // Get next todo_number
+    const { data: maxRow } = await admin
+        .from('todos')
+        .select('todo_number')
+        .eq('product_id', project.id)
+        .order('todo_number', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    const nextNum = (maxRow?.todo_number ?? 0) + 1
+
+    const { data: todo, error } = await admin.from('todos').insert({
+        product_id: project.id,
+        todo_number: nextNum,
+        title: `[${typeLabel}] ${summary}`,
+        description: parts.join('\n'),
+        status: 'open',
+        priority_value: null,
+    }).select('id, todo_number').single()
 
     if (error) {
-        console.error('createTicket error:', error)
+        console.error('[createTicket] insert error:', error)
         return { error: error.message }
     }
 
@@ -47,7 +76,7 @@ export async function createTicket({ source, type, summary, detail, conversation
             console.error('[createTicket] Failed to fetch admins for notifications:', adminsError)
         } else if (admins && admins.length > 0) {
             const ticketType = type.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())
-            
+
             // Resolve request origin dynamically (e.g. localhost, staging) from headers
             let origin: string | undefined
             try {
@@ -58,7 +87,7 @@ export async function createTicket({ source, type, summary, detail, conversation
                     origin = `${protocol}://${host}`
                 }
             } catch {
-                // Ignore if headers() throws outside request context (e.g. scripts/test-ticket-notification.ts)
+                // Ignore if headers() throws outside request context
             }
 
             await Promise.all(
@@ -68,7 +97,7 @@ export async function createTicket({ source, type, summary, detail, conversation
                         tasks.push(
                             sendTicketNotificationEmail({
                                 to: adm.email,
-                                ticket: data,
+                                ticket: { type, source, summary, detail: detail ?? {}, conversation_snippet: conversation_snippet ?? null },
                                 origin,
                             }).catch(err => {
                                 console.error(`[createTicket] Failed to send email to admin ${adm.email}:`, err)
@@ -77,10 +106,10 @@ export async function createTicket({ source, type, summary, detail, conversation
                     }
                     tasks.push(
                         sendPushToUser(adm.id, {
-                            title: `New Ticket: ${ticketType}`,
+                            title: `New Feedback: ${ticketType}`,
                             body: summary,
-                            url: '/settings/tickets',
-                            tag: `ticket-${data.id}`,
+                            url: `/dashboard/${project.id}`,
+                            tag: `ticket-${todo.id}`,
                         }).catch(err => {
                             console.error(`[createTicket] Failed to send push alert to admin ${adm.id}:`, err)
                         })
@@ -93,88 +122,5 @@ export async function createTicket({ source, type, summary, detail, conversation
         console.error('[createTicket] Unexpected error dispatching admin notifications:', notifyErr)
     }
 
-    return { ok: true, data }
-}
-
-export async function getTickets(status?: string) {
-    const admin = createAdminClient()
-    let query = admin.from('tickets').select('*').order('created_at', { ascending: false })
-    if (status) query = query.eq('status', status)
-    const { data, error } = await query
-    if (error) {
-        console.error('getTickets error:', error)
-        return { error: error.message, data: null }
-    }
-    return { data, error: null }
-}
-
-export async function convertTicketToTodo(ticketId: string, productId: string) {
-    const admin = createAdminClient()
-
-    const { data: ticket, error: fetchErr } = await admin
-        .from('tickets').select('*').eq('id', ticketId).single()
-    if (fetchErr || !ticket) return { error: fetchErr?.message ?? 'Ticket not found' }
-
-    const detailStr = ticket.detail && Object.keys(ticket.detail).length > 0
-        ? `\n\nDetails:\n${JSON.stringify(ticket.detail, null, 2)}` : ''
-    const snippetStr = ticket.conversation_snippet
-        ? `\n\nContext:\n${ticket.conversation_snippet}` : ''
-
-    const { data: todo, error: insertErr } = await admin.from('todos').insert({
-        product_id: productId,
-        title: `[Ticket] ${ticket.summary}`,
-        description: `Source: ${ticket.source} | Type: ${ticket.type}${snippetStr}${detailStr}`,
-        status: 'open',
-        priority_value: null,
-    }).select('id').single()
-
-    if (insertErr) return { error: insertErr.message }
-
-    const { error: updateErr } = await admin.from('tickets').update({
-        status: 'converted',
-        converted_todo_id: todo.id,
-    }).eq('id', ticketId)
-
-    if (updateErr) return { error: updateErr.message }
-    return { ok: true, todoId: todo.id }
-}
-
-export async function dismissTicket(ticketId: string) {
-    const admin = createAdminClient()
-    const { error } = await admin.from('tickets').update({ status: 'dismissed' }).eq('id', ticketId)
-    if (error) {
-        console.error('dismissTicket error:', error)
-        return { error: error.message }
-    }
-    return { ok: true }
-}
-
-export async function deleteTicket(ticketId: string) {
-    const admin = createAdminClient()
-    const { error } = await admin.from('tickets').delete().eq('id', ticketId)
-    if (error) {
-        console.error('deleteTicket error:', error)
-        return { error: error.message }
-    }
-    return { ok: true }
-}
-
-export async function deleteTickets(ticketIds: string[]) {
-    const admin = createAdminClient()
-    const { error } = await admin.from('tickets').delete().in('id', ticketIds)
-    if (error) {
-        console.error('deleteTickets error:', error)
-        return { error: error.message }
-    }
-    return { ok: true }
-}
-
-export async function dismissTickets(ticketIds: string[]) {
-    const admin = createAdminClient()
-    const { error } = await admin.from('tickets').update({ status: 'dismissed' }).in('id', ticketIds)
-    if (error) {
-        console.error('dismissTickets error:', error)
-        return { error: error.message }
-    }
-    return { ok: true }
+    return { ok: true, data: { id: todo.id, code: `TICKETS-${todo.todo_number}` } }
 }

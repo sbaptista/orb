@@ -1,14 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { OrbResponse } from '@/app/actions/orb-converse'
-
 export type ConversationMessage = {
     id: string
     type: 'user' | 'orb'
     text: string
-    results?: OrbResponse['results']
-    queryLabel?: string
     isStreaming?: boolean
     thoughts?: string[]
 }
@@ -22,14 +18,12 @@ type Props = {
     scopeToProduct: boolean
     onInputChange: (v: string) => void
     onSubmit: (value: string) => void
-    onShowResults: (results: NonNullable<OrbResponse['results']>, label: string) => void
     onScopeChange: (v: boolean) => void
     onFocusChange: (v: boolean) => void
     onSelectProject: (id: string) => void
     selectedProjectId?: string | null
     onShowEditProject: () => void
     onShowAddProject: () => void
-    priorityColors?: Map<number, string>
     conversationActive?: boolean
     onRestoreConversation?: () => void
     onClearTranscript?: () => void
@@ -38,7 +32,7 @@ type Props = {
     orbElement?: React.ReactNode
 }
 
-function OrbCard({ msg, onShowResults, priorityColors }: { msg: ConversationMessage; onShowResults: Props['onShowResults']; priorityColors?: Map<number, string> }) {
+function OrbCard({ msg }: { msg: ConversationMessage }) {
     const [copied, setCopied] = useState(false)
 
     function copy() {
@@ -101,56 +95,6 @@ function OrbCard({ msg, onShowResults, priorityColors }: { msg: ConversationMess
                     )}
                 </button>
             </div>
-            {msg.results && msg.results.length > 0 && (
-                <div style={{ marginTop: '8px' }}>
-                    <div className="oc-results-card">
-                        {msg.results.slice(0, 5).map(r => (
-                            <div key={r.id} className="oc-result-row"
-                                onClick={() => onShowResults(msg.results!, msg.queryLabel ?? '')}
-                            >
-                                <span className="tv-priority-dot" style={{
-                                    background: r.status === 'closed' ? 'var(--muted)' : (r.priority_value ? priorityColors?.get(r.priority_value) ?? 'var(--muted)' : 'var(--border)'),
-                                }} />
-                                <span style={{
-                                    fontFamily: 'monospace',
-                                    fontSize: 'var(--fs-xs)',
-                                    color: 'var(--muted)',
-                                    minWidth: '56px',
-                                    flexShrink: 0,
-                                }}>
-                                    {r.code || r.id.slice(0, 6)}
-                                </span>
-                                <span className="truncate text-xs" style={{ flex: 1 }}>
-                                    {r.title}
-                                </span>
-                                <span className="shrink-0" style={{
-                                    fontSize: '11px',
-                                    textTransform: 'capitalize',
-                                    color: r.status === 'closed' ? '#6a8a6a' : '#4a7a4a',
-                                }}>
-                                    {r.status}
-                                </span>
-                            </div>
-                        ))}
-                        {msg.results.length > 5 && (
-                            <div className="text-xs text-muted" style={{
-                                padding: '6px 12px',
-                                textAlign: 'center',
-                                borderTop: '1px solid var(--border)',
-                            }}>
-                                +{msg.results.length - 5} more &rarr;
-                            </div>
-                        )}
-                    </div>
-                    <button
-                        type="button"
-                        className="oc-show-list-btn"
-                        onClick={() => onShowResults(msg.results!, msg.queryLabel ?? '')}
-                    >
-                        Show list &middot; {msg.results.length}
-                    </button>
-                </div>
-            )}
         </div>
     )
 }
@@ -164,14 +108,12 @@ export default function OrbConversation({
     scopeToProduct,
     onInputChange,
     onSubmit,
-    onShowResults,
     onScopeChange,
     onFocusChange,
     onSelectProject,
     selectedProjectId,
     onShowEditProject,
     onShowAddProject,
-    priorityColors,
     conversationActive = true,
     onRestoreConversation,
     onClearTranscript,
@@ -375,7 +317,7 @@ export default function OrbConversation({
                                     </div>
                                 </div>
                             ) : (
-                                <OrbCard key={msg.id} msg={msg} onShowResults={onShowResults} priorityColors={priorityColors} />
+                                <OrbCard key={msg.id} msg={msg} />
                             )
                     ))}
                 </div>

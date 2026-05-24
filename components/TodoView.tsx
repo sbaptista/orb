@@ -502,7 +502,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
           >
             <option value="all">All</option>
             <option value="active">Active (Open + In Progress)</option>
-            <option value="inactive">Inactive (Deferred + On Hold)</option>
+            <option value="inactive">Parked (Deferred + On Hold)</option>
             <option value="open">Open</option>
             <option value="in progress">In Progress</option>
             <option value="deferred">Deferred</option>

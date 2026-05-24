@@ -48,7 +48,7 @@ export async function sendInviteEmail({
   <p style="font-size: 14px; color: #555;">Orb works on most modern browsers: Safari, Chrome, Firefox, Edge, and Comet. On iPhone or iPad, you can install it as an app — open the link above in Safari, then tap Share → Add to Home Screen.</p>
 
   <h3 style="margin-top: 28px; margin-bottom: 12px;">How to give feedback:</h3>
-  <p>Just tell Orb. Say something like <em>"I have a suggestion"</em> or <em>"something's broken"</em> — it'll log a ticket automatically and it goes straight to me.</p>
+  <p>Just tell Orb. Say something like <em>"I have a suggestion"</em> or <em>"something's broken"</em> — it'll log it automatically and it goes straight to me.</p>
 
   <p style="margin-top: 28px;"><strong>Not interested?</strong><br/>No pressure — <a href="${declineLink}" style="color: #666;">click here to decline</a>.</p>
 
@@ -80,7 +80,6 @@ export async function sendTicketNotificationEmail({
 }: {
   to: string
   ticket: {
-    id: string
     source: string
     type: string
     summary: string
@@ -122,8 +121,8 @@ export async function sendTicketNotificationEmail({
   <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);">
     <div style="text-align: center; margin-bottom: 24px;">
       <img src="${ICON_URL}" alt="Orb" width="48" height="48" style="border-radius: 50%;" />
-      <h2 style="margin-top: 12px; margin-bottom: 4px; color: #1a202c; font-size: 20px; font-weight: 700;">New Ticket Received</h2>
-      <p style="margin: 0; color: #718096; font-size: 14px;">A new feedback or issue ticket has been submitted to the backlog.</p>
+      <h2 style="margin-top: 12px; margin-bottom: 4px; color: #1a202c; font-size: 20px; font-weight: 700;">New Feedback Received</h2>
+      <p style="margin: 0; color: #718096; font-size: 14px;">A new feedback item has been added to the Tickets project.</p>
     </div>
 
     <div style="border-top: 1px solid #edf2f7; border-bottom: 1px solid #edf2f7; padding: 20px 0; margin: 20px 0;">
@@ -145,8 +144,8 @@ export async function sendTicketNotificationEmail({
     </div>
 
     <div style="text-align: center; margin-top: 28px;">
-      <a href="${siteUrl}/settings/tickets" style="display: inline-block; padding: 12px 28px; background: #5a3090; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px rgba(90, 48, 144, 0.2);">
-        View Tickets Dashboard
+      <a href="${siteUrl}/dashboard" style="display: inline-block; padding: 12px 28px; background: #5a3090; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px rgba(90, 48, 144, 0.2);">
+        View in Orb
       </a>
     </div>
   </div>
@@ -159,7 +158,7 @@ export async function sendTicketNotificationEmail({
   const { data, error } = await getResend().emails.send({
     from: FROM_EMAIL,
     to,
-    subject: `[Orb Ticket] ${ticket.type.toUpperCase()}: ${ticket.summary}`,
+    subject: `[Orb Feedback] ${ticket.type.replace(/_/g, ' ').toUpperCase()}: ${ticket.summary}`,
     html,
   })
 

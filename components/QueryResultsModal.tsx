@@ -3,10 +3,9 @@
 import { useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { visibleProjectsQuery } from '@/lib/projects'
-import type { OrbResponse } from '@/app/actions/orb-converse'
 import type { Todo, Product, Priority, StatusDef } from './TodoView'
 
-type ResultItem = NonNullable<OrbResponse['results']>[number]
+type ResultItem = { id: string; code: string; title: string; status: string; priority_value: number | null }
 
 const PRIORITY_DOT: Record<number, string> = {
   1: '#a05010',
@@ -236,7 +235,7 @@ export default function QueryResultsModal({
                     {item.status.replace('_', ' ')}
                   </span>
                 </button>
-                {selectedTodo?.id === item.id && (
+                {selectedTodo?.id === item.id && selectedTodo && (
                   <InlineTodoEditor
                     todo={selectedTodo}
                     priorities={priorities}

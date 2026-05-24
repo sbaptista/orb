@@ -43,7 +43,7 @@ export default function PrintModal({ onClose, selectedProductId, selectedProduct
 
         <div className="modal-body" style={{ padding: 'var(--sp-xl)' }}>
           <p style={{ fontSize: '13px', color: 'var(--text3)', margin: '0 0 20px 0', lineHeight: 1.5 }}>
-            Generate a printable backlog export. All todos (active, parked, and closed) are included with full details, descriptions, and resolution notes.
+            Generate a printable backlog export. All todos are included — active (open + in progress), parked (deferred + on hold), and closed — with full details, descriptions, and resolution notes.
           </p>
 
           <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>

@@ -7,7 +7,6 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { visibleProjectsQuery } from '@/lib/projects'
 import AddProductModal from './AddProductModal'
-import QueryResultsModal from './QueryResultsModal'
 import OrbHelp from './OrbHelp'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { OrbDevPanel, type MoodOverride } from './OrbDevPanel'
@@ -115,9 +114,6 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const [showHelp, setShowHelp]               = useState(false)
     const [messages, setMessages]               = useState<ConversationMessage[]>([])
     const [conversationActive, setConversationActive] = useState(false)
-    const [queryResults, setQueryResults]       = useState<OrbResponse['results']>(undefined)
-    const [queryLabel, setQueryLabel]           = useState('')
-    const [showQueryResults, setShowQueryResults] = useState(false)
     const [scopeToProduct, setScopeToProduct]     = useState(true)
     const [distillTodo, setDistillTodo]           = useState<{ id: string; productId: string; title: string; suggestion: { title: string; content: string } } | null>(null)
     const [showPrint, setShowPrint]               = useState(false)
@@ -565,7 +561,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
 
 A couple of things to be aware of: your projects and tasks are visible to the developer (Stan) for troubleshooting and improvement purposes — please don't store anything confidential here. Also, Orb is under active development, so features may change and access isn't guaranteed long-term.
 
-If you run into a bug or have a suggestion, just tell me — I'll log a ticket automatically. You can also say things like "I have a suggestion" or "something's broken" and I'll capture it.
+If you run into a bug or have a suggestion, just tell me — I'll log it automatically. You can also say things like "I have a suggestion" or "something's broken" and I'll capture it.
 
 Type /? anytime for a full command list. What would you like to work on?` },
         ])
@@ -727,8 +723,6 @@ Type /? anytime for a full command list. What would you like to work on?` },
                         ...m,
                         text: chunk.speech || m.text,
                         thoughts: newThoughts,
-                        results: chunk.results?.length ? chunk.results : m.results,
-                        queryLabel: chunk.queryLabel ?? m.queryLabel ?? text,
                         isStreaming: chunk.isStreaming,
                     }
                 }))
@@ -810,14 +804,6 @@ Type /? anytime for a full command list. What would you like to work on?` },
             }
         }
     }
-
-    function handleShowResults(results: NonNullable<OrbResponse['results']>, label: string) {
-        setQueryResults(results)
-        setQueryLabel(label)
-        setShowQueryResults(true)
-    }
-
-    const lastOrbResponse = [...messages].reverse().find(m => m.type === 'orb')?.text
 
     const orbScale     = (isInputFocused && isMobile) ? 0.45 : 1.0
 
@@ -1033,7 +1019,6 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     messages={messages}
                     input={input}
                     submitting={submitting}
-                    priorityColors={priorityColorMap}
                     productCode={selected?.code ?? selected?.name ?? ''}
                     products={products}
                     scopeToProduct={scopeToProduct}
@@ -1043,7 +1028,6 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     onInputChange={v => { setInput(v); sessionStorage.setItem(SS_INPUT, v) }}
                     onSubmit={handleSubmit}
                     onStop={handleStop}
-                    onShowResults={handleShowResults}
                     onScopeChange={v => setScopeToProduct(v)}
                     onFocusChange={setIsInputFocused}
                     onSelectProject={id => { setSelectedId(id); setScopeToProduct(true) }}
@@ -1118,13 +1102,15 @@ Type /? anytime for a full command list. What would you like to work on?` },
                         title="List"
                         aria-label="List"
                     >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                            <line x1="9" y1="3" x2="9" y2="21" />
-                            <line x1="15" y1="3" x2="15" y2="21" />
-                            <line x1="3" y1="9" x2="21" y2="9" />
-                            <line x1="3" y1="15" x2="21" y2="15" />
-                        </svg>
+                        <span className="nav-btn-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                <line x1="9" y1="3" x2="9" y2="21" />
+                                <line x1="15" y1="3" x2="15" y2="21" />
+                                <line x1="3" y1="9" x2="21" y2="9" />
+                                <line x1="3" y1="15" x2="21" y2="15" />
+                            </svg>
+                        </span>
                         <span className="nav-btn-label">List</span>
                     </button>
                 ) : (
@@ -1134,13 +1120,15 @@ Type /? anytime for a full command list. What would you like to work on?` },
                         title="List"
                         aria-label="List"
                     >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                            <line x1="9" y1="3" x2="9" y2="21" />
-                            <line x1="15" y1="3" x2="15" y2="21" />
-                            <line x1="3" y1="9" x2="21" y2="9" />
-                            <line x1="3" y1="15" x2="21" y2="15" />
-                        </svg>
+                        <span className="nav-btn-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                <line x1="9" y1="3" x2="9" y2="21" />
+                                <line x1="15" y1="3" x2="15" y2="21" />
+                                <line x1="3" y1="9" x2="21" y2="9" />
+                                <line x1="3" y1="15" x2="21" y2="15" />
+                            </svg>
+                        </span>
                         <span className="nav-btn-label">List</span>
                     </Link>
                 )}
@@ -1150,11 +1138,13 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     title="Print"
                     aria-label="Print"
                 >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="6 9 6 2 18 2 18 9"/>
-                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-                        <rect x="6" y="14" width="12" height="8"/>
-                    </svg>
+                    <span className="nav-btn-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="6 9 6 2 18 2 18 9"/>
+                            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                            <rect x="6" y="14" width="12" height="8"/>
+                        </svg>
+                    </span>
                     <span className="nav-btn-label">Print</span>
                 </button>
                 <button
@@ -1163,11 +1153,13 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     title="Help"
                     aria-label="Help"
                 >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                        <line x1="12" y1="17" x2="12.01" y2="17"/>
-                    </svg>
+                    <span className="nav-btn-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                    </span>
                     <span className="nav-btn-label">Help</span>
                 </button>
                 <Link
@@ -1176,10 +1168,12 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     title="Settings"
                     aria-label="Settings"
                 >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                    </svg>
+                    <span className="nav-btn-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                    </span>
                     <span className="nav-btn-label">Settings</span>
                 </Link>
                 <button
@@ -1188,7 +1182,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     title="Account"
                     aria-label="Account"
                 >
-                    <span style={{ fontWeight: 600, fontSize: '14px' }}>{userName.charAt(0).toUpperCase()}</span>
+                    <span className="nav-btn-icon" style={{ fontWeight: 600, fontSize: '14px' }}>{userName.charAt(0).toUpperCase()}</span>
                     <span className="nav-btn-label">Account</span>
                 </button>
             </div>
@@ -1204,15 +1198,6 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     onClose={() => setShowPrint(false)}
                     selectedProductId={selectedId}
                     selectedProductName={selected?.name ?? null}
-                />
-            )}
-
-            {showQueryResults && queryResults && (
-                <QueryResultsModal
-                    results={queryResults}
-                    queryLabel={queryLabel}
-                    onClose={() => setShowQueryResults(false)}
-                    fullText={queryResults[0]?.id === 'full-text' ? lastOrbResponse : undefined}
                 />
             )}
 

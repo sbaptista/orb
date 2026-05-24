@@ -156,10 +156,16 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   query_todos: 'Searching backlog...',
   update_todo: 'Updating task...',
   delete_todo: 'Deleting task...',
+  move_todo: 'Moving task...',
   client_action: 'Navigating...',
   search_knowledge: 'Searching knowledge repository...',
   add_knowledge: 'Saving to knowledge repository...',
-  report_friction: 'Logging observation...',
+  query_audit_trail: 'Checking history...',
+  create_project: 'Creating project...',
+  update_project: 'Updating project...',
+  delete_project: 'Deleting project...',
+  set_dormancy: 'Updating project...',
+  create_ticket: 'Noting observation...',
 }
 `
     

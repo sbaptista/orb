@@ -109,6 +109,59 @@ info:
           detail: { type: string, description: 'What happened, what was expected, and any suggested improvement.' }
         required: ['type', 'summary']
 
+    move_todo:
+      confidence: well-tested
+      description: 'Move a task to a different project. The task gets a new number in the target project. Requires access to both source and target projects.'
+      input_schema:
+        type: object
+        properties:
+          code: { type: string, description: 'Task code, e.g. "ORB-73".' }
+          target_project_code: { type: string, description: 'Target project code, e.g. "HELM".' }
+        required: ['code', 'target_project_code']
+
+    create_project:
+      confidence: well-tested
+      description: 'Create a new project. Requires a name. The code is optional and will be auto-generated from the name if omitted. If provided, it must be unique, uppercase, alphanumeric (e.g. WORK, SIDE, TRAVEL).'
+      input_schema:
+        type: object
+        properties:
+          name: { type: string, description: 'Project name (e.g. "Work", "Side Projects").' }
+          code: { type: string, description: 'Optional short uppercase code (e.g. WORK, SIDE). If provided, it must be unique.' }
+          description: { type: string, description: 'Optional project description.' }
+        required: ['name']
+
+    update_project:
+      confidence: new
+      description: "Update a project's name, description, or code. Users can only update their own projects. Use when the user says 'rename project X', 'change the description of X', etc."
+      input_schema:
+        type: object
+        properties:
+          project_code: { type: string, description: 'Current project code to identify the project.' }
+          new_name: { type: string, description: 'New project name.' }
+          new_code: { type: string, description: 'New project code. Must be unique, uppercase, alphanumeric.' }
+          new_description: { type: string, description: 'New project description. Pass empty string to clear.' }
+        required: ['project_code']
+
+    delete_project:
+      confidence: new
+      description: 'Permanently delete a project and all its todos. IRREVERSIBLE. Users can only delete their own projects. MANDATORY: Before calling this tool, you MUST ask the user to confirm by saying exactly which project will be deleted and that all its todos will be lost. Only proceed after the user explicitly confirms (e.g. "yes, delete it"). Never delete without confirmation.'
+      input_schema:
+        type: object
+        properties:
+          project_code: { type: string, description: 'Project code to delete (e.g. "WORK").' }
+          confirmed: { type: boolean, description: 'Must be true. The AI sets this after receiving explicit user confirmation.' }
+        required: ['project_code', 'confirmed']
+
+    set_dormancy:
+      confidence: well-tested
+      description: 'Put a project to sleep (dormant) or wake it up. Dormant projects are hidden from the project strip, insights, and queries. Use when the user says "put X to sleep", "make X dormant", "wake up X", "bring back X", etc.'
+      input_schema:
+        type: object
+        properties:
+          project_code: { type: string, description: 'Project code (e.g. CAN26, HELM).' }
+          dormant: { type: boolean, description: 'true to put to sleep, false to wake up.' }
+        required: ['project_code', 'dormant']
+
 servers:
   - url: https://orb-eight-lake.vercel.app
 

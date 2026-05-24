@@ -107,7 +107,7 @@ Orb's tool definitions and integrity rules live in `lib/orb-contract.ts`. This i
 
 The REST API contract for external agents (curl, developer AIs) is in `docs/api-spec.yaml`. The two interfaces share the same data model but differ in authentication, addressing, and deletion behavior. See the spec's `x-orb-agent-contract` note for details.
 
-Orb also has a `create_ticket` tool that silently logs bugs, suggestions, capability gaps, and workflow friction to the `tickets` table. Review these in Settings → Tickets when planning work.
+Orb also has a `create_ticket` tool that silently logs bugs, suggestions, capability gaps, and workflow friction as todos in the `TICKETS` project. Review these on the Tickets project board when planning work.
 
 ---
 
