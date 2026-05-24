@@ -3,11 +3,32 @@
 import { getAuthContext, requireAdmin } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-async function checkCodeConflict(admin: ReturnType<typeof createAdminClient>, code: string, excludeId?: string) {
-  const query = admin.from('projects').select('id').ilike('code', code)
+async function checkCodeConflict(admin: ReturnType<typeof createAdminClient>, code: string, userId: string, excludeId?: string) {
+  const query = admin.from('projects').select('id').ilike('code', code).eq('created_by', userId).is('deleted_at', null)
   if (excludeId) query.neq('id', excludeId)
   const { data } = await query.maybeSingle()
   return !!data
+}
+
+
+async function generateUniqueCode(admin: ReturnType<typeof createAdminClient>, name: string, userId: string): Promise<string> {
+  let baseCode = name.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!baseCode) {
+    baseCode = 'PROJ'
+  }
+  if (baseCode.length > 10) {
+    baseCode = baseCode.substring(0, 10)
+  }
+
+  let code = baseCode
+  let counter = 1
+  while (await checkCodeConflict(admin, code, userId)) {
+    counter++
+    const suffix = counter.toString()
+    const maxBaseLen = 10 - suffix.length
+    code = baseCode.substring(0, maxBaseLen) + suffix
+  }
+  return code
 }
 
 export async function createProject(data: {
@@ -18,16 +39,18 @@ export async function createProject(data: {
   sort_order?: number
   ownerId?: string | null
 }) {
-  const code = data.code?.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
-  if (!code) return { error: 'Project code is required' }
-
   const ctx = await getAuthContext()
-
-  if (await checkCodeConflict(ctx.admin, code)) {
-    return { error: `Code "${code}" is already in use` }
-  }
-
+  
   const ownerId = ctx.isAdmin ? (data.ownerId ?? ctx.user.id) : ctx.user.id
+
+  let code = data.code?.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!code) {
+    code = await generateUniqueCode(ctx.admin, data.name, ownerId)
+  } else {
+    if (await checkCodeConflict(ctx.admin, code, ownerId)) {
+      return { error: `Code "${code}" is already in use` }
+    }
+  }
 
   const { data: project, error } = await ctx.admin
     .from('projects')
@@ -87,7 +110,10 @@ export async function updateProject(id: string, data: {
   if (data.code !== undefined) {
     const code = data.code?.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
     if (!code) return { error: 'Project code is required' }
-    if (await checkCodeConflict(ctx.admin, code, id)) {
+    // Resolve owner for user-scoped conflict check
+    const { data: existing } = await ctx.admin.from('projects').select('created_by').eq('id', id).single()
+    const ownerId = data.created_by ?? existing?.created_by ?? ctx.user.id
+    if (await checkCodeConflict(ctx.admin, code, ownerId, id)) {
       return { error: `Code "${code}" is already in use` }
     }
     data = { ...data, code }

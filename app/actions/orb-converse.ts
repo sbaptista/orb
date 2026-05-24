@@ -11,6 +11,7 @@ import { isActive, isParked } from '@/lib/status-groups'
 import { computeUrgency, type Urgency } from '@/lib/orb-state'
 import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
 import { createTicket } from '@/app/actions/ticket-actions'
+import { createProject } from '@/app/actions/manage-project'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -69,7 +70,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     supabase.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes, due_at').is('deleted_at', null),
     supabase.from('statuses').select('*').order('sort_order'),
     supabase.from('priorities').select('*').order('value'),
-    supabase.from('knowledge_repo').select('*, projects(code)').order('created_at', { ascending: false }),
+    supabase.from('knowledge_repo').select('*, projects(code, name)').order('created_at', { ascending: false }),
     supabase.from('audit_log').select('action, record_id, created_at, before, after').gte('created_at', fourteenDaysAgo).order('created_at', { ascending: false }).limit(200),
     supabase.from('users').select('urgency_threshold_hours, timezone').eq('id', auth.user.id).maybeSingle(),
   ])
@@ -156,20 +157,20 @@ ${ORB_INTEGRITY_RULES}
 
 VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}
 STATUS LANGUAGE: "active" = open + in progress ONLY. "parked" = deferred + on hold. Never count parked tasks as active. When reporting counts, active count excludes parked. The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering. When the user asks "how many tasks" or "my tasks" without specifying, report the ACTIVE count. If parked tasks exist, mention them separately (e.g. "5 active, 3 parked"). "open" as a status means status=open specifically — if the user says "open tasks", query status=open.
-SCOPE: ${req.scopeToProduct ? `Scoped to ${ctx.current?.code ?? ctx.current?.name}. Only discuss or query this project's todos unless the user explicitly asks about another project or says "all". IMPORTANT: When creating a todo, ALWAYS pass product_code="${ctx.current?.code}" explicitly — never omit it. When querying, ALWAYS pass product_code explicitly — the tool does NOT auto-scope. For cross-project insight follow-ups, omit product_code to search all projects.` : 'All projects visible.'}
+SCOPE: ${req.scopeToProduct ? `Scoped to the "${ctx.current?.name}" project. Only discuss or query this project's todos unless the user explicitly asks about another project or says "all". IMPORTANT: When calling tools (like create_todo or query_todos), ALWAYS pass the project code (e.g. product_code="${ctx.current?.code}") — never omit it. The tools require codes, but when speaking to the user, always refer to the project by its display name "${ctx.current?.name}".` : 'All projects visible.'}
 BACKLOG (includes DORMANT section if any exist — answer dormant project questions from here, do not query):
 ${ctx.contextString}
 
 KNOWLEDGE BASE (Recent):
-${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.code}] ${k.title}: ${k.content.slice(0, 100)}...`).join('\n')}
+${ctx.knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.name || k.projects?.code}] ${k.title}: ${k.content.slice(0, 100)}...`).join('\n')}
 (Note: Use the 'search_knowledge' tool to query the full repository if the answer isn't here.)
 
 SCOPE TRANSPARENCY (mandatory):
 - Every response that references task counts, priorities, or insight data MUST state what scope it covers. Never present numbers without scope.
-- Cross-project: say "across all projects" or name the specific projects involved (e.g. "across ORB, HELM, and CAN26").
-- Single-project: say "in ORB" or "in HELM" etc.
+- Cross-project: say "across all projects" or name the specific projects involved by their display names (e.g. "across Orb, Helm, and CAN26").
+- Single-project: refer to the project by its display name (e.g., "in Orb" or "in Helm"). Do not refer to it by its code in text responses to the user.
 - If a number covers multiple projects but the conversation is scoped to one project, make the scope difference explicit.
-- Examples: "6 urgent tasks across all projects" / "2 open in ORB" / "Across ORB and HELM, 18 opened this week."
+- Examples: "6 urgent tasks across all projects" / "2 open in Orb" / "Across Orb and Helm, 18 opened this week."
 
 AI ATTRIBUTION (mandatory):
 - When closing a task (setting status to a closed state), the resolution_notes MUST start with "YYYY-MM-DD — Orb (Sonnet 4.6)" on its own line, followed by the actual notes. This identifies you as the actor.
@@ -180,7 +181,7 @@ FEEDBACK TONE:
 - Factual and brief. Acknowledge effort, not just outcomes.
 - Skip praise for trivial actions.
 - No exclamation marks, no "amazing!", no "crushing it!", no cheerleading.
-- Examples of good feedback: "That clears the urgent queue for ORB." / "3 closed across all projects this week." / "ORB-86 was open 6 months. Good to see it resolved."`,
+- Examples of good feedback: "That clears the urgent queue for Orb." / "3 closed across all projects this week." / "ORB-86 was open 6 months. Good to see it resolved."`,
           messages,
           tools: ORB_TOOLS,
           stream: true,
@@ -470,11 +471,12 @@ FEEDBACK TONE:
               output = { error: 'todo not found' }
             } else {
               const sourceProject = ctx.productList.find((p: any) => p.id === todo.product_id)
-              const { data: targetProject } = await supabase
+              const moveTargetQuery = supabase
                 .from('projects')
                 .select('id, code, name')
                 .ilike('code', targetCode)
-                .maybeSingle()
+              if (!auth.isAdmin) moveTargetQuery.eq('created_by', auth.user.id)
+              const { data: targetProject } = await moveTargetQuery.maybeSingle()
 
               if (!targetProject) {
                 output = { error: `project "${targetCode}" not found` }
@@ -591,33 +593,27 @@ FEEDBACK TONE:
               stream.update({ speech: accumulatedSpeech, thought: `Found ${formatted.length} audit events` })
             }
           } else if (tc.name === 'create_project') {
-            const code = String(input.code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
-            if (!code) {
-              output = { error: 'Project code is required' }
+            const res = await createProject({
+              name: input.name,
+              code: input.code || null,
+              description: input.description || null,
+              ownerId: auth.user.id,
+            })
+            if (res.error) {
+              output = { error: res.error }
             } else {
-              const { data: conflict } = await auth.admin.from('projects').select('id').ilike('code', code).maybeSingle()
-              if (conflict) {
-                output = { error: `Code "${code}" is already in use` }
-              } else {
-                const { data: project, error: createErr } = await auth.admin.from('projects').insert({
-                  name: input.name,
-                  code,
-                  description: input.description ?? null,
-                  created_by: auth.user.id,
-                }).select('id, name, code, description, created_by').single()
-                if (createErr) output = { error: createErr.message }
-                else {
-                  output = { ok: true, code: project.code, name: project.name }
-                  // Push into live context so subsequent tool calls (e.g. create_todo)
-                  // in the same turn can resolve the new project code (fixes ORB-136)
-                  ctx.productList.push(project)
-                  stream.update({ speech: accumulatedSpeech, thought: `Created project ${project.code}`, refresh: true, mutationType: 'project_create', newProject: project })
-                }
-              }
+              const project = res.project!
+              output = { ok: true, code: project.code, name: project.name }
+              // Push into live context so subsequent tool calls (e.g. create_todo)
+              // in the same turn can resolve the new project code (fixes ORB-136)
+              ctx.productList.push(project)
+              stream.update({ speech: accumulatedSpeech, thought: `Created project ${project.code}`, refresh: true, mutationType: 'project_create', newProject: project })
             }
           } else if (tc.name === 'update_project') {
             const code = String(input.project_code || '').toUpperCase()
-            const { data: project } = await supabase.from('projects').select('id, code, name, description, created_by').ilike('code', code).maybeSingle()
+            const projectQuery = supabase.from('projects').select('id, code, name, description, created_by').ilike('code', code)
+            if (!auth.isAdmin) projectQuery.eq('created_by', auth.user.id)
+            const { data: project } = await projectQuery.maybeSingle()
             if (!project) {
               output = { error: `Project ${code} not found` }
             } else if (project.created_by !== auth.user.id && !auth.isAdmin) {
@@ -629,7 +625,7 @@ FEEDBACK TONE:
               if (input.new_code) {
                 const cleanCode = String(input.new_code).trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
                 if (!cleanCode) { output = { error: 'Project code is required' }; toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) }); continue }
-                const { data: conflict } = await auth.admin.from('projects').select('id').ilike('code', cleanCode).neq('id', project.id).maybeSingle()
+                const { data: conflict } = await auth.admin.from('projects').select('id').ilike('code', cleanCode).eq('created_by', project.created_by).neq('id', project.id).is('deleted_at', null).maybeSingle()
                 if (conflict) { output = { error: `Code "${cleanCode}" is already in use` }; toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) }); continue }
                 updates.code = cleanCode
               }
@@ -650,7 +646,9 @@ FEEDBACK TONE:
               output = { error: 'Confirmation required. Ask the user to confirm before deleting.' }
             } else {
               const code = String(input.project_code || '').toUpperCase()
-              const { data: project } = await supabase.from('projects').select('id, code, name, created_by').ilike('code', code).maybeSingle()
+              const delProjectQuery = supabase.from('projects').select('id, code, name, created_by').ilike('code', code)
+              if (!auth.isAdmin) delProjectQuery.eq('created_by', auth.user.id)
+              const { data: project } = await delProjectQuery.maybeSingle()
               if (!project) {
                 output = { error: `Project ${code} not found` }
               } else if (project.created_by !== auth.user.id && !auth.isAdmin) {
@@ -667,7 +665,9 @@ FEEDBACK TONE:
             }
           } else if (tc.name === 'set_dormancy') {
             const code = String(input.project_code || '').toUpperCase()
-            const { data: project } = await auth.admin.from('projects').select('id, code, name').ilike('code', code).maybeSingle()
+            const dormQuery = auth.admin.from('projects').select('id, code, name, created_by').ilike('code', code)
+            if (!auth.isAdmin) dormQuery.eq('created_by', auth.user.id)
+            const { data: project } = await dormQuery.maybeSingle()
             if (!project) {
               output = { error: `Project ${code} not found` }
             } else {
@@ -734,7 +734,7 @@ export async function orbGreeting(productId: string | null): Promise<string | nu
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 200,
-      system: `You are the voice of the orb. Generate a brief, ambient opening observation (1-2 sentences) based on the backlog below. Plain text, no markdown. Factual tone — no cheerleading. Address the user directly ("you"). Do not greet them or say hello. SCOPE TRANSPARENCY: Every number you cite must state its scope — say "across all projects" or name the specific projects. Never present a count without saying where it comes from. Only state facts visible in the backlog — do not infer patterns or compute statistics.`,
+      system: `You are the voice of the orb. Generate a brief, ambient opening observation (1-2 sentences) based on the backlog below. Plain text, no markdown. Factual tone — no cheerleading. Address the user directly ("you"). Do not greet them or say hello. SCOPE TRANSPARENCY: Every number you cite must state its scope — say "across all projects" or name the specific projects by their display names (e.g. "across Orb, Helm"). Never present a count without saying where it comes from. Only state facts visible in the backlog — do not infer patterns or compute statistics.`,
       messages: [{
         role: 'user',
         content: `Backlog:\n${ctx.contextString}`,

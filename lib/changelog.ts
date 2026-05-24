@@ -6,6 +6,36 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.22',
+    date: '2026-05-23',
+    changes: [
+      'Project codes are now unique per user instead of globally unique — multiple users can create projects with common codes like TEST or WORK without naming collisions (ORB-144).',
+      'REST API now supports X-User-Id and X-User-Email headers to scope project lookups when codes are shared across users.',
+      'Orb AI project operations (update, delete, dormancy, move) now resolve projects within the current user\'s scope.',
+    ]
+  },
+  {
+    version: 'v0.5.21',
+    date: '2026-05-23',
+    changes: [
+      'Conversational project name referencing: updated the conversational Orb system prompt to enforce referring to projects by their display names (e.g. "Orb") rather than system codes (e.g. "ORB") in responses to the user, while preserving tool parameters requirements.',
+    ]
+  },
+  {
+    version: 'v0.5.20',
+    date: '2026-05-23',
+    changes: [
+      'Optional project code with auto-generation: project code is now optional when creating a project. If omitted, a unique uppercase alphanumeric code is automatically generated from the project name, resolving code conflicts by appending a unique counter (ORB-143).',
+    ]
+  },
+  {
+    version: 'v0.5.19',
+    date: '2026-05-23',
+    changes: [
+      'Smart project default for ticket conversion: ticket todo generation now defaults to the ORB project if available in the projects list (preventing auto-creating tickets in the first alphabetically sorted project).',
+    ]
+  },
+  {
     version: 'v0.5.18',
     date: '2026-05-23',
     changes: [

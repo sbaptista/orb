@@ -24,7 +24,7 @@ type ProjectForm = {
 
 const EMPTY_FORM: ProjectForm = { name: '', code: '', description: '', is_dormant: false, ownerId: '' }
 
-export default function SettingsProjects({ isAdmin = false }: { isAdmin?: boolean }) {
+export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?: boolean; userId?: string }) {
   return (
     <SettingsCrudList<Project, ProjectForm>
       config={{
@@ -76,15 +76,18 @@ export default function SettingsProjects({ isAdmin = false }: { isAdmin?: boolea
         validate: (form, items, editingId) => {
           if (!form.name.trim()) return 'Name is required'
           const code = form.code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
-          if (!code) return 'Code is required'
-          if (items.some(p => p.id !== editingId && p.code?.toUpperCase() === code))
-            return `Code "${code}" is already in use`
+          if (code) {
+            // Scope conflict check to same owner (per-user uniqueness)
+            const targetOwner = form.ownerId || userId
+            if (items.some(p => p.id !== editingId && p.code?.toUpperCase() === code && (!targetOwner || p.created_by === targetOwner)))
+              return `Code "${code}" is already in use`
+          }
           return null
         },
 
         toRecord: (form) => ({
           name: form.name.trim(),
-          code: form.code.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''),
+          code: form.code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || null,
           description: form.description.trim() || null,
           is_dormant: form.is_dormant,
           created_by: form.ownerId || null,
@@ -142,12 +145,12 @@ export default function SettingsProjects({ isAdmin = false }: { isAdmin?: boolea
                 />
               </div>
               <div>
-                <label className="label">Code *</label>
+                <label className="label">Code (Optional)</label>
                 <input
                   className="input"
                   value={form.code}
                   onChange={e => onChange({ ...form, code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })}
-                  placeholder="PROJ"
+                  placeholder="Auto-generated"
                   maxLength={10}
                   style={{ fontFamily: 'monospace' }}
                 />

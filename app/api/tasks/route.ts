@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 
+const STAN_ID = '3c8f183a-1350-4ce2-9b60-7d51ccd55b60'
+
 function checkAuth(request: NextRequest): NextResponse | null {
   if (process.env.ORB_API_ENABLED !== 'true') {
     return NextResponse.json({ error: 'API disabled' }, { status: 503 })
@@ -9,6 +11,19 @@ function checkAuth(request: NextRequest): NextResponse | null {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   return null
+}
+
+async function resolveTargetUserId(request: NextRequest, supabase: ReturnType<typeof createServiceClient>): Promise<string> {
+  const userId = request.headers.get('X-User-Id')
+  if (userId) return userId
+
+  const email = request.headers.get('X-User-Email')
+  if (email) {
+    const { data } = await supabase.from('users').select('id').eq('email', email.trim().toLowerCase()).maybeSingle()
+    if (data) return data.id
+  }
+
+  return STAN_ID
 }
 
 export async function GET(request: NextRequest) {
@@ -21,11 +36,13 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createServiceClient()
+  const targetUserId = await resolveTargetUserId(request, supabase)
 
   const { data: product, error: productError } = await supabase
     .from('projects')
     .select('id')
     .ilike('code', productCode)
+    .eq('created_by', targetUserId)
     .single()
 
   if (productError || !product) {
@@ -58,11 +75,13 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createServiceClient()
+  const targetUserId = await resolveTargetUserId(request, supabase)
 
   const { data: product, error: productError } = await supabase
     .from('projects')
     .select('id')
     .ilike('code', product_code)
+    .eq('created_by', targetUserId)
     .single()
 
   if (productError || !product) {
