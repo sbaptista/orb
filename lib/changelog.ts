@@ -16,6 +16,7 @@ export const CHANGELOG: Release[] = [
       'Database integration: Created system_settings database table with composite RLS policies for global configuration.',
       'Optimized checks: Implemented in-memory caching (15-second TTL) in Next.js middleware to check maintenance state without impacting performance.',
       'Audit Trail integration: Added audit trail logging when maintenance mode is enabled or disabled.',
+      'Admin notification: Added a top warning banner for logged-in admins to notify them when maintenance mode is active, with a direct shortcut to settings.',
     ]
   },
   {

@@ -3,6 +3,7 @@ import { DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import Providers from '@/components/Providers'
 import OfflinePage from '@/components/ui/OfflinePage'
 import MaintenanceOverlay from '@/components/MaintenanceOverlay'
+import MaintenanceBanner from '@/components/MaintenanceBanner'
 import UpdateBanner from '@/components/UpdateBanner'
 import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar'
 import './globals.css'
@@ -35,7 +36,7 @@ export const viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${cormorant.variable}`}>
+    <html lang="en" className={`${dmSans.variable} ${cormorant.variable}`} suppressHydrationWarning>
       <body suppressHydrationWarning>
         <a href="#main-content" className="skip-link">Skip to content</a>
         <OfflinePage />
@@ -43,10 +44,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ServiceWorkerRegistrar />
         <Providers>
           <UpdateBanner />
+          <MaintenanceBanner />
           {children}
         </Providers>
       </body>
     </html>
   )
 }
+
 

@@ -23,7 +23,8 @@
 3. **Created `MaintenanceOverlay`** — client-side polling component that checks `/api/version` and overlays the UI when the user is locked out.
 4. **Updated API and middleware** — added optimized cache (15s TTL) in middleware to redirect non-admins, return 503 for APIs, and support admin role bypass.
 5. **Added settings page** — created `/settings/maintenance` for admins to toggle the flag, with audit log writing (`maintenance_enable` / `maintenance_disable`).
-6. **Version bump** — v0.5.28 → v0.5.29.
+6. **Added admin warning banner** — displays a persistent warning banner at the top of the viewport for other logged-in admins to notify them when maintenance mode is active.
+7. **Version bump** — v0.5.28 → v0.5.29.
 
 ---
 
@@ -34,7 +35,7 @@
 - `lib/version.ts` — Version bump to v0.5.29
 - `lib/changelog.ts` — Added v0.5.29 release notes
 - `middleware.ts` — Cache-optimized database maintenance check, redirects, and API 503 intercepts
-- `app/layout.tsx` — Registered global MaintenanceOverlay listener
+- `app/layout.tsx` — Registered global MaintenanceOverlay listener and MaintenanceBanner
 - `app/api/version/route.ts` — Dynamic version check endpoint with maintenance lockout status
 - `components/settings/SettingsSidebar.tsx` — Added Maintenance Mode settings page to navigation (admin only)
 - `HANDOFF.md` — this file
@@ -46,6 +47,7 @@
 - `scripts/migrations/20260524_system_settings.sql` — Database migration for configuration table
 - `components/ui/MaintenancePage.tsx` — Breathing Julia Set canvas + calm Moonlight Orb centered visual component
 - `components/MaintenanceOverlay.tsx` — Dynamic client-side background poller for session lockout
+- `components/MaintenanceBanner.tsx` — Warning banner for logged-in admins when maintenance is active
 - `components/settings/SettingsMaintenance.tsx` — Settings view toggle with upsert and audit logging
 - `app/maintenance/page.tsx` — Standalone /maintenance route
 - `app/settings/maintenance/page.tsx` — Standalone /settings/maintenance admin route
