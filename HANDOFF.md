@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.5.17 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.5.28 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,23 +16,26 @@
 
 ## Last Session Completed
 
-**Print feature + bug fix — 2026-05-23 (Session 12)**
+**Fixed topbar navigation overlap on iPad/iPhone PWA and expanded task search context — 2026-05-24 (Session 14)**
 
-1. **Print / Export PDF (ORB-137)** — implemented browser-native print-to-PDF export as an offboarding tool. Printer icon in dashboard topbar opens a scope selector modal (All Projects / Current Project). Opens a dedicated print route (`/dashboard/print`) that fetches all non-deleted todos across all statuses, groups by project then status group (Active/Parked/Closed), and renders print-optimized HTML. Auto-triggers `window.print()`. No external dependencies.
-
-2. **create_project race condition fix (ORB-136)** — `buildContext()` snapshots `ctx.productList` once at turn start. When the AI called `create_project` then `create_todo` in the same multi-tool turn, `create_todo` searched the stale list and failed with "product not found". Fix: push new project into `ctx.productList` after successful creation.
-
-3. **Skip-link fix** — hid the root layout "Skip to content" link on the print page (both screen and print output).
-
-4. **Closed ORB-136, ORB-137** with resolution notes + knowledge repo entries.
-
-5. **Version bump** — v0.5.16 → v0.5.17.
+1. **Fixed back link overlap in PWA (ORB-149)** — adjusted `.tv-topbar` layout dynamically using safe area left insets (`var(--sal)`) and added a media query override (`display-mode: standalone`) on device widths >= 768px to pad `.tv-topbar` by `80px` to shift the `<- Back` link away from Stage Manager window controls (traffic lights) on iPad.
+2. **AI search & query strategy upgrades** — updated the `query_todos` tool to return all statuses by default when no status filter is specified, returning task owner, category, group name, and URL attachment count to improve assistant context. Added instructions to system prompt on query strategies (e.g. scoping counts and using `status_group='active'` selectively).
+3. **Linked knowledge base entries** — modified system prompt generation to automatically link knowledge repository entries back to their source tasks (e.g. `[from: ORB-123]`) if they were generated during todo resolution.
+4. **Enhanced admin profiles in context** — resolved role names and decline reasons in `invitations` displayed to admins.
+5. **Closed ORB-149** with resolution notes + knowledge repo entries.
+6. **Version bump** — v0.5.24 → v0.5.28.
 
 ---
 
 ## Uncommitted Changes
 
 ### Modified
+- `app/globals.css` — Safe area left inset and standalone media query padding overrides for `.tv-topbar`
+- `app/actions/orb-converse.ts` — Enriched query_todos payload, updated system prompt queries strategies, links knowledge to tasks
+- `lib/orb-contract.ts` — Auto-generated tool schema changes for query_todos has_urls/has_group/has_category filters
+- `lib/changelog.ts` — Added v0.5.28 release notes
+- `lib/version.ts` — Version bump to v0.5.28
+- `package.json` — Version bump to v0.5.28
 - `HANDOFF.md` — this file
 
 ### Deleted
@@ -45,6 +48,7 @@
 
 ## Key Decisions
 
+*   **PWA standalone mode top-left layout safety.** Window controls in standalone mode (iPad Stage Manager, macOS) can obscure top-left interactive elements (like back links). Offset layout headers using a `(display-mode: standalone)` media query wrapper to ensure comfortable hit targets and readability.
 *   **Email is the stable identity, not auth UUID.** Supabase can replace auth UUIDs on invite/re-invite.
 *   **Atomic ID reconciliation via Postgres function.** Supabase JS client can't do multi-statement transactions.
 *   **Lazy SDK initialization in server actions.** Module-scope SDK constructors crash Vercel function chunks.
@@ -83,7 +87,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-05-23 — Claude Code (Opus 4.6)`
+`2026-05-24 — Antigravity (Gemini 3.5 Flash)`
 
 ---
 

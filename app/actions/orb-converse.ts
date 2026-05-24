@@ -87,7 +87,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
       ? auth.admin.from('orb_friction').select('id, category, summary, created_at', { count: 'exact' }).order('created_at', { ascending: false }).limit(20)
       : Promise.resolve({ data: [], count: 0 }),
     auth.isAdmin
-      ? auth.admin.from('invitations').select('id, email, first_name, last_name, status, release_stage, invited_at, responded_at').order('invited_at', { ascending: false })
+      ? auth.admin.from('invitations').select('id, email, first_name, last_name, status, release_stage, invited_at, responded_at, decline_reason, role_id').order('invited_at', { ascending: false })
       : Promise.resolve({ data: [] }),
     auth.isAdmin
       ? auth.admin.from('users').select('id, email, first_name, last_name, role_id, onboarded_at, release_stage').order('created_at')
@@ -195,7 +195,12 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     : ''
 
   const invitationsSection = auth.isAdmin && invitationList.length > 0
-    ? `\n\nINVITATIONS (admin view):\n${invitationList.map((i: any) => `  ${i.email} (${i.first_name ?? ''} ${i.last_name ?? ''}) — ${i.status}${i.release_stage ? `, ${i.release_stage}` : ''}`).join('\n')}`
+    ? `\n\nINVITATIONS (admin view):\n${invitationList.map((i: any) => {
+        const role = roleList.find((r: any) => r.id === i.role_id)
+        const roleName = role ? `, role: ${role.name}` : ''
+        const declined = i.decline_reason ? ` — reason: ${i.decline_reason}` : ''
+        return `  ${i.email} (${[i.first_name, i.last_name].filter(Boolean).join(' ') || 'no name'}) — ${i.status}${roleName}${i.release_stage ? `, ${i.release_stage}` : ''}${declined}`
+      }).join('\n')}`
     : ''
 
   const usersSection = auth.isAdmin && userList.length > 0
@@ -207,7 +212,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
 
   const extraContext = categoriesSection + groupsSection + rolesSection + platformsSection + frictionSection + invitationsSection + usersSection
 
-  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, contextString: byProduct + dormantSection + extraContext }
+  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, contextString: byProduct + dormantSection + extraContext }
 }
 
 
@@ -260,9 +265,20 @@ ${ctx.contextString}
 KNOWLEDGE BASE (Recent):
 ${ctx.knowledgeList.slice(0, 5).map((k: any) => {
   const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
-  return `- [${k.projects?.name || k.projects?.code}] ${k.title}${tags}: ${k.content.slice(0, 100)}...`
+  let origin = ''
+  if (k.origin_todo_id) {
+    const srcTodo = ctx.todoList.find((t: any) => t.id === k.origin_todo_id)
+    if (srcTodo) origin = ` [from: ${todoCode(srcTodo, ctx.productList)}]`
+  }
+  return `- [${k.projects?.name || k.projects?.code}] ${k.title}${tags}${origin}: ${k.content.slice(0, 100)}...`
 }).join('\n')}
 (Note: Use the 'search_knowledge' tool to query the full repository if the answer isn't here.)
+
+QUERY STRATEGY:
+- query_todos returns ALL statuses by default. Use status_group='active' only when the user specifically asks about active/current work.
+- For structural questions ("tasks with URLs", "which have categories", "tasks due this week") — do NOT filter by status. The user means all their tasks.
+- For workload questions ("what's on my plate", "what should I work on") — use status_group='active'.
+- Each result includes owner name. When presenting results to an admin, always mention whose task it is.
 
 SCOPE TRANSPARENCY (mandatory):
 - Every response that references task counts, priorities, or insight data MUST state what scope it covers. Never present numbers without scope.
@@ -387,10 +403,8 @@ FEEDBACK TONE:
                 results = results.filter((t: any) => isParked(t.status))
               } else if (input.status && input.status !== 'any') {
                 results = results.filter((t: any) => t.status === input.status)
-              } else {
-                const closed = ctx.statusList.filter((s: any) => s.is_closed).map((s: any) => s.name)
-                results = results.filter((t: any) => !closed.includes(t.status))
               }
+              // No else — when no status filter is specified, return all statuses
               if (input.product_code) {
                 const p = ctx.productList.find((pp: any) => pp.code?.toUpperCase() === String(input.product_code).toUpperCase())
                 if (p) results = results.filter((t: any) => t.product_id === p.id)
@@ -407,10 +421,17 @@ FEEDBACK TONE:
 
             const limit = input.max_results ?? 100
             const returned = results.slice(0, limit).map((t: any) => {
+              const proj = ctx.productList.find((pp: any) => pp.id === t.product_id)
+              const ownerName = proj ? ctx.userMap.get(proj.created_by) : undefined
               const out: any = { id: t.id, code: todoCode(t, ctx.productList), title: t.title, status: t.status, priority_value: t.priority_value }
+              if (ownerName) out.owner = ownerName
               if (t.description) out.description = t.description
               if (t.resolution_notes) out.resolution_notes = t.resolution_notes
               if (t.due_at) out.due_at = t.due_at
+              if (t.groups?.name) out.group = t.groups.name
+              if (t.categories?.name) out.category = t.categories.name
+              const urlList = Array.isArray(t.urls) ? t.urls.filter(Boolean) : []
+              if (urlList.length > 0) out.urls = urlList
               return out
             })
             output = { count: results.length, returned }

@@ -1178,6 +1178,7 @@ a, button, [role="button"], input, select, textarea {
   background: var(--bg2);
   border-bottom: 1px solid var(--border);
   padding: 0 var(--sp-2xl);
+  padding-left: max(var(--sp-2xl), calc(var(--sal) + var(--sp-2xl)));
   height: 52px;
   display: flex;
   align-items: center;
@@ -2803,7 +2804,8 @@ a, button, [role="button"], input, select, textarea {
 
 /* iPad standalone — avoid window control overlap */
 @media (display-mode: standalone) and (min-width: 768px) {
-  .sl-topbar {
+  .sl-topbar,
+  .tv-topbar {
     padding-left: calc(var(--sp-2xl) + 80px);
   }
 }

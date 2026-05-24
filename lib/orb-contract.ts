@@ -121,7 +121,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "query_todos",
-    "description": "[Confidence: well-tested] Find todos matching criteria. Use code for single-todo lookup (e.g. \"ORB-73\"). Otherwise filters by status, product, priority, or text. Returns open tasks by default — pass status to include closed.",
+    "description": "[Confidence: well-tested] Find todos matching criteria. Use code for single-todo lookup (e.g. \"ORB-73\"). Otherwise filters by status, product, priority, or text. Returns ALL statuses by default. Use status_group='active' or status_group='parked' to narrow. Each result includes the task owner's name.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -140,6 +140,18 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         },
         "text_match": {
           "type": "string"
+        },
+        "has_urls": {
+          "type": "boolean",
+          "description": "If true, only return tasks that have at least one URL attached."
+        },
+        "has_group": {
+          "type": "boolean",
+          "description": "If true, only return tasks assigned to a group."
+        },
+        "has_category": {
+          "type": "boolean",
+          "description": "If true, only return tasks assigned to a category."
         },
         "max_results": {
           "type": "integer"

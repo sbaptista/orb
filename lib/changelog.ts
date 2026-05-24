@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.28',
+    date: '2026-05-24',
+    changes: [
+      'Fixed PWA navigation: moved back links further to the right in standalone mode on iPad/iPhone (avoiding overlap with window control traffic lights).',
+      'Handled safe area insets: updated .tv-topbar padding to support left safe area insets dynamically.',
+      'AI search improvements: updated query_todos tool to return all statuses by default and include task owners, category, group, and attached URLs count in the search results.',
+      'AI query strategy: injected query strategy rules in system prompts to ensure consistent backlog scoping and verification.',
+      'Enriched knowledge context: knowledge repo items shown in the assistant system prompt now link back to their originating tasks where applicable.',
+    ]
+  },
+  {
     version: 'v0.5.24',
     date: '2026-05-24',
     changes: [
