@@ -184,7 +184,20 @@
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'ORB-{d[\\\\\"todo_number\\\\\"]}: {d[\\\\\"title\\\\\"]} \\(id: {d[\\\\\"id\\\\\"]}\\)'\\)\")",
       "Bash(curl -s -X PATCH https://orb-eight-lake.vercel.app/api/tasks/111cf875-7468-47c6-855e-a0d5d5d2fbd1 -H 'Authorization: __CMDSUB_OUTPUT__')",
       "Bash(curl -s -X PATCH https://orb-eight-lake.vercel.app/api/tasks/750b411d-618d-4dcf-b448-5de5d8cb0bea -H 'Authorization: __CMDSUB_OUTPUT__')",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'Created: {d[0][\\\\\"id\\\\\"][:8]} — {d[0][\\\\\"title\\\\\"]}'\\)\")"
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'Created: {d[0][\\\\\"id\\\\\"][:8]} — {d[0][\\\\\"title\\\\\"]}'\\)\")",
+      "Bash(curl -s \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/projects?code=eq.ORB&select=id\" -H \"apikey: $\\(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local)",
+      "Bash(curl -s \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?todo_number=eq.139&product_id=eq.$\\(curl -s \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/projects?code=eq.ORB&select=id\" -H \"apikey: $\\(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(curl -s \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?product_id=eq.fa823725-3771-42a4-97f7-ae16563b2b48&todo_number=in.\\(138,139,140\\)&select=todo_number,title,status,resolution_notes&order=todo_number\" -H \"apikey: $\\(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local)",
+      "Bash(curl -s \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?product_id=eq.fa823725-3771-42a4-97f7-ae16563b2b48&todo_number=in.\\(138,139,140\\)&select=id,todo_number\" -H \"apikey: $\\(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local)",
+      "Bash(git status *)",
+      "Bash(curl -s \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?product_id=eq.fa823725-3771-42a4-97f7-ae16563b2b48&todo_number=eq.144&select=id,title,description,status\" -H \"apikey: $\\(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local)",
+      "Bash(curl -s -X PATCH \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?id=eq.26580cdd-d58a-47ce-8a34-39d403c3b2ba\" -H \"apikey: $\\(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local)",
+      "Bash(curl -s \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?product_id=eq.fa823725-3771-42a4-97f7-ae16563b2b48&todo_number=eq.145&select=id,title,description,status,priority_value\" -H \"apikey: $\\(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local)",
+      "Bash(curl -s -X PATCH \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?id=eq.d7ce0f0e-1651-4ab6-9acf-ae19be309f7e\" -H \"apikey: $\\(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local)",
+      "Bash(curl -s 'https://orb-eight-lake.vercel.app/api/tasks?product=ORB&status=open' -H 'Authorization: __CMDSUB_OUTPUT__')",
+      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); [print\\(f'{t[\\\\\"code\\\\\"]} [{t[\\\\\"status\\\\\"]}] {t[\\\\\"title\\\\\"]}'\\) for t in data.get\\('todos',[]\\)]\")"
     ]
   }
 }

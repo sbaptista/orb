@@ -6,6 +6,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.29',
+    date: '2026-05-24',
+    changes: [
+      'Manual Maintenance Mode (ORB-141): Implemented a manual toggle in settings to enable system maintenance.',
+      'Ethereal visuals: Designed the Undergoing Maintenance page featuring shooting meteors, a starfield, and the calm pulsing Moonlight Orb with the centered ORB wordmark.',
+      'Bypass and Lockouts: Non-admin users are locked out from logging in or using the dashboard when maintenance is active. Admins (role_id 1 or 3) are allowed to bypass the lockout to verify migrations and updates.',
+      'Active Sessions Handling: Active sessions show a fullscreen blocking overlay dynamically without logging users out or destroying their session state.',
+      'Database integration: Created system_settings database table with composite RLS policies for global configuration.',
+      'Optimized checks: Implemented in-memory caching (15-second TTL) in Next.js middleware to check maintenance state without impacting performance.',
+      'Audit Trail integration: Added audit trail logging when maintenance mode is enabled or disabled.',
+    ]
+  },
+  {
     version: 'v0.5.28',
     date: '2026-05-24',
     changes: [

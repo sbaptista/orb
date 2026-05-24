@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.5.28 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.5.29 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,38 +16,46 @@
 
 ## Last Session Completed
 
-**Fixed topbar navigation overlap on iPad/iPhone PWA and expanded task search context — 2026-05-24 (Session 14)**
+**Implemented Manual Maintenance Mode (ORB-141) — 2026-05-24 (Session 15)**
 
-1. **Fixed back link overlap in PWA (ORB-149)** — adjusted `.tv-topbar` layout dynamically using safe area left insets (`var(--sal)`) and added a media query override (`display-mode: standalone`) on device widths >= 768px to pad `.tv-topbar` by `80px` to shift the `<- Back` link away from Stage Manager window controls (traffic lights) on iPad.
-2. **AI search & query strategy upgrades** — updated the `query_todos` tool to return all statuses by default when no status filter is specified, returning task owner, category, group name, and URL attachment count to improve assistant context. Added instructions to system prompt on query strategies (e.g. scoping counts and using `status_group='active'` selectively).
-3. **Linked knowledge base entries** — modified system prompt generation to automatically link knowledge repository entries back to their source tasks (e.g. `[from: ORB-123]`) if they were generated during todo resolution.
-4. **Enhanced admin profiles in context** — resolved role names and decline reasons in `invitations` displayed to admins.
-5. **Closed ORB-149** with resolution notes + knowledge repo entries.
-6. **Version bump** — v0.5.24 → v0.5.28.
+1. **Created `system_settings` table** — added database table with composite RLS policies allowing public reads and admin-only writes.
+2. **Created `MaintenancePage` & route** — client component with breathing Julia Set canvas, shooting meteors, starfield, and the calm pulsing Moonlight Orb with centered "ORB" text. Under `/maintenance`.
+3. **Created `MaintenanceOverlay`** — client-side polling component that checks `/api/version` and overlays the UI when the user is locked out.
+4. **Updated API and middleware** — added optimized cache (15s TTL) in middleware to redirect non-admins, return 503 for APIs, and support admin role bypass.
+5. **Added settings page** — created `/settings/maintenance` for admins to toggle the flag, with audit log writing (`maintenance_enable` / `maintenance_disable`).
+6. **Version bump** — v0.5.28 → v0.5.29.
 
 ---
 
 ## Uncommitted Changes
 
 ### Modified
-- `app/globals.css` — Safe area left inset and standalone media query padding overrides for `.tv-topbar`
-- `app/actions/orb-converse.ts` — Enriched query_todos payload, updated system prompt queries strategies, links knowledge to tasks
-- `lib/orb-contract.ts` — Auto-generated tool schema changes for query_todos has_urls/has_group/has_category filters
-- `lib/changelog.ts` — Added v0.5.28 release notes
-- `lib/version.ts` — Version bump to v0.5.28
-- `package.json` — Version bump to v0.5.28
+- `package.json` — Version bump to v0.5.29
+- `lib/version.ts` — Version bump to v0.5.29
+- `lib/changelog.ts` — Added v0.5.29 release notes
+- `middleware.ts` — Cache-optimized database maintenance check, redirects, and API 503 intercepts
+- `app/layout.tsx` — Registered global MaintenanceOverlay listener
+- `app/api/version/route.ts` — Dynamic version check endpoint with maintenance lockout status
+- `components/settings/SettingsSidebar.tsx` — Added Maintenance Mode settings page to navigation (admin only)
 - `HANDOFF.md` — this file
 
 ### Deleted
 - None
 
 ### New
-- None
+- `scripts/migrations/20260524_system_settings.sql` — Database migration for configuration table
+- `components/ui/MaintenancePage.tsx` — Breathing Julia Set canvas + calm Moonlight Orb centered visual component
+- `components/MaintenanceOverlay.tsx` — Dynamic client-side background poller for session lockout
+- `components/settings/SettingsMaintenance.tsx` — Settings view toggle with upsert and audit logging
+- `app/maintenance/page.tsx` — Standalone /maintenance route
+- `app/settings/maintenance/page.tsx` — Standalone /settings/maintenance admin route
 
 ---
 
 ## Key Decisions
 
+*   **Decoupled Maintenance Mode check with edge cache.** Checking maintenance status via database on every single request in middleware degrades performance. Querying a lightweight `system_settings` table and caching it in middleware memory (15-second TTL) ensures sub-millisecond route resolution while remaining responsive to status updates. Fallback to `true` on database connection errors self-heals during database downtime.
+*   **Non-destructive client session preservation.** Fullscreen overlays block user interactions during maintenance without forcing logout. This preserves active user session cookies so they can resume work seamlessly without re-authenticating when maintenance ends.
 *   **PWA standalone mode top-left layout safety.** Window controls in standalone mode (iPad Stage Manager, macOS) can obscure top-left interactive elements (like back links). Offset layout headers using a `(display-mode: standalone)` media query wrapper to ensure comfortable hit targets and readability.
 *   **Email is the stable identity, not auth UUID.** Supabase can replace auth UUIDs on invite/re-invite.
 *   **Atomic ID reconciliation via Postgres function.** Supabase JS client can't do multi-statement transactions.
@@ -87,7 +95,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-05-24 — Antigravity (Gemini 3.5 Flash)`
+`2026-05-24 — Antigravity (Gemini 1.5 Pro)`
 
 ---
 

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import Providers from '@/components/Providers'
 import OfflinePage from '@/components/ui/OfflinePage'
+import MaintenanceOverlay from '@/components/MaintenanceOverlay'
 import UpdateBanner from '@/components/UpdateBanner'
 import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar'
 import './globals.css'
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body suppressHydrationWarning>
         <a href="#main-content" className="skip-link">Skip to content</a>
         <OfflinePage />
+        <MaintenanceOverlay />
         <ServiceWorkerRegistrar />
         <Providers>
           <UpdateBanner />
@@ -47,3 +49,4 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   )
 }
+
