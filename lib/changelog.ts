@@ -7,6 +7,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.35',
+    date: '2026-05-25',
+    changes: [
+      'Performance: Added 5 missing indexes to eliminate sequential scans driving Supabase disk I/O budget depletion (ORB-132).',
+      'idx_todos_product_status_deleted: partial composite index on (product_id, status) for the standard todo fetch pattern.',
+      'idx_todos_status_deleted: partial index on status for admin all-projects queries.',
+      'idx_projects_created_by: partial index on created_by to speed up the RLS correlated subquery on todos (was causing 94k seq scans on projects).',
+      'idx_audit_log_user_id and idx_audit_log_created_at: indexes for RLS and settings audit view ordering.',
+      'Ran VACUUM ANALYZE on 7 bloated tables (system_settings was at 1200% dead rows, projects 270%, public.users 300%).',
+    ]
+  },
+  {
     version: 'v0.5.34',
     date: '2026-05-25',
     changes: [

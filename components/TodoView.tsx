@@ -18,6 +18,7 @@ import { checkReminders } from '@/app/actions/reminder-actions'
 import { ACTIVE_STATUSES, PARKED_STATUSES } from '@/lib/status-groups'
 import { useToast } from '@/components/ui/Toast'
 import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
+import { updateTicketStatus } from '@/app/actions/ticket-actions'
 
 export type Todo = {
   id: string
@@ -34,6 +35,7 @@ export type Todo = {
   sort_order: number
   created_at: string
   closed_at: string | null
+  ticket_id: string | null
   groups: { name: string } | null
   categories: { name: string } | null
   due_at: string | null
@@ -250,6 +252,16 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
       if (isClosed(newStatus)) {
         setDistillTodo(updated)
       }
+
+      // Propagate to linked ticket (fire-and-forget)
+      if (todo.ticket_id) {
+        const ticketStatus = isClosed(newStatus) ? 'closed' : null
+        if (ticketStatus) {
+          updateTicketStatus(todo.ticket_id, ticketStatus).catch(err =>
+            console.error('[TodoView] ticket propagation failed:', err)
+          )
+        }
+      }
     }
   }
 
@@ -300,6 +312,15 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
     })
     if (beforeUrgency) notifyIfEscalated(beforeUrgency)
     await fetchTodos()
+
+    // Propagate to linked tickets (fire-and-forget)
+    const affectedTodos = todos.filter(t => ids.includes(t.id) && t.ticket_id)
+    affectedTodos.forEach(t => {
+      updateTicketStatus(t.ticket_id!, 'closed').catch(err =>
+        console.error('[TodoView] ticket propagation failed:', err)
+      )
+    })
+
     setSelectedIds([])
     setSelectMode(false)
   }

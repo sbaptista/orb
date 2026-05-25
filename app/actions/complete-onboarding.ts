@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { resolveUser } from '@/lib/resolve-user'
 import { acceptInvitation } from './invitation-actions'
 import { createTicket } from '@/app/actions/ticket-actions'
+import { sendWelcomeEmail } from '@/lib/email'
 
 export async function completeOnboarding(firstName: string, lastName: string) {
   try {
@@ -42,6 +43,11 @@ export async function completeOnboarding(firstName: string, lastName: string) {
       }).catch(() => {})
       return { error: 'Something went wrong setting up your account. We\'ve logged this and will look into it.' }
     }
+
+    // Welcome email — fire-and-forget, never blocks onboarding
+    sendWelcomeEmail({ to: user.email, firstName }).catch(err =>
+      console.error('[completeOnboarding] Welcome email failed:', err)
+    )
 
     await acceptInvitation(user.email)
 

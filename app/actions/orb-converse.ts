@@ -11,6 +11,7 @@ import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { computeUrgency, type Urgency } from '@/lib/orb-state'
 import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
 import { createTicket } from '@/app/actions/ticket-actions'
+import { updateTicketStatus } from '@/app/actions/ticket-actions'
 import { createProject } from '@/app/actions/manage-project'
 import { DB_SCHEMA, ALLOWED_TABLES, SOFT_DELETE_TABLES, ALLOWED_OPS, COLUMN_NAME_RE } from '@/lib/db-schema'
 
@@ -490,6 +491,18 @@ FEEDBACK TONE:
                   user_id: auth.user.id,
                 })
 
+                // Propagate status to linked ticket (fire-and-forget)
+                if (todo.ticket_id && input.new_status && input.new_status !== todo.status) {
+                  const ticketStatus =
+                    input.new_status === 'in progress' ? 'in_progress' :
+                    closingStatus ? 'closed' : null
+                  if (ticketStatus) {
+                    updateTicketStatus(todo.ticket_id, ticketStatus).catch((err: any) =>
+                      console.error('[orbConverse] ticket propagation failed:', err)
+                    )
+                  }
+                }
+
                 // Only distill when task is being closed for the first time
                 const isClosing = closingStatus && !todo.closed_at
                 if (isClosing) {
@@ -894,6 +907,7 @@ FEEDBACK TONE:
               summary: input.summary,
               detail: input.detail ? { detail: input.detail } : {},
               conversation_snippet: req.input,
+              reportedBy: auth.user.id,
             })
             if (res.error) output = { error: res.error }
             else {

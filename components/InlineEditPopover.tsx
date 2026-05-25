@@ -7,6 +7,7 @@ import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-action
 import { useToast } from '@/components/ui/Toast'
 import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
 import type { Todo, Priority, StatusDef } from './TodoView'
+import { updateTicketStatus } from '@/app/actions/ticket-actions'
 
 type Props = {
   todo: Todo
@@ -149,6 +150,17 @@ export default function InlineEditPopover({
           after: { [field]: value, title: todo.title },
         })
         if (beforeUrgency) notifyIfEscalated(beforeUrgency)
+
+        // Propagate status to linked ticket (fire-and-forget)
+        if (field === 'status' && todo.ticket_id && value !== todo.status) {
+          const newStatus = value as string
+          const ticketStatus = newStatus === 'in progress' ? 'in_progress' : null
+          if (ticketStatus) {
+            updateTicketStatus(todo.ticket_id, ticketStatus).catch(err =>
+              console.error('[InlineEditPopover] ticket propagation failed:', err)
+            )
+          }
+        }
       }
     },
     [supabase, todo, onSave, toast],

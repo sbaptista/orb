@@ -431,3 +431,106 @@ export async function sendDigestEmail({
   return { ok: true, messageId: data?.id }
 }
 
+
+// ── Welcome Email ─────────────────────────────────────────────────────────────
+
+export async function sendWelcomeEmail({
+  to,
+  firstName,
+}: {
+  to: string
+  firstName: string
+}) {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a; line-height: 1.6;">
+  <div style="text-align: center; margin-bottom: 28px;">
+    <img src="${ICON_URL}" alt="Orb" width="64" height="64" style="border-radius: 50%;" />
+  </div>
+
+  <p>Hi ${escapeHtml(firstName)},</p>
+
+  <p>You're all set! Orb is a conversational task manager — just talk to it and it'll manage your backlog.</p>
+
+  <p>To give feedback or report a bug, just tell Orb.</p>
+
+  <div style="text-align: center; margin: 32px 0;">
+    <a href="${SITE_URL}" style="display: inline-block; padding: 14px 32px; background: #2d5a2d; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Open Orb</a>
+  </div>
+
+  <p>— Stan</p>
+</body>
+</html>`
+
+  const { data, error } = await getResend().emails.send({
+    from: FROM_EMAIL,
+    to,
+    subject: 'Welcome to Orb',
+    html,
+  })
+
+  if (error) {
+    console.error('[sendWelcomeEmail] Resend error:', error)
+    return { error: error.message }
+  }
+
+  return { ok: true, messageId: data?.id }
+}
+
+// ── Ticket Status Email ───────────────────────────────────────────────────────
+
+export async function sendTicketStatusEmail({
+  to,
+  firstName,
+  status,
+  summary,
+  ticketCode,
+}: {
+  to: string
+  firstName: string
+  status: 'in_progress' | 'closed'
+  summary: string
+  ticketCode: string
+}) {
+  const isInProgress = status === 'in_progress'
+  const subject = isInProgress
+    ? "[Orb] We're working on your feedback"
+    : '[Orb] Your feedback has been addressed'
+
+  const bodyText = isInProgress
+    ? `We've started working on your feedback: &ldquo;${escapeHtml(summary)}&rdquo;. We'll let you know when it's resolved.`
+    : `Your feedback has been addressed: &ldquo;${escapeHtml(summary)}&rdquo;. Thanks for helping us improve Orb.`
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a; line-height: 1.6;">
+  <div style="text-align: center; margin-bottom: 28px;">
+    <img src="${ICON_URL}" alt="Orb" width="64" height="64" style="border-radius: 50%;" />
+  </div>
+
+  <p>Hi ${escapeHtml(firstName)},</p>
+
+  <p>${bodyText}</p>
+
+  <p style="font-size: 13px; color: #888; margin-top: 24px;">Ref: ${escapeHtml(ticketCode)}</p>
+</body>
+</html>`
+
+  const { data, error } = await getResend().emails.send({
+    from: FROM_EMAIL,
+    to,
+    subject,
+    html,
+  })
+
+  if (error) {
+    console.error('[sendTicketStatusEmail] Resend error:', error)
+    return { error: error.message }
+  }
+
+  return { ok: true, messageId: data?.id }
+}
