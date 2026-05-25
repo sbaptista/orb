@@ -42,11 +42,17 @@ CREATE TRIGGER tickets_updated_at
 ALTER TABLE tickets ENABLE ROW LEVEL SECURITY;
 
 -- Admins (role_id 1 or 3) can do everything
+-- Uses (SELECT auth.uid()) wrapper to prevent per-row initplan evaluation (ORB-131 pattern)
 CREATE POLICY tickets_admin_all ON tickets
   FOR ALL USING (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role_id IN (1, 3))
+    EXISTS (SELECT 1 FROM users WHERE id = (SELECT auth.uid()) AND role_id IN (1, 3))
   );
 
 -- Reporters can only read their own tickets
 CREATE POLICY tickets_reporter_select ON tickets
-  FOR SELECT USING (reported_by = auth.uid());
+  FOR SELECT USING (reported_by = (SELECT auth.uid()));
+
+-- Indexes: cover RLS lookups and the todo→ticket status propagation join
+CREATE INDEX IF NOT EXISTS idx_tickets_reported_by ON tickets (reported_by);
+CREATE INDEX IF NOT EXISTS idx_tickets_todo_id ON tickets (todo_id);
+CREATE INDEX IF NOT EXISTS idx_todos_ticket_id ON todos (ticket_id) WHERE ticket_id IS NOT NULL;

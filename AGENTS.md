@@ -260,3 +260,89 @@ When working on complex tasks, an agent's usage limits may expire mid-session, l
 
 3. **Use Scratch Files for complex code drafts**:
    Save raw code drafts, research summaries, or temporary API responses in the `scripts/` or `scratch/` directory. Do not leave them only in the chat history.
+
+---
+
+# Database Health
+
+Database health is a first-class concern. Problems do not announce themselves — they accumulate silently and surface as Supabase budget warnings or throttling. Two mandates apply at all times:
+
+## 1. Design-Time Impact Analysis (mandatory before implementing any feature)
+
+Before writing code for any feature that touches the database, answer these questions:
+
+| Question | Why it matters |
+|---|---|
+| Does this add a new query pattern? | May need a new index |
+| Does this use `postgres_changes` / Realtime? | WAL reader is always-on disk IO — avoid unless multi-user sync is genuinely needed |
+| Does this write frequently (every render, every keystroke)? | High write frequency → dead tuple bloat → autovacuum pressure |
+| Does this add a new table? | Needs RLS policies using `(SELECT auth.uid())` wrapper, not bare `auth.uid()` |
+| Does this add a column queried in WHERE or JOIN? | May need an index |
+
+**Rule:** If the answer to any of these is yes, explicitly state the DB impact in the implementation plan and include any required indexes or schema notes.
+
+**Realtime rule:** `postgres_changes` subscriptions cause continuous WAL decoding. One subscription consumed 80% of all DB query time (1M WAL reads/day) on this project. Only use Realtime if the feature genuinely requires multi-device or multi-user live sync. For single-user views, `useVisibilityRefetch` (tab-focus refetch) is always sufficient and generates zero continuous DB load.
+
+## 2. Periodic Health Review (run at the start of any session where DB changes are made)
+
+Run the following canonical inspection queries before and after any migration or schema change. Takes under 2 minutes.
+
+### Sequential scan audit (primary IO driver)
+```bash
+/opt/homebrew/opt/libpq/bin/psql "$(grep DATABASE_URL /Users/stanleybaptista/Projects/orb/.env.local | cut -d= -f2-)" -c "
+SELECT relname AS table_name, seq_scan, seq_tup_read, idx_scan,
+  CASE WHEN seq_scan = 0 THEN NULL ELSE round(seq_tup_read::numeric / seq_scan, 0) END AS avg_rows_per_scan
+FROM pg_stat_user_tables WHERE seq_scan > 0
+ORDER BY seq_tup_read DESC LIMIT 15;"
+```
+**Flag:** any user table with seq_tup_read > 100k and low idx_scan count needs an index.
+
+### Dead row bloat
+```bash
+/opt/homebrew/opt/libpq/bin/psql "$(grep DATABASE_URL /Users/stanleybaptista/Projects/orb/.env.local | cut -d= -f2-)" -c "
+SELECT relname, n_live_tup, n_dead_tup,
+  CASE WHEN n_live_tup = 0 THEN NULL ELSE round(100.0 * n_dead_tup / n_live_tup, 1) END AS dead_pct,
+  last_autovacuum, last_vacuum
+FROM pg_stat_user_tables ORDER BY n_dead_tup DESC LIMIT 10;"
+```
+**Flag:** dead_pct > 20% on any table → run VACUUM ANALYZE public.<table>; (outside a transaction block).
+
+### Top disk-reading queries
+```bash
+/opt/homebrew/opt/libpq/bin/psql "$(grep DATABASE_URL /Users/stanleybaptista/Projects/orb/.env.local | cut -d= -f2-)" -c "
+SELECT round(total_exec_time::numeric,0) AS total_ms, calls,
+  shared_blks_read AS disk_blks,
+  round(100.0 * shared_blks_hit / NULLIF(shared_blks_hit+shared_blks_read,0),1) AS cache_hit_pct,
+  left(query, 120) AS query_snippet
+FROM extensions.pg_stat_statements
+WHERE shared_blks_read > 0
+ORDER BY shared_blks_read DESC LIMIT 10;"
+```
+**Flag:** any query with cache_hit_pct < 95% or disk_blks dominating the list.
+
+### RLS initplan check (auth.uid() must always be wrapped in SELECT)
+```bash
+/opt/homebrew/opt/libpq/bin/psql "$(grep DATABASE_URL /Users/stanleybaptista/Projects/orb/.env.local | cut -d= -f2-)" -c "
+SELECT tablename, policyname
+FROM pg_policies
+WHERE schemaname = 'public'
+  AND ((qual ILIKE '%auth.uid()%' AND qual NOT ILIKE '%(select auth.uid()%')
+    OR (with_check ILIKE '%auth.uid()%' AND with_check NOT ILIKE '%(select auth.uid()%'))
+ORDER BY tablename, policyname;"
+```
+**Flag:** any result = a policy evaluating auth.uid() per-row. Rewrite with (SELECT auth.uid()).
+
+### Supabase dashboard
+- **Observability → Overview → Disk IO** — if > 50%, run the queries above before doing more work.
+- **Observability → Query Performance** — sort by Time Consumed. Any non-Supabase-internal query taking > 5% of total time is worth investigating.
+
+## Index conventions
+
+| Pattern | When to use |
+|---|---|
+| `CREATE INDEX ON todos (product_id, status) WHERE deleted_at IS NULL` | Composite partial — for filtered queries with multiple WHERE clauses |
+| `CREATE INDEX ON projects (created_by) WHERE deleted_at IS NULL` | FK columns used in RLS subqueries |
+| `CREATE INDEX ON audit_log (user_id)` | FK columns used in RLS or JOIN |
+| `CREATE INDEX ON audit_log (created_at DESC)` | ORDER BY columns in paginated views |
+
+Name indexes descriptively: `idx_<table>_<columns>` or `idx_<table>_<columns>_<condition>`.
