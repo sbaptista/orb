@@ -67,8 +67,14 @@ const TOPICS: Topic[] = [
         </div>
 
         <div className="help-section">
-          <h2 className="help-h2">List</h2>
-          <p className="help-p" style={{ margin: 0 }}>Tap or click the orb to open the full todo list for the selected project.</p>
+          <h2 className="help-h2">List &amp; Checklist</h2>
+          <p className="help-p">Tap or click the orb to open the full todo list for the selected project.</p>
+          <p className="help-p" style={{ margin: 0 }}>
+            Each project can also be switched to <strong>Checklist mode</strong> using the
+            {' '}<span className="help-mono">☑</span> button in the toolbar. Checklist mode shows
+            all items in a minimal checkbox layout — tap the circle to complete or reopen, tap the
+            title to open the detail panel. The mode is saved per project and persists across sessions.
+          </p>
         </div>
 
         <div className="help-section">
