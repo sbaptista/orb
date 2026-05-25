@@ -6,13 +6,6 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
-    version: 'v0.5.33',
-    date: '2026-05-24',
-    changes: [
-      'Interactive OTP Email (ORB-151): Configured custom magic_link email template to make the 6-digit login verification code clickable. Clicking it opens the verification screen, automatically pre-fills the input, copies the code to the user\'s clipboard, and auto-submits verification for a seamless sign-in flow.',
-    ]
-  },
-  {
     version: 'v0.5.32',
     date: '2026-05-24',
     changes: [
