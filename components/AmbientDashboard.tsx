@@ -114,6 +114,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const [showHelp, setShowHelp]               = useState(false)
     const [messages, setMessages]               = useState<ConversationMessage[]>([])
     const [conversationActive, setConversationActive] = useState(false)
+    const [isRestored, setIsRestored]           = useState(false)
     const [scopeToProduct, setScopeToProduct]     = useState(true)
     const [distillTodo, setDistillTodo]           = useState<{ id: string; productId: string; title: string; suggestion: { title: string; content: string } } | null>(null)
     const [showPrint, setShowPrint]               = useState(false)
@@ -174,21 +175,35 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     }
 
 
-    // Restore only input on mount — transcripts start fresh each session
+    // Restore input and conversation on mount to prevent losing the session on navigation
     useEffect(() => {
-        sessionStorage.removeItem(SS_CONVERSATION)
+        const savedConv = sessionStorage.getItem(SS_CONVERSATION)
+        if (savedConv) {
+            try {
+                const parsed = JSON.parse(savedConv)
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    setMessages(parsed)
+                    setConversationActive(true)
+                    greetingFiredRef.current = true
+                }
+            } catch (e) {
+                console.error('Failed to restore conversation', e)
+            }
+        }
         const savedInput = sessionStorage.getItem(SS_INPUT)
         if (savedInput) setInput(savedInput)
+        setIsRestored(true)
     }, [])
 
     // Persist conversation to sessionStorage
     useEffect(() => {
+        if (!isRestored) return
         if (messages.length > 0) {
             sessionStorage.setItem(SS_CONVERSATION, JSON.stringify(messages))
         } else {
             sessionStorage.removeItem(SS_CONVERSATION)
         }
-    }, [messages])
+    }, [messages, isRestored])
 
     const orbSwitchingRef = useRef(false)
     const projectSwitchingRef = useRef(false)
@@ -335,7 +350,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
 
     // Reset selection when current project is hidden by filter
     useEffect(() => {
-        if (!displayProducts.find(p => p.id === selectedId)) {
+        if (selectedId && !displayProducts.find(p => p.id === selectedId)) {
             setSelectedId(displayProducts.length > 0 ? displayProducts[0].id : null)
         }
     }, [displayProducts, selectedId])

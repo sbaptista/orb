@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.32',
+    date: '2026-05-24',
+    changes: [
+      'Session Restoration Fix (ORB-154): Restored conversation transcript and state from sessionStorage on mount instead of clearing it, preventing the Orb from starting a new session and re-firing the greeting when navigating back and forth from the dashboard to TodoView.',
+    ]
+  },
+  {
     version: 'v0.5.31',
     date: '2026-05-24',
     changes: [
