@@ -12,6 +12,7 @@ import { computeUrgency, type Urgency } from '@/lib/orb-state'
 import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
 import { createTicket } from '@/app/actions/ticket-actions'
 import { createProject } from '@/app/actions/manage-project'
+import { DB_SCHEMA, ALLOWED_TABLES, SOFT_DELETE_TABLES, ALLOWED_OPS, COLUMN_NAME_RE } from '@/lib/db-schema'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -274,11 +275,15 @@ ${ctx.knowledgeList.slice(0, 5).map((k: any) => {
 }).join('\n')}
 (Note: Use the 'search_knowledge' tool to query the full repository if the answer isn't here.)
 
-QUERY STRATEGY:
-- query_todos returns ALL statuses by default. Use status_group='active' only when the user specifically asks about active/current work.
-- For structural questions ("tasks with URLs", "which have categories", "tasks due this week") — do NOT filter by status. The user means all their tasks.
-- For workload questions ("what's on my plate", "what should I work on") — use status_group='active'.
+QUERY ROUTING:
+- query_todos: Use for simple task lookups by code, status, priority, text match. Fast, enriched with owner/group/category. Returns ALL statuses by default.
+- query_db: Use for complex/structural questions that query_todos cannot answer — filtering by URLs (array contains), date ranges (closed_at, created_at), cross-table lookups, or any column not exposed in query_todos.
+- RULE: Never guess or fabricate data. If you cannot filter server-side, use query_db. If you got too many results and need to narrow, use query_db with precise filters.
+- For workload questions ("what's on my plate", "what should I work on") — use query_todos with status_group='active'.
 - Each result includes owner name. When presenting results to an admin, always mention whose task it is.
+
+DATABASE SCHEMA (for query_db):
+${DB_SCHEMA}
 
 SCOPE TRANSPARENCY (mandatory):
 - Every response that references task counts, priorities, or insight data MUST state what scope it covers. Never present numbers without scope.
@@ -796,6 +801,90 @@ FEEDBACK TONE:
                 const verb = input.dormant ? 'dormant' : 'awake'
                 output = { ok: true, code: project.code, dormant: !!input.dormant }
                 stream.update({ speech: accumulatedSpeech, thought: `${project.code} is now ${verb}`, refresh: true, mutationType: 'dormancy' })
+              }
+            }
+          } else if (tc.name === 'query_db') {
+            // ── Read-only database query via Supabase query builder ──
+            const table = String(input.table || '')
+            if (!ALLOWED_TABLES.has(table)) {
+              output = { error: `Table "${table}" is not queryable. Allowed: ${[...ALLOWED_TABLES].join(', ')}` }
+            } else {
+              const selectStr = input.select || '*'
+              const limit = Math.min(Math.max(input.limit ?? 50, 1), 200)
+
+              // Use RLS-scoped client for regular users, admin for admins
+              const client = auth.isAdmin ? auth.admin : supabase
+              let query = client.from(table).select(selectStr)
+
+              // Apply filters
+              let filterError: string | null = null
+              const filtersExplicitlyOnDeletedAt = new Set<string>()
+
+              if (Array.isArray(input.filters)) {
+                for (const f of input.filters) {
+                  const col = String(f.column || '')
+                  const op = String(f.op || '')
+                  if (!COLUMN_NAME_RE.test(col)) { filterError = `Invalid column name: "${col}"`; break }
+                  if (!ALLOWED_OPS.has(op)) { filterError = `Invalid operator: "${op}"`; break }
+                  if (col === 'deleted_at') filtersExplicitlyOnDeletedAt.add(table)
+
+                  switch (op) {
+                    case 'eq':       query = query.eq(col, f.value); break
+                    case 'neq':      query = query.neq(col, f.value); break
+                    case 'gt':       query = query.gt(col, f.value); break
+                    case 'gte':      query = query.gte(col, f.value); break
+                    case 'lt':       query = query.lt(col, f.value); break
+                    case 'lte':      query = query.lte(col, f.value); break
+                    case 'like':     query = query.like(col, f.value); break
+                    case 'ilike':    query = query.ilike(col, f.value); break
+                    case 'is':       query = query.is(col, f.value); break
+                    case 'not.is':   query = query.not(col, 'is', f.value); break
+                    case 'in':       query = query.in(col, Array.isArray(f.value) ? f.value : [f.value]); break
+                    case 'contains': query = query.contains(col, Array.isArray(f.value) ? f.value : [f.value]); break
+                    case 'overlaps': query = query.overlaps(col, Array.isArray(f.value) ? f.value : [f.value]); break
+                  }
+                }
+              }
+
+              if (filterError) {
+                output = { error: filterError }
+              } else {
+                // Auto-filter soft-deleted rows unless explicitly queried
+                if (SOFT_DELETE_TABLES.has(table) && !filtersExplicitlyOnDeletedAt.has(table)) {
+                  query = query.is('deleted_at', null)
+                }
+
+                // Apply OR filter (sanitized)
+                if (input.or_filter) {
+                  const sanitized = String(input.or_filter).replace(/[^a-z_.,()0-9 ]/gi, '')
+                  if (sanitized) query = query.or(sanitized)
+                }
+
+                // Apply ordering
+                if (input.order) {
+                  const orderStr = String(input.order)
+                  const descending = orderStr.startsWith('-')
+                  const orderCol = descending ? orderStr.slice(1) : orderStr
+                  if (COLUMN_NAME_RE.test(orderCol)) {
+                    query = query.order(orderCol, { ascending: !descending })
+                  }
+                }
+
+                // Apply limit
+                query = query.limit(limit)
+
+                const { data: rows, error: queryError } = await query
+                if (queryError) {
+                  output = { error: queryError.message }
+                } else {
+                  const resultRows = rows ?? []
+                  output = {
+                    count: resultRows.length,
+                    rows: resultRows,
+                    truncated: resultRows.length >= limit,
+                  }
+                  stream.update({ speech: accumulatedSpeech, thought: `Query returned ${resultRows.length} rows` })
+                }
               }
             }
           } else if (tc.name === 'create_ticket') {

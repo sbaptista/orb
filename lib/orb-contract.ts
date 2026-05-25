@@ -141,18 +141,6 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         "text_match": {
           "type": "string"
         },
-        "has_urls": {
-          "type": "boolean",
-          "description": "If true, only return tasks that have at least one URL attached."
-        },
-        "has_group": {
-          "type": "boolean",
-          "description": "If true, only return tasks assigned to a group."
-        },
-        "has_category": {
-          "type": "boolean",
-          "description": "If true, only return tasks assigned to a category."
-        },
         "max_results": {
           "type": "integer"
         }
@@ -409,6 +397,88 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         "dormant"
       ]
     }
+  },
+  {
+    "name": "query_db",
+    "description": "[Confidence: new] Execute a read-only database query via Supabase query builder. Use for questions that query_todos cannot answer: filtering by URLs, dates, groups, categories, joins, counts, or cross-table lookups. Returns raw rows up to 200. Always prefer query_todos for simple task lookups by code/status/priority.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "table": {
+          "type": "string",
+          "enum": [
+            "todos",
+            "projects",
+            "knowledge_repo",
+            "audit_log",
+            "statuses",
+            "priorities",
+            "categories",
+            "groups"
+          ],
+          "description": "Table to query."
+        },
+        "select": {
+          "type": "string",
+          "description": "Comma-separated columns or Supabase select syntax (e.g. '*, projects(code, name)'). Default: *"
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "column": {
+                "type": "string",
+                "description": "Column name to filter on."
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "eq",
+                  "neq",
+                  "gt",
+                  "gte",
+                  "lt",
+                  "lte",
+                  "like",
+                  "ilike",
+                  "is",
+                  "in",
+                  "contains",
+                  "overlaps",
+                  "not.is"
+                ],
+                "description": "Filter operator."
+              },
+              "value": {
+                "description": "Filter value. Use null for is/not.is. Use array for in/contains/overlaps."
+              }
+            },
+            "required": [
+              "column",
+              "op",
+              "value"
+            ]
+          },
+          "description": "Array of filter conditions (AND'd together)."
+        },
+        "or_filter": {
+          "type": "string",
+          "description": "Supabase OR filter string, e.g. 'status.eq.open,status.eq.in progress'. Use sparingly."
+        },
+        "order": {
+          "type": "string",
+          "description": "Column to order by. Prefix with - for descending (e.g. '-created_at')."
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Max rows to return (default 50, max 200)."
+        }
+      },
+      "required": [
+        "table"
+      ]
+    }
   }
 ]
 
@@ -427,4 +497,5 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   delete_project: 'Deleting project...',
   set_dormancy: 'Updating project...',
   create_ticket: 'Noting observation...',
+  query_db: 'Querying database...',
 }
