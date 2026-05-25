@@ -2620,6 +2620,9 @@ a, button, [role="button"], input, select, textarea {
 .cs-nav {
   flex: 1;
   padding: 8px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
 }
 
 .cs-nav-wrap {

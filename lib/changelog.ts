@@ -7,6 +7,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.38',
+    date: '2026-05-25',
+    changes: [
+      'Settings sidebar now scrolls independently below the version/toggle header — all nav items reachable regardless of viewport height.',
+      'Sidebar toggle icon replaced with the standard panel-left icon (vertical bar + three lines) — no longer confused with the back arrow.',
+      'Checklist view: removed the todo ID sub-label (e.g. ORB-155) from each row for a cleaner, less cluttered list.',
+    ]
+  },
+  {
     version: 'v0.5.37',
     date: '2026-05-25',
     changes: [
