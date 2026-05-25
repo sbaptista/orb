@@ -7,6 +7,20 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.37',
+    date: '2026-05-25',
+    changes: [
+      'Dedicated Ticketing System (ORB-148): Replaced todos-in-TICKETS-project with a proper two-layer model.',
+      'New tickets table: ticket_number, type, source, summary, reported_by, status (open/in_progress/closed/dismissed), linked todo_id FK, notification dedup flags.',
+      'ticket_id FK added to todos — links engineer work back to the originating ticket.',
+      'Status propagation: when a linked todo changes status, the ticket updates automatically and the reporter receives a push + email notification (deduplicated).',
+      'Admin UI at Settings → Tickets: table of all tickets, inline Create Todo form, Dismiss with reason.',
+      'Welcome email sent on new user onboarding.',
+      'One-time migration: 2 historical TICKETS todos moved to tickets table; TICKETS project marked dormant.',
+      'RLS: admins have full access; reporters can read their own tickets. All policies use (SELECT auth.uid()) per ORB-131 rules.',
+    ]
+  },
+  {
     version: 'v0.5.36',
     date: '2026-05-25',
     changes: [
