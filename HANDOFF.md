@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.5.32 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.5.33 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,11 +16,11 @@
 
 ## Last Session Completed
 
-**Resolved Session Restoration Bug (ORB-154) — 2026-05-24 (Session 19)**
+**Interactive OTP Email (ORB-151) — 2026-05-24 (Session 20)**
 
-1. **Restored session transcript and state** — Updated `components/AmbientDashboard.tsx` to read the conversation history and status from `sessionStorage` on mount rather than deleting it. This prevents the Orb from resetting the active conversation and re-triggering the proactive greeting when users navigate between the Dashboard and the `TodoView`.
-2. **Gated project selection reset on mount** — Gated the selection reset effect in `AmbientDashboard.tsx` to only run when `selectedId` is non-null. This prevents the component from resetting `selectedId` to the first product on mount before the local storage value has loaded, which previously caused a double transition of `selectedId` (from null -> projectA -> projectB) that triggered the conversation clear effect.
-3. **Version bump** — Bumped version to `0.5.32` across `package.json`, `lib/version.ts`, and `lib/changelog.ts`.
+1. **Clickable OTP Verification Link**: Configured a custom magic_link email template at `supabase/templates/magic_link.html` and registered it in `supabase/config.toml`. The 6-digit verification code is now a clickable link pointing to the verification page with the code in the query parameters.
+2. **Auto-Fill, Auto-Copy, and Auto-Verify**: Updated `/auth/verify-otp` to parse the `code` query parameter on mount, automatically copy it to the user's clipboard, pre-fill the OTP input field, and auto-submit the form for validation to provide a seamless magic-link style login experience.
+3. **Version bump** — Bumped version to `0.5.33` across `package.json`, `lib/version.ts`, and `lib/changelog.ts`.
 4. **Verification** — Ran a successful Next.js production build locally.
 
 ---
@@ -28,17 +28,19 @@
 ## Uncommitted Changes
 
 ### Modified
-- `package.json` — Version bump to v0.5.32
-- `lib/version.ts` — Version bump to v0.5.32
-- `lib/changelog.ts` — Added v0.5.32 release notes
-- `components/AmbientDashboard.tsx` — Restore conversation transcript from sessionStorage on mount
+- `package.json` — Version bump to v0.5.33
+- `lib/version.ts` — Version bump to v0.5.33
+- `lib/changelog.ts` — Added v0.5.33 release notes
+- `app/auth/verify-otp/page.tsx` — Parse query param code, auto-copy, and auto-submit
+- `app/globals.css` — Added .auth-success class
+- `supabase/config.toml` — Added magic_link template config
 - `HANDOFF.md` — this file
 
 ### Deleted
 - None
 
 ### New
-- None
+- `supabase/templates/magic_link.html` — Custom OTP email template
 
 ---
 

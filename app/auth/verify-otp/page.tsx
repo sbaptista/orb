@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, Suspense, useEffect, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
@@ -12,7 +12,49 @@ function VerifyOtpContent() {
   const [loading, setLoading] = useState(false)
   const [verified, setVerified] = useState(false)
   const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+  const verifyingRef = useRef(false)
   const router = useRouter()
+
+  useEffect(() => {
+    const codeParam = searchParams.get('code')
+    if (codeParam && codeParam.length === 6 && /^\d+$/.test(codeParam)) {
+      if (verifyingRef.current) return
+      verifyingRef.current = true
+      
+      setOtp(codeParam)
+      
+      // Auto-copy to clipboard
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(codeParam)
+          .then(() => setCopied(true))
+          .catch((err) => console.error('Auto-copy failed:', err))
+      }
+
+      // Auto-verify code
+      setLoading(true)
+      setError('')
+      const supabase = createClient()
+      supabase.auth.verifyOtp({
+        email,
+        token: codeParam,
+        type: 'email',
+      }).then(({ error }) => {
+        if (error) {
+          setError(error.message)
+          setLoading(false)
+          verifyingRef.current = false
+        } else {
+          setVerified(true)
+          router.push('/dashboard')
+        }
+      }).catch((err: any) => {
+        setError(err?.message || 'Something went wrong. Please try again.')
+        setLoading(false)
+        verifyingRef.current = false
+      })
+    }
+  }, [searchParams, email, router])
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault()
@@ -84,6 +126,14 @@ function VerifyOtpContent() {
               {verified ? 'Signing in…' : loading ? 'Verifying…' : 'Verify'}
             </button>
           </form>
+
+          {copied && (
+            <div className="auth-success">
+              <p className="text-sm text-success" style={{ margin: 0, color: 'var(--success)', fontWeight: 'var(--fw-semibold)' }}>
+                ✓ Code auto-filled & copied!
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="auth-error">
