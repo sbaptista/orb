@@ -141,7 +141,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
         if (isFirstRender.current) { isFirstRender.current = false; return }
         if (orbFadeRef.current) clearTimeout(orbFadeRef.current)
         setOrbFading(true)
-        orbFadeRef.current = setTimeout(() => setOrbFading(false), 230)
+        orbFadeRef.current = setTimeout(() => setOrbFading(false), 400)
         return () => { if (orbFadeRef.current) clearTimeout(orbFadeRef.current) }
     }, [conversationActive])
 
@@ -881,7 +881,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                         pointerEvents: 'auto',
                         transform: `scale(${orbScale})`,
                         transformOrigin: 'top center',
-                        transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.18s ease',
+                        transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.35s ease',
                         opacity: orbFading ? 0 : 1,
                         WebkitTouchCallout: 'none',
                         userSelect: 'none',
