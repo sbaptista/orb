@@ -128,10 +128,22 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const welcomeDismissedRef                     = useRef(false)
     const [tick, setTick]                         = useState(0)
     const prevOverallUrgencyRef                   = useRef<Urgency | null>(null)
+    const [orbFading,  setOrbFading]              = useState(false)
+    const orbFadeRef                              = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     useEffect(() => {
         setIsMobile(window.matchMedia('(hover: none) and (pointer: coarse)').matches)
     }, [])
+
+    // Fade the orb out briefly on mode switch to mask the transform-origin snap (ORB-156)
+    const isFirstRender = useRef(true)
+    useEffect(() => {
+        if (isFirstRender.current) { isFirstRender.current = false; return }
+        if (orbFadeRef.current) clearTimeout(orbFadeRef.current)
+        setOrbFading(true)
+        orbFadeRef.current = setTimeout(() => setOrbFading(false), 230)
+        return () => { if (orbFadeRef.current) clearTimeout(orbFadeRef.current) }
+    }, [conversationActive])
 
     const inactivityRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
     const prevSelectedId     = useRef<string | null>(null)
@@ -869,7 +881,8 @@ Type /? anytime for a full command list. What would you like to work on?` },
                         pointerEvents: 'auto',
                         transform: `scale(${orbScale})`,
                         transformOrigin: 'top center',
-                        transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                        transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.18s ease',
+                        opacity: orbFading ? 0 : 1,
                         WebkitTouchCallout: 'none',
                         userSelect: 'none',
                     }}

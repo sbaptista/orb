@@ -7,6 +7,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.34',
+    date: '2026-05-25',
+    changes: [
+      'Smooth Orb Transition (ORB-156): Switching between ambient and dialogue mode now fades the orb out briefly before repositioning, then fades back in — eliminating the jarring snap caused by the transform-origin change.',
+    ]
+  },
+  {
     version: 'v0.5.33',
     date: '2026-05-25',
     changes: [
