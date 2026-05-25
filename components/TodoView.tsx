@@ -156,17 +156,8 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
 
     fetchData()
 
-    const filter = isAll ? undefined : `product_id=eq.${productId}`
-    const channel = supabase
-      .channel(`todos-view:${productId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'todos', ...(filter ? { filter } : {}) },
-        () => fetchTodos(),
-      )
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
+    // No Realtime subscription — useVisibilityRefetch handles refetch on tab focus.
+    // The postgres_changes WAL reader was consuming 80% of all DB query time (1M+ calls).
   }, [productId, isAll, supabase, fetchTodos])
 
   // Fetch all projects with owner names for admin search

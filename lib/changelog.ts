@@ -7,6 +7,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.36',
+    date: '2026-05-25',
+    changes: [
+      'Performance: Removed Supabase Realtime postgres_changes subscription from TodoView — it was consuming 80% of all database query time (1M+ WAL reads). Tab-focus refetch via useVisibilityRefetch is sufficient for a single-user app.',
+    ]
+  },
+  {
     version: 'v0.5.35',
     date: '2026-05-25',
     changes: [
