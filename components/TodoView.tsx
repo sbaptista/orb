@@ -40,7 +40,7 @@ export type Todo = {
   reminded_at: string | null
 }
 
-export type Product  = { id: string; name: string; color: string | null; icon: string | null; code: string | null }
+export type Product  = { id: string; name: string; color: string | null; icon: string | null; code: string | null; view_mode: 'list' | 'checklist' }
 export type Priority = { value: number; label: string }
 export type StatusDef = { id: string; name: string; sort_order: number; is_closed: boolean; is_open: boolean }
 
@@ -86,6 +86,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
   const [distillTodo,       setDistillTodo]       = useState<Todo | null>(null)
   const [sortAsc,           setSortAsc]           = useState(true)
   const [inlineEdit,        setInlineEdit]        = useState<{ todo: Todo; rect: DOMRect } | null>(null)
+  const [checklistMode,     setChecklistMode]     = useState(false)
 
   // Admin project search
   const [adminSearch,       setAdminSearch]       = useState('')
@@ -133,15 +134,22 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
 
       const [, productsRes, prioritiesRes, statusesRes] = await Promise.all([
         fetchTodos(),
-        visibleProjectsQuery(supabase, 'id, name, color, icon, code'),
+        visibleProjectsQuery(supabase, 'id, name, color, icon, code, view_mode'),
         supabase.from('priorities').select('value, label').order('value'),
         supabase.from('statuses').select('id, name, sort_order, is_closed, is_open').order('sort_order'),
       ])
 
-      setProducts(productsRes.data ?? [])
+      const prods = productsRes.data ?? []
+      setProducts(prods)
       setPriorities(prioritiesRes.data ?? [])
       setStatuses(statusesRes.data ?? [])
       setLoading(false)
+
+      // Sync checklist mode from the fetched product
+      if (!isAll) {
+        const p = (prods as Product[]).find(x => x.id === productId)
+        if (p) setChecklistMode(p.view_mode === 'checklist')
+      }
     }
 
     fetchData()
@@ -242,6 +250,15 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
       if (isClosed(newStatus)) {
         setDistillTodo(updated)
       }
+    }
+  }
+
+  async function handleToggleChecklistMode() {
+    const next = checklistMode ? 'list' : 'checklist'
+    setChecklistMode(!checklistMode)
+    if (!isAll) {
+      await supabase.from('projects').update({ view_mode: next }).eq('id', productId)
+      setProducts(prev => prev.map(p => p.id === productId ? { ...p, view_mode: next } : p))
     }
   }
 
@@ -472,6 +489,28 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
             </button>
           )}
 
+          {/* Checklist mode toggle — product only */}
+          {!isAll && (
+            <button
+              className="tv-toolbar-btn"
+              aria-pressed={checklistMode}
+              onClick={handleToggleChecklistMode}
+              title={checklistMode ? 'Switch to list view' : 'Switch to checklist view'}
+            >
+              {checklistMode ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                  <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 11 12 14 22 4"/>
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+              )}
+            </button>
+          )}
+
           {/* Select mode toggle */}
           <button
             className="tv-toolbar-btn"
@@ -526,12 +565,70 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
         </div>
       )}
 
-      {/* List */}
+      {/* List / Checklist */}
       <div className="tv-list-wrap">
         {loading ? (
           <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>
             Loading…
           </p>
+        ) : checklistMode ? (
+          /* ── Checklist skin ── */
+          (() => {
+            const allItems = [...todos].filter(t => {
+              if (filterPriority !== 'all' && String(t.priority_value) !== filterPriority) return false
+              return true
+            })
+            const open   = allItems.filter(t => !isClosed(t.status))
+            const closed = allItems.filter(t =>  isClosed(t.status))
+            const sorted = [...open, ...closed]
+            return sorted.length === 0 ? (
+              <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>
+                Nothing here yet.
+              </p>
+            ) : (
+              <div className="tv-checklist">
+                {sorted.map((todo, i) => {
+                  const isDone = isClosed(todo.status)
+                  return (
+                    <div
+                      key={todo.id}
+                      className={`tv-cl-row${isDone ? ' tv-cl-row--done' : ''}`}
+                      style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}
+                    >
+                      <button
+                        className="tv-cl-check"
+                        onClick={e => handleToggleDone(e, todo)}
+                        aria-label={isDone ? 'Mark incomplete' : 'Mark complete'}
+                        style={{
+                          border: `2px solid ${isDone ? 'var(--pill-active-color)' : 'var(--muted)'}`,
+                          background: isDone ? 'var(--pill-active-color)' : 'transparent',
+                        }}
+                      >
+                        {isDone && (
+                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                            <path d="M2 5l2.5 2.5L8 3" stroke="var(--bg2)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </button>
+                      <span
+                        className="tv-cl-label"
+                        onClick={() => setSelectedTodo(todo)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedTodo(todo) }}
+                        style={{
+                          color: isDone ? 'var(--muted)' : 'var(--text)',
+                          textDecoration: isDone ? 'line-through' : 'none',
+                        }}
+                      >
+                        {todo.title}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()
         ) : filtered.length === 0 ? (
           <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>
             {filterStatus === 'active' ? 'Nothing active — you\'re clear.' : 'No todos found.'}

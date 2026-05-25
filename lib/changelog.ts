@@ -4,7 +4,15 @@ export interface Release {
   changes: string[]
 }
 
+
 export const CHANGELOG: Release[] = [
+  {
+    version: 'v0.5.33',
+    date: '2026-05-25',
+    changes: [
+      'Checklist Mode (ORB-155): Projects can now toggle between list view and checklist view. Checklist skin renders todos as a minimal checkbox list — tap to complete/reopen, tap the label to open the detail panel. View mode persists to the database. Toggle appears in the toolbar for all non-global project views.',
+    ]
+  },
   {
     version: 'v0.5.32',
     date: '2026-05-24',
