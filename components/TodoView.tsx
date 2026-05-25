@@ -588,7 +588,10 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
             ) : (
               <div className="tv-checklist">
                 {sorted.map((todo, i) => {
-                  const isDone = isClosed(todo.status)
+                  const isDone   = isClosed(todo.status)
+                  const todoRef  = productCodeMap.get(todo.product_id) && todo.todo_number != null
+                    ? `${productCodeMap.get(todo.product_id)}-${todo.todo_number}`
+                    : null
                   return (
                     <div
                       key={todo.id}
@@ -616,12 +619,25 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
                         role="button"
                         tabIndex={0}
                         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedTodo(todo) }}
-                        style={{
+                      >
+                        <span style={{
+                          display: 'block',
                           color: isDone ? 'var(--muted)' : 'var(--text)',
                           textDecoration: isDone ? 'line-through' : 'none',
-                        }}
-                      >
-                        {todo.title}
+                        }}>
+                          {todo.title}
+                        </span>
+                        {todoRef && (
+                          <span style={{
+                            display: 'block',
+                            fontSize: 'var(--fs-xs)',
+                            color: 'var(--muted)',
+                            marginTop: '2px',
+                            textDecoration: 'none',
+                          }}>
+                            {todoRef}
+                          </span>
+                        )}
                       </span>
                     </div>
                   )
