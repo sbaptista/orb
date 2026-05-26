@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.55',
+    date: '2026-05-25',
+    changes: [
+      'Prototype: /prototype route — unified command surface with task list and Orb conversation panel side by side.',
+      'Desktop: 60/40 split layout — task list on the left, Orb panel on the right.',
+      'iPhone: full-width task list with a collapsible bottom panel for the Orb (slide-up sheet, 60% height).',
+      'Orb panel: streaming conversation, thought indicators, auto-refetch on mutations.',
+      'Project selector pill bar for switching between projects without navigation.',
+    ]
+  },
+  {
     version: 'v0.5.54',
     date: '2026-05-25',
     changes: [
