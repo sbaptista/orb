@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-const POLL_INTERVAL = 30_000
+const POLL_INTERVAL = 60_000
 const MIN_REFETCH_GAP = 5_000
 
 export function useVisibilityRefetch(refetch: () => void) {

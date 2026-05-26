@@ -7,6 +7,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.57',
+    date: '2026-05-25',
+    changes: [
+      'Emergency fix: removed surviving Realtime subscription from AmbientDashboard — postgres_changes WAL reader was consuming excessive disk IO (same root cause as ORB-132, missed in that component).',
+      'Reduced background poll interval from 30s to 60s to halve query volume against the database.',
+      'Ran VACUUM ANALYZE on bloated tables (projects, todos, knowledge_repo).',
+    ]
+  },
+  {
     version: 'v0.5.56',
     date: '2026-05-25',
     changes: [

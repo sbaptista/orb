@@ -391,17 +391,10 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
         fetchTodos()
         localStorage.setItem(LAST_PRODUCT_KEY, selectedId)
 
-        const channel = supabase
-            .channel(`todos:${selectedId}`)
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'todos', filter: `product_id=eq.${selectedId}` },
-                () => fetchTodos(),
-            )
-            .subscribe()
-
-        return () => { supabase.removeChannel(channel) }
-    }, [selectedId, supabase, fetchTodos])
+        // ORB-132 fix: Removed postgres_changes Realtime subscription.
+        // WAL reader was consuming 80%+ of DB query time (1M+ calls/day).
+        // useVisibilityRefetch handles polling + tab-focus refetch instead.
+    }, [selectedId, fetchTodos])
 
     // Sync the overall urgency ref when todos list updates or project switches
     useEffect(() => {
