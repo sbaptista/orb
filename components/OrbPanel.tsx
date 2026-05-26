@@ -15,13 +15,14 @@ export type PanelMessage = {
 type Props = {
   productId: string | null
   productCode: string | null
+  todoCount: number
   onMutation: () => void
 }
 
 let _msgCounter = 0
 function genId() { return `op-${Date.now()}-${++_msgCounter}` }
 
-export default function OrbPanel({ productId, productCode, onMutation }: Props) {
+export default function OrbPanel({ productId, productCode, todoCount, onMutation }: Props) {
   const [messages, setMessages] = useState<PanelMessage[]>([])
   const [input, setInput] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -113,12 +114,30 @@ export default function OrbPanel({ productId, productCode, onMutation }: Props) 
 
   return (
     <div className="up-panel">
-      <div className="up-panel-header">
-        <div className="up-orb-dot" />
-        <span className="up-panel-title">Orb</span>
-        {productCode && (
-          <span className="up-panel-scope">{productCode}</span>
-        )}
+      {/* Mini Orb */}
+      <div className="up-orb-header">
+        <div className="up-mini-orb">
+          <div className="up-mini-orb-glow" />
+          <div className="up-mini-orb-sphere">
+            <svg width="100%" height="100%" viewBox="0 0 80 80" style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
+              <defs>
+                <path id="up-arc-top" d="M 12 40 A 28 28 0 0 1 68 40" fill="none" />
+                <path id="up-arc-bot" d="M 12 40 A 28 28 0 0 0 68 40" fill="none" />
+              </defs>
+              <text fontFamily="var(--font-ui)" fontSize="6" fontWeight="600" letterSpacing="2" fill="rgba(255,255,255,0.7)" style={{ textTransform: 'uppercase' }}>
+                <textPath href="#up-arc-top" startOffset="50%" textAnchor="middle">
+                  {(productCode ?? 'ORB').toUpperCase()}
+                </textPath>
+              </text>
+              <text fontFamily="var(--font-ui)" fontSize="6" fontWeight="600" letterSpacing="2" fill="rgba(255,255,255,0.7)" style={{ textTransform: 'uppercase' }}>
+                <textPath href="#up-arc-bot" startOffset="50%" textAnchor="middle">
+                  ACTIVE
+                </textPath>
+              </text>
+            </svg>
+            <span className="up-mini-orb-count">{todoCount}</span>
+          </div>
+        </div>
         {messages.length > 0 && (
           <button
             className="up-clear-btn"

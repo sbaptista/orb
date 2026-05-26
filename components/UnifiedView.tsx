@@ -126,7 +126,7 @@ export default function UnifiedView({
             onClick={() => setOrbOpen(v => !v)}
             aria-label={orbOpen ? 'Hide Orb' : 'Show Orb'}
           >
-            <div className="up-orb-dot" />
+            <div className="up-orb-toggle-dot" />
             {orbOpen ? 'Hide Orb' : 'Ask Orb'}
           </button>
         )}
@@ -214,6 +214,7 @@ export default function UnifiedView({
           <OrbPanel
             productId={selectedId}
             productCode={selectedProduct?.code ?? null}
+            todoCount={todos.length}
             onMutation={handleOrbMutation}
           />
         </div>

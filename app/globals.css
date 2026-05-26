@@ -3397,46 +3397,69 @@ a, button, [role="button"], input, select, textarea {
   width: 100%;
 }
 
-.up-panel-header {
+.up-orb-header {
   display: flex;
   align-items: center;
-  gap: var(--sp-sm);
-  padding: var(--sp-md) var(--sp-lg);
-  border-bottom: 1px solid var(--border);
+  justify-content: center;
+  padding: var(--sp-xl) var(--sp-lg) var(--sp-md);
   flex-shrink: 0;
+  position: relative;
 }
 
-.up-orb-dot {
-  width: 10px;
-  height: 10px;
+.up-mini-orb {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.up-mini-orb-glow {
+  position: absolute;
+  inset: -12px;
   border-radius: 50%;
-  background: var(--success);
-  animation: up-pulse 3s ease-in-out infinite;
-  flex-shrink: 0;
+  background: radial-gradient(circle at 40% 35%, rgba(100, 160, 100, 0.4), transparent 70%);
+  filter: blur(12px);
+  animation: up-orb-breathe 5.5s ease-in-out infinite;
 }
 
-@keyframes up-pulse {
-  0%, 100% { opacity: 0.6; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.15); }
+.up-mini-orb-sphere {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 30%, #ffffff, #8ab58a 45%, #3a6b3a 82%);
+  box-shadow:
+    0 4px 16px rgba(60, 120, 60, 0.25),
+    0 1px 4px rgba(0, 0, 0, 0.06),
+    inset 0 -2px 8px rgba(0, 0, 0, 0.04),
+    inset 0 1px 4px rgba(255, 255, 255, 0.9);
+  animation: up-orb-breathe 5.5s ease-in-out infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
 }
 
-.up-panel-title {
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  color: var(--text);
+.up-mini-orb-count {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1;
+  letter-spacing: -0.5px;
 }
 
-.up-panel-scope {
-  font-size: 10px;
-  color: var(--muted);
-  background: var(--bg3);
-  padding: 1px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
+@keyframes up-orb-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.92; }
+  50% { transform: scale(1.04); opacity: 1; }
 }
 
 .up-clear-btn {
-  margin-left: auto;
+  position: absolute;
+  top: var(--sp-md);
+  right: var(--sp-md);
   font-size: 11px;
   color: var(--muted);
   background: none;
@@ -3590,6 +3613,14 @@ a, button, [role="button"], input, select, textarea {
   border-radius: 20px;
   padding: 5px 12px;
   cursor: pointer;
+}
+
+.up-orb-toggle-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: up-orb-breathe 5.5s ease-in-out infinite;
 }
 
 .up-version {
