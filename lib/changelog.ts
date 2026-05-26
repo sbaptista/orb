@@ -7,6 +7,86 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.54',
+    date: '2026-05-25',
+    changes: [
+      'TodoView list mode: proper HTML table with column headers, select-all checkbox, labeled action buttons (Edit, Quick, Done) with bordered pill styling.',
+      'iPhone-first responsive layout: on mobile, actions collapse below the title inside each row — no horizontal scrolling needed. On desktop, actions stay in their own column at the far right.',
+      'Title clamped to 2 lines with ellipsis overflow.',
+      'Removed status pills and priority from list rows — redundant with filters.',
+      'Darkened table header with uppercase labels. Increased row padding for readability.',
+      'Project name centered in its own row above the table.',
+      'Checklist view rebuilt as a clean table — done-circle and title only, no bulk edits (use list view for bulk operations).',
+      'Fixed constant screen refreshing — background poll no longer flashes loading state.',
+      'Fixed Safari iOS row borders — uses box-shadow instead of border-bottom for reliable rendering.',
+      'Update banner: centered button with "An application update is available" message to its right, replacing the toast notification.',
+    ]
+  },
+  {
+    version: 'v0.5.47',
+    date: '2026-05-25',
+    changes: [
+      'Consolidated concurrent `supabase.auth.getUser()` calls in AmbientDashboard on mount to resolve lock acquisition and Navigator LockManager token collisions.',
+    ]
+  },
+  {
+    version: 'v0.5.46',
+    date: '2026-05-25',
+    changes: [
+      'Placed the All platform pill first and distinguished it visually using bold text, a dashed border, and a symbol prefix.',
+      'Implemented mutual-exclusion selection behavior: selecting All clears other platform selections; selecting any other platform deselects All.',
+      'Replaced the toggle Checklist view button with a List Views toggle button that displays a dedicated single-selection views panel below the toolbar.',
+    ]
+  },
+  {
+    version: 'v0.5.45',
+    date: '2026-05-25',
+    changes: [
+      'Moved Platforms configuration to Settings using a standardized CRUD list with todo count tracking.',
+      'Hooked platform association pills into Todo view/edit panels, updating the todo_platforms join table.',
+      'Added a vertical text label under the list/checklist toggle button for clear navigation on mobile/iOS.',
+      'Streamlined bulk actions: eliminated the Select button, showing checkboxes permanently on the left of each row.',
+      'Rendered the bulk edit bar inline at the top of the todo list card whenever items are selected.',
+    ]
+  },
+  {
+    version: 'v0.5.44',
+    date: '2026-05-25',
+    changes: [
+      'Widen desktop search input base width to 300px so "Search projects or owners..." placeholder is fully visible without clipping before click.',
+      'Render mobile search input permanently as a full-width row on iPhone above other buttons to display complete search context.',
+      'Context-aware search placeholders: Owner (non-admin) placeholder changed to "Search projects..." since they only see their own projects.',
+      'Eliminated collapsible completions panel (down arrow completed section) — completed items are now accessed via the status filter.',
+      'Implemented database-level pagination (40 tasks per page) for all statuses to optimize DB query and render performance.',
+    ]
+  },
+  {
+    version: 'v0.5.43',
+    date: '2026-05-25',
+    changes: [
+      'Fix mobile duplicated search bar and dual scroll toolbars by using client-side isMobile state filtering rather than rendering both and relying on CSS hidden states.',
+      'Fix desktop vertical wrapping and alignment bug in TodoView by rendering search input and toolbar as flat siblings in a single flexbox row inside the topbar, aligned via a flex-grow spacer.',
+    ]
+  },
+  {
+    version: 'v0.5.42',
+    date: '2026-05-25',
+    changes: [
+      'Separate Mac/desktop actions from mobile HScrollNav wrapping — resolves alignment bugs and search dropdown clipping on desktop.',
+      'Maintain optimized horizontal scroll navigation and full-width active search dropdowns on mobile (iPhone).',
+    ]
+  },
+  {
+    version: 'v0.5.41',
+    date: '2026-05-25',
+    changes: [
+      'Safari mobile layout fixes for iPhone in TodoView.',
+      'Pin the Back link so it is outside of the horizontal scrolling action bar.',
+      'Prevent checkbox select buttons from stretching into vertical ovals on multi-line items.',
+      'Fix search input dropdowns for projects/owners not opening or rendering on focus by using full-width active overlay on mobile.',
+    ]
+  },
+  {
     version: 'v0.5.38',
     date: '2026-05-25',
     changes: [

@@ -1,24 +1,16 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import { useToast } from '@/components/ui/Toast'
+import { useEffect, useState } from 'react'
 import { VERSION } from '@/lib/version'
 
 export default function UpdateBanner() {
   const [updateAvailable, setUpdateAvailable] = useState(false)
-  const toast = useToast()
-  const toastShownRef = useRef(false)
 
   const checkVersion = async () => {
-    // Check DEV simulation toggle
     const isSimulated = typeof window !== 'undefined' && localStorage.getItem('todos_dev_simulate_update') === 'true'
-    
+
     if (isSimulated) {
       setUpdateAvailable(true)
-      if (!toastShownRef.current) {
-        toast.neutral('A new version of Orb is available.')
-        toastShownRef.current = true
-      }
       return
     }
 
@@ -26,13 +18,9 @@ export default function UpdateBanner() {
       const res = await fetch('/api/version')
       if (!res.ok) return
       const data = await res.json()
-      
+
       if (data.version && data.version !== VERSION) {
         setUpdateAvailable(true)
-        if (!toastShownRef.current) {
-          toast.neutral('A new version of Orb is available.')
-          toastShownRef.current = true
-        }
       } else {
         setUpdateAvailable(false)
       }
@@ -89,8 +77,9 @@ export default function UpdateBanner() {
         transition: 'height 0.3s ease, opacity 0.3s ease',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'flex-end',
-        padding: updateAvailable ? '0 24px' : '0 24px',
+        justifyContent: 'center',
+        gap: '12px',
+        padding: '0 24px',
         background: 'rgba(45, 90, 45, 0.05)',
         borderBottom: updateAvailable ? '1px solid rgba(45, 90, 45, 0.12)' : 'none',
         width: '100%',
@@ -114,6 +103,7 @@ export default function UpdateBanner() {
           textTransform: 'uppercase',
           boxShadow: '0 2px 6px rgba(45, 90, 45, 0.15)',
           transition: 'transform 0.2s ease, background 0.2s ease',
+          flexShrink: 0,
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'scale(1.04)'
@@ -126,6 +116,13 @@ export default function UpdateBanner() {
       >
         Update
       </button>
+      <span style={{
+        fontSize: '12px',
+        color: 'var(--text3)',
+        whiteSpace: 'nowrap',
+      }}>
+        An application update is available
+      </span>
     </div>
   )
 }

@@ -251,40 +251,11 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [input])
 
-    // Load products, restore last selected
-    useEffect(() => {
-        async function load() {
-            if (initialProducts) {
-                // Data already available from server — just restore last-selected
-                if (initialProducts.length > 0) {
-                    const last  = localStorage.getItem(LAST_PRODUCT_KEY)
-                    const found = initialProducts.find(p => p.id === last)
-                    setSelectedId(found ? found.id : initialProducts[0].id)
-                }
-                return
-            }
-            const { data: { user: authUser } } = await supabase.auth.getUser()
-            const q = visibleProjectsQuery(supabase, 'id, name, code, description, created_by')
-            const { data } = authUser ? await q.eq('created_by', authUser.id) : await q
-            const list = (data ?? []) as Product[]
-            setProducts(list)
-            if (list.length > 0) {
-                const last  = localStorage.getItem(LAST_PRODUCT_KEY)
-                const found = list.find(p => p.id === last)
-                setSelectedId(found ? found.id : list[0].id)
-            }
-            setLoading(false)
-        }
-        load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [supabase])
-
-
-
-    // Fetch current user's profile + onboarding state
+    // Load products, restore last selected, and fetch profile + onboarding state sequentially
     useEffect(() => {
         async function load() {
             const { data: { user } } = await supabase.auth.getUser()
+
             if (user) {
                 // Clear session storage if user changed or fresh login — prevents crossover and resets greeting
                 const savedUserId = sessionStorage.getItem('todos_user_id')
@@ -321,9 +292,31 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                     }
                 }
             }
+
+            if (initialProducts) {
+                // Data already available from server — just restore last-selected
+                if (initialProducts.length > 0) {
+                    const last  = localStorage.getItem(LAST_PRODUCT_KEY)
+                    const found = initialProducts.find(p => p.id === last)
+                    setSelectedId(found ? found.id : initialProducts[0].id)
+                }
+                return
+            }
+
+            const q = visibleProjectsQuery(supabase, 'id, name, code, description, created_by')
+            const { data } = user ? await q.eq('created_by', user.id) : await q
+            const list = (data ?? []) as Product[]
+            setProducts(list)
+            if (list.length > 0) {
+                const last  = localStorage.getItem(LAST_PRODUCT_KEY)
+                const found = list.find(p => p.id === last)
+                setSelectedId(found ? found.id : list[0].id)
+            }
+            setLoading(false)
         }
         load()
-    }, [supabase])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [supabase, initialProducts])
 
     // Pre-fill welcome message once we have the user's first name
     useEffect(() => {

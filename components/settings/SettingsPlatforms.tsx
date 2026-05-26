@@ -1,219 +1,170 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { useToast } from '@/components/ui/Toast'
+import { useMemo, useCallback } from 'react'
+import SettingsCrudList from './SettingsCrudList'
 
 type Platform = { id: string; name: string; sort_order: number }
-type PlatformForm = { name: string; sort_order: string }
+type PlatformForm = { name: string }
 
-const EMPTY_FORM: PlatformForm = { name: '', sort_order: '0' }
+const EMPTY_FORM: PlatformForm = { name: '' }
+
+const ArrowUp = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m18 15-6-6-6 6"/>
+  </svg>
+)
+
+const ArrowDown = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m6 9 6 6 6-6"/>
+  </svg>
+)
 
 export default function SettingsPlatforms() {
-  const supabase = useMemo(() => createClient(), [])
-  const toast = useToast()
-  const [platforms, setPlatforms] = useState<Platform[]>([])
-  const [loading, setLoading] = useState(true)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<PlatformForm>(EMPTY_FORM)
-  const [showAdd, setShowAdd] = useState(false)
-  const [addForm, setAddForm] = useState<PlatformForm>(EMPTY_FORM)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    async function load() {
-      const { data } = await supabase.from('platforms').select('*').order('sort_order')
-      setPlatforms(data ?? [])
-      setLoading(false)
-    }
-    load()
-  }, [supabase])
-
-  function startEdit(p: Platform) {
-    setEditingId(p.id)
-    setEditForm({ name: p.name, sort_order: String(p.sort_order) })
-    setShowAdd(false)
-    setConfirmDeleteId(null)
-    setError('')
-  }
-
-  async function handleAdd() {
-    if (!addForm.name.trim()) { setError('Name is required'); return }
-    setSaving(true)
-    setError('')
-    const { data, error: err } = await supabase
-      .from('platforms')
-      .insert({
-        name: addForm.name.trim(),
-        sort_order: Number(addForm.sort_order) || 0,
-      })
-      .select()
-      .single()
-    setSaving(false)
-    if (err) { setError(err.message); return }
-    if (data) { toast.success('Platform added.'); setPlatforms(prev => [...prev, data as Platform]) }
-    setShowAdd(false)
-    setAddForm(EMPTY_FORM)
-  }
-
-  async function handleSave(id: string) {
-    if (!editForm.name.trim()) { setError('Name is required'); return }
-    setSaving(true)
-    setError('')
-    const { data, error: err } = await supabase
-      .from('platforms')
-      .update({
-        name: editForm.name.trim(),
-        sort_order: Number(editForm.sort_order) || 0,
-      })
-      .eq('id', id)
-      .select()
-      .single()
-    setSaving(false)
-    if (err) { setError(err.message); return }
-    if (data) { toast.success('Platform saved.'); setPlatforms(prev => prev.map(p => p.id === id ? data as Platform : p)) }
-    setEditingId(null)
-  }
-
-  async function handleDelete(id: string) {
-    setSaving(true)
-    await supabase.from('todo_platforms').delete().eq('platform_id', id)
-    await supabase.from('platforms').delete().eq('id', id)
-    setSaving(false)
-    toast.success('Platform deleted.')
-    setPlatforms(prev => prev.filter(p => p.id !== id))
-    setConfirmDeleteId(null)
-  }
-
-  function PlatformFormComp({
-    form,
-    onChange,
-    onSubmit,
-    onCancel,
-    submitLabel,
-  }: {
-    form: PlatformForm
-    onChange: (f: PlatformForm) => void
-    onSubmit: () => void
-    onCancel: () => void
-    submitLabel: string
-  }) {
-    return (
-      <div className="s-form">
-        <div className="settings-grid-2col grid-2col mb-md">
-          <div>
-            <label className="label">Name *</label>
-            <input
-              className="input"
-              value={form.name}
-              onChange={e => onChange({ ...form, name: e.target.value })}
-              autoFocus
-              placeholder="Platform name"
-            />
-          </div>
-          <div>
-            <label className="label">Sort Order</label>
-            <input
-              type="number"
-              className="input"
-              value={form.sort_order}
-              onChange={e => onChange({ ...form, sort_order: e.target.value })}
-            />
-          </div>
-        </div>
-        <div className="flex-row gap-sm">
-          <button className="btn-primary" onClick={onSubmit} disabled={saving}>
-            {saving ? 'Saving…' : submitLabel}
-          </button>
-          <button className="btn-cancel" onClick={onCancel}>Cancel</button>
-        </div>
-      </div>
-    )
-  }
-
-  if (loading) return <div className="s-loading">Loading…</div>
-
   return (
-    <div className="settings-page s-page">
-      <div className="s-header">
-        <h2 className="s-title">Platforms</h2>
-        {!showAdd && (
-          <button
-            className="btn-outline"
-            onClick={() => {
-              setShowAdd(true)
-              setEditingId(null)
-              setConfirmDeleteId(null)
-              setAddForm(EMPTY_FORM)
-              setError('')
-            }}
-          >
-            + Add Platform
-          </button>
-        )}
-      </div>
+    <SettingsCrudList<Platform, PlatformForm>
+      config={{
+        title: 'Platforms',
+        table: 'platforms',
+        itemLabel: 'Platform',
+        emptyForm: EMPTY_FORM,
+        pageClass: 'settings-page s-page-wide',
+        layout: 'table',
+        subtitle: items => `${items.length} platforms`,
+        tableColumns: [
+          { label: 'Name', width: '50%' },
+          { label: 'Todos', width: '15%' },
+          { label: 'Order', width: '15%', align: 'center' },
+          { label: 'Actions', width: '20%', align: 'right' },
+        ],
 
-      {error && <p className="s-error">{error}</p>}
+        load: async (supabase) => {
+          const [platformsRes, todoPlatsRes] = await Promise.all([
+            supabase.from('platforms').select('*').order('sort_order'),
+            supabase.from('todo_platforms').select('platform_id'),
+          ])
+          const counts: Record<string, number> = {}
+          todoPlatsRes.data?.forEach((tp: any) => {
+            if (tp.platform_id) counts[tp.platform_id] = (counts[tp.platform_id] || 0) + 1
+          })
+          return { items: platformsRes.data ?? [], extra: { todoCounts: counts } }
+        },
 
-      <div className="s-list">
-        {showAdd && (
-          <PlatformFormComp
-            form={addForm}
-            onChange={setAddForm}
-            onSubmit={handleAdd}
-            onCancel={() => { setShowAdd(false); setError('') }}
-            submitLabel="Add Platform"
-          />
-        )}
+        validate: (form, items, editingId) => {
+          const name = form.name.trim().toLowerCase()
+          if (!name) return 'Name is required'
+          if (items.some(p => p.id !== editingId && p.name.toLowerCase() === name))
+            return 'A platform with this name already exists'
+          return null
+        },
+        toRecord: (form) => ({
+          name: form.name.trim(),
+          sort_order: 0,
+        }),
+        toForm: item => ({ name: item.name }),
+        getId: item => item.id,
 
-        {platforms.length === 0 && !showAdd ? (
-          <p className="s-empty">No platforms yet.</p>
-        ) : (
-          platforms.map(p =>
-            editingId === p.id ? (
-              <PlatformFormComp
-                key={p.id}
-                form={editForm}
-                onChange={setEditForm}
-                onSubmit={() => handleSave(p.id)}
-                onCancel={() => { setEditingId(null); setError('') }}
-                submitLabel="Save"
-              />
-            ) : confirmDeleteId === p.id ? (
-              <div key={p.id} className="s-row-delete">
-                <span className="text-sm flex-1">
-                  Delete <strong>{p.name}</strong>? All todo associations will also be removed.
+        onAdd: async (supabase, record, items) => {
+          const maxOrder = items.reduce((max, item) => Math.max(max, item.sort_order), 0)
+          await supabase.from('platforms').insert({ ...record, sort_order: maxOrder + 1 })
+        },
+
+        onDelete: async (supabase, item, items) => {
+          await supabase.from('todo_platforms').delete().eq('platform_id', item.id)
+          await supabase.from('platforms').delete().eq('id', item.id)
+          const remaining = items.filter(p => p.id !== item.id).sort((a, b) => a.sort_order - b.sort_order)
+          await Promise.all(remaining.map((p, i) =>
+            supabase.from('platforms').update({ sort_order: i + 1 }).eq('id', p.id)
+          ))
+        },
+        deleteWarning: (item, extra) => {
+          const count = extra.todoCounts?.[item.id] ?? 0
+          return (
+            <>
+              Delete <strong>{item.name}</strong>?
+              {count > 0 && (
+                <span className="text-muted" style={{ marginLeft: 'var(--sp-xs)' }}>
+                  This will also remove associations from {count} todo{count !== 1 ? 's' : ''}.
                 </span>
-                <button
-                  className="btn-danger-confirm"
-                  onClick={() => handleDelete(p.id)}
-                  disabled={saving}
-                  style={{ opacity: saving ? 0.6 : 1 }}
-                >
-                  {saving ? 'Deleting…' : 'Confirm'}
-                </button>
-                <button className="btn-cancel" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
-              </div>
-            ) : (
-              <div key={p.id} className="s-row">
-                <div className="s-row-info">
-                  <p style={{ margin: 0 }} className="text-sm">{p.name}</p>
-                  <p style={{ margin: '2px 0 0' }} className="text-xs text-muted">sort: {p.sort_order}</p>
-                </div>
-                <button className="btn-row-action" onClick={() => startEdit(p)}>Edit</button>
-                <button
-                  className="btn-row-action btn-row-delete"
-                  onClick={() => { setConfirmDeleteId(p.id); setEditingId(null) }}
-                >
-                  Delete
-                </button>
-              </div>
-            )
+              )}
+            </>
           )
-        )}
-      </div>
-    </div>
+        },
+        canDelete: () => true,
+
+        onMove: async (supabase, item, items, direction) => {
+          const idx = items.findIndex(p => p.id === item.id)
+          if (direction === 'up' && idx === 0) return
+          if (direction === 'down' && idx === items.length - 1) return
+          const other = items[direction === 'up' ? idx - 1 : idx + 1]
+          const tempOrder = -999
+          const { error: err1 } = await supabase.from('platforms').update({ sort_order: tempOrder }).eq('id', item.id)
+          if (err1) throw err1
+          const { error: err2 } = await supabase.from('platforms').update({ sort_order: item.sort_order }).eq('id', other.id)
+          if (err2) {
+            await supabase.from('platforms').update({ sort_order: item.sort_order }).eq('id', item.id)
+            throw err2
+          }
+          const { error: err3 } = await supabase.from('platforms').update({ sort_order: other.sort_order }).eq('id', item.id)
+          if (err3) throw err3
+        },
+
+        renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving }) => (
+          <div className="s-form" style={{ padding: '12px 16px' }}>
+            <div className="mb-md">
+              <label className="label">Name *</label>
+              <input
+                className="input"
+                value={form.name}
+                onChange={e => onChange({ ...form, name: e.target.value })}
+                autoFocus
+                placeholder="Platform name (e.g. Web, iOS, Android)"
+              />
+            </div>
+            <div className="flex-row gap-sm">
+              <button className="btn-primary" onClick={onSubmit} disabled={saving}>
+                {saving ? 'Saving…' : submitLabel}
+              </button>
+              <button className="btn-cancel" onClick={onCancel}>Cancel</button>
+            </div>
+          </div>
+        ),
+
+        renderRow: ({ item, index, items, onEdit, onDelete, onMove, saving, extra }) => {
+          const isFirst = index === 0
+          const isLast = index === items.length - 1
+          return (
+            <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
+              <td className="audit-td" style={{ fontWeight: 500 }}>
+                {item.name}
+              </td>
+              <td className="audit-td" style={{ color: 'var(--muted)', fontSize: '12px' }}>
+                {extra.todoCounts?.[item.id] ?? 0} todos
+              </td>
+              <td className="audit-td" style={{ textAlign: 'center' }}>
+                <div className="flex-center" style={{ gap: '2px', justifyContent: 'center' }}>
+                  {!isFirst && (
+                    <button className="btn-move" onClick={() => onMove?.('up')} disabled={saving} title="Move Up">
+                      <ArrowUp />
+                    </button>
+                  )}
+                  {!isLast && (
+                    <button className="btn-move" onClick={() => onMove?.('down')} disabled={saving} title="Move Down">
+                      <ArrowDown />
+                    </button>
+                  )}
+                </div>
+              </td>
+              <td className="audit-td" style={{ textAlign: 'right' }}>
+                <div className="flex-row gap-xs" style={{ justifyContent: 'flex-end' }}>
+                  <button className="text-btn" onClick={onEdit} style={{ fontSize: '12px', padding: '4px' }}>Edit</button>
+                  <button className="text-btn" onClick={onDelete} style={{ fontSize: '12px', padding: '4px', color: 'var(--error)' }}>Delete</button>
+                </div>
+              </td>
+            </tr>
+          )
+        },
+      }}
+    />
   )
 }

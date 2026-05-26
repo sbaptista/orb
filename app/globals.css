@@ -135,6 +135,7 @@
   label { font-size: var(--fs-base); }
   input, select, textarea { font-size: var(--fs-input); }
   button { min-height: var(--touch); }
+  .admin-search-input { font-size: var(--fs-input) !important; }
 }
 
 /* ── Phone font bump — legibility on small screens ── */
@@ -160,6 +161,12 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+/* Hide scrollbars for Webkit browsers when scrollbar-width is none */
+[style*="scrollbar-width: none"]::-webkit-scrollbar,
+.cs-nav-wrap > div::-webkit-scrollbar {
+  display: none !important;
 }
 
 html {
@@ -1188,7 +1195,48 @@ a, button, [role="button"], input, select, textarea {
   display: flex;
   align-items: center;
   gap: var(--sp-md);
+  overflow: visible;
 }
+
+.tv-topbar-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  flex-shrink: 0;
+}
+
+.tv-topbar-title {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The scrollable zone inside the topbar (everything after ← Back) */
+.tv-topbar-nav {
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
+}
+
+.tv-topbar-scrollable {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  padding-right: var(--sp-2xl);
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .tv-topbar-scrollable {
+    margin-left: auto;
+  }
+}
+
+
 
 .tv-back {
   font-size: var(--fs-sm);
@@ -1214,6 +1262,7 @@ a, button, [role="button"], input, select, textarea {
   align-items: center;
   gap: 6px;
   position: relative;
+  z-index: 21;
 }
 .admin-search-icon {
   flex-shrink: 0;
@@ -1222,7 +1271,7 @@ a, button, [role="button"], input, select, textarea {
 .admin-search-input {
   font-family: var(--font-ui);
   font-size: 13px;
-  width: 180px;
+  width: 300px;
   padding: 6px 26px 6px 6px;
   border: 1px solid var(--border);
   border-radius: var(--r);
@@ -1233,7 +1282,7 @@ a, button, [role="button"], input, select, textarea {
 }
 .admin-search-input:focus {
   border-color: var(--border-focus);
-  width: 240px;
+  width: 320px;
 }
 .admin-search-input::placeholder {
   color: var(--muted);
@@ -1340,6 +1389,15 @@ a, button, [role="button"], input, select, textarea {
   color: var(--pill-active-color);
 }
 
+.tv-toolbar-btn--vertical {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+}
+
+
 .tv-toolbar-primary {
   background: var(--pill-active-bg);
   border: 1px solid var(--pill-active-border);
@@ -1407,6 +1465,99 @@ a, button, [role="button"], input, select, textarea {
   border-radius: var(--r-lg);
   border: 1px solid var(--border);
   overflow: hidden;
+}
+
+.tv-project-name {
+  font-size: var(--fs-lg);
+  font-weight: 400;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  text-align: center;
+  margin: 0 0 var(--sp-xl) 0;
+}
+
+.tv-table {
+  width: 100%;
+  font-size: var(--fs-sm);
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.tv-table thead th {
+  text-align: left;
+  padding: 10px var(--sp-md);
+  font-weight: 600;
+  color: var(--text2);
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: color-mix(in srgb, var(--bg3) 80%, var(--text) 8%);
+  border-bottom: 2px solid var(--border);
+}
+
+.tv-table td {
+  padding: 12px var(--sp-md);
+  vertical-align: middle;
+  border-bottom: none;
+  box-shadow: inset 0 -1px 0 0 var(--border);
+}
+
+.tv-table tbody tr {
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.tv-table tbody tr:hover td {
+  background: var(--bg3);
+}
+
+.tv-td-content {
+  width: 100%;
+  max-width: 0;
+}
+
+.tv-table .tv-todo-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.tv-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text3);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition: color var(--transition), background var(--transition);
+}
+
+.tv-action-btn:hover {
+  color: var(--text);
+  background: var(--bg3);
+}
+
+.tv-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Desktop: actions in their own column, mobile actions hidden */
+.tv-mobile-actions {
+  display: none;
+}
+
+.tv-td-actions {
+  display: table-cell;
 }
 
 .tv-row {
@@ -1503,6 +1654,25 @@ a, button, [role="button"], input, select, textarea {
   white-space: nowrap;
 }
 
+.tv-bulk-bar-top {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  margin-bottom: var(--sp-md);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tv-bulk-bar-top::-webkit-scrollbar {
+  display: none;
+}
+
 .tv-bulk-btn {
   background: transparent;
   border: none;
@@ -1551,8 +1721,13 @@ a, button, [role="button"], input, select, textarea {
 
 .tv-cl-check {
   flex-shrink: 0;
+  align-self: center;
   width: 22px;
   height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0;
+  box-sizing: border-box;
   border-radius: 50%;
   cursor: pointer;
   display: flex;
@@ -2581,7 +2756,7 @@ a, button, [role="button"], input, select, textarea {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  overflow: hidden;
+  overflow-x: hidden;
   background: var(--bg2);
 }
 
@@ -2620,15 +2795,32 @@ a, button, [role="button"], input, select, textarea {
 .cs-nav {
   flex: 1;
   padding: 8px 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  min-height: 0;
+}
+
+/* Desktop only: scroll vertically within the sidebar nav */
+@media (min-width: 768px) {
+  .cs-nav {
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+  }
 }
 
 .cs-nav-wrap {
   flex: 1;
   position: relative;
   min-width: 0;
+  min-height: 0;
+}
+
+/* Desktop: override HScrollNav's inline overflowX:auto so sidebar nav scrolls vertically */
+@media (min-width: 768px) {
+  .cs-sidebar .cs-nav-wrap > div {
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    flex-direction: column !important;
+    min-height: 0;
+  }
 }
 
 /* Hidden on desktop; shown on mobile only */
@@ -3018,6 +3210,90 @@ a, button, [role="button"], input, select, textarea {
     padding-top: var(--sp-xs);
     border-top: 1px solid var(--border);
     margin-top: var(--sp-xs);
+  }
+
+  /* Mobile: Stack topbar vertically to form two rows */
+  .tv-topbar {
+    height: auto !important;
+    padding: var(--sp-sm) var(--sp-md) !important;
+    padding-top: calc(var(--sat) + var(--sp-sm)) !important;
+    padding-bottom: var(--sp-sm) !important;
+    padding-left: max(var(--sp-md), calc(var(--sal) + var(--sp-md))) !important;
+    padding-right: max(var(--sp-md), calc(var(--sar) + var(--sp-md))) !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: var(--sp-xs) !important;
+    overflow: visible !important;
+  }
+
+  .tv-topbar-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    height: 32px !important;
+  }
+
+  .tv-topbar-title {
+    font-size: var(--fs-md) !important;
+    font-weight: 600 !important;
+  }
+
+  .tv-topbar-nav {
+    width: 100% !important;
+    flex: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .tv-topbar-scrollable {
+    padding-right: var(--sp-md) !important;
+  }
+
+  /* Full-width search row on mobile */
+  .tv-topbar-mobile-search-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: var(--sp-sm) !important;
+    width: 100% !important;
+    animation: fadeIn var(--transition);
+  }
+
+  .tv-topbar-mobile-search-row .tv-admin-search {
+    flex: 1 !important;
+  }
+
+  .tv-topbar-mobile-search-row .admin-search-wrap {
+    width: 100% !important;
+  }
+
+  .tv-topbar-mobile-search-row .admin-search-input {
+    width: 100% !important;
+    font-size: var(--fs-input) !important;
+  }
+
+  .tv-topbar-mobile-search-row .admin-search-dropdown {
+    width: 100% !important;
+  }
+
+  /* Mobile: hide desktop Actions column, show inline actions below title */
+  .tv-th-actions,
+  .tv-td-actions {
+    display: none !important;
+  }
+
+  .tv-mobile-actions {
+    display: block !important;
+    margin-top: 8px;
+  }
+
+  .tv-mobile-actions .tv-row-actions {
+    justify-content: flex-start;
+    gap: 10px;
+  }
+
+  .tv-project-name {
+    text-align: center !important;
   }
 }
 
