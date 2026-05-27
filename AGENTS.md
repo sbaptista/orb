@@ -15,6 +15,7 @@
 - **Knowledge Repository Access:** The knowledgebase is stored in the database (`knowledge_repo` table). Always query it at the start of a task using the `SUPABASE_SECRET_KEY` (service role) to bypass Row Level Security (RLS) constraints. See the **Knowledge Repository Access** section below for connection details and query examples.
 - Your first and only message before any tool use must be a numbered list answering all questions.
 - After answering, read `HANDOFF.md`, then **re-read every file listed in the "Uncommitted Changes" section** (both modified and new) before using any tools or continuing. This prevents stale-context overwrites when multiple AI tools edit the same directory.
+- **Before building any UI**, read `docs/ui-catalog.md`. Reuse existing patterns — do not create new components or CSS classes without checking the catalog first and getting Stan's approval for new patterns.
 - Do not summarize. Do not say "ready." Do not ask "what do you need?" Answer every question directly.
 - If you cannot answer all accurately, do not proceed — say exactly which you're uncertain of.
 - When providing git commands or terminal scripts to the user, ALWAYS concatenate them with `&&` rather than listing them on separate lines.
@@ -225,6 +226,14 @@ All three must provide a fully functional experience. When making design or impl
 - **Touch-first on mobile** — hover-only interactions are unacceptable. All functionality must work via tap on iPad and iPhone.
 
 Test design decisions across all three form factors. When in doubt, err on the side of larger, more spacious, and more forgiving layouts.
+
+---
+
+# UI Component Catalog
+
+**Before building any UI, read `docs/ui-catalog.md`.** It documents every existing pattern — page layouts, buttons, tables, modals, form fields, nav bars, responsive rules, and z-index stack. Reuse existing patterns. If none fits, propose the new pattern to Stan before creating it. Never create parallel CSS classes for things that already have established patterns.
+
+**When you add, rename, or remove a UI pattern**, update `docs/ui-catalog.md` in the same commit. New classes get a row in the relevant table. Renamed classes get updated. Removed/deprecated patterns get marked with **Status: Deprecated** or deleted. The catalog must stay in sync with `globals.css` — never leave it stale.
 
 ---
 
