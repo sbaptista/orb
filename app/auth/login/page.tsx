@@ -10,17 +10,53 @@ function LoginForm() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [time, setTime] = useState(() => Date.now())
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Calculate remaining cooldown dynamically during render
+  const trimmedEmail = email.trim().toLowerCase()
+  let cooldown = 0
+  if (trimmedEmail) {
+    try {
+      const lastEmail = localStorage.getItem('last_otp_email')
+      const lastTimeStr = localStorage.getItem('last_otp_time')
+      if (lastEmail && lastTimeStr && lastEmail.trim().toLowerCase() === trimmedEmail) {
+        const lastTime = parseInt(lastTimeStr, 10)
+        if (!isNaN(lastTime)) {
+          const elapsed = Math.floor((time - lastTime) / 1000)
+          const remaining = 60 - elapsed
+          if (remaining > 0) {
+            cooldown = remaining
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[LoginForm] Failed to check cooldown:', e)
+    }
+  }
+
+  // Force re-render every second when a cooldown is active to update the countdown
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const timer = setInterval(() => {
+      setTime(Date.now())
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [cooldown])
 
   useEffect(() => {
     const errorParam = searchParams.get('error')
     if (errorParam === 'not_invited') {
-      setError(
-        'Orb is by invitation only at this stage. If you have an invitation, please check your inbox for the registration link or ask Stan for access.'
-      )
+      setTimeout(() => {
+        setError(
+          'Orb is by invitation only at this stage. If you have an invitation, please check your inbox for the registration link or ask Stan for access.'
+        )
+      }, 0)
     } else if (errorParam) {
-      setError('An error occurred during authentication. Please try again.')
+      setTimeout(() => {
+        setError('An error occurred during authentication. Please try again.')
+      }, 0)
     }
   }, [searchParams])
 
@@ -54,13 +90,24 @@ function LoginForm() {
       if (otpError) {
         setError(otpError.message)
       } else {
+        try {
+          localStorage.setItem('last_otp_email', email)
+          localStorage.setItem('last_otp_time', Date.now().toString())
+        } catch (e) {
+          console.error('[LoginForm] Failed to save cooldown to localStorage:', e)
+        }
         router.push(`/auth/verify-otp?email=${encodeURIComponent(email)}`)
       }
-    } catch (err: any) {
-      if (!navigator.onLine || err?.message?.includes('fetch')) {
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error
+        ? err.message
+        : (err && typeof err === 'object' && 'message' in err)
+          ? String((err as Record<string, unknown>).message)
+          : String(err)
+      if (!navigator.onLine || errMsg.includes('fetch')) {
         setError('You appear to be offline. Check your connection and try again.')
       } else {
-        setError(err?.message || 'Something went wrong. Please try again.')
+        setError(errMsg || 'Something went wrong. Please try again.')
       }
     }
 
@@ -88,8 +135,16 @@ function LoginForm() {
           />
         </div>
 
-        <button type="submit" disabled={loading} className="auth-submit">
-          {loading ? 'Sending…' : 'Send verification code'}
+        {cooldown > 0 && (
+          <div className="auth-info">
+            <p className="text-sm" style={{ margin: 0, color: 'var(--warning)' }}>
+              A verification code was recently requested. Please check your inbox (including spam) or wait {cooldown}s before requesting a new one.
+            </p>
+          </div>
+        )}
+
+        <button type="submit" disabled={loading || cooldown > 0} className="auth-submit">
+          {loading ? 'Sending…' : cooldown > 0 ? `Send verification code (${cooldown}s)` : 'Send verification code'}
         </button>
       </form>
 

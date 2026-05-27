@@ -197,7 +197,10 @@
       "Bash(curl -s \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?product_id=eq.fa823725-3771-42a4-97f7-ae16563b2b48&todo_number=eq.145&select=id,title,description,status,priority_value\" -H \"apikey: $\\(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local)",
       "Bash(curl -s -X PATCH \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?id=eq.d7ce0f0e-1651-4ab6-9acf-ae19be309f7e\" -H \"apikey: $\\(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local)",
       "Bash(curl -s 'https://orb-eight-lake.vercel.app/api/tasks?product=ORB&status=open' -H 'Authorization: __CMDSUB_OUTPUT__')",
-      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); [print\\(f'{t[\\\\\"code\\\\\"]} [{t[\\\\\"status\\\\\"]}] {t[\\\\\"title\\\\\"]}'\\) for t in data.get\\('todos',[]\\)]\")"
+      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); [print\\(f'{t[\\\\\"code\\\\\"]} [{t[\\\\\"status\\\\\"]}] {t[\\\\\"title\\\\\"]}'\\) for t in data.get\\('todos',[]\\)]\")",
+      "Bash(git -C /Users/stanleybaptista/Projects/orb status)",
+      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?or=\\(title.ilike.*disk*,title.ilike.*realtime*,title.ilike.*io*,content.ilike.*disk%20io*,content.ilike.*realtime*\\)&select=id,title,created_at,content&order=created_at.desc' -H 'apikey: __CMDSUB_OUTPUT__')",
+      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?or=\\(title.ilike.*disk*,title.ilike.*io*,title.ilike.*flow_state*,title.ilike.*realtime*\\)&select=id,title,created_at&order=created_at.desc' -H 'apikey: __CMDSUB_OUTPUT__')"
     ]
   }
 }

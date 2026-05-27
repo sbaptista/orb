@@ -7,6 +7,25 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.59',
+    date: '2026-05-26',
+    changes: [
+      'Prototype panels layout: integrated app-wide commands (List, Print, Help, Settings, Account) into the desktop topbar.',
+      'Zero-Row Project Switcher: replaced the horizontal project pill bar with a project name dropdown trigger directly in the topbar, saving ~48px of vertical screen real estate.',
+      'Sleek Switcher UI: implemented a searchable desktop dropdown menu and a responsive touch-first bottom drawer switcher for mobile (iPhone/iPad).',
+    ]
+  },
+  {
+    version: 'v0.5.58',
+    date: '2026-05-26',
+    changes: [
+      'Implemented an OTP request cooldown of 60 seconds on the login page to prevent rapid re-requests.',
+      'Persisted OTP cooldown state via localStorage, preventing bypasses from page refreshes, tab closures, or back-and-forth navigation.',
+      'Replaced state-based countdown polling in render with dynamic time calculation based on a reactive time state to satisfy React Compiler purity and avoid cascading render warnings.',
+      'Resolved pre-existing ESLint warnings in the login page (deferred searchParams error checks to avoid cascading renders, and correctly typed standard exceptions).',
+    ]
+  },
+  {
     version: 'v0.5.57',
     date: '2026-05-25',
     changes: [

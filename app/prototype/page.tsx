@@ -19,5 +19,11 @@ export default async function PrototypePage() {
   const { data } = await visibleProjectsQuery(supabase, 'id, name, code, view_mode')
     .eq('created_by', user.id)
 
-  return <UnifiedView initialProducts={(data ?? []) as Product[]} isAdmin={isAdmin} />
+  return (
+    <UnifiedView
+      initialProducts={(data ?? []) as Product[]}
+      isAdmin={isAdmin}
+      user={result.user}
+    />
+  )
 }
