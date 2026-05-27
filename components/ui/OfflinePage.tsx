@@ -3,14 +3,12 @@
 import { useEffect, useRef } from 'react'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
-
 export default function OfflinePage() {
   const isOnline = useOnlineStatus()
-
-  if (isOnline) {
-    return null
-  }
   const canvasRef = useRef<HTMLCanvasElement>(null)
+
+
+
 
   // ── Canvas Fractal Motif Rendering (Julia Set) ──
   useEffect(() => {
@@ -116,6 +114,10 @@ export default function OfflinePage() {
 
     return () => { timeoutIds.forEach(clearTimeout) }
   }, [])
+
+  if (isOnline) {
+    return null
+  }
 
   return (
     <>

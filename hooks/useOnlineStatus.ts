@@ -33,10 +33,18 @@ export function useOnlineStatus(): boolean {
     const goOnline = () => { check() }
     const goOffline = () => { setIsOnline(false) }
     const handleSimChange = () => { check() }
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        check()
+      }
+    }
+    const handleFocus = () => { check() }
 
     window.addEventListener('online', goOnline)
     window.addEventListener('offline', goOffline)
     window.addEventListener('todos-dev-offline-change', handleSimChange)
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('focus', handleFocus)
 
     // Regular interval checking (every 10s)
     const interval = setInterval(check, 10000)
@@ -47,6 +55,8 @@ export function useOnlineStatus(): boolean {
       window.removeEventListener('online', goOnline)
       window.removeEventListener('offline', goOffline)
       window.removeEventListener('todos-dev-offline-change', handleSimChange)
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('focus', handleFocus)
     }
   }, [])
 

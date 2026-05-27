@@ -254,65 +254,70 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     // Load products, restore last selected, and fetch profile + onboarding state sequentially
     useEffect(() => {
         async function load() {
-            const { data: { user } } = await supabase.auth.getUser()
+            try {
+                const { data: { user } } = await supabase.auth.getUser()
 
-            if (user) {
-                // Clear session storage if user changed or fresh login — prevents crossover and resets greeting
-                const savedUserId = sessionStorage.getItem('todos_user_id')
-                if (!savedUserId || savedUserId !== user.id) {
-                    sessionStorage.removeItem(SS_CONVERSATION)
-                    sessionStorage.removeItem(SS_INPUT)
-                    if (savedUserId) {
-                        setMessages([])
-                        setConversationActive(false)
+                if (user) {
+                    // Clear session storage if user changed or fresh login — prevents crossover and resets greeting
+                    const savedUserId = sessionStorage.getItem('todos_user_id')
+                    if (!savedUserId || savedUserId !== user.id) {
+                        sessionStorage.removeItem(SS_CONVERSATION)
+                        sessionStorage.removeItem(SS_INPUT)
+                        if (savedUserId) {
+                            setMessages([])
+                            setConversationActive(false)
+                        }
+                        greetingFiredRef.current = false
                     }
-                    greetingFiredRef.current = false
+                    sessionStorage.setItem('todos_user_id', user.id)
+
+                    const { data: profile } = await supabase
+                        .from('users')
+                        .select('first_name, last_name, onboarded_at, urgency_threshold_hours, release_stage')
+                        .eq('id', user.id)
+                        .single()
+                    const userWelcomeKey = `todos_welcome_shown_${user.id}`
+                    if (profile) {
+                        const full = [profile.first_name, profile.last_name].filter(Boolean).join(' ')
+                        setUserName(full || (user.email ?? ''))
+                        setUserFullName(full)
+                        setUrgencyThreshold(profile.urgency_threshold_hours ?? 0)
+                        setReleaseStage(profile.release_stage ?? 'pre-alpha')
+                        if (!profile.onboarded_at && !localStorage.getItem(userWelcomeKey)) {
+                            setIsNewUser(true)
+                        }
+                    } else {
+                        setUserName(user.email?.charAt(0).toUpperCase() ?? '?')
+                        if (!localStorage.getItem(userWelcomeKey)) {
+                            setIsNewUser(true)
+                        }
+                    }
                 }
-                sessionStorage.setItem('todos_user_id', user.id)
 
-                const { data: profile } = await supabase
-                    .from('users')
-                    .select('first_name, last_name, onboarded_at, urgency_threshold_hours, release_stage')
-                    .eq('id', user.id)
-                    .single()
-                const userWelcomeKey = `todos_welcome_shown_${user.id}`
-                if (profile) {
-                    const full = [profile.first_name, profile.last_name].filter(Boolean).join(' ')
-                    setUserName(full || (user.email ?? ''))
-                    setUserFullName(full)
-                    setUrgencyThreshold(profile.urgency_threshold_hours ?? 0)
-                    setReleaseStage(profile.release_stage ?? 'pre-alpha')
-                    if (!profile.onboarded_at && !localStorage.getItem(userWelcomeKey)) {
-                        setIsNewUser(true)
+                if (initialProducts) {
+                    // Data already available from server — just restore last-selected
+                    if (initialProducts.length > 0) {
+                        const last  = localStorage.getItem(LAST_PRODUCT_KEY)
+                        const found = initialProducts.find(p => p.id === last)
+                        setSelectedId(found ? found.id : initialProducts[0].id)
                     }
-                } else {
-                    setUserName(user.email?.charAt(0).toUpperCase() ?? '?')
-                    if (!localStorage.getItem(userWelcomeKey)) {
-                        setIsNewUser(true)
-                    }
+                    return
                 }
-            }
 
-            if (initialProducts) {
-                // Data already available from server — just restore last-selected
-                if (initialProducts.length > 0) {
+                const q = visibleProjectsQuery(supabase, 'id, name, code, description, created_by')
+                const { data } = user ? await q.eq('created_by', user.id) : await q
+                const list = (data ?? []) as Product[]
+                setProducts(list)
+                if (list.length > 0) {
                     const last  = localStorage.getItem(LAST_PRODUCT_KEY)
-                    const found = initialProducts.find(p => p.id === last)
-                    setSelectedId(found ? found.id : initialProducts[0].id)
+                    const found = list.find(p => p.id === last)
+                    setSelectedId(found ? found.id : list[0].id)
                 }
-                return
+            } catch (err) {
+                console.error('[AmbientDashboard] Load failed:', err)
+            } finally {
+                setLoading(false)
             }
-
-            const q = visibleProjectsQuery(supabase, 'id, name, code, description, created_by')
-            const { data } = user ? await q.eq('created_by', user.id) : await q
-            const list = (data ?? []) as Product[]
-            setProducts(list)
-            if (list.length > 0) {
-                const last  = localStorage.getItem(LAST_PRODUCT_KEY)
-                const found = list.find(p => p.id === last)
-                setSelectedId(found ? found.id : list[0].id)
-            }
-            setLoading(false)
         }
         load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -327,9 +332,15 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     }, [isNewUser, userFullName, releaseStage])
 
     useEffect(() => {
-        supabase.from('priorities').select('value, label, color, is_urgent').order('value').then(({ data }) => {
-            if (data) setPriorities(data)
-        })
+        async function fetchPriorities() {
+            try {
+                const { data } = await supabase.from('priorities').select('value, label, color, is_urgent').order('value')
+                if (data) setPriorities(data)
+            } catch (err) {
+                console.error('[AmbientDashboard] Fetch priorities failed:', err)
+            }
+        }
+        fetchPriorities()
     }, [supabase])
 
     const urgentValues = useMemo(() => new Set(priorities.filter(p => p.is_urgent).map(p => p.value)), [priorities])
@@ -346,6 +357,8 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                 setConversationActive(true)
                 resetInactivity()
             }
+        }).catch(err => {
+            console.error('[AmbientDashboard] Greeting check failed:', err)
         })
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedId, isNewUser])
@@ -375,12 +388,16 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
 
     const fetchTodos = useCallback(async () => {
         if (!selectedId) return
-        const { data } = await supabase
-            .from('todos')
-            .select('id, title, status, priority_value, due_at')
-            .eq('product_id', selectedId)
-            .is('deleted_at', null)
-        setTodos((data ?? []) as Todo[])
+        try {
+            const { data } = await supabase
+                .from('todos')
+                .select('id, title, status, priority_value, due_at')
+                .eq('product_id', selectedId)
+                .is('deleted_at', null)
+            setTodos((data ?? []) as Todo[])
+        } catch (err) {
+            console.error('[AmbientDashboard] Fetch todos failed:', err)
+        }
     }, [selectedId, supabase])
 
     useVisibilityRefetch(fetchTodos)
@@ -400,6 +417,8 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     useEffect(() => {
         getUrgencySnapshot().then(val => {
             if (val) prevOverallUrgencyRef.current = val
+        }).catch(err => {
+            console.error('[AmbientDashboard] Urgency snapshot failed:', err)
         })
     }, [todos])
 
@@ -409,18 +428,22 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
             // Force a re-render to update the local selected project's urgency based on current time
             setTick(t => t + 1)
 
-            // Check overall urgency escalation
-            const currentOverall = await getUrgencySnapshot()
-            if (!currentOverall) return // auth expired — skip silently
-            if (prevOverallUrgencyRef.current) {
-                const SEVERITY: Record<Urgency, number> = { calm: 0, busy: 1, urgent: 2 }
-                const prevSev = SEVERITY[prevOverallUrgencyRef.current]
-                const currSev = SEVERITY[currentOverall]
-                if (currSev > prevSev) {
-                    await notifyIfEscalated(prevOverallUrgencyRef.current)
+            try {
+                // Check overall urgency escalation
+                const currentOverall = await getUrgencySnapshot()
+                if (!currentOverall) return // auth expired — skip silently
+                if (prevOverallUrgencyRef.current) {
+                    const SEVERITY: Record<Urgency, number> = { calm: 0, busy: 1, urgent: 2 }
+                    const prevSev = SEVERITY[prevOverallUrgencyRef.current]
+                    const currSev = SEVERITY[currentOverall]
+                    if (currSev > prevSev) {
+                        await notifyIfEscalated(prevOverallUrgencyRef.current)
+                    }
                 }
+                prevOverallUrgencyRef.current = currentOverall
+            } catch (err) {
+                console.error('[AmbientDashboard] Urgency check failed:', err)
             }
-            prevOverallUrgencyRef.current = currentOverall
         }, 60000) // every 60 seconds
 
         return () => clearInterval(interval)

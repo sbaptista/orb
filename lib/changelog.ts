@@ -7,6 +7,31 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.65',
+    date: '2026-05-27',
+    changes: [
+      'Wrapped all client-side Supabase database queries executing inside useEffect blocks (in AmbientDashboard, UnifiedDashboard, and TodoView) in try/catch and .catch() blocks.',
+      'Prevents unhandled runtime errors and uncaught promise rejections from failing network calls on wake-up, ensuring the app handles offline transitions smoothly rather than displaying Next.js developer crash overlays.',
+    ]
+  },
+  {
+    version: 'v0.5.64',
+    date: '2026-05-27',
+    changes: [
+      'Added visibilitychange and focus event listeners to the useOnlineStatus hook to trigger immediate connection verification when waking up or focusing the tab.',
+      'Prevents stale online status state during sleep/wake transitions, ensuring the custom offline screen displays immediately before browser-level requests occur.',
+    ]
+  },
+  {
+    version: 'v0.5.63',
+    date: '2026-05-27',
+    changes: [
+      'Added client-side try/catch wrappers to Server Actions (getUrgencySnapshot, orbGreeting, and notifyIfEscalated) in background loops, mount effects, and click/bulk action handlers.',
+      'Prevents unhandled promise rejections when network drops during sleep or wake, allowing the custom OfflinePage overlay to show and recover gracefully.',
+      'Fixed a pre-existing React Hook order violation in OfflinePage.tsx by moving the conditional isOnline check after all hook declarations, preventing client-side crashes during offline transitions.',
+    ]
+  },
+  {
     version: 'v0.5.61',
     date: '2026-05-26',
     changes: [

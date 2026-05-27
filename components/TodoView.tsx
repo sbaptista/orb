@@ -211,21 +211,25 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
 
   useEffect(() => {
     async function loadMetadata() {
-      const [productsRes, prioritiesRes, statusesRes] = await Promise.all([
-        visibleProjectsQuery(supabase, 'id, name, color, icon, code, view_mode'),
-        supabase.from('priorities').select('value, label').order('value'),
-        supabase.from('statuses').select('id, name, sort_order, is_closed, is_open').order('sort_order'),
-      ])
+      try {
+        const [productsRes, prioritiesRes, statusesRes] = await Promise.all([
+          visibleProjectsQuery(supabase, 'id, name, color, icon, code, view_mode'),
+          supabase.from('priorities').select('value, label').order('value'),
+          supabase.from('statuses').select('id, name, sort_order, is_closed, is_open').order('sort_order'),
+        ])
 
-      const prods = productsRes.data ?? []
-      setProducts(prods)
-      setPriorities(prioritiesRes.data ?? [])
-      setStatuses(statusesRes.data ?? [])
+        const prods = productsRes.data ?? []
+        setProducts(prods)
+        setPriorities(prioritiesRes.data ?? [])
+        setStatuses(statusesRes.data ?? [])
 
-      // Sync checklist mode from the fetched product
-      if (!isAll) {
-        const p = (prods as Product[]).find(x => x.id === productId)
-        if (p) setChecklistMode(p.view_mode === 'checklist')
+        // Sync checklist mode from the fetched product
+        if (!isAll) {
+          const p = (prods as Product[]).find(x => x.id === productId)
+          if (p) setChecklistMode(p.view_mode === 'checklist')
+        }
+      } catch (err) {
+        console.error('[TodoView] loadMetadata failed:', err)
       }
     }
 
@@ -243,42 +247,50 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
   // Fetch projects with owner names for search
   useEffect(() => {
     async function loadProjects() {
-      const { data } = await supabase
-        .from('projects')
-        .select('id, name, code, is_dormant, users!created_by(first_name, last_name)')
-        .eq('is_dormant', false)
-        .order('name')
-      const list: AdminProject[] = ((data ?? []) as any[]).map(p => ({
-        id: p.id,
-        name: p.name,
-        code: p.code,
-        owner_name: p.users
-          ? [p.users.first_name, p.users.last_name].filter(Boolean).join(' ')
-          : 'Unknown',
-      }))
-      setAdminProjects(list)
+      try {
+        const { data } = await supabase
+          .from('projects')
+          .select('id, name, code, is_dormant, users!created_by(first_name, last_name)')
+          .eq('is_dormant', false)
+          .order('name')
+        const list: AdminProject[] = ((data ?? []) as any[]).map(p => ({
+          id: p.id,
+          name: p.name,
+          code: p.code,
+          owner_name: p.users
+            ? [p.users.first_name, p.users.last_name].filter(Boolean).join(' ')
+            : 'Unknown',
+        }))
+        setAdminProjects(list)
+      } catch (err) {
+        console.error('[TodoView] loadProjects failed:', err)
+      }
     }
     loadProjects()
   }, [supabase])
 
   useEffect(() => {
     async function updateTimezone() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-      if (!tz) return
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+        if (!tz) return
 
-      const { data: profile } = await supabase
-        .from('users')
-        .select('timezone')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      if (profile && profile.timezone !== tz) {
-        await supabase
+        const { data: profile } = await supabase
           .from('users')
-          .update({ timezone: tz })
+          .select('timezone')
           .eq('id', user.id)
+          .maybeSingle()
+
+        if (profile && profile.timezone !== tz) {
+          await supabase
+            .from('users')
+            .update({ timezone: tz })
+            .eq('id', user.id)
+        }
+      } catch (err) {
+        console.error('[TodoView] updateTimezone failed:', err)
       }
     }
     updateTimezone()
@@ -286,7 +298,12 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
 
   async function handleToggleDone(e: React.MouseEvent, todo: Todo) {
     e.stopPropagation()
-    const beforeUrgency = await getUrgencySnapshot()
+    let beforeUrgency: import('@/lib/orb-state').Urgency | null = null
+    try {
+      beforeUrgency = await getUrgencySnapshot()
+    } catch (err) {
+      console.error('[TodoView] getUrgencySnapshot failed:', err)
+    }
     const closedStatus = statuses.find(s => s.is_closed)?.name ?? 'closed'
     const openStatus = statuses.find(s => s.is_open)?.name ?? 'open'
     const newStatus = isClosed(todo.status) ? openStatus : closedStatus
@@ -317,7 +334,13 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
         before: { status: todo.status },
         after: { status: newStatus, title: todo.title }
       })
-      if (beforeUrgency) notifyIfEscalated(beforeUrgency)
+      if (beforeUrgency) {
+        try {
+          await notifyIfEscalated(beforeUrgency)
+        } catch (err) {
+          console.error('[TodoView] notifyIfEscalated failed:', err)
+        }
+      }
 
       if (isClosed(newStatus)) {
         setDistillTodo(updated)
@@ -356,7 +379,12 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
   async function handleBulkMarkDone() {
     if (selectedIds.length === 0) return
     const ids = [...selectedIds]
-    const beforeUrgency = await getUrgencySnapshot()
+    let beforeUrgency: import('@/lib/orb-state').Urgency | null = null
+    try {
+      beforeUrgency = await getUrgencySnapshot()
+    } catch (err) {
+      console.error('[TodoView] getUrgencySnapshot failed:', err)
+    }
     const closedStatus = statuses.find(s => s.is_closed)?.name ?? 'closed'
     const { error } = await supabase.from('todos').update({
       status: closedStatus,
@@ -372,7 +400,13 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
       table_name: 'todos',
       after: { count: ids.length, ids }
     })
-    if (beforeUrgency) notifyIfEscalated(beforeUrgency)
+    if (beforeUrgency) {
+      try {
+        await notifyIfEscalated(beforeUrgency)
+      } catch (err) {
+        console.error('[TodoView] notifyIfEscalated failed:', err)
+      }
+    }
     await fetchTodos()
 
     // Propagate to linked tickets (fire-and-forget)
@@ -389,7 +423,12 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
   async function handleBulkDelete() {
     if (selectedIds.length === 0) return
     const ids = [...selectedIds]
-    const beforeUrgency = await getUrgencySnapshot()
+    let beforeUrgency: import('@/lib/orb-state').Urgency | null = null
+    try {
+      beforeUrgency = await getUrgencySnapshot()
+    } catch (err) {
+      console.error('[TodoView] getUrgencySnapshot failed:', err)
+    }
     const { error } = await supabase.from('todos').delete().in('id', ids)
     if (error) {
       if (isAuthError(error.message)) { handleSessionExpired(toast); return }
@@ -401,7 +440,13 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
       table_name: 'todos',
       before: { count: ids.length, ids }
     })
-    if (beforeUrgency) notifyIfEscalated(beforeUrgency)
+    if (beforeUrgency) {
+      try {
+        await notifyIfEscalated(beforeUrgency)
+      } catch (err) {
+        console.error('[TodoView] notifyIfEscalated failed:', err)
+      }
+    }
     setTodos(prev => prev.filter(t => !ids.includes(t.id)))
     if (selectedTodo && ids.includes(selectedTodo.id)) setSelectedTodo(null)
     setSelectedIds([])

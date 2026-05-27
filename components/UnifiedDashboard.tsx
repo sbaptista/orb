@@ -258,16 +258,20 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // Fetch all projects with owner names for search dropdown
   useEffect(() => {
     async function loadAllProjects() {
-      const { data } = await supabase
-        .from('projects')
-        .select('id, name, code, is_dormant, users!created_by(first_name, last_name)')
-        .eq('is_dormant', false)
-        .order('name')
-      const list: AdminProject[] = ((data ?? []) as any[]).map(p => ({
-        id: p.id, name: p.name, code: p.code,
-        owner_name: p.users ? [p.users.first_name, p.users.last_name].filter(Boolean).join(' ') : 'Unknown',
-      }))
-      setAdminProjects(list)
+      try {
+        const { data } = await supabase
+          .from('projects')
+          .select('id, name, code, is_dormant, users!created_by(first_name, last_name)')
+          .eq('is_dormant', false)
+          .order('name')
+        const list: AdminProject[] = ((data ?? []) as any[]).map(p => ({
+          id: p.id, name: p.name, code: p.code,
+          owner_name: p.users ? [p.users.first_name, p.users.last_name].filter(Boolean).join(' ') : 'Unknown',
+        }))
+        setAdminProjects(list)
+      } catch (err) {
+        console.error('[UnifiedDashboard] Load all projects failed:', err)
+      }
     }
     loadAllProjects()
   }, [supabase])
@@ -356,53 +360,57 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // Load products + profile
   useEffect(() => {
     async function load() {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (authUser) {
-        const savedUserId = sessionStorage.getItem('todos_user_id')
-        if (!savedUserId || savedUserId !== authUser.id) {
-          sessionStorage.removeItem(SS_CONVERSATION)
-          sessionStorage.removeItem(SS_INPUT)
-          if (savedUserId) { setMessages([]); setConversationActive(false) }
-          greetingFiredRef.current = false
-        }
-        sessionStorage.setItem('todos_user_id', authUser.id)
+      try {
+        const { data: { user: authUser } } = await supabase.auth.getUser()
+        if (authUser) {
+          const savedUserId = sessionStorage.getItem('todos_user_id')
+          if (!savedUserId || savedUserId !== authUser.id) {
+            sessionStorage.removeItem(SS_CONVERSATION)
+            sessionStorage.removeItem(SS_INPUT)
+            if (savedUserId) { setMessages([]); setConversationActive(false) }
+            greetingFiredRef.current = false
+          }
+          sessionStorage.setItem('todos_user_id', authUser.id)
 
-        const { data: profile } = await supabase
-          .from('users')
-          .select('first_name, last_name, onboarded_at, urgency_threshold_hours, release_stage')
-          .eq('id', authUser.id)
-          .single()
-        const userWelcomeKey = `todos_welcome_shown_${authUser.id}`
-        if (profile) {
-          const full = [profile.first_name, profile.last_name].filter(Boolean).join(' ')
-          setUserName(full || (authUser.email ?? ''))
-          setUserFullName(full)
-          setUrgencyThreshold(profile.urgency_threshold_hours ?? 0)
-          setReleaseStage(profile.release_stage ?? 'pre-alpha')
-          if (!profile.onboarded_at && !localStorage.getItem(userWelcomeKey)) setIsNewUser(true)
-        } else {
-          setUserName(authUser.email?.charAt(0).toUpperCase() ?? '?')
-          if (!localStorage.getItem(userWelcomeKey)) setIsNewUser(true)
+          const { data: profile } = await supabase
+            .from('users')
+            .select('first_name, last_name, onboarded_at, urgency_threshold_hours, release_stage')
+            .eq('id', authUser.id)
+            .single()
+          const userWelcomeKey = `todos_welcome_shown_${authUser.id}`
+          if (profile) {
+            const full = [profile.first_name, profile.last_name].filter(Boolean).join(' ')
+            setUserName(full || (authUser.email ?? ''))
+            setUserFullName(full)
+            setUrgencyThreshold(profile.urgency_threshold_hours ?? 0)
+            setReleaseStage(profile.release_stage ?? 'pre-alpha')
+            if (!profile.onboarded_at && !localStorage.getItem(userWelcomeKey)) setIsNewUser(true)
+          } else {
+            setUserName(authUser.email?.charAt(0).toUpperCase() ?? '?')
+            if (!localStorage.getItem(userWelcomeKey)) setIsNewUser(true)
+          }
         }
-      }
 
-      if (initialProducts) {
-        if (initialProducts.length > 0) {
+        if (initialProducts) {
+          if (initialProducts.length > 0) {
+            const last  = localStorage.getItem(LAST_PRODUCT_KEY)
+            const found = initialProducts.find(p => p.id === last)
+            setSelectedId(found ? found.id : initialProducts[0].id)
+          }
+          return
+        }
+
+        const q = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode')
+        const { data } = authUser ? await q.eq('created_by', authUser.id) : await q
+        const list = (data ?? []) as Product[]
+        setProducts(list)
+        if (list.length > 0) {
           const last  = localStorage.getItem(LAST_PRODUCT_KEY)
-          const found = initialProducts.find(p => p.id === last)
-          setSelectedId(found ? found.id : initialProducts[0].id)
+          const found = list.find(p => p.id === last)
+          setSelectedId(found ? found.id : list[0].id)
         }
-        return
-      }
-
-      const q = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode')
-      const { data } = authUser ? await q.eq('created_by', authUser.id) : await q
-      const list = (data ?? []) as Product[]
-      setProducts(list)
-      if (list.length > 0) {
-        const last  = localStorage.getItem(LAST_PRODUCT_KEY)
-        const found = list.find(p => p.id === last)
-        setSelectedId(found ? found.id : list[0].id)
+      } catch (err) {
+        console.error('[UnifiedDashboard] Load failed:', err)
       }
     }
     load()
@@ -411,16 +419,28 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   // Load priorities
   useEffect(() => {
-    supabase.from('priorities').select('value, label, color, is_urgent').order('value').then(({ data }) => {
-      if (data) setPriorities(data)
-    })
+    async function fetchPriorities() {
+      try {
+        const { data } = await supabase.from('priorities').select('value, label, color, is_urgent').order('value')
+        if (data) setPriorities(data)
+      } catch (err) {
+        console.error('[UnifiedDashboard] Load priorities failed:', err)
+      }
+    }
+    fetchPriorities()
   }, [supabase])
 
   // Load statuses
   useEffect(() => {
-    supabase.from('statuses').select('id, name, sort_order, is_closed, is_open').order('sort_order').then(({ data }) => {
-      if (data) setStatuses(data as StatusDef[])
-    })
+    async function fetchStatuses() {
+      try {
+        const { data } = await supabase.from('statuses').select('id, name, sort_order, is_closed, is_open').order('sort_order')
+        if (data) setStatuses(data as StatusDef[])
+      } catch (err) {
+        console.error('[UnifiedDashboard] Load statuses failed:', err)
+      }
+    }
+    fetchStatuses()
   }, [supabase])
 
   // Welcome message
@@ -441,6 +461,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         setConversationActive(true)
         resetInactivity()
       }
+    }).catch(err => {
+      console.error('[UnifiedDashboard] Greeting check failed:', err)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, isNewUser])
@@ -448,12 +470,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // Fetch orb todos (lighter query for urgency)
   const fetchOrbTodos = useCallback(async () => {
     if (!selectedId) return
-    const { data } = await supabase
-      .from('todos')
-      .select('id, title, status, priority_value, due_at, product_id')
-      .eq('product_id', selectedId)
-      .is('deleted_at', null)
-    setOrbTodos((data ?? []) as typeof orbTodos)
+    try {
+      const { data } = await supabase
+        .from('todos')
+        .select('id, title, status, priority_value, due_at, product_id')
+        .eq('product_id', selectedId)
+        .is('deleted_at', null)
+      setOrbTodos((data ?? []) as typeof orbTodos)
+    } catch (err) {
+      console.error('[UnifiedDashboard] Fetch orb todos failed:', err)
+    }
   }, [selectedId, supabase])
 
   useEffect(() => {
@@ -464,22 +490,28 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   // Sync overall urgency
   useEffect(() => {
-    getUrgencySnapshot().then(val => { if (val) prevOverallUrgencyRef.current = val })
+    getUrgencySnapshot().then(val => { if (val) prevOverallUrgencyRef.current = val }).catch(err => {
+      console.error('[UnifiedDashboard] Urgency snapshot failed:', err)
+    })
   }, [orbTodos])
 
   // Periodic urgency check
   useEffect(() => {
     const interval = setInterval(async () => {
       setTick(t => t + 1)
-      const currentOverall = await getUrgencySnapshot()
-      if (!currentOverall) return
-      if (prevOverallUrgencyRef.current) {
-        const SEVERITY: Record<Urgency, number> = { calm: 0, busy: 1, urgent: 2 }
-        if (SEVERITY[currentOverall] > SEVERITY[prevOverallUrgencyRef.current]) {
-          await notifyIfEscalated(prevOverallUrgencyRef.current)
+      try {
+        const currentOverall = await getUrgencySnapshot()
+        if (!currentOverall) return
+        if (prevOverallUrgencyRef.current) {
+          const SEVERITY: Record<Urgency, number> = { calm: 0, busy: 1, urgent: 2 }
+          if (SEVERITY[currentOverall] > SEVERITY[prevOverallUrgencyRef.current]) {
+            await notifyIfEscalated(prevOverallUrgencyRef.current)
+          }
         }
+        prevOverallUrgencyRef.current = currentOverall
+      } catch (err) {
+        console.error('[UnifiedDashboard] Urgency check failed:', err)
       }
-      prevOverallUrgencyRef.current = currentOverall
     }, 60000)
     return () => clearInterval(interval)
   }, [])
@@ -771,7 +803,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   async function handleToggleDone(e: React.MouseEvent, todo: Todo) {
     e.stopPropagation()
-    const beforeUrgency = await getUrgencySnapshot()
+    let beforeUrgency: Urgency | null = null
+    try {
+      beforeUrgency = await getUrgencySnapshot()
+    } catch (err) {
+      console.error('[UnifiedDashboard] getUrgencySnapshot failed:', err)
+    }
     const closedStatus = statuses.find(s => s.is_closed)?.name ?? 'closed'
     const openStatus   = statuses.find(s => s.is_open)?.name ?? 'open'
     const newStatus    = isClosed(todo.status) ? openStatus : closedStatus
@@ -791,7 +828,13 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       setTodos(prev => prev.map(t => t.id === todo.id ? updated : t))
       if (selectedTodo?.id === todo.id) setSelectedTodo(updated)
       logAudit({ action: isClosed(newStatus) ? 'todo_close' : 'todo_reopen', table_name: 'todos', record_id: todo.id, before: { status: todo.status }, after: { status: newStatus, title: todo.title } })
-      if (beforeUrgency) notifyIfEscalated(beforeUrgency)
+      if (beforeUrgency) {
+        try {
+          await notifyIfEscalated(beforeUrgency)
+        } catch (err) {
+          console.error('[UnifiedDashboard] notifyIfEscalated failed:', err)
+        }
+      }
       if (isClosed(newStatus)) setDistillTodo(updated)
       if (todo.ticket_id && isClosed(newStatus)) {
         updateTicketStatus(todo.ticket_id, 'closed').catch(err => console.error('[UD] ticket propagation failed:', err))
@@ -820,12 +863,23 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   async function handleBulkMarkDone() {
     if (selectedIds.length === 0) return
     const ids = [...selectedIds]
-    const beforeUrgency = await getUrgencySnapshot()
+    let beforeUrgency: Urgency | null = null
+    try {
+      beforeUrgency = await getUrgencySnapshot()
+    } catch (err) {
+      console.error('[UnifiedDashboard] getUrgencySnapshot failed:', err)
+    }
     const closedStatus = statuses.find(s => s.is_closed)?.name ?? 'closed'
     const { error } = await supabase.from('todos').update({ status: closedStatus, closed_at: new Date().toISOString() }).in('id', ids)
     if (error) { if (isAuthError(error.message)) { handleSessionExpired(toast); return }; toast.error('Failed to close items.'); return }
     logAudit({ action: 'todo_bulk_close', table_name: 'todos', after: { count: ids.length, ids } })
-    if (beforeUrgency) notifyIfEscalated(beforeUrgency)
+    if (beforeUrgency) {
+      try {
+        await notifyIfEscalated(beforeUrgency)
+      } catch (err) {
+        console.error('[UnifiedDashboard] notifyIfEscalated failed:', err)
+      }
+    }
     await fetchTodos()
     fetchOrbTodos()
     todos.filter(t => ids.includes(t.id) && t.ticket_id).forEach(t => {
@@ -837,11 +891,22 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   async function handleBulkDelete() {
     if (selectedIds.length === 0) return
     const ids = [...selectedIds]
-    const beforeUrgency = await getUrgencySnapshot()
+    let beforeUrgency: Urgency | null = null
+    try {
+      beforeUrgency = await getUrgencySnapshot()
+    } catch (err) {
+      console.error('[UnifiedDashboard] getUrgencySnapshot failed:', err)
+    }
     const { error } = await supabase.from('todos').delete().in('id', ids)
     if (error) { if (isAuthError(error.message)) { handleSessionExpired(toast); return }; toast.error('Failed to delete items.'); return }
     logAudit({ action: 'todo_bulk_delete', table_name: 'todos', before: { count: ids.length, ids } })
-    if (beforeUrgency) notifyIfEscalated(beforeUrgency)
+    if (beforeUrgency) {
+      try {
+        await notifyIfEscalated(beforeUrgency)
+      } catch (err) {
+        console.error('[UnifiedDashboard] notifyIfEscalated failed:', err)
+      }
+    }
     setTodos(prev => prev.filter(t => !ids.includes(t.id)))
     if (selectedTodo && ids.includes(selectedTodo.id)) setSelectedTodo(null)
     setSelectedIds([])

@@ -200,7 +200,9 @@
       "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); [print\\(f'{t[\\\\\"code\\\\\"]} [{t[\\\\\"status\\\\\"]}] {t[\\\\\"title\\\\\"]}'\\) for t in data.get\\('todos',[]\\)]\")",
       "Bash(git -C /Users/stanleybaptista/Projects/orb status)",
       "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?or=\\(title.ilike.*disk*,title.ilike.*realtime*,title.ilike.*io*,content.ilike.*disk%20io*,content.ilike.*realtime*\\)&select=id,title,created_at,content&order=created_at.desc' -H 'apikey: __CMDSUB_OUTPUT__')",
-      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?or=\\(title.ilike.*disk*,title.ilike.*io*,title.ilike.*flow_state*,title.ilike.*realtime*\\)&select=id,title,created_at&order=created_at.desc' -H 'apikey: __CMDSUB_OUTPUT__')"
+      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?or=\\(title.ilike.*disk*,title.ilike.*io*,title.ilike.*flow_state*,title.ilike.*realtime*\\)&select=id,title,created_at&order=created_at.desc' -H 'apikey: __CMDSUB_OUTPUT__')",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); matches=[t for t in data if t.get\\('todo_number'\\)==160]; print\\(json.dumps\\(matches[0],indent=2\\) if matches else 'Not found'\\)\")",
+      "Bash(xargs ls -1)"
     ]
   }
 }
