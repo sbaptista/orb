@@ -20,76 +20,66 @@ create policy "users: update own" on users
   );
 
 -- Projects: Admins see all; owners see only their own
-create policy "projects: select own" on projects
+create policy "projects: select own or admin" on projects
   for select using (
-    created_by = auth.uid()
-    or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
+    created_by = (select auth.uid())
+    or (select is_admin())
   );
 
 create policy "projects: insert own" on projects
-  for insert with check (
-    exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1, 2))
-  );
+  for insert with check ((select auth.uid()) is not null);
 
-create policy "projects: update own" on projects
+create policy "projects: update own or admin" on projects
   for update using (
-    created_by = auth.uid()
-    or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
+    created_by = (select auth.uid())
+    or (select is_admin())
   );
 
-create policy "projects: delete own" on projects
+create policy "projects: delete own or admin" on projects
   for delete using (
-    created_by = auth.uid()
-    or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
+    created_by = (select auth.uid())
+    or (select is_admin())
   );
 
--- Todos: scoped through project ownership
-create policy "todos: select own" on todos
+-- Todos: scoped through project ownership or admin role
+create policy "todos: select own or admin" on todos
   for select using (
     exists (
       select 1 from projects
       where projects.id = todos.product_id
-      and (
-        projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
-      )
+        and projects.created_by = (select auth.uid())
     )
+    or (select is_admin())
   );
 
-create policy "todos: insert own" on todos
+create policy "todos: insert own or admin" on todos
   for insert with check (
     exists (
       select 1 from projects
       where projects.id = todos.product_id
-      and (
-        projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
-      )
+        and projects.created_by = (select auth.uid())
     )
+    or (select is_admin())
   );
 
-create policy "todos: update own" on todos
+create policy "todos: update own or admin" on todos
   for update using (
     exists (
       select 1 from projects
       where projects.id = todos.product_id
-      and (
-        projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
-      )
+        and projects.created_by = (select auth.uid())
     )
+    or (select is_admin())
   );
 
-create policy "todos: delete own" on todos
+create policy "todos: delete own or admin" on todos
   for delete using (
     exists (
       select 1 from projects
       where projects.id = todos.product_id
-      and (
-        projects.created_by = auth.uid()
-        or exists (select 1 from users where users.id = auth.uid() and users.role_id IN (0, 1))
-      )
+        and projects.created_by = (select auth.uid())
     )
+    or (select is_admin())
   );
 
 -- Groups: scoped through project ownership

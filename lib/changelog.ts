@@ -7,6 +7,21 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.68',
+    date: '2026-05-27',
+    changes: [
+      'Updated AGENTS.md instructions to allow the AI to propose and execute git commit and push commands upon requesting user permission, instead of requiring manual execution.',
+    ]
+  },
+  {
+    version: 'v0.5.67',
+    date: '2026-05-27',
+    changes: [
+      'Allowed Super Admins and Admins to insert, update, and delete todos across all projects, and to update and delete projects of other users in Postgres RLS policies.',
+      'Ensures both the conversational Orb update_todo tool and the web dashboard UI can successfully edit, close, and delete tasks in other users\' projects without RLS permission constraints.',
+    ]
+  },
+  {
     version: 'v0.5.66',
     date: '2026-05-27',
     changes: [

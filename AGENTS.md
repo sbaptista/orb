@@ -154,7 +154,7 @@ When Stan asks "update the handoff" OR at natural session end:
    - "Next Priorities"
    - "AI Tool Used Last Session" (`YYYY-MM-DD — Tool (model)`)
 
-2. **Wait for Stan to commit** — do not auto-commit
+2. **Request permission to commit & push** — ask Stan for permission/approval before executing the git commit and push command (do not commit/push silently).
 
 3. **Do not narrate** the update — just do it silently
 
@@ -173,7 +173,7 @@ The source of truth is always `/Users/stanleybaptista/Projects/orb/` (the **main
   git diff > /tmp/orb-patch.patch && git -C /Users/stanleybaptista/Projects/orb apply /tmp/orb-patch.patch
   ```
 
-**At commit time**, Stan commits from the main directory — always.
+**At commit time**, the AI runs the commit and push commands from the main directory, asking Stan for permission/approval through the tool execution prompt.
 
 ---
 

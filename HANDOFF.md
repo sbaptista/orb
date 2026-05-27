@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.5.66 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.5.68 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,18 +16,23 @@
 
 ## Last Session Completed
 
-**Unified Dashboard Phase 1 + Explicit DB Grants — 2026-05-27 (Session 27)**
+**Admin Write RLS Fix & Commit Workflow — 2026-05-27 (Session 28)**
 
-- **Unified Dashboard (v0.5.60):** Built `UnifiedDashboard.tsx` merging Orb conversation and task list into a single split-pane view. Vertical stack on iPhone (drag up/down), side-by-side on desktop (drag left/right). `DragDivider.tsx` with snap points (30/70, 50/50, 70/30) and localStorage persistence. Fractal background visible through both panes. Widened OrbConversation max-width from 420px to 600px.
-- **Dashboard Refinements (v0.5.61):** Removed project strip from Orb. Added panel toggle icons (sidebar show/hide) on command bar edges. Converted TodoPanel from slide-in to floating centered modal (`modal-center`). Replaced project dropdown with admin-aware search (admins see all projects with owner names). Fixed command bar font to `font-ui`.
-- **Explicit Database Grants (v0.5.66):** Migration `20260527_explicit_grants.sql` tightens existing table grants (anon loses write access to user data) and sets `ALTER DEFAULT PRIVILEGES` for the `postgres` role so future tables auto-get correct grants. Prepares for Supabase breaking change (Oct 30, 2026). Knowledge repo entry created with full details and link to Supabase discussion.
-- **Version bump:** `v0.5.60` → `v0.5.61` → `v0.5.66` (intermediate versions by other AI sessions).
+- **Admin Write RLS (v0.5.67):** Created and ran migration `20260527_admin_todo_write_rls.sql` to allow Admins and Super Admins (role IDs 1 and 3) to write, insert, update, and delete todos and projects across all users. This fixes RLS permission failures when the Super Admin closes other users' tasks via the conversational `update_todo` or UI.
+- **Commit Workflow Update (v0.5.68):** Modified `AGENTS.md` instructions to allow the AI to propose and run git commit and push commands upon requesting user permission (instead of requiring Stan to commit manually from the main directory).
+- **Documentation and Versioning:** Updated reference schema file `todos-rls.sql` to match. Bumped project version to `v0.5.68` and updated `lib/changelog.ts`.
+- **Version bump:** `v0.5.66` → `v0.5.67` → `v0.5.68`.
 
 ---
 
 ## Uncommitted Changes
 
-None — all changes committed and pushed.
+- `AGENTS.md`
+- `lib/changelog.ts`
+- `lib/version.ts`
+- `package.json`
+- `todos-rls.sql`
+- `scripts/migrations/20260527_admin_todo_write_rls.sql`
 
 ---
 
@@ -89,7 +94,7 @@ None — all changes committed and pushed.
 
 ## AI Tool Used Last Session
 
-`2026-05-27 — Claude Code (Claude Opus 4.6)`
+`2026-05-27 — Antigravity (Gemini 3.5 Flash)`
 
 ---
 
