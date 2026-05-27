@@ -7,6 +7,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.66',
+    date: '2026-05-27',
+    changes: [
+      'Explicit database grants migration: tightened table permissions — anon gets SELECT only on lookup tables (priorities, statuses, roles, system_settings), authenticated and service_role get CRUD on all user data tables.',
+      'Future-proofed with ALTER DEFAULT PRIVILEGES so any new table created via psql automatically gets correct grants without manual intervention.',
+      'Prepares for Supabase breaking change (Oct 30, 2026) where new public tables will no longer auto-expose to the Data API.',
+    ]
+  },
+  {
     version: 'v0.5.65',
     date: '2026-05-27',
     changes: [
