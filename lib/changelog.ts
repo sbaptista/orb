@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.61',
+    date: '2026-05-26',
+    changes: [
+      'Removed project strip from Orb conversation — project selection is now in the command bar search dropdown.',
+      'Panel toggle buttons: sidebar icons on command bar edges to show/hide Orb or List pane independently.',
+      'Floating edit modal: converted TodoPanel from slide-in panel to centered modal (modal-center).',
+      'Admin project search: admins see all projects with owner names in the dropdown; users see only theirs.',
+      'Fixed project name font in command bar to use the app font (font-ui) instead of display font.',
+    ]
+  },
+  {
     version: 'v0.5.60',
     date: '2026-05-26',
     changes: [

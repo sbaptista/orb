@@ -19,7 +19,7 @@ import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import { useToast } from '@/components/ui/Toast'
 import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
 import MuralCanvas from './MuralCanvas'
-import HScrollNav from '@/components/ui/HScrollNav'
+// HScrollNav removed — project strip eliminated
 import { isActive, ACTIVE_STATUSES, PARKED_STATUSES } from '@/lib/status-groups'
 import { computeUrgency, isDueWithinWarning, type Urgency } from '@/lib/orb-state'
 import PrintModal from './PrintModal'
@@ -48,6 +48,7 @@ type Todo = {
 type Priority   = { value: number; label: string; color?: string; is_urgent?: boolean }
 type StatusDef  = { id: string; name: string; sort_order: number; is_closed: boolean; is_open: boolean }
 type ResolvedUser = { id: string; email: string; first_name: string; last_name: string }
+type AdminProject = { id: string; name: string; code: string | null; owner_name: string }
 
 type Props = {
   initialProducts?: Product[]
@@ -173,6 +174,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // ── Project switcher state ──
   const [projectSearchOpen, setProjectSearchOpen] = useState(false)
   const [projectSearchQuery, setProjectSearchQuery] = useState('')
+  const [adminProjects, setAdminProjects] = useState<AdminProject[]>([])
+  const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // ── Panel visibility ──
+  const [orbPaneVisible, setOrbPaneVisible] = useState(true)
+  const [listPaneVisible, setListPaneVisible] = useState(true)
 
   // ── Split pane state ──
   const [orbPaneSize, setOrbPaneSize] = useState<number | null>(null)
@@ -192,7 +199,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const orbFadeRef             = useRef<ReturnType<typeof setTimeout> | null>(null)
   const orbSwitchingRef        = useRef(false)
   const projectSwitchingRef    = useRef(false)
-  const projectScrollRef       = useRef<HTMLDivElement>(null)
   const listInitialLoadDone    = useRef(false)
   const [tick, setTick]        = useState(0)
 
@@ -210,11 +216,22 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const statusColor  = useCallback((status: string) => `var(--status-${status.replace(/\s+/g, '-')})`, [])
   const productCodeMap = useMemo(() => new Map(products.map(p => [p.id, p.code])), [products])
 
-  const filteredProducts = useMemo(() => {
+  const adminSearchResults = useMemo(() => {
+    if (!projectSearchQuery.trim()) return adminProjects
     const q = projectSearchQuery.trim().toLowerCase()
-    if (!q) return products
-    return products.filter(p => p.name.toLowerCase().includes(q) || (p.code?.toLowerCase().includes(q)))
-  }, [products, projectSearchQuery])
+    return adminProjects.filter(p =>
+      p.name.toLowerCase().includes(q) || (p.code?.toLowerCase().includes(q)) || p.owner_name.toLowerCase().includes(q)
+    )
+  }, [adminProjects, projectSearchQuery])
+
+  const handleSearchFocus = useCallback(() => {
+    if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current)
+    setProjectSearchOpen(true)
+  }, [])
+
+  const handleSearchBlur = useCallback(() => {
+    blurTimeoutRef.current = setTimeout(() => setProjectSearchOpen(false), 200)
+  }, [])
 
   const displayUserName = user?.first_name || user?.email || userName || '?'
 
@@ -237,6 +254,23 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       if (saved) setOrbPaneSize(parseFloat(saved))
     } catch { /* ignore */ }
   }, [])
+
+  // Fetch all projects with owner names for search dropdown
+  useEffect(() => {
+    async function loadAllProjects() {
+      const { data } = await supabase
+        .from('projects')
+        .select('id, name, code, is_dormant, users!created_by(first_name, last_name)')
+        .eq('is_dormant', false)
+        .order('name')
+      const list: AdminProject[] = ((data ?? []) as any[]).map(p => ({
+        id: p.id, name: p.name, code: p.code,
+        owner_name: p.users ? [p.users.first_name, p.users.last_name].filter(Boolean).join(' ') : 'Unknown',
+      }))
+      setAdminProjects(list)
+    }
+    loadAllProjects()
+  }, [supabase])
 
   // ══════════════════════════════════════════════════════════
   // EFFECTS — Orb / Conversation
@@ -969,6 +1003,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // RENDER
   // ══════════════════════════════════════════════════════════
 
+  const bothPanesVisible = orbPaneVisible && listPaneVisible
   const orbPaneSizeStyle = orbPaneSize !== null
     ? (isMobile ? { height: `${orbPaneSize}px` } : { width: `${orbPaneSize}px` })
     : (isMobile ? { height: '50%' } : { width: '50%' })
@@ -981,40 +1016,59 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
         {/* ── Command Bar ── */}
         <div className="ud-command-bar">
-          {/* Project selector */}
-          <div style={{ position: 'relative' }}>
-            <button className="up-project-trigger" onClick={() => setProjectSearchOpen(v => !v)} aria-expanded={projectSearchOpen} title="Switch project">
-              <span>{selected?.name ?? 'Select Project'}</span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 12 15 18 9"/>
+          {/* Panel toggle — Orb */}
+          <button className="nav-btn" onClick={() => setOrbPaneVisible(v => !v)} title={orbPaneVisible ? 'Hide Orb' : 'Show Orb'} aria-label={orbPaneVisible ? 'Hide Orb' : 'Show Orb'}>
+            <span className="nav-btn-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {orbPaneVisible && listPaneVisible ? (
+                  <>{/* two-panel icon */}<rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/></>
+                ) : orbPaneVisible ? (
+                  <>{/* full-width panel */}<rect x="3" y="3" width="18" height="18" rx="1.5"/></>
+                ) : (
+                  <>{/* collapsed — show split to restore */}<rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/></>
+                )}
               </svg>
-            </button>
+            </span>
+          </button>
 
-            {projectSearchOpen && !isMobile && (
-              <>
-                <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setProjectSearchOpen(false)} />
-                <div className="up-switcher-dropdown">
-                  <div className="up-switcher-search-wrap">
-                    <span className="up-switcher-search-icon">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                      </svg>
-                    </span>
-                    <input type="text" className="up-switcher-search-input" placeholder="Search projects..." value={projectSearchQuery} onChange={e => setProjectSearchQuery(e.target.value)} autoFocus />
-                  </div>
-                  <div className="up-switcher-list">
-                    {filteredProducts.length === 0 ? (
-                      <div className="up-switcher-empty">No projects found</div>
-                    ) : filteredProducts.map(p => (
-                      <button key={p.id} className="up-switcher-item" data-active={p.id === selectedId ? 'true' : undefined}
-                        onClick={() => { setSelectedId(p.id); listInitialLoadDone.current = false; setProjectSearchOpen(false); setProjectSearchQuery('') }}>
-                        <span>{p.name}</span>
-                        {p.code && <span className="up-switcher-item-code">{p.code}</span>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
+          {/* Project selector — search-based dropdown */}
+          <div className="tv-admin-search" style={{ position: 'relative', flex: '0 1 auto', minWidth: 0 }}>
+            <div className="admin-search-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="admin-search-icon">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input
+                type="text"
+                className="admin-search-input"
+                placeholder={selected?.name ?? 'Search projects...'}
+                value={projectSearchQuery}
+                onChange={e => { setProjectSearchQuery(e.target.value); setProjectSearchOpen(true) }}
+                onFocus={handleSearchFocus}
+                onBlur={handleSearchBlur}
+                aria-label="Search projects"
+              />
+              {projectSearchQuery && (
+                <button type="button" className="admin-search-clear" onClick={() => { setProjectSearchQuery(''); setProjectSearchOpen(false) }} aria-label="Clear search">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              )}
+            </div>
+            {projectSearchOpen && (
+              <div className="admin-search-dropdown">
+                {adminSearchResults.length === 0 ? (
+                  <div className="admin-search-empty">No projects found</div>
+                ) : (
+                  adminSearchResults.map(p => (
+                    <button key={p.id} type="button" className="admin-search-result" data-active={p.id === selectedId ? '' : undefined}
+                      onClick={() => { setSelectedId(p.id); listInitialLoadDone.current = false; setProjectSearchOpen(false); setProjectSearchQuery('') }}>
+                      <span className="admin-search-result-name">{p.code ? `${p.code} — ${p.name}` : p.name}</span>
+                      {isAdmin && p.owner_name && p.owner_name !== 'Unknown' && (
+                        <span className="admin-search-result-owner">{p.owner_name}</span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
             )}
           </div>
 
@@ -1048,12 +1102,28 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             <span className="nav-btn-icon" style={{ fontWeight: 600, fontSize: '14px' }}>{displayUserName.charAt(0).toUpperCase()}</span>
             {!isMobile && <span className="nav-btn-label">Account</span>}
           </Link>
+
+          {/* Panel toggle — List */}
+          <button className="nav-btn" onClick={() => setListPaneVisible(v => !v)} title={listPaneVisible ? 'Hide List' : 'Show List'} aria-label={listPaneVisible ? 'Hide List' : 'Show List'}>
+            <span className="nav-btn-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {listPaneVisible && orbPaneVisible ? (
+                  <>{/* two-panel icon */}<rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/></>
+                ) : listPaneVisible ? (
+                  <>{/* full-width panel */}<rect x="3" y="3" width="18" height="18" rx="1.5"/></>
+                ) : (
+                  <>{/* collapsed — show split to restore */}<rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/></>
+                )}
+              </svg>
+            </span>
+          </button>
         </div>
 
         {/* ── Split Container ── */}
         <div ref={splitRef} className="ud-split">
           {/* Orb pane */}
-          <div className="ud-orb-pane" style={orbPaneSizeStyle}>
+          {orbPaneVisible && (
+          <div className="ud-orb-pane" style={bothPanesVisible ? orbPaneSizeStyle : { flex: 1 }}>
             <OrbConversation
               orbElement={orbElement}
               messages={messages}
@@ -1074,53 +1144,22 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               selectedProjectId={selectedId}
               onShowEditProject={() => setShowEditProduct(true)}
               onShowAddProject={() => setShowAddProduct(true)}
-              projectStrip={
-                <div className="dash-strip">
-                  <div className="dash-strip-inner" style={products.length === 0 ? { justifyContent: 'center' } : undefined}>
-                    {products.length > 0 && (
-                      <HScrollNav scrollRef={projectScrollRef as React.RefObject<HTMLElement>}>
-                        <div ref={projectScrollRef} className="dash-strip-scroll">
-                          {products.map(p => (
-                            <div key={p.id} className="dash-strip-item">
-                              <button type="button" className="dash-strip-pill" aria-current={p.id === selectedId ? 'true' : undefined}
-                                onClick={() => { setSelectedId(p.id); setScopeToProduct(true) }} title={`Switch to ${p.code ?? p.name}`}>
-                                {p.code ?? p.name}
-                              </button>
-                              {p.id === selectedId && (
-                                <button type="button" className="edit-btn" onClick={e => { e.stopPropagation(); setShowEditProduct(true) }} title="Edit project">
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                                  </svg>
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </HScrollNav>
-                    )}
-                    <div className="dash-strip-actions">
-                      <button type="button" className="edit-btn" onClick={() => setShowAddProduct(true)} title="Add a new project" aria-label="Add a new project"
-                        style={products.length === 0 ? { borderColor: '#ED7654', color: '#ED7654' } : undefined}>
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              }
             />
           </div>
+          )}
 
-          {/* Divider */}
-          <DragDivider
-            direction={isMobile ? 'vertical' : 'horizontal'}
-            onResize={handleDividerResize}
-            onResizeEnd={handleDividerResizeEnd}
-          />
+          {/* Divider — only when both panes visible */}
+          {bothPanesVisible && (
+            <DragDivider
+              direction={isMobile ? 'vertical' : 'horizontal'}
+              onResize={handleDividerResize}
+              onResizeEnd={handleDividerResizeEnd}
+            />
+          )}
 
           {/* List pane */}
-          <div className="ud-list-pane">
+          {listPaneVisible && (
+          <div className="ud-list-pane" style={!bothPanesVisible ? { flex: 1 } : undefined}>
             {/* List toolbar */}
             <div className="ud-list-toolbar">
               {selected && <h2 className="ud-list-title">{selected.name}</h2>}
@@ -1316,6 +1355,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               )}
             </div>
           </div>
+          )}
         </div>
 
         {/* Version */}
@@ -1373,37 +1413,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         onSubmit={handleSubmit} dryRun={dryRun} onDryRunChange={setDryRun}
         messages={messages} onForceQuiet={() => setConversationActive(false)}
       />
-
-      {/* Mobile project switcher drawer */}
-      {isMobile && projectSearchOpen && (
-        <div className="up-switcher-drawer-overlay" onClick={() => setProjectSearchOpen(false)}>
-          <div className="up-switcher-drawer" onClick={e => e.stopPropagation()}>
-            <div className="up-switcher-drawer-header">
-              <h3 className="up-switcher-drawer-title">Switch Project</h3>
-              <button className="up-switcher-drawer-close" onClick={() => setProjectSearchOpen(false)}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-            <div className="up-switcher-search-wrap">
-              <span className="up-switcher-search-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              </span>
-              <input type="text" className="up-switcher-search-input" placeholder="Search projects..." value={projectSearchQuery} onChange={e => setProjectSearchQuery(e.target.value)} autoFocus />
-            </div>
-            <div className="up-switcher-list">
-              {filteredProducts.length === 0 ? (
-                <div className="up-switcher-empty">No projects found</div>
-              ) : filteredProducts.map(p => (
-                <button key={p.id} className="up-switcher-item" data-active={p.id === selectedId ? 'true' : undefined}
-                  onClick={() => { setSelectedId(p.id); listInitialLoadDone.current = false; setProjectSearchOpen(false); setProjectSearchQuery('') }}>
-                  <span>{p.name}</span>
-                  {p.code && <span className="up-switcher-item-code">{p.code}</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Orb animations */}
       <style>{`

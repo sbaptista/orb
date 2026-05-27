@@ -173,12 +173,11 @@ export default function TodoPanel({
         role="dialog"
         aria-modal="true"
         aria-label="Todo details"
-        className="slide-panel"
-        style={{ maxWidth: '460px' }}
+        className="modal-center"
       >
 
         {/* Header */}
-        <div className="slide-panel-header" style={{ justifyContent: 'space-between' }}>
+        <div className="modal-header" style={{ justifyContent: 'space-between' }}>
           <div className="flex-row flex-center" style={{ gap: 'var(--sp-sm)' }}>
             {todoRef && (
               <button
@@ -207,7 +206,7 @@ export default function TodoPanel({
         </div>
 
         {/* Scrollable body */}
-        <div className="slide-panel-body" style={{
+        <div className="modal-body" style={{
           padding: 'var(--sp-xl)',
           display: 'flex',
           flexDirection: 'column',
@@ -414,7 +413,7 @@ export default function TodoPanel({
         </div>
 
         {/* Footer */}
-        <div className="slide-panel-footer">
+        <div className="modal-footer">
           {confirmDelete ? (
             <div className="flex-row flex-center" style={{ gap: 'var(--sp-sm)' }}>
               <span className="text-sm text-error">Delete this todo?</span>
