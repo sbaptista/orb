@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.60',
+    date: '2026-05-26',
+    changes: [
+      'Unified Dashboard (Phase 1): built UnifiedDashboard component merging Orb conversation and task list into a single split-pane view with draggable divider.',
+      'DragDivider component: pointer-event-based resizable split with snap points (30/70, 50/50, 70/30), localStorage persistence, and touch-friendly hit targets.',
+      'Split layout: vertical stack on iPhone (drag up/down), side-by-side on desktop (drag left/right). Fractal background visible through both panes.',
+      'Widened OrbConversation max-width from 420px to 600px so the Orb feels less cramped in the unified layout.',
+    ]
+  },
+  {
     version: 'v0.5.59',
     date: '2026-05-26',
     changes: [
