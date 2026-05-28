@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.75',
+    date: '2026-05-28',
+    changes: [
+      'Removed quick edit (InlineEditPopover) from list view — full edit modal is the sole edit path.',
+      'Fixed OTP cooldown warning flashing briefly during login by deferring cooldown calculation until after hydration, suppressing during loading state, and returning early on success before setLoading(false).',
+      'Fixed false-positive maintenance lockout on wake from sleep — middleware, /api/version, and MaintenanceOverlay no longer assume maintenance when network requests fail.',
+      'Middleware auth resilience: getUser() retries once after 500ms on failure. Transient auth errors skip login redirect instead of forcing re-authentication.',
+    ]
+  },
+  {
     version: 'v0.5.74',
     date: '2026-05-28',
     changes: [

@@ -16,8 +16,6 @@ export async function GET() {
 
     if (error) {
       console.error('[api/version] Error fetching system settings:', error)
-      isMaintenance = true
-      lockedOut = true
     } else if (setting) {
       isMaintenance = setting.value === true
       if (isMaintenance) {
@@ -41,8 +39,6 @@ export async function GET() {
     }
   } catch (err) {
     console.error('[api/version] Supabase query exception:', err)
-    isMaintenance = true
-    lockedOut = true
   }
 
   return NextResponse.json(

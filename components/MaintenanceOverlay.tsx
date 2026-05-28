@@ -24,12 +24,6 @@ export default function MaintenanceOverlay() {
       setLockedOut(!!data.lockedOut)
     } catch (err) {
       console.error('[maintenance-check] Failed to check status:', err)
-      // Fallback: If network query fails, check online status.
-      // If we are online, it could mean the backend database is down, so lock out.
-      // If we are offline, the OfflinePage handles it, so we don't lock out.
-      if (typeof navigator !== 'undefined' && navigator.onLine) {
-        setLockedOut(true)
-      }
     }
   }
 

@@ -10,7 +10,6 @@ import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import TodoPanel from './TodoPanel'
 import TodoForm from './TodoForm'
-import InlineEditPopover from './InlineEditPopover'
 import DistillModal from './DistillModal'
 import { logAudit } from '@/app/actions/log-audit'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
@@ -84,7 +83,6 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
   const [confirmBulkDelete, setConfirmBulkDelete]  = useState(false)
   const [distillTodo,       setDistillTodo]       = useState<Todo | null>(null)
   const [sortAsc,           setSortAsc]           = useState(true)
-  const [inlineEdit,        setInlineEdit]        = useState<{ todo: Todo; rect: DOMRect } | null>(null)
   const [checklistMode,     setChecklistMode]     = useState(false)
   const [showListViews,     setShowListViews]     = useState(false)
 
@@ -863,21 +861,6 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
                             </svg>
                             Edit
                           </button>
-                          <button
-                            className="tv-action-btn"
-                            onClick={e => {
-                              e.stopPropagation()
-                              const row = (e.currentTarget as HTMLElement).closest('tr')
-                              if (row) setInlineEdit({ todo, rect: row.getBoundingClientRect() })
-                            }}
-                            aria-label="Quick edit"
-                            title="Edit status, priority, and due date"
-                          >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                            </svg>
-                            Quick
-                          </button>
                         </>
                       )}
                       <button
@@ -905,12 +888,6 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
                     <tr
                       key={todo.id}
                       onClick={() => setSelectedTodo(todo)}
-                      onContextMenu={e => {
-                        if (isDone) return
-                        e.preventDefault()
-                        const row = e.currentTarget as HTMLElement
-                        setInlineEdit({ todo, rect: row.getBoundingClientRect() })
-                      }}
                       onMouseEnter={() => setHoveredId(todo.id)}
                       onMouseLeave={() => setHoveredId(null)}
                       tabIndex={0}
@@ -1075,20 +1052,6 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
         />
       )}
 
-      {inlineEdit && (
-        <InlineEditPopover
-          todo={inlineEdit.todo}
-          priorities={priorities}
-          statuses={statuses}
-          anchorRect={inlineEdit.rect}
-          onClose={() => setInlineEdit(null)}
-          onSave={updated => {
-            setTodos(prev => prev.map(t => t.id === updated.id ? updated : t))
-            if (selectedTodo?.id === updated.id) setSelectedTodo(updated)
-            setInlineEdit(ie => ie ? { ...ie, todo: updated } : null)
-          }}
-        />
-      )}
 
 
 

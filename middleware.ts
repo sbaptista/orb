@@ -58,7 +58,6 @@ export async function middleware(request: NextRequest) {
 
       if (error) {
         console.error('[middleware] Error querying maintenance setting:', error)
-        isMaintenance = true // Fallback to true if database query fails (e.g. database down)
       } else {
         isMaintenance = setting?.value === true
         cachedMaintenance = isMaintenance
@@ -66,26 +65,32 @@ export async function middleware(request: NextRequest) {
       }
     } catch (err) {
       console.error('[middleware] Exception querying maintenance setting:', err)
-      isMaintenance = true // Fallback to true on connection errors
     }
   }
 
-  // Fetch authenticated user
+  // Fetch authenticated user (retry once on failure for wake-from-sleep resilience)
   let user: any = null
   let isAdmin = false
-  try {
-    const { data: userData } = await supabase.auth.getUser()
-    user = userData.user
-    if (user) {
-      const { data: dbUser } = await supabase
-        .from('users')
-        .select('role_id')
-        .eq('id', user.id)
-        .single()
-      isAdmin = !!dbUser && [1, 3].includes(dbUser.role_id)
+  let authFailed = false
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { data: userData } = await supabase.auth.getUser()
+      user = userData.user
+      if (user) {
+        const { data: dbUser } = await supabase
+          .from('users')
+          .select('role_id')
+          .eq('id', user.id)
+          .single()
+        isAdmin = !!dbUser && [1, 3].includes(dbUser.role_id)
+      }
+      authFailed = false
+      break
+    } catch (err) {
+      console.error(`[middleware] Auth lookup error (attempt ${attempt + 1}):`, err)
+      authFailed = true
+      if (attempt === 0) await new Promise(r => setTimeout(r, 500))
     }
-  } catch (err) {
-    console.error('[middleware] Auth lookup error:', err)
   }
 
   // Intercept if under maintenance and not admin
@@ -120,7 +125,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirect unauthenticated users away from protected routes
-  if (!user && pathname.startsWith('/dashboard')) {
+  // Skip redirect if auth check itself failed (transient network error on wake)
+  if (!user && !authFailed && pathname.startsWith('/dashboard')) {
     return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 

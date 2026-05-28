@@ -11,13 +11,16 @@ function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [time, setTime] = useState(() => Date.now())
+  const [mounted, setMounted] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Calculate remaining cooldown dynamically during render
+  useEffect(() => { setMounted(true) }, [])
+
+  // Calculate remaining cooldown dynamically during render (only after hydration)
   const trimmedEmail = email.trim().toLowerCase()
   let cooldown = 0
-  if (trimmedEmail) {
+  if (mounted && !loading && trimmedEmail) {
     try {
       const lastEmail = localStorage.getItem('last_otp_email')
       const lastTimeStr = localStorage.getItem('last_otp_time')
@@ -97,6 +100,7 @@ function LoginForm() {
           console.error('[LoginForm] Failed to save cooldown to localStorage:', e)
         }
         router.push(`/auth/verify-otp?email=${encodeURIComponent(email)}`)
+        return
       }
     } catch (err: unknown) {
       const errMsg = err instanceof Error
