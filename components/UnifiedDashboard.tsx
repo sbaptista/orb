@@ -176,6 +176,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [projectSearchQuery, setProjectSearchQuery] = useState('')
   const [adminProjects, setAdminProjects] = useState<AdminProject[]>([])
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // ── Panel visibility ──
   const [orbPaneVisible, setOrbPaneVisible] = useState(true)
@@ -250,10 +251,15 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // Restore split ratio from localStorage
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('orb_split_ratio')
-      if (saved) setOrbPaneSize(parseFloat(saved))
+      const key = isMobile ? 'orb_split_ratio_mobile' : 'orb_split_ratio'
+      const saved = localStorage.getItem(key)
+      if (saved) {
+        setOrbPaneSize(parseFloat(saved))
+      } else {
+        setOrbPaneSize(null)
+      }
     } catch { /* ignore */ }
-  }, [])
+  }, [isMobile])
 
   // Fetch all projects with owner names for search dropdown
   useEffect(() => {
@@ -942,7 +948,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     else snapped = 0.5
     const snappedSize = snapped * total
     setOrbPaneSize(snappedSize)
-    try { localStorage.setItem('orb_split_ratio', String(snappedSize)) } catch { /* ignore */ }
+    try {
+      const key = isMobile ? 'orb_split_ratio_mobile' : 'orb_split_ratio'
+      localStorage.setItem(key, String(snappedSize))
+    } catch { /* ignore */ }
   }, [orbPaneSize, isMobile])
 
   // ══════════════════════════════════════════════════════════
@@ -1081,17 +1090,11 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
         {/* ── Command Bar ── */}
         <div className="ud-command-bar">
-          {/* Panel toggle — Orb */}
-          <button className="nav-btn" onClick={() => setOrbPaneVisible(v => !v)} title={orbPaneVisible ? 'Hide Orb' : 'Show Orb'} aria-label={orbPaneVisible ? 'Hide Orb' : 'Show Orb'}>
+          {/* Panel toggle — Orb (desktop only) */}
+          <button className="nav-btn ud-panel-toggle" onClick={() => setOrbPaneVisible(v => !v)} title={orbPaneVisible ? 'Hide Orb' : 'Show Orb'} aria-label={orbPaneVisible ? 'Hide Orb' : 'Show Orb'}>
             <span className="nav-btn-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                {orbPaneVisible && listPaneVisible ? (
-                  <>{/* two-panel icon */}<rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/></>
-                ) : orbPaneVisible ? (
-                  <>{/* full-width panel */}<rect x="3" y="3" width="18" height="18" rx="1.5"/></>
-                ) : (
-                  <>{/* collapsed — show split to restore */}<rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/></>
-                )}
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M12.5 1C13.881 1 15 2.119 15 3.5V12.5C15 13.881 13.881 15 12.5 15H3.5C2.119 15 1 13.881 1 12.5V3.5C1 2.119 2.119 1 3.5 1H12.5ZM12.5 14C13.328 14 14 13.328 14 12.5V3.5C14 2.672 13.328 2 12.5 2H7V14H12.5Z"/>
               </svg>
             </span>
           </button>
@@ -1139,46 +1142,81 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
           <div style={{ flex: 1 }} />
 
-          {/* Nav buttons */}
-          <button className="nav-btn" onClick={() => setShowPrint(true)} title="Print" aria-label="Print">
+          {/* Desktop nav buttons — hidden on mobile */}
+          <button className="nav-btn ud-nav-desktop" onClick={() => setShowPrint(true)} title="Print" aria-label="Print">
             <span className="nav-btn-icon">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
               </svg>
             </span>
-            {!isMobile && <span className="nav-btn-label">Print</span>}
+            <span className="nav-btn-label">Print</span>
           </button>
-          <button className="nav-btn" onClick={() => setShowHelp(true)} title="Help" aria-label="Help">
+          <button className="nav-btn ud-nav-desktop" onClick={() => setShowHelp(true)} title="Help" aria-label="Help">
             <span className="nav-btn-icon">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
               </svg>
             </span>
-            {!isMobile && <span className="nav-btn-label">Help</span>}
+            <span className="nav-btn-label">Help</span>
           </button>
-          <Link href="/settings" className="nav-btn" title="Settings" aria-label="Settings">
+          <Link href="/settings" className="nav-btn ud-nav-desktop" title="Settings" aria-label="Settings">
             <span className="nav-btn-icon">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             </span>
-            {!isMobile && <span className="nav-btn-label">Settings</span>}
+            <span className="nav-btn-label">Settings</span>
           </Link>
-          <Link href="/account" className="nav-btn" title="Account" aria-label="Account">
+          <Link href="/account" className="nav-btn ud-nav-desktop" title="Account" aria-label="Account">
             <span className="nav-btn-icon" style={{ fontWeight: 600, fontSize: '14px' }}>{displayUserName.charAt(0).toUpperCase()}</span>
-            {!isMobile && <span className="nav-btn-label">Account</span>}
+            <span className="nav-btn-label">Account</span>
           </Link>
 
-          {/* Panel toggle — List */}
-          <button className="nav-btn" onClick={() => setListPaneVisible(v => !v)} title={listPaneVisible ? 'Hide List' : 'Show List'} aria-label={listPaneVisible ? 'Hide List' : 'Show List'}>
+          {/* Mobile more menu button — visible only on mobile */}
+          {isMobile && (
+            <div style={{ position: 'relative' }}>
+              <button className="nav-btn" onClick={() => setMobileMenuOpen(v => !v)} title="More" aria-label="More options" aria-expanded={mobileMenuOpen}>
+                <span className="nav-btn-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+                  </svg>
+                </span>
+              </button>
+              {mobileMenuOpen && (
+                <>
+                  <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMobileMenuOpen(false)} />
+                  <div className="ud-mobile-menu">
+                    <button className="ud-mobile-menu-item" onClick={() => { setShowPrint(true); setMobileMenuOpen(false) }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+                      </svg>
+                      Print
+                    </button>
+                    <button className="ud-mobile-menu-item" onClick={() => { setShowHelp(true); setMobileMenuOpen(false) }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                      </svg>
+                      Help
+                    </button>
+                    <Link href="/settings" className="ud-mobile-menu-item" onClick={() => setMobileMenuOpen(false)}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                      Settings
+                    </Link>
+                    <Link href="/account" className="ud-mobile-menu-item" onClick={() => setMobileMenuOpen(false)}>
+                      <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '12px' }}>{displayUserName.charAt(0).toUpperCase()}</span>
+                      Account
+                    </Link>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Panel toggle — List (desktop only) */}
+          <button className="nav-btn ud-panel-toggle" onClick={() => setListPaneVisible(v => !v)} title={listPaneVisible ? 'Hide List' : 'Show List'} aria-label={listPaneVisible ? 'Hide List' : 'Show List'}>
             <span className="nav-btn-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                {listPaneVisible && orbPaneVisible ? (
-                  <>{/* two-panel icon */}<rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/></>
-                ) : listPaneVisible ? (
-                  <>{/* full-width panel */}<rect x="3" y="3" width="18" height="18" rx="1.5"/></>
-                ) : (
-                  <>{/* collapsed — show split to restore */}<rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/></>
-                )}
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M12.5 1C13.881 1 15 2.119 15 3.5V12.5C15 13.881 13.881 15 12.5 15H3.5C2.119 15 1 13.881 1 12.5V3.5C1 2.119 2.119 1 3.5 1H12.5ZM9 14V2H3.5C2.672 2 2 2.672 2 3.5V12.5C2 13.328 2.672 14 3.5 14H9Z"/>
               </svg>
             </span>
           </button>

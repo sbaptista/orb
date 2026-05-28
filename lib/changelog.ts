@@ -7,6 +7,37 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.71',
+    date: '2026-05-27',
+    changes: [
+      'Fixed iPhone command bar wrapping: items were stacking vertically instead of staying in a single row. Added flex-wrap: nowrap and restructured for mobile.',
+      'Mobile "more" menu: Print, Help, Settings, Account hidden behind a ⋮ menu button on iPhone. Desktop shows them inline as before.',
+      'Removed panel toggle buttons on mobile — sidebar toggles are a desktop concept that does not apply to vertical stacking.',
+      'Project search input fills available width on mobile instead of being cramped at 120px.',
+      'UI Component Catalog: created docs/ui-catalog.md documenting all existing patterns. AGENTS.md updated to enforce catalog-first building.',
+    ]
+  },
+  {
+    version: 'v0.5.70',
+    date: '2026-05-27',
+    changes: [
+      'iPhone mobile layout fixes: capped and separated mobile and desktop split-pane size saving in localStorage (using unique key per viewport size).',
+      'Hided text labels on panel toggle buttons on mobile screen widths to prevent overcrowding/wrapping.',
+      'Designed a responsive thread spacer (.oc-thread-spacer) that shrinks to 60px on mobile to give messages more room.',
+      'Compacted command bar padding and gap spacing on mobile viewports.',
+      'Restricted search input width on mobile to 120px (140px on focus) to prevent row overflow.',
+      'Implemented bottom safe area insets (home indicator bar clearance) on mobile for both conversation panel and task lists.',
+    ]
+  },
+  {
+    version: 'v0.5.69',
+    date: '2026-05-27',
+    changes: [
+      'Prototype dashboard: replaced dynamic split-pane toggle icons with static VS Code-style sidebar SVGs.',
+      'Added dynamic vertical "Show Orb" / "Hide Orb" and "Show List" / "Hide List" text labels under the layout toggle buttons.',
+    ]
+  },
+  {
     version: 'v0.5.68',
     date: '2026-05-27',
     changes: [

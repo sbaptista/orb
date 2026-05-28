@@ -3907,6 +3907,7 @@ a, button, [role="button"], input, select, textarea {
 .ud-command-bar {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: var(--sp-md);
   padding: var(--sp-sm) var(--sp-lg);
   padding-top: calc(var(--sat) + var(--sp-sm));
@@ -4035,4 +4036,85 @@ a, button, [role="button"], input, select, textarea {
   .ud-divider--vertical { height: 36px; }
   .ud-divider--horizontal { width: 36px; }
 }
+
+/* ── Mobile More Menu ── */
+
+.ud-mobile-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 100;
+  min-width: 160px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 4px;
+}
+
+.ud-mobile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ud-mobile-menu-item:hover {
+  background: var(--bg3);
+}
+
+/* ── Orb Conversation Spacer ── */
+.oc-thread-spacer {
+  flex-shrink: 0;
+  height: clamp(200px, 34vh, 280px);
+}
+
+@media (max-width: 767px) {
+  /* Compact thread spacer on mobile so messages aren't pushed down */
+  .oc-thread-spacer {
+    height: 60px;
+  }
+
+  /* Compact command bar padding and spacing on mobile */
+  .ud-command-bar {
+    padding: var(--sp-xs) var(--sp-md);
+    padding-top: calc(var(--sat) + var(--sp-xs));
+    gap: var(--sp-xs);
+  }
+
+  /* Panel toggles hidden on mobile — vertical stack doesn't have sidebars */
+  .ud-command-bar .ud-panel-toggle { display: none; }
+
+  /* Nav buttons hidden on mobile — accessed via more menu */
+  .ud-command-bar .ud-nav-desktop { display: none; }
+
+  /* Search input fills available space on mobile */
+  .ud-command-bar .tv-admin-search { flex: 1; min-width: 0; }
+  .ud-command-bar .admin-search-input { width: 100%; }
+
+  /* Desktop nav labels always hidden on mobile (handled by ud-nav-desktop display:none) */
+  .ud-command-bar .nav-btn-label { display: none; }
+
+  /* Safe area bottom padding for iPhone conversation input */
+  .oc-wrap {
+    padding-bottom: calc(10px + var(--sab));
+  }
+
+  /* Safe area bottom padding for iPhone task list scroll */
+  .ud-list-content {
+    padding-bottom: calc(var(--sp-xl) + var(--sab));
+  }
+}
+
 
