@@ -144,7 +144,7 @@ export async function acceptInvitation(email: string, userId?: string) {
 
     const changed = (updated?.length ?? 0) > 0
     if (changed) {
-        await logAuditEvent({
+        logAuditEvent({
             action: 'invitation_accept',
             table_name: 'invitations',
             record_id: inv.id,
@@ -152,11 +152,11 @@ export async function acceptInvitation(email: string, userId?: string) {
             after: { status: 'accepted' },
             actor: 'invitee',
             user_id: userId,
-        })
-        await dispatchNotification('invitation.accepted', toNotificationPayload({
+        }).catch(err => console.error('[invitation] Audit log failed:', err))
+        dispatchNotification('invitation.accepted', toNotificationPayload({
             ...inv,
             responded_at: respondedAt,
-        }))
+        })).catch(err => console.error('[invitation] Notification dispatch failed:', err))
     }
 
     return { ok: true, changed }
@@ -201,20 +201,20 @@ export async function declineInvitation(token: string, reason?: string) {
         return { error: 'This invitation has already been responded to.' }
     }
 
-    await logAuditEvent({
+    logAuditEvent({
         action: 'invitation_decline',
         table_name: 'invitations',
         record_id: inv.id,
         before: { status: 'pending' },
         after: { status: 'declined', decline_reason: reason || null },
         actor: 'invitee',
-    })
+    }).catch(err => console.error('[invitation] Audit log failed:', err))
 
-    await dispatchNotification('invitation.declined', toNotificationPayload({
+    dispatchNotification('invitation.declined', toNotificationPayload({
         ...inv,
         responded_at: respondedAt,
         decline_reason: reason || null,
-    }))
+    })).catch(err => console.error('[invitation] Notification dispatch failed:', err))
 
     return { ok: true, changed: true }
 }

@@ -9,7 +9,7 @@ import { visibleProjectsQuery } from '@/lib/projects'
 import AddProductModal from './AddProductModal'
 import OrbHelp from './OrbHelp'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
-import { OrbDevPanel, type MoodOverride } from './OrbDevPanel'
+import { OrbDevPanel, DevTestError, type MoodOverride } from './OrbDevPanel'
 import { orbConverse, orbGreeting, type OrbResponse } from '@/app/actions/orb-converse'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
@@ -118,6 +118,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const [scopeToProduct, setScopeToProduct]     = useState(true)
     const [distillTodo, setDistillTodo]           = useState<{ id: string; productId: string; title: string; suggestion: { title: string; content: string } } | null>(null)
     const [showPrint, setShowPrint]               = useState(false)
+    const [devError, setDevError]                 = useState(false)
     const [isInputFocused, setIsInputFocused]     = useState(false)
     const [isMobile, setIsMobile]                 = useState(false)
     const [userName, setUserName]                 = useState<string>('')
@@ -130,6 +131,8 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const prevOverallUrgencyRef                   = useRef<Urgency | null>(null)
     const [orbFading,  setOrbFading]              = useState(false)
     const orbFadeRef                              = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    if (devError) throw new DevTestError()
 
     useEffect(() => {
         setIsMobile(window.matchMedia('(hover: none) and (pointer: coarse)').matches)
@@ -1249,6 +1252,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                 onDryRunChange={setDryRun}
                 messages={messages}
                 onForceQuiet={() => setConversationActive(false)}
+                onErrorTest={() => setDevError(true)}
             />
 
             {showAddProduct && (

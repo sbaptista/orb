@@ -7,6 +7,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.74',
+    date: '2026-05-28',
+    changes: [
+      'Prototype command bar: Orb toggle now uses the favicon orb icon (radial gradient circle), List toggle uses the grid-table icon from DashboardView. Toggle labels (Show/Hide Orb, Show/Hide List) now visible on all screen sizes.',
+      'New todo form now matches the full edit modal — added Description and URLs fields, wired into the database insert.',
+      'Edit modal: Description field moved from hidden Details toggle to always-visible, directly below Title.',
+      'Next.js dev indicator hidden in production only (preserved in dev for debugging).',
+      'Error boundaries: added app/error.tsx (route-level) and app/global-error.tsx (root-level) with Try Again and Refresh buttons.',
+      'Error handling audit: added .catch() to all fire-and-forget async calls (push notifications, audit logging, notification dispatch), fixed unchecked Supabase DELETE/SELECT errors in push API and manage-project, fixed unsafe nested await in get-user-detail, added .catch() to all clipboard operations.',
+      'DEV panel: added Error Boundaries section with Throw Client Error button for testing error boundaries.',
+    ]
+  },
+  {
     version: 'v0.5.73',
     date: '2026-05-27',
     changes: [

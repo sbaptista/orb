@@ -224,6 +224,17 @@ export default function TodoPanel({
             />
           </div>
 
+          {/* Description */}
+          <div className="pf-field">
+            <label htmlFor="tp-description" className="pf-label">Description</label>
+            <textarea
+              id="tp-description"
+              className="pf-textarea"
+              value={form.description ?? ''}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+            />
+          </div>
+
           {/* Status + Priority */}
           <div className="grid-2col">
             <div className="pf-field">
@@ -386,17 +397,6 @@ export default function TodoPanel({
 
           {showDetails && (
             <>
-              {/* Description */}
-              <div className="pf-field">
-                <label htmlFor="tp-description" className="pf-label">Description</label>
-                <textarea
-                  id="tp-description"
-                  className="pf-textarea"
-                  value={form.description ?? ''}
-                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                />
-              </div>
-
               {/* URLs */}
               <div className="pf-field">
                 <label htmlFor="tp-urls" className="pf-label">URLs (one per line)</label>

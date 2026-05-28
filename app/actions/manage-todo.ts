@@ -39,6 +39,7 @@ export async function createTodo(data: {
 
   // Fire-and-forget: check if urgency escalated
   checkAndNotifyEscalation(ctx.user.id, beforeUrgency, ctx.admin)
+    .catch(err => console.error('[manage-todo] Push check failed:', err))
 
   return { todo }
 }
@@ -68,6 +69,7 @@ export async function updateTodo(id: string, data: {
 
   // Fire-and-forget: check if urgency escalated
   checkAndNotifyEscalation(ctx.user.id, beforeUrgency, ctx.admin)
+    .catch(err => console.error('[manage-todo] Push check failed:', err))
 
   return { todo }
 }
@@ -89,6 +91,7 @@ export async function deleteTodo(id: string) {
   // but snapshot is needed in case delete shifts urgency up (e.g. removing a calm task
   // while urgent ones remain doesn't change, but pattern is consistent)
   checkAndNotifyEscalation(ctx.user.id, beforeUrgency, ctx.admin)
+    .catch(err => console.error('[manage-todo] Push check failed:', err))
 
   return { success: true }
 }

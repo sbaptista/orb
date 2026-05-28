@@ -49,11 +49,16 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Missing endpoint' }, { status: 400 })
   }
 
-  await supabase
+  const { error } = await supabase
     .from('push_subscriptions')
     .delete()
     .eq('user_id', user.id)
     .eq('endpoint', endpoint)
+
+  if (error) {
+    console.error('[push/unsubscribe]', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   return NextResponse.json({ ok: true })
 }

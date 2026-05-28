@@ -39,7 +39,7 @@ function OrbCard({ msg }: { msg: ConversationMessage }) {
         navigator.clipboard.writeText(msg.text).then(() => {
             setCopied(true)
             setTimeout(() => setCopied(false), 1500)
-        })
+        }).catch(() => {})
     }
 
     return (
@@ -295,7 +295,7 @@ export default function OrbConversation({
         navigator.clipboard.writeText(transcript).then(() => {
             setCopiedTranscript(true)
             setTimeout(() => setCopiedTranscript(false), 1500)
-        })
+        }).catch(() => {})
     }
 
     return (
@@ -481,7 +481,7 @@ export default function OrbConversation({
                                 onClick={() => input.trim() && navigator.clipboard.writeText(input).then(() => {
                                     setCopiedInput(true)
                                     setTimeout(() => setCopiedInput(false), 1500)
-                                })}
+                                }).catch(() => {})}
                                 onMouseDown={(e) => e.preventDefault()}
                                 disabled={!input.trim()}
                                 title="Copy input"

@@ -57,13 +57,13 @@ export async function purgeArchivedTasks(ids: string[]) {
 
   if (error) return { success: false, error: error.message }
 
-  await logAuditEvent({
+  logAuditEvent({
     action: 'task_purge',
     table_name: 'todos',
     before: { count: ids.length },
     actor: 'admin-ui',
     user_id: ctx.user.id,
-  })
+  }).catch(err => console.error('[archive-data] Audit log failed:', err))
 
   return { success: true }
 }

@@ -111,7 +111,8 @@ export async function updateProject(id: string, data: {
     const code = data.code?.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
     if (!code) return { error: 'Project code is required' }
     // Resolve owner for user-scoped conflict check
-    const { data: existing } = await ctx.admin.from('projects').select('created_by').eq('id', id).single()
+    const { data: existing, error: existErr } = await ctx.admin.from('projects').select('created_by').eq('id', id).single()
+    if (existErr) return { error: 'Failed to look up project' }
     const ownerId = data.created_by ?? existing?.created_by ?? ctx.user.id
     if (await checkCodeConflict(ctx.admin, code, ownerId, id)) {
       return { error: `Code "${code}" is already in use` }

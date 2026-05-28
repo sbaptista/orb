@@ -58,13 +58,11 @@ export async function getUserProjects(targetUserId: string) {
     return { error: 'Access denied', projects: [], todoCounts: {} }
   }
 
-  const [prodRes, todoRes] = await Promise.all([
-    ctx.admin.from('projects').select('*').eq('created_by', targetUserId).order('sort_order'),
-    ctx.admin.from('todos').select('product_id').in(
-      'product_id',
-      (await ctx.admin.from('projects').select('id').eq('created_by', targetUserId)).data?.map((p: any) => p.id) ?? []
-    ),
-  ])
+  const prodRes = await ctx.admin.from('projects').select('*').eq('created_by', targetUserId).order('sort_order')
+  const projectIds = (prodRes.data ?? []).map((p: any) => p.id)
+  const todoRes = projectIds.length > 0
+    ? await ctx.admin.from('todos').select('product_id').in('product_id', projectIds)
+    : { data: [], error: null }
 
   const counts: Record<string, number> = {}
   todoRes.data?.forEach((t: any) => {

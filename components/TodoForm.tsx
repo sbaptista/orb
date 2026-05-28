@@ -27,9 +27,11 @@ export default function TodoForm({
   const defaultProductId = productId ?? products[0]?.id ?? ''
 
   const [title,         setTitle]         = useState('')
+  const [description,   setDescription]   = useState('')
   const [priorityValue, setPriorityValue] = useState<number | ''>('')
   const [selectedProduct, setSelectedProduct] = useState(defaultProductId)
   const [dueAt,           setDueAt]           = useState('')
+  const [urlInput,        setUrlInput]        = useState('')
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState('')
 
@@ -55,11 +57,12 @@ export default function TodoForm({
     const { data: openStatus } = await supabase
       .from('statuses').select('name').eq('is_open', true).limit(1).single()
 
+    const urls = urlInput.split('\n').map(u => u.trim()).filter(Boolean)
     const { data, error: err } = await supabase
       .from('todos')
       .insert({
         title:            title.trim(),
-        description:      null,
+        description:      description.trim() || null,
         resolution_notes: null,
         status:           openStatus?.name ?? 'open',
         priority_value:   priorityValue === '' ? null : priorityValue,
@@ -67,7 +70,7 @@ export default function TodoForm({
         product_id:       selectedProduct,
         group_id:         null,
         category_id:      null,
-        urls:             [],
+        urls,
         sort_order:       0,
       })
       .select('*, groups(name), categories(name)')
@@ -108,6 +111,14 @@ export default function TodoForm({
             autoFocus
             aria-label="Todo title"
             className="pf-input"
+          />
+
+          <textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            placeholder="Description (optional)"
+            aria-label="Description"
+            className="pf-textarea"
           />
 
           <div style={{ display: 'grid', gridTemplateColumns: !productId && products.length > 1 ? '1fr 1fr' : '1fr', gap: 'var(--sp-sm)' }}>
@@ -206,6 +217,17 @@ export default function TodoForm({
               </div>
             )
           })()}
+
+          <div style={{ marginTop: 'var(--sp-xs)' }}>
+            <label className="label text-xs text-muted" style={{ display: 'block', marginBottom: '4px' }}>URLs (one per line)</label>
+            <textarea
+              value={urlInput}
+              onChange={e => setUrlInput(e.target.value)}
+              className="pf-textarea"
+              style={{ fontFamily: 'monospace', fontSize: 'var(--fs-sm)', minHeight: '64px' }}
+              aria-label="URLs"
+            />
+          </div>
 
           {error && <p className="text-sm text-error">{error}</p>}
 

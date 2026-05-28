@@ -4,6 +4,10 @@ import { useState } from 'react'
 
 import type { ConversationMessage } from './OrbConversation'
 
+export class DevTestError extends Error {
+  constructor() { super('DEV: Error boundary test'); this.name = 'DevTestError' }
+}
+
 export type MoodOverride = 'calm' | 'busy' | 'urgent' | null
 export type RoleOverride = 'Super Admin' | 'Admin' | 'Owner' | null
 export type Speech = { text: string; autoFade?: number } | null
@@ -19,6 +23,7 @@ type Props = {
   onDryRunChange: (v: boolean) => void
   messages: ConversationMessage[]
   onForceQuiet?: () => void
+  onErrorTest?: () => void
 }
 
 const SPEECH_PRESETS: Record<string, Speech> = {
@@ -30,7 +35,7 @@ const SPEECH_PRESETS: Record<string, Speech> = {
   },
 }
 
-function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChange, onSpeak, onSubmit, dryRun, onDryRunChange, messages, onForceQuiet }: Props) {
+function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChange, onSpeak, onSubmit, dryRun, onDryRunChange, messages, onForceQuiet, onErrorTest }: Props) {
   const [open, setOpen] = useState(false)
   const [simulatedOffline, setSimulatedOffline] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -149,6 +154,11 @@ function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChan
           </button>
           <button type="button" className="dev-btn" aria-pressed={simulatedUpdate} onClick={toggleSimulateUpdate}>
             Simulate Update Available {simulatedUpdate ? '✓' : ''}
+          </button>
+
+          <div className="dev-section">Error boundaries</div>
+          <button type="button" className="dev-btn" onClick={() => onErrorTest?.()}>
+            Throw client error
           </button>
 
           <div className="dev-section">Claude API</div>

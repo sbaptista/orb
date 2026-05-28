@@ -9,7 +9,7 @@ import { visibleProjectsQuery } from '@/lib/projects'
 import AddProductModal from './AddProductModal'
 import OrbHelp from './OrbHelp'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
-import { OrbDevPanel, type MoodOverride } from './OrbDevPanel'
+import { OrbDevPanel, DevTestError, type MoodOverride } from './OrbDevPanel'
 import { orbConverse, orbGreeting, type OrbResponse } from '@/app/actions/orb-converse'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { checkReminders } from '@/app/actions/reminder-actions'
@@ -170,6 +170,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [showAddProduct, setShowAddProduct] = useState(false)
   const [showEditProduct, setShowEditProduct] = useState(false)
   const [distillTodo, setDistillTodo]       = useState<any>(null)
+  const [devError, setDevError]             = useState(false)
+
+  if (devError) throw new DevTestError()
 
   // ── Project switcher state ──
   const [projectSearchOpen, setProjectSearchOpen] = useState(false)
@@ -1138,8 +1141,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           {/* Panel toggle — Orb */}
           <button className="nav-btn ud-panel-toggle" onClick={() => setOrbPaneVisible(v => !v)} title={orbPaneVisible ? 'Hide Orb' : 'Show Orb'} aria-label={orbPaneVisible ? 'Hide Orb' : 'Show Orb'}>
             <span className="nav-btn-icon">
-              <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M12.5 1C13.881 1 15 2.119 15 3.5V12.5C15 13.881 13.881 15 12.5 15H3.5C2.119 15 1 13.881 1 12.5V3.5C1 2.119 2.119 1 3.5 1H12.5ZM12.5 14C13.328 14 14 13.328 14 12.5V3.5C14 2.672 13.328 2 12.5 2H7V14H12.5Z"/>
+              <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
+                <circle cx="16" cy="16" r="14.5" fill="url(#orbFavGrad)" />
+                <ellipse cx="12" cy="11" rx="5.5" ry="4" fill="rgba(255,255,255,0.55)" />
+                <defs><radialGradient id="orbFavGrad" cx="36%" cy="30%" r="60%"><stop offset="0%" stopColor="#ffffff"/><stop offset="45%" stopColor="#d4e4d4"/><stop offset="100%" stopColor="#6a9a7a"/></radialGradient></defs>
               </svg>
             </span>
             <span className="ud-toggle-label">{orbPaneVisible ? 'Hide Orb' : 'Show Orb'}</span>
@@ -1241,8 +1246,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           {/* Panel toggle — List (far right) */}
           <button className="nav-btn ud-panel-toggle" onClick={() => setListPaneVisible(v => !v)} title={listPaneVisible ? 'Hide List' : 'Show List'} aria-label={listPaneVisible ? 'Hide List' : 'Show List'}>
             <span className="nav-btn-icon">
-              <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M12.5 1C13.881 1 15 2.119 15 3.5V12.5C15 13.881 13.881 15 12.5 15H3.5C2.119 15 1 13.881 1 12.5V3.5C1 2.119 2.119 1 3.5 1H12.5ZM9 14V2H3.5C2.672 2 2 2.672 2 3.5V12.5C2 13.328 2.672 14 3.5 14H9Z"/>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <line x1="9" y1="3" x2="9" y2="21" />
+                <line x1="15" y1="3" x2="15" y2="21" />
+                <line x1="3" y1="9" x2="21" y2="9" />
+                <line x1="3" y1="15" x2="21" y2="15" />
               </svg>
             </span>
             <span className="ud-toggle-label">{listPaneVisible ? 'Hide List' : 'Show List'}</span>
@@ -1583,6 +1592,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         onSpeak={speech => { if (speech) addOrbMessage(speech.text) }}
         onSubmit={handleSubmit} dryRun={dryRun} onDryRunChange={setDryRun}
         messages={messages} onForceQuiet={() => setConversationActive(false)}
+        onErrorTest={() => setDevError(true)}
       />
 
       {/* Orb animations */}
