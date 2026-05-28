@@ -7,7 +7,7 @@
 
 ## App State
 
-- **Version:** v0.5.68 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
+- **Version:** v0.5.73 (canonical in [package.json](file:///Users/stanleybaptista/Projects/orb/package.json))
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -16,23 +16,20 @@
 
 ## Last Session Completed
 
-**Admin Write RLS Fix & Commit Workflow — 2026-05-27 (Session 28)**
+**ORB-160 Unified Dashboard — iPhone Command Bar Redesign & Fixes — 2026-05-27 (Session 29)**
 
-- **Admin Write RLS (v0.5.67):** Created and ran migration `20260527_admin_todo_write_rls.sql` to allow Admins and Super Admins (role IDs 1 and 3) to write, insert, update, and delete todos and projects across all users. This fixes RLS permission failures when the Super Admin closes other users' tasks via the conversational `update_todo` or UI.
-- **Commit Workflow Update (v0.5.68):** Modified `AGENTS.md` instructions to allow the AI to propose and run git commit and push commands upon requesting user permission (instead of requiring Stan to commit manually from the main directory).
-- **Documentation and Versioning:** Updated reference schema file `todos-rls.sql` to match. Bumped project version to `v0.5.68` and updated `lib/changelog.ts`.
-- **Version bump:** `v0.5.66` → `v0.5.67` → `v0.5.68`.
+- **iPhone command bar redesign (v0.5.72):** Panel toggles (Show/Hide Orb, Show/Hide List) visible on mobile with centered 10px labels below icons. Replaced ⋮ dropdown with Commands button (grid icon) opening a modal-center floating modal. Project search centered and wider (flex:1).
+- **Bug fixes (v0.5.73):** Fixed todo list rows not extending full width on iPhone — Actions column header was missing `tv-th-actions` class. Swapped List toggle and Commands button so List is far right. Added close button to Views bar. List card edge-to-edge in unified dashboard (no border/radius).
+- **Project search resilience (v0.5.73):** Added retry logic (2× with 1.5s delay), fallback to server-provided projects, user-visible error with Refresh link, and auto-ticket creation on failure.
+- **TodoPanel modal conversion:** Converted from `slide-panel` to `modal-center` pattern. Added `modal-footer` CSS class.
+- **UI Component Catalog:** Created `docs/ui-catalog.md`. Updated `AGENTS.md` with catalog-first enforcement.
+- **Version bump:** `v0.5.68` → `v0.5.73`.
 
 ---
 
 ## Uncommitted Changes
 
-- `AGENTS.md`
-- `lib/changelog.ts`
-- `lib/version.ts`
-- `package.json`
-- `todos-rls.sql`
-- `scripts/migrations/20260527_admin_todo_write_rls.sql`
+None — all changes committed and pushed.
 
 ---
 
@@ -94,7 +91,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-05-27 — Antigravity (Gemini 3.5 Flash)`
+`2026-05-27 — Claude Code (Claude Opus 4.6)`
 
 ---
 

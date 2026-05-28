@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.73',
+    date: '2026-05-27',
+    changes: [
+      'Fixed todo list rows not extending full width on iPhone — Actions column header was missing tv-th-actions class, leaving a hidden empty column.',
+      'Swapped List toggle and Commands button positions — List is now far right in the command bar.',
+      'Project search resilience: retries 2× on empty results, falls back to server-provided projects, shows error with Refresh link, and auto-creates a ticket.',
+      'Added close button (×) to the Views bar for discoverability.',
+      'List card goes edge-to-edge inside unified dashboard (no border-radius or borders).',
+    ]
+  },
+  {
     version: 'v0.5.72',
     date: '2026-05-27',
     changes: [

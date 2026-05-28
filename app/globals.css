@@ -3986,6 +3986,13 @@ a, button, [role="button"], input, select, textarea {
   -webkit-overflow-scrolling: touch;
 }
 
+/* List card goes edge-to-edge inside unified dashboard */
+.ud-list-content .tv-list-card {
+  border-radius: 0;
+  border: none;
+  width: 100%;
+}
+
 /* ── Divider ── */
 
 .ud-divider {

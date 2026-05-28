@@ -175,6 +175,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [projectSearchOpen, setProjectSearchOpen] = useState(false)
   const [projectSearchQuery, setProjectSearchQuery] = useState('')
   const [adminProjects, setAdminProjects] = useState<AdminProject[]>([])
+  const [projectsLoadError, setProjectsLoadError] = useState(false)
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [commandsModalOpen, setCommandsModalOpen] = useState(false)
 
@@ -261,26 +262,70 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     } catch { /* ignore */ }
   }, [isMobile])
 
-  // Fetch all projects with owner names for search dropdown
+  // Fetch all projects with owner names for search dropdown (retry up to 2×, fallback to props)
   useEffect(() => {
-    async function loadAllProjects() {
+    async function loadAllProjects(attempt = 0): Promise<void> {
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('projects')
           .select('id, name, code, is_dormant, users!created_by(first_name, last_name)')
           .eq('is_dormant', false)
           .order('name')
+        if (error) throw error
         const list: AdminProject[] = ((data ?? []) as any[]).map(p => ({
           id: p.id, name: p.name, code: p.code,
           owner_name: p.users ? [p.users.first_name, p.users.last_name].filter(Boolean).join(' ') : 'Unknown',
         }))
-        setAdminProjects(list)
+        if (list.length === 0 && attempt < 2) {
+          await new Promise(r => setTimeout(r, 1500))
+          return loadAllProjects(attempt + 1)
+        }
+        if (list.length > 0) {
+          setAdminProjects(list)
+          setProjectsLoadError(false)
+        } else {
+          // All retries exhausted — fallback to server-provided products
+          const fallback: AdminProject[] = (initialProducts ?? []).map(p => ({
+            id: p.id, name: p.name, code: p.code ?? null, owner_name: '',
+          }))
+          setAdminProjects(fallback)
+          setProjectsLoadError(true)
+          console.error('[UnifiedDashboard] Project search returned 0 results after retries')
+          // Log a ticket
+          supabase.from('todos').insert({
+            title: '[Auto] Project search returned empty results',
+            description: `UnifiedDashboard loadAllProjects returned 0 rows after 3 attempts. User agent: ${navigator.userAgent}. Time: ${new Date().toISOString()}.`,
+            product_id: 'f643f732-73b5-4bee-96be-da36197fb41c', // TICKETS project
+            status: 'open',
+          }).then(({ error: ticketErr }) => {
+            if (ticketErr) console.error('[UnifiedDashboard] Failed to create ticket:', ticketErr)
+          })
+        }
       } catch (err) {
         console.error('[UnifiedDashboard] Load all projects failed:', err)
+        if (attempt < 2) {
+          await new Promise(r => setTimeout(r, 1500))
+          return loadAllProjects(attempt + 1)
+        }
+        // Fallback to server-provided products
+        const fallback: AdminProject[] = (initialProducts ?? []).map(p => ({
+          id: p.id, name: p.name, code: p.code ?? null, owner_name: '',
+        }))
+        setAdminProjects(fallback)
+        setProjectsLoadError(true)
+        // Log a ticket
+        supabase.from('todos').insert({
+          title: '[Auto] Project search query failed',
+          description: `UnifiedDashboard loadAllProjects threw after 3 attempts. Error: ${err}. User agent: ${navigator.userAgent}. Time: ${new Date().toISOString()}.`,
+          product_id: 'f643f732-73b5-4bee-96be-da36197fb41c',
+          status: 'open',
+        }).then(({ error: ticketErr }) => {
+          if (ticketErr) console.error('[UnifiedDashboard] Failed to create ticket:', ticketErr)
+        })
       }
     }
     loadAllProjects()
-  }, [supabase])
+  }, [supabase, initialProducts])
 
   // ══════════════════════════════════════════════════════════
   // EFFECTS — Orb / Conversation
@@ -1124,8 +1169,17 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             </div>
             {projectSearchOpen && (
               <div className="admin-search-dropdown">
-                {adminSearchResults.length === 0 ? (
-                  <div className="admin-search-empty">No projects found</div>
+                {projectsLoadError && (
+                  <div className="admin-search-empty" style={{ color: 'var(--error)', fontSize: '12px' }}>
+                    Projects failed to load.{' '}
+                    <button type="button" style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600, fontSize: '12px', padding: 0, textDecoration: 'underline' }}
+                      onClick={() => window.location.reload()}>
+                      Refresh
+                    </button>
+                  </div>
+                )}
+                {adminSearchResults.length === 0 && !projectsLoadError ? (
+                  <div className="admin-search-empty">No matching projects</div>
                 ) : (
                   adminSearchResults.map(p => (
                     <button key={p.id} type="button" className="admin-search-result" data-active={p.id === selectedId ? '' : undefined}
@@ -1172,16 +1226,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             <span className="nav-btn-label">Account</span>
           </Link>
 
-          {/* Panel toggle — List */}
-          <button className="nav-btn ud-panel-toggle" onClick={() => setListPaneVisible(v => !v)} title={listPaneVisible ? 'Hide List' : 'Show List'} aria-label={listPaneVisible ? 'Hide List' : 'Show List'}>
-            <span className="nav-btn-icon">
-              <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M12.5 1C13.881 1 15 2.119 15 3.5V12.5C15 13.881 13.881 15 12.5 15H3.5C2.119 15 1 13.881 1 12.5V3.5C1 2.119 2.119 1 3.5 1H12.5ZM9 14V2H3.5C2.672 2 2 2.672 2 3.5V12.5C2 13.328 2.672 14 3.5 14H9Z"/>
-              </svg>
-            </span>
-            <span className="ud-toggle-label">{listPaneVisible ? 'Hide List' : 'Show List'}</span>
-          </button>
-
           {/* Commands button — visible only on mobile */}
           {isMobile && (
             <button className="ud-cmd-btn" onClick={() => setCommandsModalOpen(true)} title="Commands" aria-label="Commands">
@@ -1193,6 +1237,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               <span className="ud-cmd-btn-label">Commands</span>
             </button>
           )}
+
+          {/* Panel toggle — List (far right) */}
+          <button className="nav-btn ud-panel-toggle" onClick={() => setListPaneVisible(v => !v)} title={listPaneVisible ? 'Hide List' : 'Show List'} aria-label={listPaneVisible ? 'Hide List' : 'Show List'}>
+            <span className="nav-btn-icon">
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M12.5 1C13.881 1 15 2.119 15 3.5V12.5C15 13.881 13.881 15 12.5 15H3.5C2.119 15 1 13.881 1 12.5V3.5C1 2.119 2.119 1 3.5 1H12.5ZM9 14V2H3.5C2.672 2 2 2.672 2 3.5V12.5C2 13.328 2.672 14 3.5 14H9Z"/>
+              </svg>
+            </span>
+            <span className="ud-toggle-label">{listPaneVisible ? 'Hide List' : 'Show List'}</span>
+          </button>
         </div>
 
         {/* ── Split Container ── */}
@@ -1287,6 +1341,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                 <span className="text-xs text-muted" style={{ fontWeight: 600 }}>VIEWS:</span>
                 <button className="tv-toolbar-btn" aria-pressed={!checklistMode} onClick={() => handleSetViewMode('list')} style={{ fontSize: '12px', padding: '4px 8px' }}>List</button>
                 <button className="tv-toolbar-btn" aria-pressed={checklistMode} onClick={() => handleSetViewMode('checklist')} style={{ fontSize: '12px', padding: '4px 8px' }}>Checklist</button>
+                <div style={{ flex: 1 }} />
+                <button className="nav-btn" onClick={() => setShowListViews(false)} aria-label="Close views" title="Close" style={{ padding: '2px 4px', minWidth: 'auto' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
               </div>
             )}
 
@@ -1361,7 +1419,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                           <input type="checkbox" checked={todos.length > 0 && todos.every(t => selectedIds.includes(t.id))} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
                         </th>
                         <th>Title</th>
-                        <th style={{ textAlign: 'right' }}>Actions</th>
+                        <th className="tv-th-actions" style={{ textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
