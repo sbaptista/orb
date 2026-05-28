@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.72',
+    date: '2026-05-27',
+    changes: [
+      'iPhone command bar redesign: panel toggles (Show/Hide Orb, Show/Hide List) now visible on mobile with centered labels below icons.',
+      'Replaced small ⋮ dropdown with a "Commands" button (grid icon + label) that opens a full modal-center floating modal containing Print, Help, Settings, Account.',
+      'Project search input centered and wider on mobile (flex: 1 fills available space between toggles).',
+      'All mobile command bar button labels (toggles, commands) unified at 10px to match desktop nav-btn-label sizing.',
+    ]
+  },
+  {
     version: 'v0.5.71',
     date: '2026-05-27',
     changes: [

@@ -4037,41 +4037,55 @@ a, button, [role="button"], input, select, textarea {
   .ud-divider--horizontal { width: 36px; }
 }
 
-/* ── Mobile More Menu ── */
+/* ── Commands Modal (mobile) ── */
 
-.ud-mobile-menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 100;
-  min-width: 160px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  box-shadow: var(--shadow-lg);
-  padding: 4px;
+.ud-commands-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--sp-sm) 0;
 }
 
-.ud-mobile-menu-item {
+.ud-commands-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 12px 14px;
+  padding: 14px 20px;
   background: transparent;
   border: none;
   border-radius: var(--r-md);
   color: var(--text);
   font-family: var(--font-ui);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-base);
   font-weight: 500;
   text-decoration: none;
   cursor: pointer;
   transition: background 0.15s;
 }
 
-.ud-mobile-menu-item:hover {
+.ud-commands-item:hover,
+.ud-commands-item:active {
   background: var(--bg3);
+}
+
+.ud-commands-item svg {
+  flex-shrink: 0;
+}
+
+/* ── Toggle & Command button labels (match nav-btn-label sizing) ── */
+
+.ud-toggle-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* Hide toggle labels on desktop — desktop has enough room without them */
+@media (min-width: 768px) {
+  .ud-toggle-label { display: none; }
 }
 
 /* ── Orb Conversation Spacer ── */
@@ -4093,18 +4107,53 @@ a, button, [role="button"], input, select, textarea {
     gap: var(--sp-xs);
   }
 
-  /* Panel toggles hidden on mobile — vertical stack doesn't have sidebars */
-  .ud-command-bar .ud-panel-toggle { display: none; }
+  /* Panel toggles visible on mobile with labels below icon */
+  .ud-command-bar .ud-panel-toggle {
+    display: flex;
+    flex-shrink: 0;
+  }
 
-  /* Nav buttons hidden on mobile — accessed via more menu */
+  /* Hide spacer on mobile — search flex:1 handles spacing */
+  .ud-command-bar .ud-spacer { display: none; }
+
+  /* Nav buttons hidden on mobile — accessed via Commands modal */
   .ud-command-bar .ud-nav-desktop { display: none; }
 
-  /* Search input fills available space on mobile */
+  /* Search input centered and wider on mobile */
   .ud-command-bar .tv-admin-search { flex: 1; min-width: 0; }
   .ud-command-bar .admin-search-input { width: 100%; }
 
-  /* Desktop nav labels always hidden on mobile (handled by ud-nav-desktop display:none) */
+  /* Desktop nav labels hidden on mobile */
   .ud-command-bar .nav-btn-label { display: none; }
+
+  /* Commands button — icon above label, visible on mobile */
+  .ud-cmd-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 8px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    color: var(--text);
+  }
+  .ud-cmd-btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+  }
+  .ud-cmd-btn-label {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--muted);
+    white-space: nowrap;
+    line-height: 1;
+  }
 
   /* Safe area bottom padding for iPhone conversation input */
   .oc-wrap {

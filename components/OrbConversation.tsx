@@ -305,7 +305,7 @@ export default function OrbConversation({
             {orbElement}
             {conversationActive ? (
                 <div ref={threadRef} className="oc-thread">
-                    <div className="shrink-0" style={{ height: 'clamp(200px, 34vh, 280px)' }} />
+                    <div className="oc-thread-spacer" />
                     {messages.map(msg => (
                             msg.type === 'user' ? (
                                 <div
