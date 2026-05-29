@@ -9,6 +9,7 @@ const NAV: SidebarItem[] = [
   { id: 'platforms',  href: '/settings/platforms',  label: 'Platforms',  icon: '💻', active: false },
   { id: 'urgency',    href: '/settings/urgency',    label: 'Urgency Threshold', icon: '⚡', active: false },
   { id: 'notifications', href: '/settings/notifications', label: 'Notifications', icon: '🔔', active: false },
+  { id: 'passkeys', href: '/settings/passkeys', label: 'Passkeys', icon: '🔑', active: false },
   { id: 'projects',   href: '/settings/projects',   label: 'Projects',   icon: '◈', active: false },
   { id: 'users',      href: '/settings/users',      label: 'Users',      icon: '◎', active: false },
   { id: 'invitations', href: '/settings/invitations', label: 'Invitations', icon: '✉', active: false },
