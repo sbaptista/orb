@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 
-const POLL_INTERVAL = 60_000
 const MIN_REFETCH_GAP = 5_000
 
 export function useVisibilityRefetch(refetch: () => void) {
@@ -25,12 +24,10 @@ export function useVisibilityRefetch(refetch: () => void) {
 
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('pageshow', onPageShow)
-    const interval = setInterval(guardedRefetch, POLL_INTERVAL)
 
     return () => {
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('pageshow', onPageShow)
-      clearInterval(interval)
     }
   }, [])
 }

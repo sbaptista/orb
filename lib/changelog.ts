@@ -7,6 +7,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.78',
+    date: '2026-05-28',
+    changes: [
+      'Eliminated background polling: removed 60-second interval timer that generated ~15-20 database queries per minute while idle. Data now refreshes only on tab-focus and page-show (wake from sleep). Dramatically reduces Supabase Disk IO usage.',
+      'Purged 285 stale auth.flow_state rows (oldest from April) and vacuumed bloated tables.',
+    ]
+  },
+  {
     version: 'v0.5.77',
     date: '2026-05-28',
     changes: [
