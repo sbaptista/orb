@@ -3,10 +3,11 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { readStreamableValue } from 'ai/rsc'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+// Link removed — global nav moved to AppNav
 import { createClient } from '@/lib/supabase/client'
 import { visibleProjectsQuery } from '@/lib/projects'
 import AddProductModal from './AddProductModal'
+import AppNav from './AppNav'
 import OrbHelp from './OrbHelp'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { OrbDevPanel, DevTestError, type MoodOverride } from './OrbDevPanel'
@@ -22,7 +23,7 @@ import MuralCanvas from './MuralCanvas'
 // HScrollNav removed — project strip eliminated
 import { isActive, ACTIVE_STATUSES, PARKED_STATUSES } from '@/lib/status-groups'
 import { computeUrgency, isDueWithinWarning, type Urgency } from '@/lib/orb-state'
-import PrintModal from './PrintModal'
+// PrintModal moved to AppNav
 import TodoPanel from './TodoPanel'
 import TodoForm from './TodoForm'
 import { logAudit } from '@/app/actions/log-audit'
@@ -166,7 +167,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   // ── Modal state ──
   const [showHelp, setShowHelp]             = useState(false)
-  const [showPrint, setShowPrint]           = useState(false)
   const [showAddProduct, setShowAddProduct] = useState(false)
   const [showEditProduct, setShowEditProduct] = useState(false)
   const [distillTodo, setDistillTodo]       = useState<any>(null)
@@ -180,7 +180,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [adminProjects, setAdminProjects] = useState<AdminProject[]>([])
   const [projectsLoadError, setProjectsLoadError] = useState(false)
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const [commandsModalOpen, setCommandsModalOpen] = useState(false)
+  // commandsModalOpen removed — AppNav handles global commands modal
 
   // ── Panel visibility ──
   const [orbPaneVisible, setOrbPaneVisible] = useState(true)
@@ -1136,7 +1136,13 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
       <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
 
-        {/* ── Command Bar ── */}
+        {/* ── Global Nav ── */}
+        <AppNav
+          printContext={{ productId: selectedId, productName: selected?.name ?? null }}
+          userInitial={(user?.first_name || user?.email || '?').charAt(0).toUpperCase()}
+        />
+
+        {/* ── Command Bar (page-specific: panel toggles + project search) ── */}
         <div className="ud-command-bar">
           {/* Panel toggle — Orb */}
           <button className="nav-btn ud-panel-toggle" onClick={() => setOrbPaneVisible(v => !v)} title={orbPaneVisible ? 'Hide Orb' : 'Show Orb'} aria-label={orbPaneVisible ? 'Hide Orb' : 'Show Orb'}>
@@ -1202,46 +1208,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
           <div className="ud-spacer" style={{ flex: 1 }} />
 
-          {/* Desktop nav buttons — hidden on mobile */}
-          <button className="nav-btn ud-nav-desktop" onClick={() => setShowPrint(true)} title="Print" aria-label="Print">
-            <span className="nav-btn-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
-              </svg>
-            </span>
-            <span className="nav-btn-label">Print</span>
-          </button>
-          <button className="nav-btn ud-nav-desktop" onClick={() => setShowHelp(true)} title="Help" aria-label="Help">
-            <span className="nav-btn-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-              </svg>
-            </span>
-            <span className="nav-btn-label">Help</span>
-          </button>
-          <Link href="/settings" className="nav-btn ud-nav-desktop" title="Settings" aria-label="Settings">
-            <span className="nav-btn-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            </span>
-            <span className="nav-btn-label">Settings</span>
-          </Link>
-          <Link href="/account" className="nav-btn ud-nav-desktop" title="Account" aria-label="Account">
-            <span className="nav-btn-icon" style={{ fontWeight: 600, fontSize: '14px' }}>{displayUserName.charAt(0).toUpperCase()}</span>
-            <span className="nav-btn-label">Account</span>
-          </Link>
-
-          {/* Commands button — visible only on mobile */}
-          {isMobile && (
-            <button className="ud-cmd-btn" onClick={() => setCommandsModalOpen(true)} title="Commands" aria-label="Commands">
-              <span className="ud-cmd-btn-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-                </svg>
-              </span>
-              <span className="ud-cmd-btn-label">Commands</span>
-            </button>
-          )}
+          {/* Global nav (Print, Help, Settings, Account) moved to AppNav above */}
 
           {/* Panel toggle — List (far right) */}
           <button className="nav-btn ud-panel-toggle" onClick={() => setListPaneVisible(v => !v)} title={listPaneVisible ? 'Hide List' : 'Show List'} aria-label={listPaneVisible ? 'Hide List' : 'Show List'}>
@@ -1526,45 +1493,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       )}
 
       {showHelp && <OrbHelp onClose={() => setShowHelp(false)} />}
-
-      {showPrint && <PrintModal onClose={() => setShowPrint(false)} selectedProductId={selectedId} selectedProductName={selected?.name ?? null} />}
-
-      {/* Commands modal — mobile only */}
-      {commandsModalOpen && (
-        <div className="modal-overlay" onClick={() => setCommandsModalOpen(false)}>
-          <div className="modal-center" onClick={e => e.stopPropagation()} style={{ maxWidth: '320px' }}>
-            <div className="modal-header">
-              <h2>Commands</h2>
-              <button className="modal-close" onClick={() => setCommandsModalOpen(false)} aria-label="Close">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-            <div className="ud-commands-list">
-              <button className="ud-commands-item" onClick={() => { setShowPrint(true); setCommandsModalOpen(false) }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
-                </svg>
-                Print
-              </button>
-              <button className="ud-commands-item" onClick={() => { setShowHelp(true); setCommandsModalOpen(false) }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                </svg>
-                Help
-              </button>
-              <Link href="/settings" className="ud-commands-item" onClick={() => setCommandsModalOpen(false)}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                Settings
-              </Link>
-              <Link href="/account" className="ud-commands-item" onClick={() => setCommandsModalOpen(false)}>
-                <span style={{ width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '14px' }}>{displayUserName.charAt(0).toUpperCase()}</span>
-                Account
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showAddProduct && (
         <AddProductModal ownerId={null} onClose={() => setShowAddProduct(false)}

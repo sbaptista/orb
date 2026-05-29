@@ -7,6 +7,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.79',
+    date: '2026-05-29',
+    changes: [
+      'UnifiedDashboard is now the main dashboard: split-pane Orb + task list with draggable divider replaces the previous ambient-only view. Vertical stack on iPhone, side-by-side on desktop.',
+      'Global navigation bar (AppNav): Print, Help, Settings, and Account are now accessible from every page — dashboard, settings, and account. Mobile uses a compact commands button; desktop shows icon buttons in a slim bar.',
+      'Orphaned old views: AmbientDashboard and standalone TodoView routes remain available but are no longer the default.',
+    ]
+  },
+  {
     version: 'v0.5.78',
     date: '2026-05-28',
     changes: [

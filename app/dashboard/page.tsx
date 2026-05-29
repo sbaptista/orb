@@ -2,9 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { resolveUser } from '@/lib/resolve-user'
 import { redirect } from 'next/navigation'
 import { visibleProjectsQuery } from '@/lib/projects'
-import AmbientDashboard from '@/components/AmbientDashboard'
+import UnifiedDashboard from '@/components/UnifiedDashboard'
 
-type Product = { id: string; name: string; code: string | null; description: string | null; created_by: string }
+type Product = { id: string; name: string; code: string | null; description?: string | null; created_by?: string; view_mode: 'list' | 'checklist' }
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -16,9 +16,14 @@ export default async function DashboardPage() {
 
   const isAdmin = result.user.role_id === 1 || result.user.role_id === 3
 
-  // Always scope dashboard to the user's own projects — admins use TodoView search for others
-  const query = visibleProjectsQuery(supabase, 'id, name, code, description, created_by')
-  const { data } = await query.eq('created_by', user.id)
+  const { data } = await visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode')
+    .eq('created_by', user.id)
 
-  return <AmbientDashboard initialProducts={(data ?? []) as Product[]} isAdmin={isAdmin} />
+  return (
+    <UnifiedDashboard
+      initialProducts={(data ?? []) as Product[]}
+      isAdmin={isAdmin}
+      user={result.user}
+    />
+  )
 }

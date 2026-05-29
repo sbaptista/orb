@@ -837,6 +837,70 @@ a, button, [role="button"], input, select, textarea {
   pointer-events: none;
 }
 
+/* ── Global App Nav (`.appnav`) ── */
+
+.appnav {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 50;
+  flex-shrink: 0;
+  width: 100%;
+}
+.appnav-left {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+.appnav-right {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+}
+.appnav .nav-btn {
+  flex-direction: row;
+  gap: 4px;
+  padding: 4px 8px;
+  min-width: unset;
+}
+.appnav .nav-btn-icon {
+  width: 18px;
+  height: 18px;
+}
+.appnav .nav-btn-label {
+  font-size: 11px;
+  display: none;
+}
+.appnav-back .nav-btn-label {
+  display: inline;
+}
+/* Desktop: show full bar, hide mobile commands button */
+.appnav-desktop { display: flex !important; }
+.appnav-mobile { display: none !important; }
+
+@media (max-width: 767px) {
+  .appnav-desktop { display: none !important; }
+  .appnav-mobile { display: flex !important; }
+  .appnav {
+    padding: 2px 8px;
+    height: 32px;
+    min-height: 32px;
+    max-height: 32px;
+  }
+}
+
 .scroll-arrow {
   pointer-events: auto;
   width: 24px;
