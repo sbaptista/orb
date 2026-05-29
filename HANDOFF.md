@@ -10,44 +10,38 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
+- **Staging URL:** https://orb-staging-azure.vercel.app (deploys from `staging` branch)
 
 ---
 
 ## Last Session Completed
 
-**ORB-175 mobile list fix + ORB-153 passkey implementation (stashed) — 2026-05-28 (Session 31)**
+**ORB-175 + ORB-153 + ORB-177 — passkey auth, mobile list fix, staging environment — 2026-05-28 (Session 31)**
 
 ### Tickets closed this session
-- **ORB-175:** Prototype (iPhone) — actions now on same line as title. Wrapped title+ref in `div.tv-td-content-row` flex container inside the `<td>`, with `div.tv-td-content-inner` (flex:1, min-width:0) for title/ref and `tv-mobile-actions` (flex-shrink:0) for buttons. Title clamped to 1 line on mobile. Safari iOS gotcha: `display:flex` on a `<td>` does not work in WebKit — must use a wrapper div.
+- **ORB-175:** Mobile list view actions on same line as title. Safari iOS flex-on-td workaround — `div.tv-td-content-row` flex container inside the `<td>`. Title clamped to 1 line.
+- **ORB-153:** Passkey authentication (admin-only). All 5 phases: client config, utility module (`lib/passkey.ts`), login page (passkey-first + OTP fallback), Settings > Passkeys (admin-gated), post-OTP enrollment interstitial. Tested on production: register, delete, re-register, sign out + sign in with passkey — all working.
+- **ORB-177:** Staging environment. `orb-staging-azure.vercel.app` deploys from `staging` branch. Same Supabase instance. AGENTS.md updated with three-tier environment docs and deployment workflow.
 
-### ORB-153: Passkey auth — implemented but stashed
-- All 5 phases built and compiling clean (client config, utility module, login page, settings page, enrollment interstitial).
-- **Blocked by ORB-177** (staging environment) — cannot test passkey WebAuthn ceremony on production while alpha testers are using it. WebAuthn requires RP ID to match the origin domain, so localhost/IP testing is impossible.
-- Code preserved on local branch `passkey-auth` (1 commit: `b4c0964`).
-- Plan preserved in Stan's Downloads: `snoopy-zooming-manatee.md`.
-- Supabase dashboard passkey config is enabled (RP ID: `orb-eight-lake.vercel.app`, origins: production URL).
+### Version bumps
+- v0.5.76: Loading indicator (app/loading.tsx) — from previous session
+- v0.5.77: Passkey auth, ORB-175 mobile fix, staging env
 
-### Other fixes
-- `app/loading.tsx`: fixed duplicate `minHeight` property (TS error from previous session).
+### Pushed to production
+- v0.5.77 pushed to both staging and production
 
 ---
 
 ## Uncommitted Changes
 
-- `package.json` — version bumped to 0.5.76 + Supabase SDK upgrade (supabase-js ^2.106.2, ssr ^0.10.3)
-- `lib/version.ts` — v0.5.76
-- `lib/changelog.ts` — v0.5.76 entry (loading indicator)
-- `app/loading.tsx` — NEW: breathing orb loading indicator (minHeight fix applied)
-- `app/globals.css` — ORB-175: mobile actions same line as title (tv-td-content-row, tv-td-content-inner)
-- `components/UnifiedDashboard.tsx` — ORB-175: wrapper div structure for mobile flex layout
-- `package-lock.json` — updated from SDK upgrade
-- `.claude/settings.local.json` — modified
+None — all changes committed and pushed.
 
 ---
 
 ## Key Decisions
 
-- **Passkey testing requires a staging environment.** WebAuthn RP ID must match the origin domain — can't test on localhost/IP. Can't test experimental features on production once alpha testers are using it. Staging env needed (ORB-177). *(2026-05-28)*
+- **Passkey testing only works on production.** WebAuthn RP ID must match origin domain. Staging URL differs, so passkey ceremony fails there. UI testing on staging is fine. Passkeys are admin-gated so alpha testers are unaffected. *(2026-05-28)*
+- **Staging environment for pre-production testing.** Three tiers: localhost (fast iteration) → staging (verification on any device) → production (alpha testers). See AGENTS.md Environments section. *(2026-05-28)*
 - **Safari iOS: display:flex on `<td>` does not work.** Same class of issue as the box-shadow border workaround. Use a wrapper div inside the td as the flex parent. Knowledge repo entry created. *(2026-05-28)*
 - **Passkeys as primary auth, OTP as bootstrap/recovery.** No passwords ever. Users that don't support passkeys can't use the product. OTP remains for first login (after invitation) and device recovery. Interstitial enrollment prompt after first OTP login. *(2026-05-28)*
 - **Supabase passkey API is experimental.** Requires `auth.experimental.passkey: true` in client config. Requires dashboard config: RP ID, RP Name, allowed origins. No Pro plan gate found. *(2026-05-28)*
@@ -87,33 +81,13 @@
 
 ---
 
-## Passkey Branch (`passkey-auth`)
-
-Local branch with all ORB-153 implementation. Merge to main after ORB-177 (staging env) is set up and passkeys are tested.
-
-**New files on branch:**
-- `lib/passkey.ts` — utility module (isPasskeySupported, authenticateWithPasskey, registerPasskey, listPasskeys, renamePasskey, removePasskey)
-- `app/auth/setup-passkey/page.tsx` — post-OTP enrollment interstitial
-- `app/settings/passkeys/page.tsx` — settings route
-- `components/settings/SettingsPasskeys.tsx` — passkey list/register/rename/delete UI
-
-**Modified files on branch:**
-- `lib/supabase/client.ts` — `auth.experimental.passkey: true`
-- `app/auth/login/page.tsx` — passkey-first button + "or" divider + OTP below
-- `app/auth/verify-otp/page.tsx` — conditional redirect to setup-passkey
-- `components/settings/SettingsSidebar.tsx` — passkeys nav entry
-- `components/settings/SettingsAccount.tsx` — "Manage Passkeys" card
-
----
-
 ## Next Priorities
 
-1. **ORB-177: Set up staging environment.** Blocks ORB-153 passkey testing. Needs separate Vercel deployment with own WebAuthn RP ID config.
-2. **ORB-153: Test and deploy passkey auth.** Code complete on `passkey-auth` branch. Merge after staging env is ready.
-3. **Push v0.5.76** — loading indicator + SDK upgrade + ORB-175 fix. Ready to push (no passkey code included).
-4. **ORB-169: Source file audit.** Parked — revisit once UnifiedDashboard replaces the old two dashboards.
-5. **Test wake-from-sleep fixes** on production after push.
-6. **Monitor Disk IO Budget** — Check Supabase Dashboard → Observability → Disk IO chart.
+1. **ORB-169: Source file audit.** Parked — revisit once UnifiedDashboard replaces the old two dashboards.
+2. **Test wake-from-sleep fixes** on production after push.
+3. **Monitor Disk IO Budget** — Check Supabase Dashboard → Observability → Disk IO chart.
+4. **Consider: make passkey enrollment prompt visible to non-admins** once feature is proven stable.
+5. **Clean up `passkey-auth` branch** — can be deleted now that it's merged to main.
 
 ---
 
@@ -122,6 +96,7 @@ Local branch with all ORB-153 implementation. Merge to main after ORB-177 (stagi
 - **Permission required before:** closing a ticket, production push
 - **Always bump version** on any user-facing change so Stan can confirm new code is live when testing
 - **Run DB health check** (AGENTS.md → Database Health) at the start of any session where DB changes are made
+- **Push to staging first** for pre-production testing before pushing to main/production
 
 ---
 
