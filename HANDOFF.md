@@ -16,19 +16,29 @@
 
 ## Last Session Completed
 
-**Housekeeping — HANDOFF commit, Vercel preview deploy fix — 2026-05-28 (Session 32)**
+**UnifiedDashboard promotion, global AppNav, Disk IO fix — 2026-05-28/29 (Session 32)**
+
+### Tickets progressed
+- **ORB-173:** Pre-Alpha Checklist — wrote full definition (5 gates), assessed current status, produced Monday sprint plan. Work starts next session.
 
 ### What was done
-- Committed and pushed HANDOFF.md from session 31 (docs-only, straight to production)
-- Configured Vercel **orb** (production) project: Settings → Build and Deployment → Ignored Build Step → **"Only build production"**. Prevents preview deploys from queuing ahead of production builds. Staging project left as-is.
+- **v0.5.78:** Eliminated 60-second background polling interval from `useVisibilityRefetch`. Data now refreshes only on tab-focus and page-show. Dramatically reduces Supabase Disk IO (~15-20 queries/min → zero while idle). Purged 285 stale `auth.flow_state` rows (oldest from April). VACUUM'd bloated tables.
+- **v0.5.79:** Promoted UnifiedDashboard as the main `/dashboard` view (split-pane Orb + task list with draggable divider). Created `AppNav` global navigation component — Print, Help, Settings, Account accessible from every page (dashboard, settings, account). Desktop: slim frosted bar. Mobile: compact commands button. Removed global nav from UnifiedDashboard command bar (now page-specific: Orb toggle, project search, list toggle only). Fixed breadcrumbs to start at "Settings" instead of "Dashboard" (AppNav handles that). Added `PARENT_CRUMBS` map so Knowledge page shows `Settings / Data / Knowledge`.
+- Configured Vercel **orb** production project: Ignored Build Step → "Only build production" to prevent preview deploys queuing ahead of production.
+- Saved Orb Conceptual Plan (Perplexity) to `docs/`.
 
-### No version bump (no code changes)
+### Version bumps
+- v0.5.78: Disk IO fix (remove polling)
+- v0.5.79: UnifiedDashboard + AppNav
+
+### Pushed to production
+- v0.5.79 pushed to both staging and production
 
 ---
 
 ## Uncommitted Changes
 
-- **HANDOFF.md** — updated with session 32 notes
+None — all changes committed and pushed.
 
 ---
 
@@ -77,11 +87,13 @@
 
 ## Next Priorities
 
-1. **ORB-169: Source file audit.** Parked — revisit once UnifiedDashboard replaces the old two dashboards.
-2. **Test wake-from-sleep fixes** on production after push.
-3. **Monitor Disk IO Budget** — Check Supabase Dashboard → Observability → Disk IO chart.
-4. **Consider: make passkey enrollment prompt visible to non-admins** once feature is proven stable.
-5. **Clean up `passkey-auth` branch** — can be deleted now that it's merged to main.
+1. **Pre-Alpha Sprint (ORB-173).** Monday target. Gate 4 (first impression) is the main gap — new-user empty state, onboarding clarity. Gates 1, 2, 5 largely done. Gate 3 (infrastructure) needs IO budget monitoring over next few days.
+2. **Monitor Disk IO Budget** — Polling eliminated. Check Supabase Dashboard → Observability → Disk IO chart over next 48h to confirm budget stabilizes.
+3. **ORB-169: Source file audit.** UnifiedDashboard is now primary — old AmbientDashboard and TodoView routes are orphaned. Good time to audit.
+4. **Set up periodic `flow_state` cleanup** — pg_cron or edge function to prevent reaccumulation.
+5. **Consider: make passkey enrollment prompt visible to non-admins** once feature is proven stable.
+6. **Clean up `passkey-auth` branch** — can be deleted now that it's merged to main.
+7. **Update `docs/ui-catalog.md`** with AppNav documentation.
 
 ---
 
@@ -96,7 +108,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-05-28 — Claude Code (Claude Opus 4.6) — Session 32`
+`2026-05-29 — Claude Code (Claude Opus 4.6) — Session 32`
 
 ---
 
