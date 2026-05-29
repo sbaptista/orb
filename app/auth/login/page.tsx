@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import { checkLoginAllowed } from '@/app/actions/auth-actions'
-import { isPasskeySupported, authenticateWithPasskey } from '@/lib/passkey'
+import { isPasskeyAvailable, authenticateWithPasskey } from '@/lib/passkey'
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -21,7 +21,7 @@ function LoginForm() {
 
   useEffect(() => {
     setMounted(true)
-    setPasskeyAvailable(isPasskeySupported())
+    setPasskeyAvailable(isPasskeyAvailable())
   }, [])
 
   // Calculate remaining cooldown dynamically during render (only after hydration)

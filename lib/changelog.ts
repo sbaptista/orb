@@ -7,6 +7,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.80',
+    date: '2026-05-29',
+    changes: [
+      'Passkey UI is now hidden on non-production domains (localhost, staging) where the WebAuthn RP ID is not configured. Prevents users from hitting an "invalid domain" error when attempting passkey sign-in or registration.',
+      'Login page, OTP verification flow, passkey setup prompt, settings sidebar, and passkey settings page all respect the domain check.',
+    ]
+  },
+  {
     version: 'v0.5.79',
     date: '2026-05-29',
     changes: [

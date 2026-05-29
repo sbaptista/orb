@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import CollapsibleSidebar, { type SidebarItem } from '@/components/CollapsibleSidebar'
+import { isPasskeyAvailable } from '@/lib/passkey'
 
 const NAV: SidebarItem[] = [
   { id: 'priorities', href: '/settings/priorities', label: 'Priorities', icon: '▴', active: false },
@@ -21,8 +22,13 @@ const NAV: SidebarItem[] = [
 
 export default function SettingsSidebar({ isAdmin }: { isAdmin?: boolean }) {
   const pathname = usePathname()
+  const passkeyDomainOk = isPasskeyAvailable()
   const items = NAV
-    .filter(item => !(['users', 'invitations', 'tickets', 'maintenance', 'passkeys'].includes(item.id)) || isAdmin)
+    .filter(item => {
+      if (item.id === 'passkeys') return isAdmin && passkeyDomainOk
+      if (['users', 'invitations', 'tickets', 'maintenance'].includes(item.id)) return !!isAdmin
+      return true
+    })
     .map(item => ({ ...item, active: pathname === item.href || pathname.startsWith(item.href + '/') }))
   return <CollapsibleSidebar items={items} />
 }

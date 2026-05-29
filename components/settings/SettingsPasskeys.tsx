@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   isPasskeySupported,
+  isPasskeyAvailable,
   registerPasskey,
   listPasskeys,
   renamePasskey,
@@ -11,7 +12,7 @@ import {
   type PasskeyEntry,
 } from '@/lib/passkey'
 
-type PageState = 'loading' | 'unsupported' | 'empty' | 'has-passkeys'
+type PageState = 'loading' | 'unsupported' | 'wrong-domain' | 'empty' | 'has-passkeys'
 
 export default function SettingsPasskeys() {
   const supabase = useMemo(() => createClient(), [])
@@ -31,8 +32,8 @@ export default function SettingsPasskeys() {
   const [deleteLoading, setDeleteLoading] = useState(false)
 
   useEffect(() => {
-    if (!isPasskeySupported()) {
-      setPageState('unsupported')
+    if (!isPasskeyAvailable()) {
+      setPageState(isPasskeySupported() ? 'wrong-domain' : 'unsupported')
       return
     }
     loadPasskeys()
@@ -147,6 +148,18 @@ export default function SettingsPasskeys() {
           </div>
         )}
 
+        {pageState === 'wrong-domain' && (
+          <div style={{
+            padding: 'var(--sp-md) var(--sp-lg)',
+            background: 'var(--bg-hover)',
+            borderRadius: 'var(--r)',
+            fontSize: 'var(--fs-sm)',
+            color: 'var(--muted)',
+          }}>
+            Passkeys are only available on the production site. They cannot be registered or used on this domain.
+          </div>
+        )}
+
         {pageState === 'empty' && (
           <div style={{
             padding: 'var(--sp-md) var(--sp-lg)',
@@ -246,7 +259,7 @@ export default function SettingsPasskeys() {
           </div>
         )}
 
-        {pageState !== 'loading' && pageState !== 'unsupported' && (
+        {pageState !== 'loading' && pageState !== 'unsupported' && pageState !== 'wrong-domain' && (
           <button
             className="btn-primary"
             onClick={handleRegister}

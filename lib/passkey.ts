@@ -16,6 +16,9 @@ export interface PasskeyEntry {
 
 // ── Support Detection ──
 
+/** The only domain where the WebAuthn RP ID is configured. */
+const PASSKEY_RP_HOSTNAME = 'orb-eight-lake.vercel.app'
+
 /**
  * Check if the current browser supports WebAuthn / passkeys.
  * Must be called client-side only.
@@ -23,6 +26,18 @@ export interface PasskeyEntry {
 export function isPasskeySupported(): boolean {
   if (typeof window === 'undefined') return false
   return !!window.PublicKeyCredential
+}
+
+/**
+ * Check if passkeys can actually work on this domain.
+ * WebAuthn RP ID is only configured for production — localhost and staging
+ * will always fail with "invalid domain". Returns false there so the UI
+ * can hide passkey options entirely.
+ */
+export function isPasskeyAvailable(): boolean {
+  if (!isPasskeySupported()) return false
+  if (typeof window === 'undefined') return false
+  return window.location.hostname === PASSKEY_RP_HOSTNAME
 }
 
 // ── Authentication ──

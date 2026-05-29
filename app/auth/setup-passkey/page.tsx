@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { isPasskeySupported, registerPasskey } from '@/lib/passkey'
+import { isPasskeyAvailable, registerPasskey } from '@/lib/passkey'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 
 export default function SetupPasskeyPage() {
@@ -16,6 +16,11 @@ export default function SetupPasskeyPage() {
 
   useEffect(() => {
     async function checkSession() {
+      // If passkeys can't work on this domain, skip straight to dashboard
+      if (!isPasskeyAvailable()) {
+        router.push('/dashboard')
+        return
+      }
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         router.push('/auth/login')
