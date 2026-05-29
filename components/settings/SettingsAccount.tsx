@@ -156,22 +156,6 @@ export default function SettingsAccount() {
 
       <div className="s-card mb-md">
         <h3 className="text-sm" style={{ fontWeight: 'var(--fw-medium)', color: 'var(--text2)', margin: '0 0 var(--sp-xs)' }}>
-          Passkeys
-        </h3>
-        <p className="text-xs text-muted" style={{ margin: '0 0 var(--sp-sm)' }}>
-          Use Face ID, Touch ID, or biometric sign-in instead of email codes.
-        </p>
-        <button
-          className="btn-cancel"
-          onClick={() => router.push('/settings/passkeys')}
-          style={{ fontSize: 'var(--fs-sm)' }}
-        >
-          Manage Passkeys
-        </button>
-      </div>
-
-      <div className="s-card mb-md">
-        <h3 className="text-sm" style={{ fontWeight: 'var(--fw-medium)', color: 'var(--text2)', margin: '0 0 var(--sp-xs)' }}>
           Sign Out
         </h3>
         <p className="text-xs text-muted mb-md" style={{ margin: 0 }}>
