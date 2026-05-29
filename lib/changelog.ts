@@ -7,6 +7,22 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.77',
+    date: '2026-05-28',
+    changes: [
+      'Passkey authentication (admin-only): sign in with Face ID, Touch ID, or device biometric instead of email codes. Passkey-first button on login page, Settings > Passkeys for management, post-OTP enrollment prompt.',
+      'Mobile list view (iPhone): todo actions (Edit, Done) now display on the same line as the title instead of wrapping below. Title clamped to 1 line with ellipsis.',
+      'Staging environment: orb-staging-azure.vercel.app deploys from staging branch for pre-production testing on any device.',
+    ]
+  },
+  {
+    version: 'v0.5.76',
+    date: '2026-05-28',
+    changes: [
+      'Added route loading indicator (app/loading.tsx): breathing orb animation centered on screen during route transitions and initial page load. Uses inline styles for instant render before stylesheets load.',
+    ]
+  },
+  {
     version: 'v0.5.75',
     date: '2026-05-28',
     changes: [

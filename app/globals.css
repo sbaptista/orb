@@ -3300,14 +3300,31 @@ a, button, [role="button"], input, select, textarea {
     display: none !important;
   }
 
+  .tv-td-content-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .tv-td-content-inner {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .tv-td-content .tv-todo-title {
+    -webkit-line-clamp: 1 !important;
+  }
+
   .tv-mobile-actions {
-    display: block !important;
-    margin-top: 8px;
+    display: flex !important;
+    flex-shrink: 0;
+    align-items: center;
+    padding-top: 2px;
   }
 
   .tv-mobile-actions .tv-row-actions {
-    justify-content: flex-start;
-    gap: 10px;
+    justify-content: flex-end;
+    gap: 6px;
   }
 
   .tv-project-name {
