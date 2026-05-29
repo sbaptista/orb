@@ -5,19 +5,32 @@ import { usePathname } from 'next/navigation'
 import { useBreadcrumbOverrides } from '@/lib/hooks/useBreadcrumbOverrides'
 
 interface BreadcrumbsProps {
-  /** First crumb. Defaults to Dashboard. */
+  /** First crumb. Defaults to Settings (Dashboard link is now in AppNav). */
   root?: { label: string; path: string }
 }
 
-export default function Breadcrumbs({ root = { label: 'Dashboard', path: '/dashboard' } }: BreadcrumbsProps) {
+// Pages whose URL doesn't reflect their navigational parent.
+// key = final path segment, value = { label, path } of the intermediate crumb to insert.
+const PARENT_CRUMBS: Record<string, { label: string; path: string }> = {
+  knowledge: { label: 'Data', path: '/settings/data' },
+}
+
+export default function Breadcrumbs({ root = { label: 'Settings', path: '/settings' } }: BreadcrumbsProps) {
   const pathname = usePathname()
   const { overrides } = useBreadcrumbOverrides()
   const segments = pathname.split('/').filter(Boolean)
 
+  // Skip segments already covered by root (e.g. root="/settings" skips the "settings" segment)
+  const rootSegments = root.path.split('/').filter(Boolean)
   const breadcrumbs = [root]
-  let currentPath = ''
+  let currentPath = root.path
 
-  for (let i = 0; i < segments.length; i++) {
+  for (let i = rootSegments.length; i < segments.length; i++) {
+    // Insert a parent crumb if this segment has a navigational parent not in the URL
+    const parent = PARENT_CRUMBS[segments[i]]
+    if (parent && !breadcrumbs.some(b => b.path === parent.path)) {
+      breadcrumbs.push(parent)
+    }
     currentPath += `/${segments[i]}`
     const seg = segments[i]
     let label = seg.charAt(0).toUpperCase() + seg.slice(1)
