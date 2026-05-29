@@ -16,25 +16,19 @@
 
 ## Last Session Completed
 
-**ORB-175 + ORB-153 + ORB-177 — passkey auth, mobile list fix, staging environment — 2026-05-28 (Session 31)**
+**Housekeeping — HANDOFF commit, Vercel preview deploy fix — 2026-05-28 (Session 32)**
 
-### Tickets closed this session
-- **ORB-175:** Mobile list view actions on same line as title. Safari iOS flex-on-td workaround — `div.tv-td-content-row` flex container inside the `<td>`. Title clamped to 1 line.
-- **ORB-153:** Passkey authentication (admin-only). All 5 phases: client config, utility module (`lib/passkey.ts`), login page (passkey-first + OTP fallback), Settings > Passkeys (admin-gated), post-OTP enrollment interstitial. Tested on production: register, delete, re-register, sign out + sign in with passkey — all working.
-- **ORB-177:** Staging environment. `orb-staging-azure.vercel.app` deploys from `staging` branch. Same Supabase instance. AGENTS.md updated with three-tier environment docs and deployment workflow.
+### What was done
+- Committed and pushed HANDOFF.md from session 31 (docs-only, straight to production)
+- Configured Vercel **orb** (production) project: Settings → Build and Deployment → Ignored Build Step → **"Only build production"**. Prevents preview deploys from queuing ahead of production builds. Staging project left as-is.
 
-### Version bumps
-- v0.5.76: Loading indicator (app/loading.tsx) — from previous session
-- v0.5.77: Passkey auth, ORB-175 mobile fix, staging env
-
-### Pushed to production
-- v0.5.77 pushed to both staging and production
+### No version bump (no code changes)
 
 ---
 
 ## Uncommitted Changes
 
-None — all changes committed and pushed.
+- **HANDOFF.md** — updated with session 32 notes
 
 ---
 
@@ -102,7 +96,7 @@ None — all changes committed and pushed.
 
 ## AI Tool Used Last Session
 
-`2026-05-28 — Claude Code (Claude Opus 4.6)`
+`2026-05-28 — Claude Code (Claude Opus 4.6) — Session 32`
 
 ---
 
