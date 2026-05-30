@@ -132,8 +132,8 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
         },
 
         renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving, extra }) => (
-          <div className="s-form" style={{ padding: '12px 16px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+          <>
+            <div className="grid-2col mb-md">
               <div>
                 <label className="label">Name *</label>
                 <input
@@ -156,7 +156,7 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
                 />
               </div>
             </div>
-            <div style={{ marginBottom: '12px' }}>
+            <div className="mb-md">
               <label className="label">Description</label>
               <input
                 className="input"
@@ -166,7 +166,7 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
               />
             </div>
             {isAdmin && (
-              <div style={{ marginBottom: '12px' }}>
+              <div className="mb-md">
                 <label className="label">Owner</label>
                 <select
                   className="input"
@@ -183,7 +183,7 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
                 </select>
               </div>
             )}
-            <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="mb-lg" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <input
                 type="checkbox"
                 id="proj-is-dormant"
@@ -201,11 +201,11 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
               </button>
               <button className="btn-cancel" onClick={onCancel}>Cancel</button>
             </div>
-          </div>
+          </>
         ),
 
         renderRow: ({ item, onEdit, onDelete, extra, checkbox }) => (
-          <tr key={item.id} style={{ borderBottom: '1px solid var(--border)', opacity: item.is_dormant ? 0.5 : 1 }}>
+          <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', opacity: item.is_dormant ? 0.5 : 1, cursor: 'pointer' }}>
             {checkbox}
             <td className="audit-td" style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text2)', fontSize: '12px' }}>
               {item.code}

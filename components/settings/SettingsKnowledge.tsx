@@ -108,8 +108,8 @@ export default function SettingsKnowledge() {
         },
 
         renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving, extra }) => (
-          <div className="s-form" style={{ padding: '12px 16px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+          <>
+            <div className="grid-2col mb-md">
               <div>
                 <label className="label">Title *</label>
                 <input
@@ -135,7 +135,7 @@ export default function SettingsKnowledge() {
                 </select>
               </div>
             </div>
-            <div style={{ marginBottom: '12px' }}>
+            <div className="mb-md">
               <label className="label">Content *</label>
               <textarea
                 className="input"
@@ -146,7 +146,7 @@ export default function SettingsKnowledge() {
                 style={{ resize: 'vertical', lineHeight: 1.5 }}
               />
             </div>
-            <div style={{ marginBottom: '16px' }}>
+            <div className="mb-lg">
               <label className="label">Tags</label>
               <input
                 className="input"
@@ -161,11 +161,11 @@ export default function SettingsKnowledge() {
               </button>
               <button className="btn-cancel" onClick={onCancel}>Cancel</button>
             </div>
-          </div>
+          </>
         ),
 
         renderRow: ({ item, onEdit, onDelete, checkbox }) => (
-          <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
+          <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
             {checkbox}
             <td className="audit-td" style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text2)', fontSize: '12px' }}>
               {item.projects?.code ?? <span style={{ opacity: 0.4 }}>—</span>}

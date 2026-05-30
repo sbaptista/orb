@@ -125,7 +125,7 @@ export default function SettingsStatuses() {
         },
 
         renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving }) => (
-          <div className="s-form" style={{ padding: '12px 16px' }}>
+          <>
             <div className="mb-md">
               <label className="label">Name *</label>
               <input
@@ -142,7 +142,7 @@ export default function SettingsStatuses() {
               </button>
               <button className="btn-cancel" onClick={onCancel}>Cancel</button>
             </div>
-          </div>
+          </>
         ),
 
         renderRow: ({ item, index, items, onEdit, onDelete, onMove, saving, extra }) => {
@@ -152,7 +152,7 @@ export default function SettingsStatuses() {
           const isSecondLast = index === items.length - 2
           const isLast = index === items.length - 1
           return (
-            <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
+            <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
               <td className="audit-td" style={{ fontWeight: 500 }}>
                 {item.name}
               </td>

@@ -1,14 +1,16 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import { useToast } from '@/components/ui/Toast'
 import { prepareArchive, purgeArchivedTasks } from '@/app/actions/archive-data'
 import { importData } from '@/app/actions/import-data'
 import { getAuditLogs } from '@/app/actions/get-audit-logs'
+import { deleteAuditLogs } from '@/app/actions/delete-audit-logs'
 import { diagnoseAudit } from '@/app/actions/diagnose-audit'
 import DistillModal from '@/components/DistillModal'
+import HScrollNav from '@/components/ui/HScrollNav'
 
 type AuditRow = Record<string, unknown>
 
@@ -25,6 +27,9 @@ export default function SettingsData() {
   const [auditPage, setAuditPage] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
   const [diagnostic, setDiagnostic] = useState<string | null>(null)
+  const [auditSelectedIds, setAuditSelectedIds] = useState<string[]>([])
+  const [viewingRow, setViewingRow] = useState<AuditRow | null>(null)
+  const auditScrollRef = useRef<HTMLDivElement>(null)
   const PAGE_SIZE = 50
   const isDev = process.env.NODE_ENV === 'development'
 
@@ -262,6 +267,7 @@ export default function SettingsData() {
         <div className="flex-between mb-md">
           <h3 className="text-sm" style={{ fontWeight: 'var(--fw-medium)', color: 'var(--text2)', margin: 0 }}>
             Audit Log
+            {totalCount > 0 && <span className="text-muted" style={{ fontWeight: 400 }}> · {totalCount} total</span>}
           </h3>
           {isDev && (
             <div className="flex-row gap-sm">
@@ -291,55 +297,157 @@ export default function SettingsData() {
 
         {auditError && <p className="s-error">{auditError}</p>}
 
+        {auditSelectedIds.length > 0 && (
+          <div className="crud-bulk-bar">
+            <span className="text-sm" style={{ fontWeight: 500 }}>
+              {auditSelectedIds.length} selected
+            </span>
+            <button
+              className="oc-tool-btn"
+              onClick={async () => {
+                const count = auditSelectedIds.length
+                if (!confirm(`Permanently delete ${count} audit log entr${count > 1 ? 'ies' : 'y'}? This cannot be undone.`)) return
+                const res = await deleteAuditLogs(auditSelectedIds)
+                if (res.error) { toast.error(res.error); return }
+                toast.success(`${count} entr${count > 1 ? 'ies' : 'y'} deleted.`)
+                setAuditSelectedIds([])
+                loadAudit()
+              }}
+              style={{ fontSize: '12px', color: 'var(--error)', borderColor: 'var(--error)' }}
+            >
+              Delete
+            </button>
+            <button
+              className="text-btn text-sm"
+              onClick={() => setAuditSelectedIds([])}
+              style={{ color: 'var(--muted)' }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
         {auditLoading ? (
           <div className="s-loading" style={{ padding: 0 }}>Loading…</div>
         ) : auditLog.length === 0 ? (
           <div className="s-card s-empty">No audit log entries found.</div>
         ) : (
-          <div className="s-card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="audit-table">
-                <thead>
-                  <tr style={{ background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
-                    {auditColumns.map(col => (
-                      <th key={col} className="audit-th">{col}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {auditLog.map((row, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                      {auditColumns.map(col => (
-                        <td key={col} className="audit-td" title={formatCell(row[col])}>
-                          {formatCell(row[col])}
-                        </td>
+          <HScrollNav scrollRef={auditScrollRef as React.RefObject<HTMLElement>} className="crud-table-scroll">
+            <div className="s-card" style={{ padding: 0, overflow: 'hidden' }}>
+              <div ref={auditScrollRef} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <table className="audit-table">
+                  <thead>
+                    <tr style={{ background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
+                      <th className="audit-th" style={{ width: '36px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={auditLog.length > 0 && auditLog.every(r => auditSelectedIds.includes(String(r.id)))}
+                          onChange={() => {
+                            const ids = auditLog.map(r => String(r.id))
+                            if (ids.every(id => auditSelectedIds.includes(id))) setAuditSelectedIds([])
+                            else setAuditSelectedIds(ids)
+                          }}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </th>
+                      {auditColumns.filter(c => c !== 'id').map(col => (
+                        <th key={col} className="audit-th">{col}</th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {auditLog.map((row) => (
+                      <tr
+                        key={String(row.id)}
+                        onClick={(e) => {
+                          const tag = (e.target as HTMLElement).tagName
+                          if (['BUTTON', 'INPUT', 'SELECT'].includes(tag)) return
+                          if ((e.target as HTMLElement).closest('button, input, select')) return
+                          setViewingRow(row)
+                        }}
+                        style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                      >
+                        <td className="audit-td" style={{ textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={auditSelectedIds.includes(String(row.id))}
+                            onChange={() => {
+                              const id = String(row.id)
+                              setAuditSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+                            }}
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </td>
+                        {auditColumns.filter(c => c !== 'id').map(col => (
+                          <td key={col} className="audit-td" title={formatCell(row[col])}>
+                            {formatCell(row[col])}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-            <div className="flex-between" style={{ padding: 'var(--sp-sm) var(--sp-lg)', borderTop: '1px solid var(--border)' }}>
-              <button
-                className="btn-pager"
-                onClick={() => setAuditPage(p => Math.max(0, p - 1))}
-                disabled={auditPage === 0}
-              >
-                ← Previous
-              </button>
-              <span className="text-xs text-muted">Page {auditPage + 1}</span>
-              <button
-                className="btn-pager"
-                onClick={() => setAuditPage(p => p + 1)}
-                disabled={auditLog.length < PAGE_SIZE}
-              >
-                Next →
-              </button>
+              <div className="flex-between" style={{ padding: 'var(--sp-sm) var(--sp-lg)', borderTop: '1px solid var(--border)' }}>
+                <button
+                  className="btn-pager"
+                  onClick={() => { setAuditPage(p => Math.max(0, p - 1)); setAuditSelectedIds([]) }}
+                  disabled={auditPage === 0}
+                >
+                  ← Previous
+                </button>
+                <span className="text-xs text-muted">Page {auditPage + 1}</span>
+                <button
+                  className="btn-pager"
+                  onClick={() => { setAuditPage(p => p + 1); setAuditSelectedIds([]) }}
+                  disabled={auditLog.length < PAGE_SIZE}
+                >
+                  Next →
+                </button>
+              </div>
             </div>
-          </div>
+          </HScrollNav>
         )}
       </div>
+
+      {/* Audit row detail modal */}
+      {viewingRow && (
+        <>
+          <div className="modal-backdrop" onClick={() => setViewingRow(null)} />
+          <div className="modal-center" style={{ maxWidth: '560px' }}>
+            <div className="modal-header">
+              <h3 style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 600 }}>
+                Audit Entry
+              </h3>
+              <button className="close-btn" onClick={() => setViewingRow(null)} aria-label="Close">×</button>
+            </div>
+            <div className="modal-body" style={{ padding: 'var(--sp-lg) var(--sp-xl)' }}>
+              {auditColumns.filter(c => c !== 'id').map(col => (
+                <div key={col} style={{ marginBottom: 'var(--sp-md)' }}>
+                  <label className="label" style={{ marginBottom: '4px' }}>{col}</label>
+                  <pre style={{
+                    margin: 0,
+                    padding: 'var(--sp-sm) var(--sp-md)',
+                    background: 'var(--bg)',
+                    borderRadius: 'var(--r)',
+                    border: '1px solid var(--border)',
+                    fontSize: '12px',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    maxHeight: '200px',
+                    overflow: 'auto',
+                  }}>
+                    {typeof viewingRow[col] === 'object' && viewingRow[col] !== null
+                      ? JSON.stringify(viewingRow[col], null, 2)
+                      : formatCell(viewingRow[col])}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

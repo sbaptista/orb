@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback, type ReactNode } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import { useToast } from '@/components/ui/Toast'
+import HScrollNav from '@/components/ui/HScrollNav'
 
 type TableColumn<T = any> = {
   label: string
@@ -28,17 +29,27 @@ type CrudConfig<T, F> = {
 
   load?: (supabase: any) => Promise<{ items: T[]; extra?: any }>
   validate?: (form: F, items: T[], editingId: string | null) => string | null
-  toRecord: (form: F, items: T[]) => Record<string, any>
-  toForm: (item: T) => F
+  toRecord?: (form: F, items: T[]) => Record<string, any>
+  toForm?: (item: T) => F
   getId: (item: T) => string
 
   onAdd?: (supabase: any, record: Record<string, any>, items: T[]) => Promise<void>
+  /** Custom save handler for edit. When provided, replaces the default Supabase update. */
+  onSave?: (supabase: any, id: string, record: Record<string, any>, items: T[]) => Promise<void>
   onDelete?: (supabase: any, item: T, items: T[]) => Promise<void>
   onBeforeDelete?: (supabase: any, item: T) => Promise<void>
   deleteWarning?: (item: T, extra: any) => ReactNode
   canDelete?: (item: T, extra: any) => boolean
 
-  renderForm: (props: {
+  /** Label for the add button. Defaults to "Add {itemLabel}". */
+  addButtonLabel?: string
+  /** Label for the modal title when adding. Defaults to "Add {itemLabel}". */
+  addModalTitle?: string
+  /** Label for the modal title when editing. Defaults to "Edit {itemLabel}". */
+  editModalTitle?: string
+
+  /** When omitted, no Add button or Edit modal is shown (read-only table). */
+  renderForm?: (props: {
     form: F
     onChange: (f: F) => void
     onSubmit: () => void
@@ -52,7 +63,7 @@ type CrudConfig<T, F> = {
     item: T
     index: number
     items: T[]
-    onEdit: () => void
+    onEdit: (e?: React.MouseEvent) => void
     onDelete: () => void
     onMove?: (direction: 'up' | 'down') => void
     saving: boolean
@@ -83,6 +94,7 @@ type CrudConfig<T, F> = {
 export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<T, F> }) {
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
+  const tableScrollRef = useRef<HTMLDivElement>(null)
 
   const [items, setItems] = useState<T[]>([])
   const [extra, setExtra] = useState<any>({})
@@ -90,10 +102,10 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const [showAdd, setShowAdd] = useState(false)
-  const [addForm, setAddForm] = useState<F>(config.emptyForm)
+  // Modal state: 'add' | 'edit' | null
+  const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null)
+  const [modalForm, setModalForm] = useState<F>(config.emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<F>(config.emptyForm)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const [scope, setScope] = useState(config.scopeFilter?.defaultScope ?? '')
@@ -146,40 +158,48 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const idCol = config.idColumn ?? 'id'
   const isTable = config.layout === 'table'
 
-  function startAdd() {
+  function openAddModal() {
     let form = { ...config.emptyForm }
     if (config.scopeFilter?.applyToForm) {
       form = config.scopeFilter.applyToForm(form, scope)
     }
-    setShowAdd(true)
+    setModalForm(form)
+    setModalMode('add')
     setEditingId(null)
     setConfirmDeleteId(null)
-    setAddForm(form)
     setError('')
   }
 
-  function startEdit(item: T) {
+  function openEditModal(item: T) {
+    if (!config.toForm || !config.renderForm) return
     setEditingId(config.getId(item))
-    setEditForm(config.toForm(item))
-    setShowAdd(false)
+    setModalForm(config.toForm(item))
+    setModalMode('edit')
     setConfirmDeleteId(null)
+    setError('')
+  }
+
+  function closeModal() {
+    setModalMode(null)
+    setEditingId(null)
     setError('')
   }
 
   async function handleAdd() {
-    const err = config.validate?.(addForm, items, null)
+    if (!config.toRecord) return
+    const err = config.validate?.(modalForm, items, null)
     if (err) { setError(err); return }
     setSaving(true)
     setError('')
     try {
       if (config.onAdd) {
-        await config.onAdd(supabase, config.toRecord(addForm, items), items)
+        await config.onAdd(supabase, config.toRecord(modalForm, items), items)
         toast.success(`${config.itemLabel} added.`)
         await load()
       } else {
         const { data, error: dbErr } = await supabase
           .from(config.table)
-          .insert(config.toRecord(addForm, items))
+          .insert(config.toRecord(modalForm, items))
           .select()
           .single()
         if (dbErr) { setError(dbErr.message); setSaving(false); return }
@@ -192,28 +212,40 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       setError(e.message)
     }
     setSaving(false)
-    setShowAdd(false)
-    setAddForm(config.emptyForm)
+    closeModal()
   }
 
   async function handleSave(id: string) {
-    const err = config.validate?.(editForm, items, id)
+    if (!config.toRecord) return
+    const err = config.validate?.(modalForm, items, id)
     if (err) { setError(err); return }
     setSaving(true)
     setError('')
-    const { data, error: dbErr } = await supabase
-      .from(config.table)
-      .update(config.toRecord(editForm, items))
-      .eq(idCol, id)
-      .select()
-      .single()
-    setSaving(false)
-    if (dbErr) { setError(dbErr.message); return }
-    if (data) {
-      toast.success(`${config.itemLabel} saved.`)
-      setItems(prev => prev.map(item => config.getId(item) === id ? data as T : item))
+    try {
+      if (config.onSave) {
+        await config.onSave(supabase, id, config.toRecord(modalForm, items), items)
+        toast.success(`${config.itemLabel} saved.`)
+        await load()
+      } else {
+        const { data, error: dbErr } = await supabase
+          .from(config.table)
+          .update(config.toRecord(modalForm, items))
+          .eq(idCol, id)
+          .select()
+          .single()
+        if (dbErr) { setError(dbErr.message); setSaving(false); return }
+        if (data) {
+          toast.success(`${config.itemLabel} saved.`)
+          setItems(prev => prev.map(item => config.getId(item) === id ? data as T : item))
+        }
+      }
+    } catch (e: any) {
+      setError(e.message)
+      setSaving(false)
+      return
     }
-    setEditingId(null)
+    setSaving(false)
+    closeModal()
   }
 
   async function handleDelete(item: T) {
@@ -312,26 +344,6 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     return <div key={config.getId(item)} className="s-row-delete">{content}</div>
   }
 
-  function renderEditForm(id: string) {
-    const formNode = config.renderForm({
-      form: editForm,
-      onChange: setEditForm,
-      onSubmit: () => handleSave(id),
-      onCancel: () => { setEditingId(null); setError('') },
-      submitLabel: 'Save',
-      saving,
-      extra,
-    })
-    if (isTable) {
-      return (
-        <tr key={id}>
-          <td colSpan={colCount} className="audit-td">{formNode}</td>
-        </tr>
-      )
-    }
-    return <div key={id}>{formNode}</div>
-  }
-
   function renderItemRow(item: T, idx: number) {
     const id = config.getId(item)
     const selectable = hasBulk && canSelect(item)
@@ -351,8 +363,16 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       item,
       index: idx,
       items: displayed,
-      onEdit: () => startEdit(item),
-      onDelete: () => { setConfirmDeleteId(config.getId(item)); setEditingId(null) },
+      onEdit: (e?: React.MouseEvent) => {
+        // Don't trigger row-edit when clicking buttons, links, inputs, selects
+        if (e) {
+          const tag = (e.target as HTMLElement).tagName
+          if (['BUTTON', 'A', 'INPUT', 'SELECT', 'SVG', 'PATH'].includes(tag)) return
+          if ((e.target as HTMLElement).closest('button, a, input, select')) return
+        }
+        openEditModal(item)
+      },
+      onDelete: () => { setConfirmDeleteId(config.getId(item)); setModalMode(null); setEditingId(null) },
       onMove: config.onMove ? (dir) => handleMove(item, dir) : undefined,
       saving,
       extra,
@@ -362,32 +382,28 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     return <div key={config.getId(item)}>{rowNode}</div>
   }
 
-  function renderAddForm() {
-    const formNode = config.renderForm({
-      form: addForm,
-      onChange: setAddForm,
-      onSubmit: handleAdd,
-      onCancel: () => { setShowAdd(false); setError('') },
-      submitLabel: `Add ${config.itemLabel}`,
-      saving,
-      extra,
-    })
-    if (isTable) {
-      return (
-        <tr key="__add__">
-          <td colSpan={colCount} className="audit-td">{formNode}</td>
-        </tr>
-      )
-    }
-    return formNode
-  }
-
   const itemRows = displayed.map((item, idx) => {
     const id = config.getId(item)
-    if (editingId === id) return renderEditForm(id)
     if (confirmDeleteId === id) return renderDeleteConfirm(item)
     return renderItemRow(item, idx)
   })
+
+  // ── Modal ──
+  const modalOpen = modalMode !== null
+  const modalTitle = modalMode === 'add'
+    ? (config.addModalTitle ?? `Add ${config.itemLabel}`)
+    : (config.editModalTitle ?? `Edit ${config.itemLabel}`)
+
+  const hasForm = !!config.renderForm
+  const modalFormNode = modalOpen && config.renderForm ? config.renderForm({
+    form: modalForm,
+    onChange: setModalForm,
+    onSubmit: modalMode === 'add' ? handleAdd : () => handleSave(editingId!),
+    onCancel: closeModal,
+    submitLabel: modalMode === 'add' ? (config.addButtonLabel ?? `Add ${config.itemLabel}`) : 'Save',
+    saving,
+    extra,
+  }) : null
 
   return (
     <div className={config.pageClass ?? 'settings-page s-page'}>
@@ -398,9 +414,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
             <p className="text-sm text-muted">{config.subtitle(displayed)}</p>
           )}
         </div>
-        {!showAdd && (
-          <button className="btn-outline" onClick={startAdd}>
-            + Add {config.itemLabel}
+        {hasForm && (
+          <button className="btn-outline" onClick={openAddModal}>
+            + {config.addButtonLabel ?? `Add ${config.itemLabel}`}
           </button>
         )}
       </div>
@@ -432,28 +448,13 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder={config.searchPlaceholder ?? 'Filter…'}
-            style={{
-              width: '100%',
-              maxWidth: '280px',
-              padding: '6px 10px',
-              fontSize: '13px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--r)',
-              background: 'var(--bg)',
-              color: 'var(--text)',
-            }}
+            className="crud-search-input"
           />
         </div>
       )}
 
       {hasBulk && someChecked && (
-        <div className="flex-row gap-sm" style={{
-          padding: '8px 12px',
-          background: 'var(--bg2)',
-          borderRadius: 'var(--r-md)',
-          marginBottom: '8px',
-          alignItems: 'center',
-        }}>
+        <div className="crud-bulk-bar">
           <span className="text-sm" style={{ fontWeight: 500 }}>
             {selectedIds.length} selected
           </span>
@@ -470,69 +471,88 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
             onClick={() => setSelectedIds([])}
             style={{ color: 'var(--muted)' }}
           >
-            Clear
+            Cancel
           </button>
         </div>
       )}
 
-      {error && <p className="s-error">{error}</p>}
+      {error && !modalOpen && <p className="s-error">{error}</p>}
 
       {isTable ? (
-        displayed.length === 0 && !showAdd ? (
+        displayed.length === 0 ? (
           <div className="s-card s-empty">No {config.title.toLowerCase()} yet.</div>
         ) : (
-          <div className="s-card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="audit-table">
-                <thead>
-                  <tr style={{ background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
-                    {hasBulk && (
-                      <th className="audit-th" style={{ width: '36px', textAlign: 'center' }}>
-                        <input
-                          type="checkbox"
-                          checked={allChecked}
-                          onChange={toggleSelectAll}
-                          style={{ cursor: 'pointer' }}
-                        />
-                      </th>
-                    )}
-                    {config.tableColumns?.map((col, i) => {
-                      const isSortable = !!col.sortKey
-                      const isActive = sortKey === col.sortKey
-                      return (
-                        <th key={i} className="audit-th"
-                          style={{
-                            width: col.width,
-                            textAlign: col.align ?? 'left',
-                            cursor: isSortable ? 'pointer' : undefined,
-                            userSelect: isSortable ? 'none' : undefined,
-                          }}
-                          onClick={isSortable ? () => {
-                            if (isActive) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-                            else { setSortKey(col.sortKey!); setSortDir('asc') }
-                          } : undefined}
-                        >
-                          {col.label}{isSortable ? (isActive ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕') : ''}
+          <HScrollNav scrollRef={tableScrollRef as React.RefObject<HTMLElement>} className="crud-table-scroll">
+            <div className="s-card" style={{ padding: 0, overflow: 'hidden' }}>
+              <div ref={tableScrollRef} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <table className="audit-table">
+                  <thead>
+                    <tr style={{ background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
+                      {hasBulk && (
+                        <th className="audit-th" style={{ width: '36px', textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={allChecked}
+                            onChange={toggleSelectAll}
+                            style={{ cursor: 'pointer' }}
+                          />
                         </th>
-                      )
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {showAdd && renderAddForm()}
-                  {itemRows}
-                </tbody>
-              </table>
+                      )}
+                      {config.tableColumns?.map((col, i) => {
+                        const isSortable = !!col.sortKey
+                        const isActive = sortKey === col.sortKey
+                        return (
+                          <th key={i} className="audit-th"
+                            style={{
+                              width: col.width,
+                              textAlign: col.align ?? 'left',
+                              cursor: isSortable ? 'pointer' : undefined,
+                              userSelect: isSortable ? 'none' : undefined,
+                            }}
+                            onClick={isSortable ? () => {
+                              if (isActive) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+                              else { setSortKey(col.sortKey!); setSortDir('asc') }
+                            } : undefined}
+                          >
+                            {col.label}{isSortable ? (isActive ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕') : ''}
+                          </th>
+                        )
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {itemRows}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          </HScrollNav>
         )
       ) : (
         <div className="s-list">
-          {showAdd && renderAddForm()}
-          {displayed.length === 0 && !showAdd ? (
+          {displayed.length === 0 ? (
             <p className="s-empty">No {config.title.toLowerCase()} yet.</p>
           ) : itemRows}
         </div>
+      )}
+
+      {/* ── Floating modal for Add / Edit ── */}
+      {modalOpen && (
+        <>
+          <div className="modal-backdrop" onClick={closeModal} />
+          <div className="modal-center">
+            <div className="modal-header">
+              <h3 style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 600 }}>
+                {modalTitle}
+              </h3>
+              <button className="close-btn" onClick={closeModal} aria-label="Close">×</button>
+            </div>
+            <div className="modal-body" style={{ padding: 'var(--sp-lg) var(--sp-xl)' }}>
+              {error && <p className="s-error" style={{ marginBottom: 'var(--sp-md)' }}>{error}</p>}
+              {modalFormNode}
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

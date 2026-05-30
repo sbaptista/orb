@@ -58,7 +58,11 @@ export default function HScrollNav({
   }
 
   return (
-    <div className={`cs-nav-wrap${className ? ` ${className}` : ''}`}>
+    <div
+      className={`cs-nav-wrap${className ? ` ${className}` : ''}`}
+      data-scroll-left={canScrollLeft || undefined}
+      data-scroll-right={canScrollRight || undefined}
+    >
       {canScrollLeft && (
         <button
           className="cs-scroll-arrow cs-scroll-arrow-left"

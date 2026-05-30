@@ -99,9 +99,9 @@ export default function SettingsPriorities() {
         },
 
         renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving }) => (
-          <div className="s-form" style={{ padding: '12px 16px' }}>
-            <label className="label">Label *</label>
-            <div className="flex-row gap-sm mb-md">
+          <>
+            <div className="mb-md">
+              <label className="label">Label *</label>
               <input
                 className="input"
                 value={form.label}
@@ -116,11 +116,11 @@ export default function SettingsPriorities() {
               </button>
               <button className="btn-cancel" onClick={onCancel}>Cancel</button>
             </div>
-          </div>
+          </>
         ),
 
         renderRow: ({ item, index, items, onEdit, onDelete, onMove, saving, extra }) => (
-          <tr key={String(item.value)} style={{ borderBottom: '1px solid var(--border)' }}>
+          <tr key={String(item.value)} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
             <td className="audit-td" style={{ textAlign: 'center', color: 'var(--muted)', fontWeight: 600 }}>
               {item.value}
             </td>

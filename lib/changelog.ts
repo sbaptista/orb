@@ -7,6 +7,20 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.81',
+    date: '2026-05-30',
+    changes: [
+      'Table conformity rework: all settings tables now share the same design via SettingsCrudList — consistent headers, row styling, sort indicators, and bulk actions.',
+      'Floating modal for all Add/Edit forms — replaces inline row editing across Priorities, Statuses, Platforms, Projects, Knowledge, and Users.',
+      'Migrated Users and Invitations to SettingsCrudList — reduced ~1000 lines to consistent config-driven components.',
+      'Clickable table rows: tapping any row opens the edit modal (buttons and checkboxes excluded from triggering).',
+      'Horizontal scroll arrows on desktop (flanking the table) and mobile (above the table) for all settings tables, Tickets, and Audit Log.',
+      'Bulk actions: Tickets now support bulk dismiss with checkboxes. Audit Log now supports bulk delete scoped to the current page.',
+      'Audit Log: click any row to view full entry details in a modal. Checkbox select-all resets on page change.',
+      'Responsive grid: two-column form layouts collapse to single column on iPhone.',
+    ]
+  },
+  {
     version: 'v0.5.80',
     date: '2026-05-29',
     changes: [

@@ -613,6 +613,105 @@ a, button, [role="button"], input, select, textarea {
   gap: var(--sp-md);
 }
 
+@media (max-width: 767px) {
+  .grid-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── CRUD list shared utilities ── */
+
+.crud-search-input {
+  width: 100%;
+  max-width: 280px;
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.crud-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: 8px 12px;
+  background: var(--bg2);
+  border-radius: var(--r-md);
+  margin-bottom: 8px;
+}
+
+/* HScrollNav for tables: arrows sit outside the card, flanking horizontally */
+/* ── Table horizontal scroll ── */
+.crud-table-scroll .cs-scroll-arrow {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: none;
+  cursor: pointer;
+  font-size: 28px;
+  font-weight: 300;
+  color: var(--text2);
+  background: none;
+  padding: 0;
+  line-height: 1;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+  position: static;
+  top: auto !important;
+  bottom: auto !important;
+}
+.crud-table-scroll .cs-scroll-arrow:hover {
+  color: var(--text);
+}
+
+/* Desktop: arrows flank the table left/right */
+@media (min-width: 768px) {
+  .crud-table-scroll {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .crud-table-scroll > div {
+    flex: 1;
+    min-width: 0;
+  }
+  .crud-table-scroll .cs-scroll-arrow {
+    width: 32px;
+    align-self: flex-start;
+    padding-top: 6px;
+  }
+  .crud-table-scroll .cs-scroll-arrow-left { order: -1; }
+  .crud-table-scroll .cs-scroll-arrow-right { order: 1; }
+}
+
+/* Mobile: arrows sit in a row above the table */
+@media (max-width: 767px) {
+  .crud-table-scroll {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .crud-table-scroll > div {
+    width: 100%;
+    order: 2;
+  }
+  .crud-table-scroll .cs-scroll-arrow {
+    order: 1;
+    width: 44px;
+    height: 44px;
+    font-size: 24px;
+  }
+  .crud-table-scroll .cs-scroll-arrow-left {
+    margin-right: auto;
+  }
+  .crud-table-scroll .cs-scroll-arrow-right {
+    margin-left: auto;
+  }
+}
+
 .color-swatch {
   height: 32px;
   width: 64px;

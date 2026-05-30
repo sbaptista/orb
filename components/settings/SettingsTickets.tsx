@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { getTickets, createTodoFromTicket, dismissTicket, type Ticket, type TicketType } from '@/app/actions/ticket-actions'
 import { getAdminProjects } from '@/app/actions/manage-project'
 import { useToast } from '@/components/ui/Toast'
+import HScrollNav from '@/components/ui/HScrollNav'
 
 type Project = { id: string; name: string; code: string | null }
 
@@ -62,6 +63,8 @@ export default function SettingsTickets() {
   const [dismissFor, setDismissFor] = useState<string | null>(null) // ticketId
   const [dismissReason, setDismissReason] = useState('')
   const [dismissing, setDismissing] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const tableScrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     async function load() {
@@ -120,8 +123,37 @@ export default function SettingsTickets() {
     setDismissReason('')
   }
 
-  const COLS = ['Code', 'Type', 'Summary', 'Reporter', 'Status', 'Linked todo', 'Created', 'Actions']
-  const WIDTHS = ['10%', '12%', '24%', '14%', '12%', '10%', '10%', '8%']
+  async function handleBulkDismiss() {
+    if (selectedIds.length === 0) return
+    const count = selectedIds.length
+    if (!confirm(`Dismiss ${count} ticket${count > 1 ? 's' : ''}?`)) return
+    setDismissing(true)
+    let failed = 0
+    for (const id of selectedIds) {
+      const res = await dismissTicket(id)
+      if (res.error) failed++
+    }
+    setDismissing(false)
+    if (failed > 0) toast.error(`${failed} ticket${failed > 1 ? 's' : ''} failed to dismiss.`)
+    else toast.success(`${count} ticket${count > 1 ? 's' : ''} dismissed.`)
+    setSelectedIds([])
+    // Refresh
+    const refreshed = await getTickets()
+    setTickets((refreshed.data ?? []) as Ticket[])
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  function toggleSelectAll() {
+    const actionable = displayed.filter(t => t.status !== 'dismissed' && t.status !== 'closed')
+    if (actionable.every(t => selectedIds.includes(t.id))) setSelectedIds([])
+    else setSelectedIds(actionable.map(t => t.id))
+  }
+
+  const COLS = ['', 'Code', 'Type', 'Summary', 'Reporter', 'Status', 'Linked todo', 'Created', 'Actions']
+  const WIDTHS = ['36px', '9%', '11%', '22%', '13%', '11%', '9%', '9%', '8%']
 
   if (loading) return <div className="s-loading">Loading…</div>
 
@@ -140,37 +172,57 @@ export default function SettingsTickets() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Filter by summary, type, reporter, or status…"
-          style={{
-            width: '100%',
-            maxWidth: '280px',
-            padding: '6px 10px',
-            fontSize: '13px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r)',
-            background: 'var(--bg)',
-            color: 'var(--text)',
-          }}
+          className="crud-search-input"
         />
       </div>
+
+      {selectedIds.length > 0 && (
+        <div className="crud-bulk-bar">
+          <span className="text-sm" style={{ fontWeight: 500 }}>
+            {selectedIds.length} selected
+          </span>
+          <button
+            className="oc-tool-btn"
+            onClick={handleBulkDismiss}
+            disabled={dismissing}
+            style={{ fontSize: '12px', color: 'var(--error)', borderColor: 'var(--error)' }}
+          >
+            Dismiss
+          </button>
+          <button
+            className="text-btn text-sm"
+            onClick={() => setSelectedIds([])}
+            style={{ color: 'var(--muted)' }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       {displayed.length === 0 ? (
         <div className="s-card s-empty">No tickets yet.</div>
       ) : (
-        <div className="s-card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
+        <HScrollNav scrollRef={tableScrollRef as React.RefObject<HTMLElement>} className="crud-table-scroll">
+          <div className="s-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div ref={tableScrollRef} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table className="audit-table">
               <thead>
                 <tr style={{ background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
                   {COLS.map((col, i) => (
                     <th
-                      key={col}
+                      key={col || '__checkbox'}
                       className="audit-th"
                       style={{
                         width: WIDTHS[i],
-                        textAlign: col === 'Actions' ? 'right' : 'left',
+                        textAlign: col === 'Actions' ? 'right' : col === '' ? 'center' : 'left',
                       }}
                     >
-                      {col}
+                      {col === '' ? (
+                        <input type="checkbox" checked={(() => {
+                          const actionable = displayed.filter(t => t.status !== 'dismissed' && t.status !== 'closed')
+                          return actionable.length > 0 && actionable.every(t => selectedIds.includes(t.id))
+                        })()} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
+                      ) : col}
                     </th>
                   ))}
                 </tr>
@@ -187,7 +239,7 @@ export default function SettingsTickets() {
                   if (isCreating) {
                     return (
                       <tr key={ticket.id}>
-                        <td colSpan={8} className="audit-td">
+                        <td colSpan={9} className="audit-td">
                           <div className="s-form" style={{ padding: '12px 16px' }}>
                             <p className="text-sm" style={{ marginBottom: '12px', fontWeight: 500 }}>
                               Create todo for: <em>{ticket.summary}</em>
@@ -236,7 +288,7 @@ export default function SettingsTickets() {
                   if (isDismissing) {
                     return (
                       <tr key={ticket.id}>
-                        <td colSpan={8} className="audit-td">
+                        <td colSpan={9} className="audit-td">
                           <div className="s-row-delete" style={{ border: 'none', padding: '12px 16px' }}>
                             <span className="text-sm flex-1">
                               Dismiss <strong>{ticket.summary}</strong>?
@@ -262,6 +314,11 @@ export default function SettingsTickets() {
 
                   return (
                     <tr key={ticket.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td className="audit-td" style={{ textAlign: 'center' }}>
+                        {canAct ? (
+                          <input type="checkbox" checked={selectedIds.includes(ticket.id)} onChange={() => toggleSelect(ticket.id)} style={{ cursor: 'pointer' }} />
+                        ) : null}
+                      </td>
                       {/* Code */}
                       <td className="audit-td" style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text2)', fontSize: '12px' }}>
                         TICKETS-{ticket.ticket_number}
@@ -350,8 +407,9 @@ export default function SettingsTickets() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
-        </div>
+        </HScrollNav>
       )}
     </div>
   )
