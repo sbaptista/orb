@@ -16,6 +16,8 @@ const NAV: SidebarItem[] = [
   { id: 'invitations', href: '/settings/invitations', label: 'Invitations', icon: '✉', active: false },
   { id: 'tickets',    href: '/settings/tickets',    label: 'Tickets',    icon: '⊙', active: false },
   { id: 'maintenance', href: '/settings/maintenance', label: 'Maintenance Mode', icon: '🛠', active: false },
+  { id: 'knowledge', href: '/settings/knowledge', label: 'Knowledge', icon: '📚', active: false },
+  { id: 'audit',     href: '/settings/audit',     label: 'Audit Log', icon: '📋', active: false },
   { id: 'data',       href: '/settings/data',       label: 'Data',       icon: '⬡', active: false },
   { id: 'whats-new',  href: '/settings/whats-new',  label: "What's New", icon: '✨', active: false },
 ]
@@ -26,7 +28,7 @@ export default function SettingsSidebar({ isAdmin }: { isAdmin?: boolean }) {
   const items = NAV
     .filter(item => {
       if (item.id === 'passkeys') return isAdmin && passkeyDomainOk
-      if (['users', 'invitations', 'tickets', 'maintenance'].includes(item.id)) return !!isAdmin
+      if (['users', 'invitations', 'tickets', 'maintenance', 'knowledge', 'audit'].includes(item.id)) return !!isAdmin
       return true
     })
     .map(item => ({ ...item, active: pathname === item.href || pathname.startsWith(item.href + '/') }))

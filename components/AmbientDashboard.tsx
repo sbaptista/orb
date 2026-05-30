@@ -807,6 +807,24 @@ Type /? anytime for a full command list. What would you like to work on?` },
                         router.push('/settings')
                     } else if (action.action === 'open_help') {
                         setShowHelp(true)
+                    } else if (action.action === 'check_update') {
+                        try {
+                            const res = await fetch('/api/version')
+                            const data = await res.json()
+                            const { VERSION } = await import('@/lib/version')
+                            if (data.version && data.version !== VERSION) {
+                                toast.success(`Update available: ${data.version} (you have ${VERSION})`)
+                            } else {
+                                toast.success(`You're up to date (${VERSION})`)
+                            }
+                        } catch {
+                            toast.error('Could not check for updates')
+                        }
+                    } else if (action.action === 'apply_update') {
+                        if ('serviceWorker' in navigator) {
+                            navigator.serviceWorker.getRegistrations().then(regs => { for (const r of regs) r.update() })
+                        }
+                        window.location.reload()
                     }
                 }
 

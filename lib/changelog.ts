@@ -7,6 +7,21 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.82',
+    date: '2026-05-30',
+    changes: [
+      'Account initial displayed in a circle (nav-avatar) across desktop nav bar and mobile commands modal.',
+      'Commands label shown below icon on mobile with vertically centered layout in 44px nav bar.',
+      'All icon label text unified to nav-btn-label at 11px — removed duplicate ud-toggle-label class. Single source of truth for icon label sizing.',
+      'Check for Update button in Settings > What\'s New. Also available via the Orb ("is there an update?").',
+      'Orb now understands urgency rules: knows that overdue due dates AND urgent priorities both trigger the urgent state independently.',
+      'Knowledge Repository and Audit Log promoted to their own settings pages with sidebar entries (admin-only).',
+      'Data Management page simplified — Backup & Recovery and Task Archival only.',
+      'Commands modal close button moved to far right for consistency with other modals.',
+      'Staging environment removed from development workflow — two-tier: localhost to production.',
+    ]
+  },
+  {
     version: 'v0.5.81',
     date: '2026-05-30',
     changes: [

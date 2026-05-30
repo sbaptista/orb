@@ -74,7 +74,6 @@ curl -s "https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?or=(tit
 
 **GitHub:** `sbaptista/orb`
 **Live:** `https://orb-eight-lake.vercel.app`
-**Staging:** `https://orb-staging-azure.vercel.app`
 **Product code:** `ORB`
 **Dev port:** 3001
 **Version:** `package.json` is canonical; `lib/version.ts` mirrors it for display (both updated together on each bump)
@@ -83,24 +82,19 @@ curl -s "https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?or=(tit
 
 # Environments
 
-Three environments, each with a distinct role:
+Two environments:
 
 | Environment | URL | Branch | Purpose |
 |---|---|---|---|
 | **Localhost** | `http://localhost:3001` | working tree | Fast iteration — hot reload, DEV panel, instant feedback. Where AI + Stan build. |
-| **Staging** | `https://orb-staging-azure.vercel.app` | `staging` | Pre-production verification. Accessible from any device, anywhere. Test here before merging to main. |
-| **Production** | `https://orb-eight-lake.vercel.app` | `main` | Live app used by alpha testers. Only receives code that passed staging. |
+| **Production** | `https://orb-eight-lake.vercel.app` | `main` | Live app used by alpha testers. |
 
 ## Deployment workflow
 
 1. AI commits changes on `main` locally
-2. Push to `staging` branch: `git push origin main:staging`
-3. Vercel auto-deploys to staging URL
-4. Stan tests on any device (Mac, iPad, iPhone)
-5. When satisfied, push to `main`: `git push origin main`
-6. Vercel auto-deploys to production
-
-**Rule:** Never push directly to `main` for production without testing on staging first, unless the change is trivially safe (docs, HANDOFF.md only, etc.).
+2. Stan tests on localhost (Mac, iPad via network, iPhone via network)
+3. When satisfied: `git push origin main`
+4. Vercel auto-deploys to production
 
 ---
 

@@ -1,12 +1,62 @@
 'use client'
 
+import { useState } from 'react'
 import { CHANGELOG } from '@/lib/changelog'
+import { VERSION } from '@/lib/version'
 
 export default function SettingsWhatsNew() {
+  const [checking, setChecking] = useState(false)
+  const [result, setResult] = useState<'up-to-date' | 'update-available' | 'error' | null>(null)
+  const [serverVersion, setServerVersion] = useState<string | null>(null)
+
+  async function handleCheckUpdate() {
+    setChecking(true)
+    setResult(null)
+    try {
+      const res = await fetch('/api/version')
+      if (!res.ok) { setResult('error'); setChecking(false); return }
+      const data = await res.json()
+      setServerVersion(data.version)
+      if (data.version && data.version !== VERSION) {
+        setResult('update-available')
+      } else {
+        setResult('up-to-date')
+      }
+    } catch {
+      setResult('error')
+    }
+    setChecking(false)
+  }
+
+  function handleApplyUpdate() {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        for (const reg of regs) reg.update()
+      })
+    }
+    window.location.reload()
+  }
+
   return (
     <div className="settings-page">
       <div className="s-header mb-xl">
-        <h2 className="s-title">What's New</h2>
+        <h2 className="s-title">What&apos;s New</h2>
+        <div className="flex-row gap-sm" style={{ alignItems: 'center' }}>
+          {result === 'up-to-date' && (
+            <span className="text-sm" style={{ color: 'var(--success)', fontWeight: 500 }}>Up to date</span>
+          )}
+          {result === 'update-available' && (
+            <button className="btn-primary" onClick={handleApplyUpdate} style={{ fontSize: '12px', padding: '6px 14px' }}>
+              Update to {serverVersion}
+            </button>
+          )}
+          {result === 'error' && (
+            <span className="text-sm" style={{ color: 'var(--error)' }}>Check failed</span>
+          )}
+          <button className="btn-outline" onClick={handleCheckUpdate} disabled={checking}>
+            {checking ? 'Checking…' : 'Check for Update'}
+          </button>
+        </div>
       </div>
 
       <div style={{ position: 'relative', paddingLeft: '24px' }}>

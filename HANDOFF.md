@@ -10,29 +10,35 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Staging URL:** https://orb-staging-azure.vercel.app (deploys from `staging` branch)
 
 ---
 
 ## Last Session Completed
 
-**UnifiedDashboard promotion, global AppNav, Disk IO fix — 2026-05-28/29 (Session 32)**
+**Table conformity, passkey domain gate, UI polish, Orb self-awareness — 2026-05-30 (Session 33)**
 
-### Tickets progressed
-- **ORB-173:** Pre-Alpha Checklist — wrote full definition (5 gates), assessed current status, produced Monday sprint plan. Work starts next session.
+### Tickets closed
+- **ORB-174:** Hide passkey UI on non-production domains (v0.5.80)
+- **ORB-179:** Table conformity rework — modal edit, HScrollNav, bulk actions, Users/Invitations migrated to SettingsCrudList (v0.5.81)
+- **ORB-182:** Knowledge Repo and Audit Log promoted to own settings pages
+- **ORB-183:** Account initial in circle, Commands label on mobile, unified icon label CSS
+- **ORB-184:** Check for Update button in What's New + Orb capability
+- **ORB-185:** Orb urgency rules added to system prompt (root cause was overdue due date, not priority)
 
 ### What was done
-- **v0.5.78:** Eliminated 60-second background polling interval from `useVisibilityRefetch`. Data now refreshes only on tab-focus and page-show. Dramatically reduces Supabase Disk IO (~15-20 queries/min → zero while idle). Purged 285 stale `auth.flow_state` rows (oldest from April). VACUUM'd bloated tables.
-- **v0.5.79:** Promoted UnifiedDashboard as the main `/dashboard` view (split-pane Orb + task list with draggable divider). Created `AppNav` global navigation component — Print, Help, Settings, Account accessible from every page (dashboard, settings, account). Desktop: slim frosted bar. Mobile: compact commands button. Removed global nav from UnifiedDashboard command bar (now page-specific: Orb toggle, project search, list toggle only). Fixed breadcrumbs to start at "Settings" instead of "Dashboard" (AppNav handles that). Added `PARENT_CRUMBS` map so Knowledge page shows `Settings / Data / Knowledge`.
-- Configured Vercel **orb** production project: Ignored Build Step → "Only build production" to prevent preview deploys queuing ahead of production.
-- Saved Orb Conceptual Plan (Perplexity) to `docs/`.
+- **v0.5.80:** `isPasskeyAvailable()` domain check — hides passkey UI on localhost/staging
+- **v0.5.81:** All settings tables share SettingsCrudList. Floating modal edit. HScrollNav (desktop: flanking arrows, mobile: above table). Row click triggers edit. Bulk dismiss for Tickets, bulk delete for Audit Log. Responsive grid-2col.
+- **v0.5.82:** Account avatar circle, Commands label, Check for Update, Knowledge/Audit own pages, Orb urgency rules, staging removal
+- Removed staging environment from development workflow (WebAuthn RP ID prevents passkey testing on staging)
+- Created ORB-186 analysis plan: `docs/orb-186-plan.md` — adaptive Orb identity, per-user preferences, proactive guidance
+- Created ORB-180: investigate soft-delete strategy and data retention
 
 ### Version bumps
-- v0.5.78: Disk IO fix (remove polling)
-- v0.5.79: UnifiedDashboard + AppNav
+- v0.5.80 → v0.5.81 → v0.5.82
 
 ### Pushed to production
-- v0.5.79 pushed to both staging and production
+- v0.5.80 pushed
+- v0.5.81 pushed to staging only (awaiting production push with v0.5.82)
 
 ---
 
@@ -44,8 +50,7 @@ None — all changes committed and pushed.
 
 ## Key Decisions
 
-- **Passkey testing only works on production.** WebAuthn RP ID must match origin domain. Staging URL differs, so passkey ceremony fails there. UI testing on staging is fine. Passkeys are admin-gated so alpha testers are unaffected. *(2026-05-28)*
-- **Staging environment for pre-production testing.** Three tiers: localhost (fast iteration) → staging (verification on any device) → production (alpha testers). See AGENTS.md Environments section. *(2026-05-28)*
+- **Staging environment removed.** WebAuthn RP ID is bound to the production domain — staging can't test passkeys. Two-tier workflow: localhost → production. *(2026-05-30, supersedes 2026-05-28)*
 - **Safari iOS: display:flex on `<td>` does not work.** Same class of issue as the box-shadow border workaround. Use a wrapper div inside the td as the flex parent. Knowledge repo entry created. *(2026-05-28)*
 - **Passkeys as primary auth, OTP as bootstrap/recovery.** No passwords ever. Users that don't support passkeys can't use the product. OTP remains for first login (after invitation) and device recovery. Interstitial enrollment prompt after first OTP login. *(2026-05-28)*
 - **Supabase passkey API is experimental.** Requires `auth.experimental.passkey: true` in client config. Requires dashboard config: RP ID, RP Name, allowed origins. No Pro plan gate found. *(2026-05-28)*
@@ -87,13 +92,11 @@ None — all changes committed and pushed.
 
 ## Next Priorities
 
-1. **Pre-Alpha Sprint (ORB-173).** Monday target. Gate 4 (first impression) is the main gap — new-user empty state, onboarding clarity. Gates 1, 2, 5 largely done. Gate 3 (infrastructure) needs IO budget monitoring over next few days.
-2. **Monitor Disk IO Budget** — Polling eliminated. Check Supabase Dashboard → Observability → Disk IO chart over next 48h to confirm budget stabilizes.
-3. **ORB-169: Source file audit.** UnifiedDashboard is now primary — old AmbientDashboard and TodoView routes are orphaned. Good time to audit.
-4. **Set up periodic `flow_state` cleanup** — pg_cron or edge function to prevent reaccumulation.
-5. **Consider: make passkey enrollment prompt visible to non-admins** once feature is proven stable.
-6. **Clean up `passkey-auth` branch** — can be deleted now that it's merged to main.
-7. **Update `docs/ui-catalog.md`** with AppNav documentation.
+1. **ORB-186: Adaptive Orb identity.** Plan in `docs/orb-186-plan.md`. Phase 1 (prompt architecture) is next — separate principles / domain knowledge / behavioral guidelines. Then Phase 2 (per-user preferences).
+2. **ORB-173: Pre-Alpha Checklist.** Overdue (due 2026-05-29). Gate 4 (first impression) is the main gap.
+3. **ORB-169: Source file audit.** UnifiedDashboard is now primary — old AmbientDashboard and TodoView routes are orphaned.
+4. **ORB-180: Investigate soft-delete strategy and data retention.**
+5. **Update `docs/ui-catalog.md`** with AppNav, nav-avatar, crud-table-scroll, modal edit patterns.
 
 ---
 
@@ -102,13 +105,12 @@ None — all changes committed and pushed.
 - **Permission required before:** closing a ticket, production push
 - **Always bump version** on any user-facing change so Stan can confirm new code is live when testing
 - **Run DB health check** (AGENTS.md → Database Health) at the start of any session where DB changes are made
-- **Push to staging first** for pre-production testing before pushing to main/production
 
 ---
 
 ## AI Tool Used Last Session
 
-`2026-05-29 — Claude Code (Claude Opus 4.6) — Session 32`
+`2026-05-30 — Claude Code (Claude Opus 4.6) — Session 33`
 
 ---
 

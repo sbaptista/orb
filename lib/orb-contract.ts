@@ -149,7 +149,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "client_action",
-    "description": "[Confidence: well-tested] Navigate or switch UI state. Use switch_project to change the active project, open_settings to go to settings, open_help for help.",
+    "description": "[Confidence: well-tested] Navigate, switch UI state, or trigger client-side actions. Actions: switch_project (change active project), open_settings, open_help, check_update (check if a newer version is available — ONLY when the user explicitly asks, never proactively), apply_update (reload the app to pick up a new version — ONLY after the user gives permission or their request implies it, e.g. 'update the app if one is available'). The app already has automatic update detection — these actions are for user-initiated checks only.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -158,7 +158,9 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
           "enum": [
             "switch_project",
             "open_settings",
-            "open_help"
+            "open_help",
+            "check_update",
+            "apply_update"
           ]
         },
         "target": {

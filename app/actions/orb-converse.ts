@@ -214,7 +214,8 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
 
   const extraContext = categoriesSection + groupsSection + rolesSection + platformsSection + frictionSection + invitationsSection + usersSection
 
-  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, contextString: byProduct + dormantSection + extraContext }
+  const urgencyThresholdHours = userProfile?.urgency_threshold_hours ?? 0
+  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, urgencyThresholdHours, contextString: byProduct + dormantSection + extraContext }
 }
 
 
@@ -260,6 +261,14 @@ ${ORB_INTEGRITY_RULES}
 VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}
 ${STATUS_VOCABULARY}
 The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering. When the user asks "how many tasks" or "my tasks" without specifying, report the ACTIVE count. If parked tasks exist, mention them separately.
+
+ORB COLOR/URGENCY RULES (how the orb visual state is determined):
+- The orb has three states: calm (green), busy (purple), urgent (amber/orange).
+- URGENT triggers if ANY active task has: (a) a priority marked as URGENT, OR (b) a due date that is overdue or within ${ctx.urgencyThresholdHours} hours of now.
+- BUSY triggers if there are more than 5 active tasks (and none are urgent).
+- CALM is the default when neither condition is met.
+- Both conditions (priority AND due date) are checked independently. Changing one does not clear the other.
+- When diagnosing orb color issues, always check BOTH urgent priorities AND overdue/near-due dates before filing a ticket.
 SCOPE: ${req.scopeToProduct ? `Scoped to the "${ctx.current?.name}" project. Only discuss or query this project's todos unless the user explicitly asks about another project or says "all". IMPORTANT: When calling tools (like create_todo or query_todos), ALWAYS pass the project code (e.g. product_code="${ctx.current?.code}") — never omit it. The tools require codes, but when speaking to the user, always refer to the project by its display name "${ctx.current?.name}".` : 'All projects visible.'}
 BACKLOG (includes DORMANT section if any exist — answer dormant project questions from here, do not query):
 ${ctx.contextString}
@@ -655,7 +664,10 @@ FEEDBACK TONE:
               }
             }
           } else if (tc.name === 'client_action') {
-            const label = input.action === 'switch_project' ? `Switched to ${input.target}` : 'Navigating...'
+            const label = input.action === 'switch_project' ? `Switched to ${input.target}`
+              : input.action === 'check_update' ? 'Checking for updates…'
+              : input.action === 'apply_update' ? 'Updating…'
+              : 'Navigating...'
             stream.update({ speech: accumulatedSpeech, thought: label, clientAction: { action: input.action, target: input.target } })
             output = { ok: true }
           } else if (tc.name === 'search_knowledge') {

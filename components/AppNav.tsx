@@ -76,14 +76,15 @@ export default function AppNav({ printContext, userInitial = '?' }: Props) {
             <span className="nav-btn-icon">{IconSettings}</span>
           </Link>
           <Link href="/account" className="nav-btn" title="Account" aria-label="Account">
-            <span className="nav-btn-icon" style={{ fontWeight: 600, fontSize: '14px' }}>{userInitial}</span>
+            <span className="nav-avatar">{userInitial}</span>
           </Link>
         </div>
 
         {/* Mobile: commands button */}
         <div className="appnav-right appnav-mobile">
-          <button className="nav-btn" onClick={() => setCommandsOpen(true)} title="Commands" aria-label="Commands">
+          <button className="nav-btn appnav-commands-btn" onClick={() => setCommandsOpen(true)} title="Commands" aria-label="Commands">
             <span className="nav-btn-icon">{IconCommands}</span>
+            <span className="nav-btn-label">Commands</span>
           </button>
         </div>
       </nav>
@@ -103,10 +104,8 @@ export default function AppNav({ printContext, userInitial = '?' }: Props) {
         <div className="modal-overlay" onClick={() => setCommandsOpen(false)}>
           <div className="modal-center" onClick={e => e.stopPropagation()} style={{ maxWidth: '320px' }}>
             <div className="modal-header">
-              <h2>Commands</h2>
-              <button className="modal-close" onClick={() => setCommandsOpen(false)} aria-label="Close">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
+              <h2 style={{ flex: 1, margin: 0 }}>Commands</h2>
+              <button className="close-btn" onClick={() => setCommandsOpen(false)} aria-label="Close">×</button>
             </div>
             <div className="ud-commands-list">
               {!onDashboard && (
@@ -130,7 +129,7 @@ export default function AppNav({ printContext, userInitial = '?' }: Props) {
                 Settings
               </Link>
               <Link href="/account" className="ud-commands-item" onClick={() => setCommandsOpen(false)}>
-                <span style={{ width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '14px' }}>{userInitial}</span>
+                <span className="nav-avatar" style={{ width: 20, height: 20, fontSize: '11px' }}>{userInitial}</span>
                 Account
               </Link>
             </div>

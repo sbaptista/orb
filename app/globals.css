@@ -920,7 +920,7 @@ a, button, [role="button"], input, select, textarea {
   justify-content: center;
 }
 .nav-btn-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.01em;
 }
@@ -934,6 +934,25 @@ a, button, [role="button"], input, select, textarea {
   opacity: 0.35;
   cursor: not-allowed;
   pointer-events: none;
+}
+
+/* Account initial avatar circle */
+.nav-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--pill-active-bg, var(--bg3));
+  border: 2px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--text);
+  font-family: var(--font-ui);
+  line-height: 1;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 /* ── Global App Nav (`.appnav`) ── */
@@ -979,7 +998,6 @@ a, button, [role="button"], input, select, textarea {
   height: 18px;
 }
 .appnav .nav-btn-label {
-  font-size: 11px;
   display: none;
 }
 .appnav-back .nav-btn-label {
@@ -994,9 +1012,18 @@ a, button, [role="button"], input, select, textarea {
   .appnav-mobile { display: flex !important; }
   .appnav {
     padding: 2px 8px;
-    height: 32px;
-    min-height: 32px;
-    max-height: 32px;
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+  }
+  .appnav-commands-btn {
+    flex-direction: column !important;
+    justify-content: center !important;
+    gap: 2px !important;
+    padding: 2px 6px !important;
+  }
+  .appnav-commands-btn .nav-btn-label {
+    display: inline !important;
   }
 }
 
@@ -4260,18 +4287,6 @@ a, button, [role="button"], input, select, textarea {
   flex-shrink: 0;
 }
 
-/* ── Toggle & Command button labels (match nav-btn-label sizing) ── */
-
-.ud-toggle-label {
-  display: block;
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  line-height: 1;
-}
-
-/* Toggle labels visible on all screen sizes */
 
 /* ── Orb Conversation Spacer ── */
 .oc-thread-spacer {
@@ -4308,8 +4323,8 @@ a, button, [role="button"], input, select, textarea {
   .ud-command-bar .tv-admin-search { flex: 1; min-width: 0; }
   .ud-command-bar .admin-search-input { width: 100%; }
 
-  /* Desktop nav labels hidden on mobile */
-  .ud-command-bar .nav-btn-label { display: none; }
+  /* Desktop nav labels hidden on mobile, except panel toggles */
+  .ud-command-bar .ud-nav-desktop .nav-btn-label { display: none; }
 
   /* Commands button — icon above label, visible on mobile */
   .ud-cmd-btn {

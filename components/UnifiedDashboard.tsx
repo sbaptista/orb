@@ -830,6 +830,25 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             if (t) { orbSwitchingRef.current = true; setSelectedId(t.id) }
           } else if (action.action === 'open_settings') router.push('/settings')
           else if (action.action === 'open_help') setShowHelp(true)
+          else if (action.action === 'check_update') {
+            try {
+              const res = await fetch('/api/version')
+              const data = await res.json()
+              const { VERSION } = await import('@/lib/version')
+              if (data.version && data.version !== VERSION) {
+                toast.success(`Update available: ${data.version} (you have ${VERSION})`)
+              } else {
+                toast.success(`You're up to date (${VERSION})`)
+              }
+            } catch {
+              toast.error('Could not check for updates')
+            }
+          } else if (action.action === 'apply_update') {
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(regs => { for (const r of regs) r.update() })
+            }
+            window.location.reload()
+          }
         }
         if (chunk.suggestedKnowledge) setDistillTodo(chunk.suggestedKnowledge)
       }
@@ -1153,7 +1172,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                 <defs><radialGradient id="orbFavGrad" cx="36%" cy="30%" r="60%"><stop offset="0%" stopColor="#ffffff"/><stop offset="45%" stopColor="#d4e4d4"/><stop offset="100%" stopColor="#6a9a7a"/></radialGradient></defs>
               </svg>
             </span>
-            <span className="ud-toggle-label">{orbPaneVisible ? 'Hide Orb' : 'Show Orb'}</span>
+            <span className="nav-btn-label">{orbPaneVisible ? 'Hide Orb' : 'Show Orb'}</span>
           </button>
 
           {/* Project selector — search-based dropdown */}
@@ -1221,7 +1240,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                 <line x1="3" y1="15" x2="21" y2="15" />
               </svg>
             </span>
-            <span className="ud-toggle-label">{listPaneVisible ? 'Hide List' : 'Show List'}</span>
+            <span className="nav-btn-label">{listPaneVisible ? 'Hide List' : 'Show List'}</span>
           </button>
         </div>
 
