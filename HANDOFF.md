@@ -92,11 +92,64 @@ None — all changes committed and pushed.
 
 ## Next Priorities
 
-1. **ORB-186: Adaptive Orb identity.** Plan in `docs/orb-186-plan.md`. Phase 1 (prompt architecture) is next — separate principles / domain knowledge / behavioral guidelines. Then Phase 2 (per-user preferences).
+1. **ORB-186: Adaptive Orb identity.** Full plan at `docs/orb-186-plan.md`. Start with Phase 1 (prompt architecture). See "ORB-186 Implementation Context" below for the full file map.
 2. **ORB-173: Pre-Alpha Checklist.** Overdue (due 2026-05-29). Gate 4 (first impression) is the main gap.
 3. **ORB-169: Source file audit.** UnifiedDashboard is now primary — old AmbientDashboard and TodoView routes are orphaned.
 4. **ORB-180: Investigate soft-delete strategy and data retention.**
 5. **Update `docs/ui-catalog.md`** with AppNav, nav-avatar, crud-table-scroll, modal edit patterns.
+
+---
+
+## ORB-186 Implementation Context
+
+**Plan document:** `docs/orb-186-plan.md` — read this first. Contains full analysis, design principles, and 6-phase implementation plan.
+
+**Core concept:** There is no single Orb. Each user gets a relationship that evolves. Four layers of autonomy: session adaptation → persistent preferences → proposed rule changes → emergent patterns.
+
+### Phase 1: Prompt Architecture (next to build)
+
+The monolithic system prompt in `orb-converse.ts` needs to be split into three layers:
+
+| Layer | Purpose | Where it lives |
+|---|---|---|
+| **Principles** | Stable governing rules (honesty, transparency, adaptation, reversibility) | `lib/orb-contract.ts` → `ORB_INTEGRITY_RULES` (currently empty: just `"INTEGRITY:\n"`) |
+| **Domain knowledge** | Urgency rules, status vocabulary, valid values, schema | Extracted from inline system prompt into structured blocks |
+| **Behavioral guidelines** | Voice, tone, attribution, proactivity, feedback style | Extracted from inline system prompt |
+
+### Key files to read and modify
+
+| File | Role | What changes |
+|---|---|---|
+| `docs/orb-186-plan.md` | The plan | Reference document — read before building |
+| `app/actions/orb-converse.ts` | Server action — Orb conversation | Lines 254-315: monolithic system prompt to be restructured |
+| `lib/orb-contract.ts` | Tool definitions + integrity rules | `ORB_INTEGRITY_RULES` to be populated with design principles |
+| `lib/orb-state.ts` | Urgency computation (`computeUrgency`) | Reference — domain knowledge the Orb needs to understand |
+| `components/UnifiedDashboard.tsx` | Main dashboard — handles `clientAction` responses | Lines 826-833: client action handler (has `check_update` and `apply_update`) |
+| `components/AmbientDashboard.tsx` | Legacy dashboard — same client action handler | Lines 806-825: parallel implementation |
+
+### Phase 2: Adaptive Identity (after Phase 1)
+
+Requires DB migration:
+- New `orb_preferences` table: `user_id`, `key`, `value`, `created_at`, `updated_at`
+- Seed preferences: `guidance_level` (quiet/gentle/active), `verbosity` (terse/normal/detailed), `scope_reminders` (boolean)
+- Load at context-build time in `buildContext()` (line ~56 in `orb-converse.ts`)
+- Inject into system prompt as `USER PREFERENCES: ...`
+- UI: Settings page for preference review (new page or under Account)
+
+### Phase 3: Proactive Guidance (after Phase 2)
+
+- Compute observations at context-build time in `buildContext()`
+- Include in system prompt as `PROACTIVE OBSERVATIONS` section
+- Greeting (`orbGreeting` function, line ~960 in `orb-converse.ts`) becomes context-aware
+- Proactive at greeting only, reactive during conversation (intentional design — see plan)
+
+### Stan's key direction
+
+- Orb should be proactive but gentle — "I noticed..." not "You should..."
+- Users calibrate proactivity (the `guidance_level` preference)
+- User always feels in charge — suggestions, not directives
+- No condescension — never make users feel stupid
+- The Orb adapts to the user, not the other way around
 
 ---
 
