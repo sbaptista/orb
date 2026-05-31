@@ -500,4 +500,7 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   set_dormancy: 'Updating project...',
   create_ticket: 'Noting observation...',
   query_db: 'Querying database...',
+  get_preferences: 'Loading preferences...',
+  set_preference: 'Saving preference...',
+  query_capabilities: 'Checking capabilities...',
 }

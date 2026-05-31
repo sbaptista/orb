@@ -2007,6 +2007,35 @@ a, button, [role="button"], input, select, textarea {
   border-radius: var(--r-xl);
 }
 
+/* ── Markdown rendering inside Orb responses ── */
+.oc-orb-md {
+  font-size: var(--fs-sm);
+  color: var(--text);
+  line-height: 1.6;
+}
+.oc-orb-md > *:first-child { margin-top: 0; }
+.oc-orb-md > *:last-child { margin-bottom: 0; }
+.oc-orb-md h2 { font-size: 14px; font-weight: 700; margin: 12px 0 4px; }
+.oc-orb-md h3 { font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+.oc-orb-md p { margin: 4px 0; }
+.oc-orb-md ul, .oc-orb-md ol { margin: 4px 0; padding-left: 18px; }
+.oc-orb-md li { margin: 2px 0; }
+.oc-orb-md strong { font-weight: 600; }
+.oc-orb-md em { font-style: italic; }
+.oc-orb-md hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+.oc-orb-md code {
+  font-family: monospace;
+  font-size: 12px;
+  background: var(--bg-hover);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.oc-orb-md a {
+  color: var(--pill-active-bg);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .oc-user-bubble {
   max-width: 75%;
   padding: 10px 14px;

@@ -7,6 +7,22 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.90',
+    date: '2026-05-30',
+    changes: [
+      'ORB-186 Phase 6: Changelog awareness — Orb can answer "what\'s new?" conversationally from the latest 3 releases. Changelog injected into system prompt.',
+      'ORB-186 Phase 5: Feedback loop closure — recent tickets loaded into Orb context. Orb references resolved issues and avoids filing duplicates.',
+      'ORB-186 Phase 4: Self-diagnostics — diagnose protocol, query_capabilities tool ("what can you do?"), ticket deduplication.',
+      'ORB-186 Phase 3: Proactive guidance — context-aware greeting, observations (overdue/stale/closures/workload), respects guidance_level preference.',
+      'ORB-186 Phase 2: Adaptive Orb identity — session adaptation, per-user preferences (guidance_level, verbosity, scope_reminders), get/set_preference tools.',
+      'ORB-186 Phase 1: Prompt architecture — monolithic system prompt split into Principles, Domain Knowledge, and Behavioral Guidelines layers.',
+      'Orb responses render markdown — headers, bold, lists, horizontal rules displayed as formatted text. Copy preserves raw markdown.',
+      'Tickets: floating modal for viewing/editing ticket details. Edit button added to Actions column.',
+      'Max response tokens increased from 1024 to 4096. Truncated tool calls now return a clear diagnostic error.',
+      'Current date injected into system prompt. query_db guards against SQL subquery injection in filter values.',
+    ]
+  },
+  {
     version: 'v0.5.82',
     date: '2026-05-30',
     changes: [

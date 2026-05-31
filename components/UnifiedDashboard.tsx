@@ -718,7 +718,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       const [cmd, ...args] = text.split(' ')
       if (cmd === '/settings') router.push('/settings')
       else if (cmd === '/help' || cmd === '/?') setShowHelp(true)
-      else if (cmd === '/clear') { setMessages([]); setConversationActive(false); sessionStorage.removeItem(SS_CONVERSATION) }
+      else if (cmd === '/clear') { setMessages([]); setConversationActive(false); sessionStorage.removeItem(SS_CONVERSATION); greetingFiredRef.current = false }
       else if (cmd === '/add') {
         const task = args.join(' ').trim()
         if (!task) { toast.neutral('Usage: /add Buy groceries'); return }

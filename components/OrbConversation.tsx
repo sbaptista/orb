@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ComponentPropsWithoutRef } from 'react'
+import Markdown from 'react-markdown'
 export type ConversationMessage = {
     id: string
     type: 'user' | 'orb'
@@ -54,15 +55,18 @@ function OrbCard({ msg }: { msg: ConversationMessage }) {
                 </div>
             )}
             <div className="flex-row" style={{ gap: '6px', alignItems: 'flex-start' }}>
-                <span style={{
+                <div className="oc-orb-md" style={{
                     flex: 1,
-                    whiteSpace: 'pre-wrap',
                     opacity: msg.isStreaming ? 0.8 : 1,
                     transition: 'opacity 0.2s',
-                    fontSize: 'var(--fs-sm)',
-                    color: 'var(--text)',
                 }}>
-                    {msg.text}
+                    <Markdown components={{
+                        a: ({ href, children, ...rest }: ComponentPropsWithoutRef<'a'>) => (
+                            <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>{children}</a>
+                        ),
+                    }}>
+                        {msg.text}
+                    </Markdown>
                     {msg.isStreaming && (
                         <span style={{
                             display: 'inline-block',
@@ -74,7 +78,7 @@ function OrbCard({ msg }: { msg: ConversationMessage }) {
                             animation: 'todos-cursor-blink 0.8s infinite',
                         }} />
                     )}
-                </span>
+                </div>
                 <button
                     type="button"
                     className="oc-copy-btn"
@@ -188,9 +192,17 @@ export default function OrbConversation({
         if (el) {
             const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 300
             const lastMsg = messages[messages.length - 1]
-            const forceScroll = lastMsg && (lastMsg.type === 'user' || lastMsg.isStreaming)
+            const secondLast = messages.length >= 2 ? messages[messages.length - 2] : null
+            // Force scroll when: user just sent a message (could be last or second-to-last
+            // if a processing placeholder was appended), or the Orb is streaming
+            const forceScroll = lastMsg && (
+                lastMsg.type === 'user' ||
+                lastMsg.isStreaming ||
+                lastMsg.text === 'Processing…' ||
+                (secondLast?.type === 'user')
+            )
             if (isNearBottom || forceScroll) {
-                setTimeout(() => { el.scrollTop = el.scrollHeight }, 10)
+                requestAnimationFrame(() => { el.scrollTop = el.scrollHeight })
             }
         }
     }, [messages])

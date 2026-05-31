@@ -152,6 +152,40 @@ export async function createTicket({
   return { ok: true, data: { id: ticket.id, code: `TICKETS-${ticket.ticket_number}` } }
 }
 
+// ── updateTicket ─────────────────────────────────────────────────────────────
+// General-purpose ticket update (summary, type, detail, status, dismiss_reason).
+
+export async function updateTicket(
+  ticketId: string,
+  fields: { summary?: string; type?: TicketType; status?: TicketStatus; dismiss_reason?: string | null },
+): Promise<{ error?: string }> {
+  const auth = await getAuthContext()
+  if (!auth.isAdmin) return { error: 'admin only' }
+
+  const patch: Record<string, any> = {}
+  if (fields.summary !== undefined) patch.summary = fields.summary
+  if (fields.type !== undefined) patch.type = fields.type
+  if (fields.status !== undefined) {
+    patch.status = fields.status
+    if (fields.status === 'closed') patch.closed_at = new Date().toISOString()
+  }
+  if (fields.dismiss_reason !== undefined) patch.dismiss_reason = fields.dismiss_reason
+
+  if (Object.keys(patch).length === 0) return { error: 'no fields to update' }
+
+  const admin = createAdminClient()
+  const { error } = await admin.from('tickets').update(patch).eq('id', ticketId)
+  if (error) return { error: error.message }
+
+  if (fields.status) {
+    updateTicketStatus(ticketId, fields.status).catch(err =>
+      console.error('[updateTicket] status notification failed:', err)
+    )
+  }
+
+  return {}
+}
+
 // ── updateTicketStatus ────────────────────────────────────────────────────────
 // Updates ticket status, fires push + email to reporter if status is progressing.
 // Fire-and-forget safe — errors are logged, never thrown.

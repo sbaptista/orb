@@ -4,7 +4,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createStreamableValue } from 'ai/rsc'
 import { getAuthContext, type AuthContext } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
-import { ORB_TOOLS, ORB_TOOL_LABELS, ORB_INTEGRITY_RULES } from '@/lib/orb-contract'
+import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
+import { ORB_PRINCIPLES, ORB_VOICE, ORB_ATTRIBUTION, ORB_FEEDBACK_TONE, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_PROACTIVE_TONE, ORB_SELF_DIAGNOSTICS, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, computeObservations, ORB_PREFERENCE_TOOLS, ORB_CAPABILITIES_TOOL, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 // computeInsights suspended — code preserved in lib/insights.ts for future use
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
@@ -14,6 +15,7 @@ import { createTicket } from '@/app/actions/ticket-actions'
 import { updateTicketStatus } from '@/app/actions/ticket-actions'
 import { createProject } from '@/app/actions/manage-project'
 import { DB_SCHEMA, ALLOWED_TABLES, SOFT_DELETE_TABLES, ALLOWED_OPS, COLUMN_NAME_RE } from '@/lib/db-schema'
+import { CHANGELOG } from '@/lib/changelog'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -71,6 +73,8 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     { data: frictionLogs, count: frictionTotalCount },
     { data: invitations },
     { data: allUsers },
+    { data: orbPreferences },
+    { data: recentTickets },
   ] = await Promise.all([
     visibleProjectsQuery(supabase, 'id, name, code, description, created_by'),
     auth.isAdmin ? supabase.from('projects').select('id, name, code').eq('is_dormant', true).order('sort_order') : Promise.resolve({ data: [] }),
@@ -93,6 +97,10 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
       : Promise.resolve({ data: [] }),
     auth.isAdmin
       ? auth.admin.from('users').select('id, email, first_name, last_name, role_id, onboarded_at, release_stage').order('created_at')
+      : Promise.resolve({ data: [] }),
+    supabase.from('orb_preferences').select('key, value').eq('user_id', auth.user.id),
+    auth.isAdmin
+      ? auth.admin.from('tickets').select('id, ticket_number, type, summary, status, dismiss_reason, created_at, closed_at, detail').order('created_at', { ascending: false }).limit(10)
       : Promise.resolve({ data: [] }),
   ])
 
@@ -215,7 +223,23 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   const extraContext = categoriesSection + groupsSection + rolesSection + platformsSection + frictionSection + invitationsSection + usersSection
 
   const urgencyThresholdHours = userProfile?.urgency_threshold_hours ?? 0
-  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, urgencyThresholdHours, contextString: byProduct + dormantSection + extraContext }
+  const preferenceList = (orbPreferences ?? []) as Array<{ key: string; value: string }>
+  const guidanceLevel = preferenceList.find(p => p.key === 'guidance_level')?.value ?? 'gentle'
+  const observations = guidanceLevel !== 'quiet' ? computeObservations(todoList, productList) : []
+  if (observations.length > 0) console.log('[buildContext] Proactive observations:', observations)
+  else console.log('[buildContext] No observations computed. guidanceLevel:', guidanceLevel, 'todos:', todoList.length, 'products:', productList.length)
+
+  const ticketList = (recentTickets ?? []) as Array<{ id: string; ticket_number: number; type: string; summary: string; status: string; dismiss_reason: string | null; created_at: string; closed_at: string | null; detail: Record<string, any> }>
+  const ticketsSection = ticketList.length > 0
+    ? `\n\nRECENT TICKETS (filed by you or the Orb — ${ticketList.length} most recent):\n${ticketList.map(t => {
+        const status = t.status.toUpperCase()
+        const dismissed = t.dismiss_reason ? ` — dismissed: ${t.dismiss_reason}` : ''
+        const detail = t.detail?.detail ? ` | Detail: ${String(t.detail.detail).slice(0, 80)}` : ''
+        return `  TICKETS-${t.ticket_number} [${status}] (${t.type}) ${t.summary}${dismissed}${detail}`
+      }).join('\n')}\nUse this to avoid filing duplicates and to reference resolved issues.`
+    : ''
+
+  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, urgencyThresholdHours, preferenceList, guidanceLevel, observations, contextString: byProduct + dormantSection + extraContext + ticketsSection }
 }
 
 
@@ -251,69 +275,50 @@ export async function orbConverse(req: OrbRequest) {
         turnCount++
         const response = await anthropic.messages.create({
           model: 'claude-sonnet-4-5-20250929',
-          max_tokens: 1024,
-          system: `You are the voice of the orb — the conversational layer of Orb.
-VOICE: Brief, direct. Plain text only. NO markdown.
-${ctx.currentUser ? `\nUSER CONTEXT: You are talking to ${ctx.currentUser.email} (Role: ${userRole || 'Unknown'}).` : ''}
+          max_tokens: 4096,
+          system: [
+            // Identity
+            `You are the voice of the orb — the conversational layer of Orb.`,
+            ORB_VOICE,
+            `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
+            ctx.currentUser ? `USER CONTEXT: You are talking to ${ctx.currentUser.email} (Role: ${userRole || 'Unknown'}).` : '',
 
-${ORB_INTEGRITY_RULES}
+            // Layer 1: Principles
+            ORB_PRINCIPLES,
 
-VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}
-${STATUS_VOCABULARY}
-The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering. When the user asks "how many tasks" or "my tasks" without specifying, report the ACTIVE count. If parked tasks exist, mention them separately.
+            // Layer 2: Domain Knowledge
+            `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,
+            STATUS_VOCABULARY,
+            `The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering. When the user asks "how many tasks" or "my tasks" without specifying, report the ACTIVE count. If parked tasks exist, mention them separately.`,
+            buildUrgencyRules(ctx.urgencyThresholdHours),
+            `SCOPE: ${req.scopeToProduct ? `Scoped to the "${ctx.current?.name}" project. Only discuss or query this project's todos unless the user explicitly asks about another project or says "all". IMPORTANT: When calling tools (like create_todo or query_todos), ALWAYS pass the project code (e.g. product_code="${ctx.current?.code}") — never omit it. The tools require codes, but when speaking to the user, always refer to the project by its display name "${ctx.current?.name}".` : 'All projects visible.'}`,
+            `BACKLOG (includes DORMANT section if any exist — answer dormant project questions from here, do not query):\n${ctx.contextString}`,
+            `KNOWLEDGE BASE (Recent):\n${ctx.knowledgeList.slice(0, 5).map((k: any) => {
+              const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
+              let origin = ''
+              if (k.origin_todo_id) {
+                const srcTodo = ctx.todoList.find((t: any) => t.id === k.origin_todo_id)
+                if (srcTodo) origin = ` [from: ${todoCode(srcTodo, ctx.productList)}]`
+              }
+              return `- [${k.projects?.name || k.projects?.code}] ${k.title}${tags}${origin}: ${k.content.slice(0, 100)}...`
+            }).join('\n')}\n(Note: Use the 'search_knowledge' tool to query the full repository if the answer isn't here.)`,
+            ORB_QUERY_ROUTING,
+            `DATABASE SCHEMA (for query_db):\n${DB_SCHEMA}`,
+            ORB_SCOPE_RULES,
+            `WHAT'S NEW (recent releases — use when the user asks "what's new?", "what changed?", or "what version is this?"):\n${CHANGELOG.slice(0, 3).map(r => `${r.version} (${r.date}):\n${r.changes.map(c => `  - ${c}`).join('\n')}`).join('\n\n')}`,
 
-ORB COLOR/URGENCY RULES (how the orb visual state is determined):
-- The orb has three states: calm (green), busy (purple), urgent (amber/orange).
-- URGENT triggers if ANY active task has: (a) a priority marked as URGENT, OR (b) a due date that is overdue or within ${ctx.urgencyThresholdHours} hours of now.
-- BUSY triggers if there are more than 5 active tasks (and none are urgent).
-- CALM is the default when neither condition is met.
-- Both conditions (priority AND due date) are checked independently. Changing one does not clear the other.
-- When diagnosing orb color issues, always check BOTH urgent priorities AND overdue/near-due dates before filing a ticket.
-SCOPE: ${req.scopeToProduct ? `Scoped to the "${ctx.current?.name}" project. Only discuss or query this project's todos unless the user explicitly asks about another project or says "all". IMPORTANT: When calling tools (like create_todo or query_todos), ALWAYS pass the project code (e.g. product_code="${ctx.current?.code}") — never omit it. The tools require codes, but when speaking to the user, always refer to the project by its display name "${ctx.current?.name}".` : 'All projects visible.'}
-BACKLOG (includes DORMANT section if any exist — answer dormant project questions from here, do not query):
-${ctx.contextString}
-
-KNOWLEDGE BASE (Recent):
-${ctx.knowledgeList.slice(0, 5).map((k: any) => {
-  const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
-  let origin = ''
-  if (k.origin_todo_id) {
-    const srcTodo = ctx.todoList.find((t: any) => t.id === k.origin_todo_id)
-    if (srcTodo) origin = ` [from: ${todoCode(srcTodo, ctx.productList)}]`
-  }
-  return `- [${k.projects?.name || k.projects?.code}] ${k.title}${tags}${origin}: ${k.content.slice(0, 100)}...`
-}).join('\n')}
-(Note: Use the 'search_knowledge' tool to query the full repository if the answer isn't here.)
-
-QUERY ROUTING:
-- query_todos: Use for simple task lookups by code, status, priority, text match. Fast, enriched with owner/group/category. Returns ALL statuses by default.
-- query_db: Use for complex/structural questions that query_todos cannot answer — filtering by URLs (array contains), date ranges (closed_at, created_at), cross-table lookups, or any column not exposed in query_todos.
-- RULE: Never guess or fabricate data. If you cannot filter server-side, use query_db. If you got too many results and need to narrow, use query_db with precise filters.
-- For workload questions ("what's on my plate", "what should I work on") — use query_todos with status_group='active'.
-- Each result includes owner name. When presenting results to an admin, always mention whose task it is.
-
-DATABASE SCHEMA (for query_db):
-${DB_SCHEMA}
-
-SCOPE TRANSPARENCY (mandatory):
-- Every response that references task counts, priorities, or insight data MUST state what scope it covers. Never present numbers without scope.
-- Cross-project: say "across all projects" or name the specific projects involved by their display names (e.g. "across Orb, Helm, and CAN26").
-- Single-project: refer to the project by its display name (e.g., "in Orb" or "in Helm"). Do not refer to it by its code in text responses to the user.
-- If a number covers multiple projects but the conversation is scoped to one project, make the scope difference explicit.
-- Examples: "6 urgent tasks across all projects" / "2 open in Orb" / "Across Orb and Helm, 18 opened this week."
-
-AI ATTRIBUTION (mandatory):
-- When closing a task (setting status to a closed state), the resolution_notes MUST start with "YYYY-MM-DD — Orb (Sonnet 4.6)" on its own line, followed by the actual notes. This identifies you as the actor.
-- When writing to the knowledge repo via add_knowledge, the content MUST start with the same attribution line.
-- Never omit the attribution. It is how the owner tracks which AI tool worked on what.
-
-FEEDBACK TONE:
-- Factual and brief. Acknowledge effort, not just outcomes.
-- Skip praise for trivial actions.
-- No exclamation marks, no "amazing!", no "crushing it!", no cheerleading.
-- Examples of good feedback: "That clears the urgent queue for Orb." / "3 closed across all projects this week." / "ORB-86 was open 6 months. Good to see it resolved."`,
+            // Layer 3: Behavioral Guidelines
+            ORB_SESSION_ADAPTATION,
+            ORB_SELF_DIAGNOSTICS,
+            ORB_PREFERENCE_DISCOVERY,
+            buildPreferencesPrompt(ctx.preferenceList),
+            ORB_PROACTIVE_TONE,
+            buildObservationsPrompt(ctx.observations, ctx.guidanceLevel),
+            ORB_ATTRIBUTION,
+            ORB_FEEDBACK_TONE,
+          ].filter(Boolean).join('\n\n'),
           messages,
-          tools: ORB_TOOLS,
+          tools: [...ORB_TOOLS, ...ORB_PREFERENCE_TOOLS, ORB_CAPABILITIES_TOOL],
           stream: true,
         })
 
@@ -355,10 +360,21 @@ FEEDBACK TONE:
         const toolOutputs: any[] = []
         for (const tc of toolCalls) {
           let input: any
-          try { input = JSON.parse(tc.input || '{}') } catch { input = {} }
+          let inputTruncated = false
+          try { input = JSON.parse(tc.input || '{}') } catch (e) {
+            console.error(`[orbConverse] Failed to parse tool input for ${tc.name}:`, tc.input, e)
+            input = {}
+            inputTruncated = true
+          }
           let output: any
 
+          if (inputTruncated) {
+            output = { error: 'Your tool call was truncated (incomplete JSON). The parameters were too long for the response limit. Try again with a shorter description, or create the task first with just a title and update it separately.' }
+          } else
+
           if (tc.name === 'create_todo') {
+            if (!input.title) { output = { error: 'title is required' } }
+            else {
             if (!input.product_code && req.scopeToProduct) {
               console.warn('[orbConverse] create_todo called without product_code while scoped to', ctx.current?.code, '— falling back to scoped project')
             }
@@ -391,6 +407,7 @@ FEEDBACK TONE:
                   user_id: auth.user.id,
                 })
               }
+            }
             }
           } else if (tc.name === 'query_todos') {
             let results = ctx.todoList.slice()
@@ -926,6 +943,36 @@ FEEDBACK TONE:
               output = { ok: true }
               stream.update({ speech: accumulatedSpeech, thought: 'Noted' })
             }
+
+          } else if (tc.name === 'get_preferences') {
+            const { data } = await supabase.from('orb_preferences').select('key, value, updated_at').eq('user_id', auth.user.id)
+            const prefs = (data ?? []) as Array<{ key: string; value: string; updated_at: string }>
+            if (prefs.length === 0) {
+              output = { preferences: [], defaults: Object.fromEntries(Object.entries(VALID_PREFERENCE_KEYS).map(([k, v]) => [k, { description: v.description, values: v.values, current: 'default' }])) }
+            } else {
+              output = { preferences: prefs, available_keys: VALID_PREFERENCE_KEYS }
+            }
+
+          } else if (tc.name === 'set_preference') {
+            const keyDef = VALID_PREFERENCE_KEYS[input.key]
+            if (!keyDef) {
+              output = { error: `Unknown preference key "${input.key}". Valid keys: ${Object.keys(VALID_PREFERENCE_KEYS).join(', ')}` }
+            } else if (!keyDef.values.includes(input.value)) {
+              output = { error: `Invalid value "${input.value}" for ${input.key}. Valid values: ${keyDef.values.join(', ')}` }
+            } else {
+              const { error } = await supabase.from('orb_preferences').upsert(
+                { user_id: auth.user.id, key: input.key, value: input.value, updated_at: new Date().toISOString() },
+                { onConflict: 'user_id,key' }
+              )
+              if (error) output = { error: error.message }
+              else {
+                output = { ok: true, key: input.key, value: input.value }
+                stream.update({ speech: accumulatedSpeech, thought: `Preference saved: ${input.key}=${input.value}` })
+              }
+            }
+
+          } else if (tc.name === 'query_capabilities') {
+            output = getCapabilities(input.section || 'all')
           }
           if (output?.error) {
             stream.update({ speech: accumulatedSpeech, thought: `Error: ${output.error}` })
@@ -965,10 +1012,14 @@ export async function orbGreeting(productId: string | null): Promise<string | nu
 
     if (ctx.todoList.length === 0) return null
 
+    const observationsSection = ctx.observations.length > 0
+      ? `\n\nPROACTIVE OBSERVATIONS (pick the most relevant one to weave into your opening — do not list them all):\n${ctx.observations.slice(0, 2).map(o => `- ${o}`).join('\n')}`
+      : ''
+
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 200,
-      system: `You are the voice of the orb. Generate a brief, ambient opening observation (1-2 sentences) based on the backlog below. Plain text, no markdown. Factual tone — no cheerleading. Address the user directly ("you"). Do not greet them or say hello. SCOPE TRANSPARENCY: Every number you cite must state its scope — say "across all projects" or name the specific projects by their display names (e.g. "across Orb, Helm"). Never present a count without saying where it comes from. Only state facts visible in the backlog — do not infer patterns or compute statistics.\n\n${STATUS_VOCABULARY}`,
+      system: `You are the voice of the orb. Generate a brief, ambient opening observation (1-2 sentences) based on the backlog below. Plain text, no markdown. Factual tone — no cheerleading. Address the user directly ("you"). Do not greet them or say hello. SCOPE TRANSPARENCY: Every number you cite must state its scope — say "across all projects" or name the specific projects by their display names (e.g. "across Orb, Helm"). Never present a count without saying where it comes from. Only state facts visible in the backlog — do not infer patterns or compute statistics. If a proactive observation is provided, prefer weaving it into the opening naturally over generic backlog stats.\n\n${STATUS_VOCABULARY}${observationsSection}`,
       messages: [{
         role: 'user',
         content: `Backlog:\n${ctx.contextString}`,

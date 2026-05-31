@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo, useRef } from 'react'
-import { getTickets, createTodoFromTicket, dismissTicket, type Ticket, type TicketType } from '@/app/actions/ticket-actions'
+import { getTickets, createTodoFromTicket, dismissTicket, updateTicket, type Ticket, type TicketType, type TicketStatus } from '@/app/actions/ticket-actions'
 import { getAdminProjects } from '@/app/actions/manage-project'
 import { useToast } from '@/components/ui/Toast'
 import HScrollNav from '@/components/ui/HScrollNav'
@@ -65,6 +65,11 @@ export default function SettingsTickets() {
   const [dismissing, setDismissing] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const tableScrollRef = useRef<HTMLDivElement>(null)
+
+  // Edit modal state
+  const [editTicket, setEditTicket] = useState<Ticket | null>(null)
+  const [editForm, setEditForm] = useState({ summary: '', type: '' as TicketType, status: '' as TicketStatus })
+  const [editSaving, setEditSaving] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -140,6 +145,33 @@ export default function SettingsTickets() {
     // Refresh
     const refreshed = await getTickets()
     setTickets((refreshed.data ?? []) as Ticket[])
+  }
+
+  function openEditModal(ticket: Ticket) {
+    setEditTicket(ticket)
+    setEditForm({ summary: ticket.summary, type: ticket.type, status: ticket.status })
+  }
+
+  function closeEditModal() {
+    setEditTicket(null)
+  }
+
+  async function handleEditSave() {
+    if (!editTicket) return
+    if (!editForm.summary.trim()) { toast.error('Summary is required.'); return }
+    setEditSaving(true)
+    const res = await updateTicket(editTicket.id, {
+      summary: editForm.summary.trim(),
+      type: editForm.type,
+      status: editForm.status,
+    })
+    setEditSaving(false)
+    if (res.error) { toast.error(res.error); return }
+    toast.success('Ticket updated.')
+    setTickets(prev => prev.map(t =>
+      t.id === editTicket.id ? { ...t, summary: editForm.summary.trim(), type: editForm.type, status: editForm.status } : t
+    ))
+    closeEditModal()
   }
 
   function toggleSelect(id: string) {
@@ -313,7 +345,14 @@ export default function SettingsTickets() {
                   }
 
                   return (
-                    <tr key={ticket.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <tr key={ticket.id} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                      onClick={e => {
+                        const tag = (e.target as HTMLElement).tagName
+                        if (['BUTTON', 'A', 'INPUT', 'SELECT', 'SVG', 'PATH'].includes(tag)) return
+                        if ((e.target as HTMLElement).closest('button, a, input, select')) return
+                        openEditModal(ticket)
+                      }}
+                    >
                       <td className="audit-td" style={{ textAlign: 'center' }}>
                         {canAct ? (
                           <input type="checkbox" checked={selectedIds.includes(ticket.id)} onChange={() => toggleSelect(ticket.id)} style={{ cursor: 'pointer' }} />
@@ -374,6 +413,13 @@ export default function SettingsTickets() {
                       {/* Actions */}
                       <td className="audit-td" style={{ textAlign: 'right' }}>
                         <div className="flex-row gap-xs" style={{ justifyContent: 'flex-end' }}>
+                          <button
+                            className="text-btn"
+                            style={{ fontSize: '12px', padding: '4px' }}
+                            onClick={() => openEditModal(ticket)}
+                          >
+                            Edit
+                          </button>
                           {canAct && !ref && (
                             <button
                               className="text-btn"
@@ -399,7 +445,7 @@ export default function SettingsTickets() {
                               Dismiss
                             </button>
                           )}
-                          {!canAct && <span style={{ fontSize: '12px', color: 'var(--muted)', opacity: 0.5 }}>—</span>}
+                          {!canAct && !ref && <span style={{ fontSize: '12px', color: 'var(--muted)', opacity: 0.5 }}>—</span>}
                         </div>
                       </td>
                     </tr>
@@ -410,6 +456,127 @@ export default function SettingsTickets() {
             </div>
           </div>
         </HScrollNav>
+      )}
+
+      {/* ── Floating modal for Edit ── */}
+      {editTicket && (
+        <>
+          <div className="modal-backdrop" onClick={closeEditModal} />
+          <div className="modal-center">
+            <div className="modal-header">
+              <h3 style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 600 }}>
+                Edit Ticket — TICKETS-{editTicket.ticket_number}
+              </h3>
+              <button className="close-btn" onClick={closeEditModal} aria-label="Close">×</button>
+            </div>
+            <div className="modal-body" style={{ padding: 'var(--sp-lg) var(--sp-xl)' }}>
+              <div className="grid-2col mb-md">
+                <div>
+                  <label className="label">Summary *</label>
+                  <input
+                    className="input"
+                    value={editForm.summary}
+                    onChange={e => setEditForm(f => ({ ...f, summary: e.target.value }))}
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="label">Type</label>
+                  <select
+                    className="input"
+                    style={{ width: '100%', padding: '6px var(--sp-sm)', height: '40px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}
+                    value={editForm.type}
+                    onChange={e => setEditForm(f => ({ ...f, type: e.target.value as TicketType }))}
+                  >
+                    <option value="bug">Bug</option>
+                    <option value="suggestion">Suggestion</option>
+                    <option value="capability_gap">Capability Gap</option>
+                    <option value="workflow_friction">Workflow Friction</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="mb-md">
+                <label className="label">Status</label>
+                <select
+                  className="input"
+                  style={{ width: '100%', padding: '6px var(--sp-sm)', height: '40px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--r)', maxWidth: '220px' }}
+                  value={editForm.status}
+                  onChange={e => setEditForm(f => ({ ...f, status: e.target.value as TicketStatus }))}
+                >
+                  <option value="open">Open</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="closed">Closed</option>
+                  <option value="dismissed">Dismissed</option>
+                </select>
+              </div>
+
+              {editTicket.detail && Object.keys(editTicket.detail).length > 0 && (
+                <div className="mb-md">
+                  <label className="label">Detail</label>
+                  <div style={{
+                    padding: '10px 12px',
+                    background: 'var(--bg-hover)',
+                    borderRadius: 'var(--r)',
+                    fontSize: '13px',
+                    lineHeight: 1.5,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                  }}>
+                    {typeof editTicket.detail === 'object'
+                      ? Object.entries(editTicket.detail).map(([k, v]) => (
+                          <div key={k}><strong>{k}:</strong> {String(v)}</div>
+                        ))
+                      : String(editTicket.detail)}
+                  </div>
+                </div>
+              )}
+
+              {editTicket.conversation_snippet && (
+                <div className="mb-md">
+                  <label className="label">Conversation Snippet</label>
+                  <div style={{
+                    padding: '10px 12px',
+                    background: 'var(--bg-hover)',
+                    borderRadius: 'var(--r)',
+                    fontSize: '13px',
+                    lineHeight: 1.5,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    maxHeight: '120px',
+                    overflowY: 'auto',
+                    fontStyle: 'italic',
+                    color: 'var(--muted)',
+                  }}>
+                    {editTicket.conversation_snippet}
+                  </div>
+                </div>
+              )}
+
+              {editTicket.dismiss_reason && (
+                <div className="mb-md">
+                  <label className="label">Dismiss Reason</label>
+                  <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{editTicket.dismiss_reason}</div>
+                </div>
+              )}
+
+              <div className="mb-lg" style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                <span>Reporter: {reporterName(editTicket)}</span>
+                {linkedRef(editTicket) && <span style={{ marginLeft: '16px' }}>Linked: {linkedRef(editTicket)}</span>}
+                <span style={{ marginLeft: '16px' }}>Created: {relativeDate(editTicket.created_at)}</span>
+              </div>
+
+              <div className="flex-row gap-sm">
+                <button className="btn-primary" onClick={handleEditSave} disabled={editSaving}>
+                  {editSaving ? 'Saving…' : 'Save'}
+                </button>
+                <button className="btn-cancel" onClick={closeEditModal}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
