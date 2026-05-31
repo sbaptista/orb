@@ -14,6 +14,7 @@ import { OrbDevPanel, DevTestError, type MoodOverride } from './OrbDevPanel'
 import { orbConverse, orbGreeting, type OrbResponse } from '@/app/actions/orb-converse'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { checkReminders } from '@/app/actions/reminder-actions'
+import { fetchPendingDevMessages, markDevMessageDelivered, processDevMessage } from '@/app/actions/dev-channel'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import DistillModal from './DistillModal'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
@@ -563,6 +564,47 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   useEffect(() => { fetchAllTodos() }, [fetchAllTodos])
   useVisibilityRefetch(fetchAllTodos)
+
+  // Dev channel — poll for pending messages on tab focus
+  const devPollInFlightRef = useRef(false)
+  const pollDevChannel = useCallback(async () => {
+    if (devPollInFlightRef.current) return
+    devPollInFlightRef.current = true
+    try {
+      const pending = await fetchPendingDevMessages()
+      if (pending.length === 0) return
+
+      for (const msg of pending) {
+        const devMsgId = genId()
+        const orbMsgId = genId()
+
+        setMessages(prev => [
+          ...prev,
+          { id: devMsgId, type: 'dev' as const, text: msg.content, senderLabel: msg.sender_label },
+          { id: orbMsgId, type: 'orb' as const, text: 'Processing…', isStreaming: true },
+        ])
+        setConversationActive(true)
+        resetInactivity()
+
+        await markDevMessageDelivered(msg.id)
+
+        const orbResponse = await processDevMessage(msg.id)
+
+        setMessages(prev => prev.map(m =>
+          m.id === orbMsgId
+            ? { ...m, text: orbResponse || 'No response.', isStreaming: false }
+            : m
+        ))
+      }
+    } catch (err) {
+      console.error('[UnifiedDashboard] Dev channel poll failed:', err)
+    } finally {
+      devPollInFlightRef.current = false
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useVisibilityRefetch(pollDevChannel)
+  useEffect(() => { pollDevChannel() }, [pollDevChannel])
 
   // Sync overall urgency from local data when orbTodos change
   useEffect(() => {

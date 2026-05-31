@@ -4,10 +4,11 @@ import { useCallback, useEffect, useRef, useState, type ComponentPropsWithoutRef
 import Markdown from 'react-markdown'
 export type ConversationMessage = {
     id: string
-    type: 'user' | 'orb'
+    type: 'user' | 'orb' | 'dev'
     text: string
     isStreaming?: boolean
     thoughts?: string[]
+    senderLabel?: string
 }
 
 type Props = {
@@ -98,6 +99,28 @@ function OrbCard({ msg }: { msg: ConversationMessage }) {
                         </svg>
                     )}
                 </button>
+            </div>
+        </div>
+    )
+}
+
+function DevCard({ msg }: { msg: ConversationMessage }) {
+    return (
+        <div className="oc-dev-card">
+            <div className="oc-dev-label">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+                </svg>
+                {msg.senderLabel ?? 'Developer'}
+            </div>
+            <div className="oc-orb-md">
+                <Markdown components={{
+                    a: ({ href, children, ...rest }: ComponentPropsWithoutRef<'a'>) => (
+                        <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>{children}</a>
+                    ),
+                }}>
+                    {msg.text}
+                </Markdown>
             </div>
         </div>
     )
@@ -300,7 +323,7 @@ export default function OrbConversation({
 
     function copyTranscript() {
         const transcript = messages.map(m => {
-            const prefix = m.type === 'user' ? 'User' : 'Orb'
+            const prefix = m.type === 'dev' ? (m.senderLabel ?? 'Developer') : m.type === 'user' ? 'User' : 'Orb'
             const thoughts = m.thoughts?.length ? ` [${m.thoughts.join('; ')}]` : ''
             return `${prefix}:${thoughts} ${m.text}`
         }).join('\n\n')
@@ -319,7 +342,9 @@ export default function OrbConversation({
                 <div ref={threadRef} className="oc-thread">
                     <div className="oc-thread-spacer" />
                     {messages.map(msg => (
-                            msg.type === 'user' ? (
+                            msg.type === 'dev' ? (
+                                <DevCard key={msg.id} msg={msg} />
+                            ) : msg.type === 'user' ? (
                                 <div
                                     key={msg.id}
                                     style={{ display: 'flex', justifyContent: 'flex-end', margin: '5px 2px' }}

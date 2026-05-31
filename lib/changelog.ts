@@ -7,6 +7,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.92',
+    date: '2026-05-31',
+    changes: [
+      'Developer Channel: New bidirectional communication channel between external AI developer tools (Claude Code, Gemini CLI) and the Orb conversational AI.',
+      'REST API endpoint POST/GET /api/dev-channel — developer tools send messages to the Orb and poll for responses, authenticated via ORB_API_SECRET.',
+      'Dev messages appear inline in the Orb conversation UI with a distinct blue-tinted card style and sender label (e.g. "Claude Code (Opus 4.6)").',
+      'Restricted tool mode: Orb processes developer messages with read-only tools only — no mutations without Stan\'s approval.',
+      'Tab-focus polling: pending dev messages auto-load and process when the Orb UI regains focus.',
+      'Knowledge repo integration: all developer-Orb exchanges auto-logged with dev-channel tags.',
+    ]
+  },
+  {
     version: 'v0.5.91',
     date: '2026-05-30',
     changes: [
