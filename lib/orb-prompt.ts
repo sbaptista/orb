@@ -282,6 +282,7 @@ export function getCapabilities(section: string = 'all'): Record<string, any> {
       'set_dormancy — put projects to sleep or wake them',
       'get_preferences / set_preference — read/write user preferences',
       'query_capabilities — this tool (explain how the Orb works)',
+      'send_to_developer — send a message to the developer AI tool building features',
     ],
   }
   const preferences = {
@@ -301,6 +302,36 @@ export function getCapabilities(section: string = 'all'): Record<string, any> {
   if (section === 'diagnostics') return diagnostics
   return { ...principles, ...tools, ...preferences, ...diagnostics }
 }
+
+export const ORB_DEV_CHANNEL_TOOL: Anthropic.Tool = {
+  name: 'send_to_developer',
+  description: '[Confidence: new] Send a message to the developer AI tool (Claude Code, Gemini CLI, etc.) currently building features. Use when you have actionable observations — bugs spotted, clarifications about task requirements, schema details the tool needs, or verification of a fix. The developer tool will see the message next time it polls. Only use during active development conversations or when Stan asks you to relay something.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      content: {
+        type: 'string',
+        description: 'The message to send to the developer tool. Be specific and actionable — include task codes, file paths, field names, or error details when relevant.',
+      },
+      target_tool: {
+        type: 'string',
+        description: 'Which developer tool to address (e.g. "Claude Code", "Gemini CLI"). Defaults to whichever tool last sent a message.',
+      },
+    },
+    required: ['content'],
+  },
+}
+
+export const ORB_DEV_CHANNEL_PROMPT = `DEVELOPER CHANNEL:
+You have access to a communication channel with external AI developer tools (Claude Code, Gemini CLI) that build features for this product.
+
+Use send_to_developer when you have something actionable to relay:
+- Bug observations with specifics ("ORB-176 tooltip delay — check CSS transition timing")
+- Schema or data clarifications a developer tool would need
+- Verification feedback ("the fix worked" / "still broken, here's what I see")
+- Task context that would help implementation ("ORB-191 needs the component tree from docs/ui-catalog.md")
+
+Do NOT use it for general commentary or things better said to the user directly. The developer tool will see the message and can respond through the channel.`
 
 export const ORB_PREFERENCE_TOOLS: Anthropic.Tool[] = [
   {

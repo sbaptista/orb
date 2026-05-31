@@ -7,6 +7,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.93',
+    date: '2026-05-31',
+    changes: [
+      'Developer Channel v2: Orb can now send messages TO developer tools via send_to_developer tool — bidirectional communication complete.',
+      'Orb uses send_to_developer for actionable observations: bugs spotted, schema clarifications, verification feedback, task context for implementation.',
+      'Developer tools poll GET /api/dev-channel?direction=orb_to_dev to receive Orb messages.',
+    ]
+  },
+  {
     version: 'v0.5.92',
     date: '2026-05-31',
     changes: [

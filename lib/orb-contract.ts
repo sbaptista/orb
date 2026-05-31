@@ -503,4 +503,5 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   get_preferences: 'Loading preferences...',
   set_preference: 'Saving preference...',
   query_capabilities: 'Checking capabilities...',
+  send_to_developer: 'Sending to developer...',
 }
