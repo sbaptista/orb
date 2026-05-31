@@ -15,79 +15,52 @@
 
 ## Last Session Completed
 
-**Disk IO fix, ORB-188 Phases 1–2 (kanban), design exploration — 2026-05-30 (Session 35)**
-
-### Tickets created
-- **ORB-192:** Design data privacy model — privacy from users AND from the Orb itself
+**Developer-to-Orb Communication Channel — 2026-05-31 (Session 36)**
 
 ### What was done
 
-**Disk IO budget fix (v0.5.91)**
-- Replaced 60-second `getUrgencySnapshot()` server polling (4 DB queries/min/tab) with client-side `computeUrgency()` against cached `allTodosRef`
-- Cache refreshes on mount + tab focus via `useVisibilityRefetch`
-- Push notification escalation (`notifyIfEscalated`) only fires on actual urgency change — rare
-- AmbientDashboard: all server urgency polling removed, timer stripped to `setTick()` for UI re-renders
-- VACUUM ANALYZE run on public tables (system_settings, users, projects, todos, knowledge_repo)
-- Before/after: auth table seq_scans dropped from ~4/min/tab to ~1/min total
+**Dev Channel v1 (v0.5.92) — Developer → Orb direction**
+- `dev_channel` database table — bidirectional message storage with status lifecycle (pending → delivered → processed), RLS admin-only
+- `POST /api/dev-channel` — developer tools send messages to the Orb, authenticated via ORB_API_SECRET
+- `GET /api/dev-channel` — developer tools poll for responses (supports direction, status, since filters)
+- `app/actions/dev-channel.ts` — server actions: fetchPendingDevMessages, markDevMessageDelivered, processDevMessage
+- Read-only tool restriction — dev channel processing uses only query_todos, search_knowledge, query_db, query_audit_trail, query_capabilities
+- DevCard UI component — blue-tinted card with sender label (e.g. "Claude Code (Opus 4.6)"), distinct from user bubbles and Orb cards
+- Tab-focus polling in UnifiedDashboard — auto-loads pending dev messages via useVisibilityRefetch
+- Knowledge repo integration — all dev-Orb exchanges auto-logged with dev-channel tags
 
-**ORB-188 Phase 1: Extract view components**
-- `components/views/types.ts` — shared `ViewTodo`, `ViewPriority`, `ViewProps` types, `parseLocalDatetime` helper
-- `components/views/TaskListView.tsx` — extracted list table from UnifiedDashboard
-- `components/views/TaskChecklistView.tsx` — extracted checklist table
-- `components/views/ViewSwitcher.tsx` — view selector bar (List, Checklist, Kanban buttons)
-- UnifiedDashboard: replaced ~120 lines of inline rendering with component imports
-- `checklistMode` boolean replaced with `viewMode: ViewMode` state ('list' | 'checklist' | 'kanban')
+**Dev Channel v2 (v0.5.93) — Orb → Developer direction**
+- `send_to_developer` tool added to Orb's tool set (defined in lib/orb-prompt.ts)
+- Orb can proactively send messages to developer tools during user conversations (e.g. Stan says "tell Claude Code about ORB-176")
+- Messages written to dev_channel with direction='orb_to_dev', developer tools poll via GET /api/dev-channel?direction=orb_to_dev
+- System prompt guidance: use for actionable observations (bugs, schema clarifications, verification feedback), not general commentary
 
-**ORB-188 Phase 2: Kanban view**
-- `components/views/TaskKanbanView.tsx` — kanban board with columns by status
-- Column order: Open → In Progress → Closed → Deferred → On Hold (workflow pipeline first, parked statuses last)
-- Cards show: title, priority dot, task ref, due date badge
-- Click any card to open TodoPanel
-- CSS: `tv-kanban-*` classes in globals.css — per-column vertical scroll, horizontal scroll for columns, fixed column headers
-- No drag-and-drop yet (planned)
+**Verified end-to-end:**
+- Claude Code → Orb: POST message, tab-focus poll triggers processing, Orb responds with backlog data
+- Orb → Claude Code: Stan asked Orb to send ORB-176 details, Orb used send_to_developer, Claude Code polled and received
+- Production API: Claude Code can reach production (https://orb-eight-lake.vercel.app/api/dev-channel) but NOT localhost (sandbox restriction)
+- Localhost: requires HTTPS (mkcert TLS), curl with -sk flags
 
-**ORB-188 design exploration**
-- Stan answered the 5 foundational design questions — documented in `docs/orb-188-plan.md`
-- Core identity: "Brownie temperament, butler intelligence" (from The Mote in God's Eye)
-- Adaptive UI concept: Orb reshapes the interface per user, multiple views, user-named saved views
-- Competitive landscape research: 3 AI philosophies in task management, generative UI trends
-- Privacy gate: ORB-192 created — blocks behavioral observation and internet research features
-
-**Bug fixes**
-- Urgency transition messages debounced (10s window) — prevents duplicate "Orb shifted busy" spam from transient re-render flicker
-- Views button in toolbar changed from stacked icon+text to horizontal text, consistent with Sort/Filter
+**CSS fix**
+- Strengthened DevCard blue tint and label contrast after initial testing showed insufficient distinction
 
 ### Version bumps
-- v0.5.90 → v0.5.91
+- v0.5.91 → v0.5.92 → v0.5.93
 
 ---
 
 ## Uncommitted Changes
 
-All changes staged for commit — pending push to production.
-
-### Modified files
-- `app/globals.css` — `tv-kanban-*` CSS classes, `ud-list-content:has(.tv-kanban)` override
-- `app/prototype/page.tsx` — Product type updated to include 'kanban' view_mode
-- `components/AmbientDashboard.tsx` — removed server urgency polling, cleaned up unused imports/refs
-- `components/UnifiedDashboard.tsx` — view components extracted, urgency polling replaced with client-side, viewMode state, debounced urgency messages, Views button simplified
-- `docs/orb-188-plan.md` — full design exploration with answers, Brownie/butler identity, adaptive UI concept, competitive research
-- `lib/changelog.ts` — v0.5.91 release entry
-- `lib/version.ts` — v0.5.91
-- `package.json` — v0.5.91
-
-### New files
-- `components/views/types.ts` — shared view types and helpers
-- `components/views/TaskListView.tsx` — extracted list view component
-- `components/views/TaskChecklistView.tsx` — extracted checklist view component
-- `components/views/TaskKanbanView.tsx` — kanban board view component
-- `components/views/ViewSwitcher.tsx` — view selector component
-- `docs/Use of AI in Todo-Project Manager Apps (Perplexity).md` — Perplexity research on AI in task management
+None — all changes committed and pushed to production.
 
 ---
 
 ## Key Decisions
 
+- **Dev channel architecture: two complementary reply paths.** `orb_response` field on dev_to_orb messages = direct reply for dev→orb exchanges. `send_to_developer` tool = Orb proactively flagging things during user conversations. No need to merge these.
+- **Tickets = strategic backlogs, dev channel = tactical debugging.** Orb's own assessment: "I filed 21 tickets over several weeks. Claude Code just shipped 4 features in one session with direct access to me. Latency matters." The two systems complement, not replace.
+- **Dev channel uses read-only tools only.** No mutations without Stan's approval. The Orb tells the developer what it would do; Stan approves through the UI.
+- **No Supabase Realtime for dev channel.** Tab-focus polling (useVisibilityRefetch) — consistent with DB health rules.
 - **ORB-188 prompt architecture lives in `lib/orb-prompt.ts`.** Separate from the auto-generated `lib/orb-contract.ts` (tools). The generator stays untouched.
 - **Preferences have no Settings UI yet.** Managed conversationally via `get_preferences`/`set_preference`. UI deferred until the flow is proven.
 - **Observations computed once at context-build time.** Static for the conversation — no mid-conversation proactive interruptions. Fresh context on next conversation.
@@ -114,7 +87,7 @@ All changes staged for commit — pending push to production.
 | `components/views/types.ts` | Shared types for view components |
 | `components/UnifiedView.tsx` | (Old prototype) task list + OrbPanel side by side — superseded |
 | `components/OrbPanel.tsx` | (Old prototype) standalone Orb conversation panel — superseded |
-| `app/globals.css` (`.ud-*`, `.up-*`, `.tv-kanban-*` rules) | Scoped styles for unified dashboard |
+| `app/globals.css` (`.ud-*`, `.up-*`, `.tv-kanban-*`, `.oc-dev-*` rules) | Scoped styles for unified dashboard + dev channel |
 
 ---
 
@@ -127,7 +100,7 @@ All changes staged for commit — pending push to production.
 5. **ORB-173: Pre-Alpha Checklist.** Due June 5, 2026. Gate 4 (first impression) depends on ORB-188.
 6. **ORB-191: Give Orb UI self-awareness.** Depends on ORB-188 — presentation model determines what context the Orb needs.
 7. **ORB-169: Source file audit.** AmbientDashboard is orphaned (zero imports). Classic and prototype routes are dead. TodoView still active at `/dashboard/[productId]`.
-8. **Update `docs/ui-catalog.md`** with `components/views/` section, `tv-kanban-*` classes, ViewSwitcher, AppNav, nav-avatar, `.oc-orb-md` patterns.
+8. **Update `docs/ui-catalog.md`** with `components/views/` section, `tv-kanban-*` classes, ViewSwitcher, AppNav, nav-avatar, `.oc-orb-md`, `.oc-dev-*` patterns.
 
 ---
 
@@ -141,7 +114,7 @@ All changes staged for commit — pending push to production.
 
 ## AI Tool Used Last Session
 
-`2026-05-30 — Claude Code (Claude Opus 4.6) — Session 35`
+`2026-05-31 — Claude Code (Claude Opus 4.6) — Session 36`
 
 ---
 
