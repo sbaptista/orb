@@ -14,7 +14,7 @@ import { OrbDevPanel, DevTestError, type MoodOverride } from './OrbDevPanel'
 import { orbConverse, orbGreeting, type OrbResponse } from '@/app/actions/orb-converse'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { checkReminders } from '@/app/actions/reminder-actions'
-import { fetchPendingDevMessages, markDevMessageDelivered, processDevMessage } from '@/app/actions/dev-channel'
+import { fetchPendingDevMessages, markDevMessageDelivered, processDevMessage, purgeOldDevMessages } from '@/app/actions/dev-channel'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import DistillModal from './DistillModal'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
@@ -596,6 +596,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             : m
         ))
       }
+      // Fire-and-forget purge of old processed messages (knowledge repo has the permanent record)
+      purgeOldDevMessages().catch(() => {})
     } catch (err) {
       console.error('[UnifiedDashboard] Dev channel poll failed:', err)
     } finally {

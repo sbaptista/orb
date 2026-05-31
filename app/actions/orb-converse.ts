@@ -75,6 +75,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     { data: allUsers },
     { data: orbPreferences },
     { data: recentTickets },
+    { data: behaviorRules },
   ] = await Promise.all([
     visibleProjectsQuery(supabase, 'id, name, code, description, created_by'),
     auth.isAdmin ? supabase.from('projects').select('id, name, code').eq('is_dormant', true).order('sort_order') : Promise.resolve({ data: [] }),
@@ -102,6 +103,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     auth.isAdmin
       ? auth.admin.from('tickets').select('id, ticket_number, type, summary, status, dismiss_reason, created_at, closed_at, detail').order('created_at', { ascending: false }).limit(10)
       : Promise.resolve({ data: [] }),
+    supabase.from('knowledge_repo').select('title, content').contains('tags', ['orb-behavior']).order('created_at', { ascending: false }).limit(20),
   ])
 
   const currentUser = { id: auth.user.id, email: auth.user.email, roles: { name: auth.role } }
@@ -239,7 +241,9 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
       }).join('\n')}\nUse this to avoid filing duplicates and to reference resolved issues.`
     : ''
 
-  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, urgencyThresholdHours, preferenceList, guidanceLevel, observations, contextString: byProduct + dormantSection + extraContext + ticketsSection }
+  const behaviorRuleList = (behaviorRules ?? []) as Array<{ title: string; content: string }>
+
+  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, urgencyThresholdHours, preferenceList, guidanceLevel, observations, behaviorRuleList, contextString: byProduct + dormantSection + extraContext + ticketsSection }
 }
 
 
@@ -308,6 +312,9 @@ export async function orbConverse(req: OrbRequest) {
             `WHAT'S NEW (recent releases — use when the user asks "what's new?", "what changed?", or "what version is this?"):\n${CHANGELOG.slice(0, 3).map(r => `${r.version} (${r.date}):\n${r.changes.map(c => `  - ${c}`).join('\n')}`).join('\n\n')}`,
 
             // Layer 3: Behavioral Guidelines
+            ctx.behaviorRuleList.length > 0
+              ? `BEHAVIORAL RULES (agreed with the user — always enforce):\n${ctx.behaviorRuleList.map((r: any) => `- **${r.title}:** ${r.content}`).join('\n')}`
+              : '',
             ORB_SESSION_ADAPTATION,
             ORB_SELF_DIAGNOSTICS,
             ORB_PREFERENCE_DISCOVERY,

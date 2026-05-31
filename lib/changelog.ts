@@ -7,6 +7,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.94',
+    date: '2026-05-31',
+    changes: [
+      'Behavioral persistence: Orb now enforces cross-session behavioral rules stored in the knowledge repo (tagged orb-behavior). Agreements made during conversations survive across sessions.',
+      'Dev channel message retention: processed/delivered messages purged after 7 days. Pending messages kept indefinitely. Knowledge repo is the permanent record.',
+    ]
+  },
+  {
     version: 'v0.5.93',
     date: '2026-05-31',
     changes: [

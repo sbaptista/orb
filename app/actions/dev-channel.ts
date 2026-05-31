@@ -56,6 +56,29 @@ export async function fetchPendingDevMessages(): Promise<DevMessage[]> {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// Purge processed/delivered messages older than 7 days (pending kept forever)
+// ──────────────────────────────────────────────────────────────────────────
+
+export async function purgeOldDevMessages(): Promise<number> {
+  const supabase = createServiceClient()
+  const cutoff = new Date(Date.now() - 7 * 86_400_000).toISOString()
+  const { data, error } = await supabase
+    .from('dev_channel')
+    .delete()
+    .in('status', ['delivered', 'processed'])
+    .lt('created_at', cutoff)
+    .select('id')
+
+  if (error) {
+    console.error('[dev-channel] purge failed:', error)
+    return 0
+  }
+  const count = data?.length ?? 0
+  if (count > 0) console.log(`[dev-channel] purged ${count} old messages`)
+  return count
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Mark a message as delivered (shown in UI)
 // ──────────────────────────────────────────────────────────────────────────
 
