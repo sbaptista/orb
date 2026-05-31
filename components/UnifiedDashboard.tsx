@@ -29,12 +29,16 @@ import TodoForm from './TodoForm'
 import { logAudit } from '@/app/actions/log-audit'
 import { updateTicketStatus } from '@/app/actions/ticket-actions'
 import DragDivider from './DragDivider'
+import TaskListView from './views/TaskListView'
+import TaskChecklistView from './views/TaskChecklistView'
+import TaskKanbanView from './views/TaskKanbanView'
+import ViewSwitcher, { type ViewMode } from './views/ViewSwitcher'
 
 // ── Types ──
 
 type Product = {
   id: string; name: string; code: string | null; description?: string | null
-  created_by?: string; color?: string | null; icon?: string | null; view_mode?: 'list' | 'checklist'
+  created_by?: string; color?: string | null; icon?: string | null; view_mode?: ViewMode
 }
 
 type Todo = {
@@ -158,7 +162,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [selectedIds, setSelectedIds]   = useState<string[]>([])
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
   const [sortAsc, setSortAsc]           = useState(true)
-  const [checklistMode, setChecklistMode] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [showListViews, setShowListViews] = useState(false)
   const [page, setPage]                 = useState(0)
   const [hasMore, setHasMore]           = useState(false)
@@ -195,6 +199,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const prevSelectedId         = useRef<string | null>(null)
   const greetingFiredRef       = useRef(false)
   const prevUrgencyRef         = useRef<Urgency | null>(null)
+  const lastUrgencyMsgRef      = useRef<number>(0)
   const prevOverallUrgencyRef  = useRef<Urgency | null>(null)
   const orbLongPressRef        = useRef<ReturnType<typeof setTimeout> | null>(null)
   const orbPressedRef          = useRef(false)
@@ -542,33 +547,46 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     localStorage.setItem(LAST_PRODUCT_KEY, selectedId)
   }, [selectedId, fetchOrbTodos])
 
-  // Sync overall urgency
-  useEffect(() => {
-    getUrgencySnapshot().then(val => { if (val) prevOverallUrgencyRef.current = val }).catch(err => {
-      console.error('[UnifiedDashboard] Urgency snapshot failed:', err)
-    })
-  }, [orbTodos])
+  // All-project todos for overall urgency (fetched once, refreshed on tab focus)
+  const allTodosRef = useRef<{ status: string; priority_value: number | null; due_at: string | null; product_id: string }[]>([])
+  const fetchAllTodos = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from('todos')
+        .select('status, priority_value, due_at, product_id')
+        .is('deleted_at', null)
+      allTodosRef.current = (data ?? []) as typeof allTodosRef.current
+    } catch (err) {
+      console.error('[UnifiedDashboard] Fetch all todos failed:', err)
+    }
+  }, [supabase])
 
-  // Periodic urgency check
+  useEffect(() => { fetchAllTodos() }, [fetchAllTodos])
+  useVisibilityRefetch(fetchAllTodos)
+
+  // Sync overall urgency from local data when orbTodos change
+  useEffect(() => {
+    if (allTodosRef.current.length > 0) {
+      prevOverallUrgencyRef.current = computeUrgency(allTodosRef.current, urgentValues, urgencyThreshold)
+    }
+  }, [orbTodos, urgentValues, urgencyThreshold])
+
+  // Periodic urgency re-evaluation — client-side only, no DB calls
   useEffect(() => {
     const interval = setInterval(async () => {
       setTick(t => t + 1)
-      try {
-        const currentOverall = await getUrgencySnapshot()
-        if (!currentOverall) return
-        if (prevOverallUrgencyRef.current) {
-          const SEVERITY: Record<Urgency, number> = { calm: 0, busy: 1, urgent: 2 }
-          if (SEVERITY[currentOverall] > SEVERITY[prevOverallUrgencyRef.current]) {
-            await notifyIfEscalated(prevOverallUrgencyRef.current)
-          }
+      if (allTodosRef.current.length === 0) return
+      const currentOverall = computeUrgency(allTodosRef.current, urgentValues, urgencyThreshold)
+      if (prevOverallUrgencyRef.current) {
+        const SEVERITY: Record<Urgency, number> = { calm: 0, busy: 1, urgent: 2 }
+        if (SEVERITY[currentOverall] > SEVERITY[prevOverallUrgencyRef.current]) {
+          await notifyIfEscalated(prevOverallUrgencyRef.current)
         }
-        prevOverallUrgencyRef.current = currentOverall
-      } catch (err) {
-        console.error('[UnifiedDashboard] Urgency check failed:', err)
       }
+      prevOverallUrgencyRef.current = currentOverall
     }, 60000)
     return () => clearInterval(interval)
-  }, [])
+  }, [urgentValues, urgencyThreshold])
 
   // Project switch summary
   useEffect(() => {
@@ -591,13 +609,17 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orbTodos])
 
-  // Urgency transition explanation
+  // Urgency transition explanation (debounced — ignore transient flickers)
   useEffect(() => {
     if (noProject || prevUrgencyRef.current === null) { prevUrgencyRef.current = urgency; return }
     if (projectSwitchingRef.current) { prevUrgencyRef.current = urgency; return }
     const prev = prevUrgencyRef.current
     if (prev === urgency) return
     prevUrgencyRef.current = urgency
+    // Suppress duplicate messages within 10 seconds (transient re-render flicker)
+    const now = Date.now()
+    if (now - lastUrgencyMsgRef.current < 10_000) return
+    lastUrgencyMsgRef.current = now
     const urgentCount = activeTodos.filter(t =>
       (t.priority_value !== null && urgentValues.has(t.priority_value)) ||
       (t.due_at !== null && isDueWithinWarning(t.due_at, urgencyThreshold))
@@ -672,11 +694,11 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     fetchTodos(0, false)
   }, [fetchTodos])
 
-  // Sync checklist mode from product
+  // Sync view mode from product
   useEffect(() => {
     if (selectedId) {
       const p = products.find(x => x.id === selectedId)
-      if (p?.view_mode) setChecklistMode(p.view_mode === 'checklist')
+      if (p?.view_mode) setViewMode(p.view_mode)
     }
   }, [selectedId, products])
 
@@ -916,8 +938,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     }
   }
 
-  async function handleSetViewMode(mode: 'list' | 'checklist') {
-    setChecklistMode(mode === 'checklist')
+  async function handleSetViewMode(mode: ViewMode) {
+    setViewMode(mode)
     if (selectedId) {
       await supabase.from('projects').update({ view_mode: mode }).eq('id', selectedId)
       setProducts(prev => prev.map(p => p.id === selectedId ? { ...p, view_mode: mode } : p))
@@ -1118,28 +1140,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // RENDER — List action buttons
   // ══════════════════════════════════════════════════════════
 
-  const renderActionButtons = (todo: Todo) => {
-    const isDone = isClosed(todo.status)
-    return (
-      <div className="tv-row-actions">
-        {!isDone && (
-          <button className="tv-action-btn" onClick={e => { e.stopPropagation(); setSelectedTodo(todo) }} aria-label="Edit task" title="Edit task">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
-            </svg>
-            Edit
-          </button>
-        )}
-        <button className="tv-action-btn" onClick={e => handleToggleDone(e, todo)} aria-label={isDone ? 'Reopen' : 'Done'} title={isDone ? 'Reopen task' : 'Mark as done'}>
-          <span className="tv-done-toggle" style={{ border: `2px solid ${isDone ? statusColor(todo.status) : 'var(--muted)'}`, background: isDone ? statusColor(todo.status) : 'transparent' }}>
-            {isDone && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="var(--bg2)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-          </span>
-          {isDone ? 'Reopen' : 'Done'}
-        </button>
-      </div>
-    )
-  }
-
   // ══════════════════════════════════════════════════════════
   // RENDER
   // ══════════════════════════════════════════════════════════
@@ -1299,11 +1299,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                 <button className="tv-toolbar-btn" aria-pressed={showFilters} onClick={() => { setShowFilters(f => !f); setShowListViews(false) }} aria-label="Toggle filters">
                   Filter <span className="tv-badge">{todos.length}</span>
                 </button>
-                <button className="tv-toolbar-btn tv-toolbar-btn--vertical" aria-pressed={showListViews} onClick={() => { setShowListViews(v => !v); setShowFilters(false) }} title="List views">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/>
-                  </svg>
-                  <span style={{ fontSize: '10px', marginTop: '2px', display: 'block' }}>Views</span>
+                <button className="tv-toolbar-btn" aria-pressed={showListViews} onClick={() => { setShowListViews(v => !v); setShowFilters(false) }} title="List views">
+                  Views
                 </button>
                 <button className="tv-toolbar-primary" onClick={() => setShowNewTodo(true)}>+ New</button>
               </div>
@@ -1332,15 +1329,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
             {/* View switcher */}
             {showListViews && (
-              <div className="tv-filterbar" style={{ borderTop: 'none', display: 'flex', alignItems: 'center', gap: 'var(--sp-md)' }}>
-                <span className="text-xs text-muted" style={{ fontWeight: 600 }}>VIEWS:</span>
-                <button className="tv-toolbar-btn" aria-pressed={!checklistMode} onClick={() => handleSetViewMode('list')} style={{ fontSize: '12px', padding: '4px 8px' }}>List</button>
-                <button className="tv-toolbar-btn" aria-pressed={checklistMode} onClick={() => handleSetViewMode('checklist')} style={{ fontSize: '12px', padding: '4px 8px' }}>Checklist</button>
-                <div style={{ flex: 1 }} />
-                <button className="nav-btn" onClick={() => setShowListViews(false)} aria-label="Close views" title="Close" style={{ padding: '2px 4px', minWidth: 'auto' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-              </div>
+              <ViewSwitcher current={viewMode} onSwitch={handleSetViewMode} onClose={() => setShowListViews(false)} />
             )}
 
             {/* Bulk actions */}
@@ -1368,115 +1357,54 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             <div className="ud-list-content">
               {listLoading ? (
                 <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>Loading…</p>
-              ) : checklistMode ? (
-                (() => {
-                  const allItems = [...todos].filter(t => filterPriority === 'all' || String(t.priority_value) === filterPriority)
-                  const open   = allItems.filter(t => !isClosed(t.status))
-                  const closed = allItems.filter(t =>  isClosed(t.status))
-                  const sorted = [...open, ...closed]
-                  return sorted.length === 0 ? (
-                    <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>Nothing here yet.</p>
-                  ) : (
-                    <div className="tv-list-card" style={{ padding: 0, overflow: 'hidden' }}>
-                      <table className="tv-table tv-table--checklist">
-                        <thead><tr><th style={{ width: '36px' }} /><th>Task</th></tr></thead>
-                        <tbody>
-                          {sorted.map(todo => {
-                            const isDone = isClosed(todo.status)
-                            return (
-                              <tr key={todo.id} onClick={() => setSelectedTodo(todo)}>
-                                <td style={{ width: '36px', textAlign: 'center' }}>
-                                  <button className="tv-cl-check" onClick={e => { e.stopPropagation(); handleToggleDone(e, todo) }}
-                                    aria-label={isDone ? 'Mark incomplete' : 'Mark complete'}
-                                    style={{ border: `2px solid ${isDone ? 'var(--pill-active-color)' : 'var(--muted)'}`, background: isDone ? 'var(--pill-active-color)' : 'transparent' }}>
-                                    {isDone && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="var(--bg2)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                                  </button>
-                                </td>
-                                <td><span style={{ color: isDone ? 'var(--muted)' : 'var(--text)', textDecoration: isDone ? 'line-through' : 'none', cursor: 'pointer' }}>{todo.title}</span></td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )
-                })()
-              ) : todos.length === 0 ? (
-                <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>
-                  {filterStatus === 'active' ? 'Nothing active — you\'re clear.' : 'No todos found.'}
-                </p>
+              ) : viewMode === 'checklist' ? (
+                <TaskChecklistView
+                  todos={todos}
+                  priorities={priorities}
+                  isClosed={isClosed}
+                  statusColor={statusColor}
+                  productCodeMap={productCodeMap}
+                  onSelectTodo={setSelectedTodo}
+                  onToggleDone={handleToggleDone}
+                  selectedTodo={selectedTodo}
+                  selectedIds={selectedIds}
+                  onToggleId={toggleId}
+                  onToggleAll={toggleSelectAll}
+                  hoveredId={hoveredId}
+                  onHover={setHoveredId}
+                />
+              ) : viewMode === 'kanban' ? (
+                <TaskKanbanView
+                  todos={todos}
+                  priorities={priorities}
+                  isClosed={isClosed}
+                  statusColor={statusColor}
+                  productCodeMap={productCodeMap}
+                  onSelectTodo={setSelectedTodo}
+                  onToggleDone={handleToggleDone}
+                  selectedTodo={selectedTodo}
+                  selectedIds={selectedIds}
+                  onToggleId={toggleId}
+                  onToggleAll={toggleSelectAll}
+                  hoveredId={hoveredId}
+                  onHover={setHoveredId}
+                />
               ) : (
-                <div className="tv-list-card" style={{ padding: 0, overflow: 'hidden' }}>
-                  <table className="tv-table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: '36px', textAlign: 'center' }}>
-                          <input type="checkbox" checked={todos.length > 0 && todos.every(t => selectedIds.includes(t.id))} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
-                        </th>
-                        <th>Title</th>
-                        <th className="tv-th-actions" style={{ textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {todos.map(todo => {
-                        const isChecked = selectedIds.includes(todo.id)
-                        const isDone    = isClosed(todo.status)
-                        const todoRef   = productCodeMap.get(todo.product_id) && todo.todo_number != null
-                          ? `${productCodeMap.get(todo.product_id)}-${todo.todo_number}` : null
-
-                        return (
-                          <tr key={todo.id} onClick={() => setSelectedTodo(todo)}
-                            onMouseEnter={() => setHoveredId(todo.id)} onMouseLeave={() => setHoveredId(null)}
-                            tabIndex={0} aria-label={`${todo.title}, ${todo.status}`}
-                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedTodo(todo) }}
-                            style={{ background: isChecked || selectedTodo?.id === todo.id ? 'var(--pill-active-bg)' : hoveredId === todo.id ? 'var(--bg3)' : 'transparent' }}>
-                            <td style={{ textAlign: 'center', width: '36px' }}>
-                              <input type="checkbox" checked={isChecked} onChange={() => toggleId(todo.id)} onClick={e => e.stopPropagation()} style={{ cursor: 'pointer' }} />
-                            </td>
-                            <td className="tv-td-content">
-                              <div className="tv-td-content-row">
-                                <div className="tv-td-content-inner">
-                                  <p className="tv-todo-title" style={{ fontSize: 'var(--fs-base)', color: isDone ? 'var(--muted)' : 'var(--text)', textDecoration: isDone ? 'line-through' : 'none', margin: 0 }}>
-                                    {todo.title}
-                                  </p>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
-                                    {todoRef && <span className="text-xs text-muted">{todoRef}</span>}
-                                    {todo.due_at && (() => {
-                                      const isOverdue = !isDone && parseLocalDatetime(todo.due_at) < new Date()
-                                      const isDueToday = !isDone && parseLocalDatetime(todo.due_at).toDateString() === new Date().toDateString()
-                                      return (
-                                        <div style={{
-                                          display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '1px 6px', borderRadius: '4px',
-                                          background: isOverdue ? 'rgba(239,68,68,0.1)' : isDueToday ? 'rgba(245,158,11,0.1)' : 'rgba(100,116,139,0.1)',
-                                          color: isOverdue ? 'var(--error)' : isDueToday ? '#d97706' : 'var(--muted)',
-                                          border: `1px solid ${isOverdue ? 'rgba(239,68,68,0.2)' : isDueToday ? 'rgba(245,158,11,0.2)' : 'rgba(100,116,139,0.15)'}`,
-                                          whiteSpace: 'nowrap',
-                                        }}>
-                                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                                          </svg>
-                                          <span>
-                                            {parseLocalDatetime(todo.due_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                                            {' at '}
-                                            {parseLocalDatetime(todo.due_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                                          </span>
-                                        </div>
-                                      )
-                                    })()}
-                                  </div>
-                                </div>
-                                <div className="tv-mobile-actions">{renderActionButtons(todo)}</div>
-                              </div>
-                            </td>
-                            <td className="tv-td-actions" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                              {renderActionButtons(todo)}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <TaskListView
+                  todos={todos}
+                  priorities={priorities}
+                  isClosed={isClosed}
+                  statusColor={statusColor}
+                  productCodeMap={productCodeMap}
+                  onSelectTodo={setSelectedTodo}
+                  onToggleDone={handleToggleDone}
+                  selectedTodo={selectedTodo}
+                  selectedIds={selectedIds}
+                  onToggleId={toggleId}
+                  onToggleAll={toggleSelectAll}
+                  hoveredId={hoveredId}
+                  onHover={setHoveredId}
+                />
               )}
 
               {hasMore && (

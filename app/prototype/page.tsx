@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { visibleProjectsQuery } from '@/lib/projects'
 import UnifiedDashboard from '@/components/UnifiedDashboard'
 
-type Product = { id: string; name: string; code: string | null; description?: string | null; created_by?: string; view_mode: 'list' | 'checklist' }
+type Product = { id: string; name: string; code: string | null; description?: string | null; created_by?: string; view_mode: 'list' | 'checklist' | 'kanban' }
 
 export default async function PrototypePage() {
   const supabase = await createClient()

@@ -7,6 +7,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.91',
+    date: '2026-05-30',
+    changes: [
+      'Disk IO fix: Replaced 60-second server-polling urgency check with client-side computation. Eliminates 4 DB queries/minute per open tab.',
+      'ORB-188 Phase 1: Extracted view components from UnifiedDashboard monolith — TaskListView, TaskChecklistView, ViewSwitcher now standalone reusable components.',
+      'ORB-188 Phase 2: Kanban board view — tasks displayed in columns by status (Open → In Progress → Closed → Deferred → On Hold). Click any card to edit.',
+      'Views toolbar: List, Checklist, and Kanban view switching. View preference persists per project.',
+      'Urgency transition messages debounced — suppresses duplicate "Orb shifted busy" notifications from transient re-render flicker.',
+      'Views button in toolbar now horizontal text, consistent with Sort and Filter buttons.',
+      'AmbientDashboard: removed all server urgency polling.',
+    ]
+  },
+  {
     version: 'v0.5.90',
     date: '2026-05-30',
     changes: [

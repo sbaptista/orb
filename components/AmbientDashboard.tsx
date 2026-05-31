@@ -11,7 +11,6 @@ import OrbHelp from './OrbHelp'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { OrbDevPanel, DevTestError, type MoodOverride } from './OrbDevPanel'
 import { orbConverse, orbGreeting, type OrbResponse } from '@/app/actions/orb-converse'
-import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import DistillModal from './DistillModal'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
@@ -128,7 +127,6 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const [releaseStage, setReleaseStage]         = useState<string>('pre-alpha')
     const welcomeDismissedRef                     = useRef(false)
     const [tick, setTick]                         = useState(0)
-    const prevOverallUrgencyRef                   = useRef<Urgency | null>(null)
     const [orbFading,  setOrbFading]              = useState(false)
     const orbFadeRef                              = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -416,39 +414,11 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
         // useVisibilityRefetch handles polling + tab-focus refetch instead.
     }, [selectedId, fetchTodos])
 
-    // Sync the overall urgency ref when todos list updates or project switches
+    // Periodic tick to re-evaluate time-sensitive urgency UI
     useEffect(() => {
-        getUrgencySnapshot().then(val => {
-            if (val) prevOverallUrgencyRef.current = val
-        }).catch(err => {
-            console.error('[AmbientDashboard] Urgency snapshot failed:', err)
-        })
-    }, [todos])
-
-    // Periodic check for time-based urgency transitions and push notifications
-    useEffect(() => {
-        const interval = setInterval(async () => {
-            // Force a re-render to update the local selected project's urgency based on current time
+        const interval = setInterval(() => {
             setTick(t => t + 1)
-
-            try {
-                // Check overall urgency escalation
-                const currentOverall = await getUrgencySnapshot()
-                if (!currentOverall) return // auth expired — skip silently
-                if (prevOverallUrgencyRef.current) {
-                    const SEVERITY: Record<Urgency, number> = { calm: 0, busy: 1, urgent: 2 }
-                    const prevSev = SEVERITY[prevOverallUrgencyRef.current]
-                    const currSev = SEVERITY[currentOverall]
-                    if (currSev > prevSev) {
-                        await notifyIfEscalated(prevOverallUrgencyRef.current)
-                    }
-                }
-                prevOverallUrgencyRef.current = currentOverall
-            } catch (err) {
-                console.error('[AmbientDashboard] Urgency check failed:', err)
-            }
-        }, 60000) // every 60 seconds
-
+        }, 60000)
         return () => clearInterval(interval)
     }, [])
 

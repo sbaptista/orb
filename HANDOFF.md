@@ -15,98 +15,88 @@
 
 ## Last Session Completed
 
-**ORB-186 full implementation, markdown rendering, ticket editing — 2026-05-30 (Session 34)**
+**Disk IO fix, ORB-188 Phases 1–2 (kanban), design exploration — 2026-05-30 (Session 35)**
 
-### Tickets closed
-- **ORB-186:** Shift AI guidance from reactive rules to principles and self-diagnostics — all 6 phases (v0.5.83→v0.5.90)
+### Tickets created
+- **ORB-192:** Design data privacy model — privacy from users AND from the Orb itself
 
 ### What was done
 
-**ORB-186 Phase 1 (v0.5.83): Prompt Architecture**
-- Monolithic system prompt split into 3 layers in new `lib/orb-prompt.ts`
-- Principles, Domain Knowledge, Behavioral Guidelines as named constants
-- `orb-converse.ts` assembles from constants instead of inline string
+**Disk IO budget fix (v0.5.91)**
+- Replaced 60-second `getUrgencySnapshot()` server polling (4 DB queries/min/tab) with client-side `computeUrgency()` against cached `allTodosRef`
+- Cache refreshes on mount + tab focus via `useVisibilityRefetch`
+- Push notification escalation (`notifyIfEscalated`) only fires on actual urgency change — rare
+- AmbientDashboard: all server urgency polling removed, timer stripped to `setTick()` for UI re-renders
+- VACUUM ANALYZE run on public tables (system_settings, users, projects, todos, knowledge_repo)
+- Before/after: auth table seq_scans dropped from ~4/min/tab to ~1/min total
 
-**ORB-186 Phase 2 (v0.5.84): Adaptive Identity**
-- `orb_preferences` table (migration `20260530_orb_preferences.sql`)
-- Session adaptation protocol — Orb reads conversation signals
-- `get_preferences` / `set_preference` tools
-- Preference discovery prompt — Orb proposes preferences when it notices patterns
-- Three seed keys: `guidance_level`, `verbosity`, `scope_reminders`
+**ORB-188 Phase 1: Extract view components**
+- `components/views/types.ts` — shared `ViewTodo`, `ViewPriority`, `ViewProps` types, `parseLocalDatetime` helper
+- `components/views/TaskListView.tsx` — extracted list table from UnifiedDashboard
+- `components/views/TaskChecklistView.tsx` — extracted checklist table
+- `components/views/ViewSwitcher.tsx` — view selector bar (List, Checklist, Kanban buttons)
+- UnifiedDashboard: replaced ~120 lines of inline rendering with component imports
+- `checklistMode` boolean replaced with `viewMode: ViewMode` state ('list' | 'checklist' | 'kanban')
 
-**ORB-186 Phase 3 (v0.5.86): Proactive Guidance**
-- `computeObservations()` — overdue tasks, stale tasks (30+ days), recent closures, workload imbalance
-- `buildObservationsPrompt()` — respects `guidance_level` (quiet/gentle/active)
-- Context-aware greeting via `orbGreeting()` — weaves top observation naturally
-- Proactive tone rules prompt section
+**ORB-188 Phase 2: Kanban view**
+- `components/views/TaskKanbanView.tsx` — kanban board with columns by status
+- Column order: Open → In Progress → Closed → Deferred → On Hold (workflow pipeline first, parked statuses last)
+- Cards show: title, priority dot, task ref, due date badge
+- Click any card to open TodoPanel
+- CSS: `tv-kanban-*` classes in globals.css — per-column vertical scroll, horizontal scroll for columns, fixed column headers
+- No drag-and-drop yet (planned)
 
-**ORB-186 Phase 4 (v0.5.88): Self-Diagnostics**
-- Diagnose protocol — enumerate causes, check data, report before filing
-- `query_capabilities` tool — returns principles, tools, preferences, diagnostics
-- Ticket deduplication instruction — search existing tickets before `create_ticket`
-- `getCapabilities()` function with section filtering
+**ORB-188 design exploration**
+- Stan answered the 5 foundational design questions — documented in `docs/orb-188-plan.md`
+- Core identity: "Brownie temperament, butler intelligence" (from The Mote in God's Eye)
+- Adaptive UI concept: Orb reshapes the interface per user, multiple views, user-named saved views
+- Competitive landscape research: 3 AI philosophies in task management, generative UI trends
+- Privacy gate: ORB-192 created — blocks behavioral observation and internet research features
 
-**ORB-186 Phase 5 (v0.5.89): Feedback Loop Closure**
-- Last 10 tickets loaded into `buildContext()` with status, type, summary, dismiss reasons
-- RECENT TICKETS section in system prompt
-- Feedback loop closure prompt — reference resolved issues, avoid duplicates
-
-**ORB-186 Phase 6 (v0.5.90): Versioned Behavior Contract**
-- Latest 3 releases from `lib/changelog.ts` injected into system prompt
-- Orb can answer "what's new?" conversationally
-
-**Additional changes this session:**
-- `max_tokens` increased from 1024 to 4096 (tool call truncation fix)
-- Truncated tool call JSON detection with clear error message to model
-- `create_todo` title guard — returns error instead of DB constraint violation
-- Current date injected into system prompt (`CURRENT_DATE`)
-- `query_db` SQL subquery guard in `ORB_QUERY_ROUTING`
-- "Work with what you have" principle added — lead with analysis, caveats at end
-- Markdown rendering in Orb responses via `react-markdown` (CSS: `.oc-orb-md`)
-- Voice rule updated to allow markdown
-- Links open in new tabs (`target="_blank"`)
-- Tickets: floating modal for view/edit (summary, type, status, detail, conversation snippet)
-- Tickets: Edit button added to Actions column
-- `updateTicket` server action for general ticket field updates
-- `/clear` now resets `greetingFiredRef` so new greeting fires
+**Bug fixes**
+- Urgency transition messages debounced (10s window) — prevents duplicate "Orb shifted busy" spam from transient re-render flicker
+- Views button in toolbar changed from stacked icon+text to horizontal text, consistent with Sort/Filter
 
 ### Version bumps
-- v0.5.82 → v0.5.83 → v0.5.84 → v0.5.85 → v0.5.86 → v0.5.87 → v0.5.88 → v0.5.89 → v0.5.90
+- v0.5.90 → v0.5.91
 
 ---
 
 ## Uncommitted Changes
 
-All changes are uncommitted — pending Stan's review and commit permission.
+All changes staged for commit — pending push to production.
 
 ### Modified files
-- `app/actions/orb-converse.ts` — system prompt restructured, preference/ticket/changelog context, new tool handlers, truncation guard, date injection
-- `app/actions/ticket-actions.ts` — added `updateTicket` action
-- `app/globals.css` — `.oc-orb-md` markdown rendering styles
-- `components/OrbConversation.tsx` — markdown rendering via react-markdown, auto-scroll fix
-- `components/UnifiedDashboard.tsx` — `/clear` resets greeting ref
-- `components/settings/SettingsTickets.tsx` — floating edit modal, Edit button in Actions
-- `lib/orb-contract.ts` — tool labels for preferences, capabilities
-- `lib/changelog.ts` — v0.5.90 release entry
-- `lib/version.ts` — v0.5.90
-- `package.json` — v0.5.90, added react-markdown dependency
-- `package-lock.json` — react-markdown installed
+- `app/globals.css` — `tv-kanban-*` CSS classes, `ud-list-content:has(.tv-kanban)` override
+- `app/prototype/page.tsx` — Product type updated to include 'kanban' view_mode
+- `components/AmbientDashboard.tsx` — removed server urgency polling, cleaned up unused imports/refs
+- `components/UnifiedDashboard.tsx` — view components extracted, urgency polling replaced with client-side, viewMode state, debounced urgency messages, Views button simplified
+- `docs/orb-188-plan.md` — full design exploration with answers, Brownie/butler identity, adaptive UI concept, competitive research
+- `lib/changelog.ts` — v0.5.91 release entry
+- `lib/version.ts` — v0.5.91
+- `package.json` — v0.5.91
 
 ### New files
-- `lib/orb-prompt.ts` — prompt architecture (3 layers, observations, preferences, diagnostics, capabilities)
-- `scripts/migrations/20260530_orb_preferences.sql` — orb_preferences table
-- `docs/orb-188-plan.md` — AI presentation model design exploration
+- `components/views/types.ts` — shared view types and helpers
+- `components/views/TaskListView.tsx` — extracted list view component
+- `components/views/TaskChecklistView.tsx` — extracted checklist view component
+- `components/views/TaskKanbanView.tsx` — kanban board view component
+- `components/views/ViewSwitcher.tsx` — view selector component
+- `docs/Use of AI in Todo-Project Manager Apps (Perplexity).md` — Perplexity research on AI in task management
 
 ---
 
 ## Key Decisions
 
-- **ORB-186 prompt architecture lives in `lib/orb-prompt.ts`.** Separate from the auto-generated `lib/orb-contract.ts` (tools). The generator stays untouched.
+- **ORB-188 prompt architecture lives in `lib/orb-prompt.ts`.** Separate from the auto-generated `lib/orb-contract.ts` (tools). The generator stays untouched.
 - **Preferences have no Settings UI yet.** Managed conversationally via `get_preferences`/`set_preference`. UI deferred until the flow is proven.
 - **Observations computed once at context-build time.** Static for the conversation — no mid-conversation proactive interruptions. Fresh context on next conversation.
 - **Greeting only fires once per session.** Persisted in sessionStorage. `/clear` resets it. New tab also triggers a fresh greeting.
 - **Markdown allowed in Orb responses.** Rendered via react-markdown. Copy button preserves raw markdown. No raw HTML rendering (security).
 - **Staging environment removed.** WebAuthn RP ID is bound to the production domain — staging can't test passkeys. Two-tier workflow: localhost → production. *(2026-05-30, supersedes 2026-05-28)*
+- **Orb identity: Brownie temperament, butler intelligence.** The Orb quietly helps without demanding spotlight (Brownie ethos) but has judgment and communicates (butler intelligence). User is always in control.
+- **Kanban column order: Open → In Progress → Closed → Deferred → On Hold.** Active pipeline first, parked statuses last. Drag-and-drop deferred.
+- **Adaptive UI is the long-term direction.** Schema-driven views, Orb `set_view` tool, user-named saved views. Gated by ORB-192 (privacy model) for behavioral observation features.
 
 ---
 
@@ -117,20 +107,27 @@ All changes are uncommitted — pending Stan's review and commit permission.
 | `app/prototype/page.tsx` | Server component — auth gate, renders UnifiedDashboard |
 | `components/UnifiedDashboard.tsx` | Client component — unified split-pane Orb + task list |
 | `components/DragDivider.tsx` | Pointer-event draggable split divider with snap points |
+| `components/views/TaskListView.tsx` | Extracted list table view |
+| `components/views/TaskChecklistView.tsx` | Extracted checklist table view |
+| `components/views/TaskKanbanView.tsx` | Kanban board view |
+| `components/views/ViewSwitcher.tsx` | View selector bar |
+| `components/views/types.ts` | Shared types for view components |
 | `components/UnifiedView.tsx` | (Old prototype) task list + OrbPanel side by side — superseded |
 | `components/OrbPanel.tsx` | (Old prototype) standalone Orb conversation panel — superseded |
-| `app/globals.css` (`.ud-*`, `.up-*` rules) | Scoped styles for unified dashboard |
+| `app/globals.css` (`.ud-*`, `.up-*`, `.tv-kanban-*` rules) | Scoped styles for unified dashboard |
 
 ---
 
 ## Next Priorities
 
-1. **ORB-188: AI presentation model.** Full design exploration at `docs/orb-188-plan.md`. Four directions identified (Orb-primary, List-primary, Mode-switching, User-chosen). Stan's instinct: "it depends on the user." Recommendation: prototype the two extremes and live with each. This decision gates everything else.
-2. **ORB-173: Pre-Alpha Checklist.** Due June 5, 2026. Gate 4 (first impression) depends on ORB-188.
-3. **ORB-191: Give Orb UI self-awareness.** Depends on ORB-188 — presentation model determines what context the Orb needs.
-4. **ORB-169: Source file audit.** AmbientDashboard is orphaned (zero imports). Classic and prototype routes are dead. TodoView still active at `/dashboard/[productId]`.
-5. **ORB-180: Investigate soft-delete strategy and data retention.**
-6. **Update `docs/ui-catalog.md`** with AppNav, nav-avatar, crud-table-scroll, modal edit, `.oc-orb-md` patterns.
+1. **ORB-188 Phase 3: Named views and user-level preferences.** Save filter/sort/view-type combinations as named views in `orb_preferences`.
+2. **ORB-188 Phase 4: Orb `set_view` tool.** Conversational view switching ("show me a kanban", "save this view as My Sprint").
+3. **Kanban drag-and-drop.** Stan wants this — move tasks between columns by dragging.
+4. **ORB-192: Data privacy model.** Gates behavioral observation, internet research, Orb memory. Two dimensions: privacy from users (RLS) and privacy from the Orb (Apple model).
+5. **ORB-173: Pre-Alpha Checklist.** Due June 5, 2026. Gate 4 (first impression) depends on ORB-188.
+6. **ORB-191: Give Orb UI self-awareness.** Depends on ORB-188 — presentation model determines what context the Orb needs.
+7. **ORB-169: Source file audit.** AmbientDashboard is orphaned (zero imports). Classic and prototype routes are dead. TodoView still active at `/dashboard/[productId]`.
+8. **Update `docs/ui-catalog.md`** with `components/views/` section, `tv-kanban-*` classes, ViewSwitcher, AppNav, nav-avatar, `.oc-orb-md` patterns.
 
 ---
 
@@ -144,7 +141,7 @@ All changes are uncommitted — pending Stan's review and commit permission.
 
 ## AI Tool Used Last Session
 
-`2026-05-30 — Claude Code (Claude Opus 4.6) — Session 34`
+`2026-05-30 — Claude Code (Claude Opus 4.6) — Session 35`
 
 ---
 

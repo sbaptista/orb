@@ -1936,6 +1936,149 @@ a, button, [role="button"], input, select, textarea {
   transition: color var(--transition);
 }
 
+/* ── Kanban View ── */
+
+.tv-kanban {
+  display: flex;
+  gap: var(--sp-md);
+  padding: var(--sp-md);
+  height: 100%;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tv-kanban-column {
+  flex: 0 0 220px;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg2);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  min-height: 0;
+  max-height: 100%;
+}
+
+.tv-kanban-column-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: var(--sp-md) var(--sp-lg);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.tv-kanban-column-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tv-kanban-column-label {
+  flex: 1;
+}
+
+.tv-kanban-column-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.6;
+}
+
+.tv-kanban-column-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--sp-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-sm);
+}
+
+.tv-kanban-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--sp-md);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-ui);
+  transition: background var(--transition), border-color var(--transition);
+  width: 100%;
+}
+
+.tv-kanban-card[data-selected] {
+  background: var(--pill-active-bg);
+  border-color: var(--pill-active-color);
+}
+
+.tv-kanban-card[data-hovered] {
+  background: var(--bg3);
+}
+
+.tv-kanban-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.tv-kanban-priority-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tv-kanban-card-ref {
+  font-variant-numeric: tabular-nums;
+}
+
+.tv-kanban-card-title {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tv-kanban-card-due {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.tv-kanban-empty {
+  text-align: center;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  padding: var(--sp-xl) 0;
+  margin: 0;
+}
+
+@media (max-width: 767px) {
+  .tv-kanban-column {
+    flex: 0 0 180px;
+    min-width: 180px;
+  }
+}
+
 .tv-version-footer {
   position: fixed;
   bottom: 0;
@@ -4220,6 +4363,13 @@ a, button, [role="button"], input, select, textarea {
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Kanban fills the parent — no vertical scroll on parent, kanban handles everything */
+.ud-list-content:has(.tv-kanban) {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* List card goes edge-to-edge inside unified dashboard */
