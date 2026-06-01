@@ -346,7 +346,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   }
 
   function addOrbMessage(text: string) {
-    setMessages(prev => [...prev, { id: genId(), type: 'orb', text }])
+    setMessages(prev => {
+      // Deduplicate: don't repeat the same message if it's the last orb message
+      const lastOrb = [...prev].reverse().find(m => m.type === 'orb')
+      if (lastOrb && lastOrb.text === text) return prev
+      return [...prev, { id: genId(), type: 'orb', text }]
+    })
     setConversationActive(true)
     resetInactivity()
   }
