@@ -7,6 +7,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.100',
+    date: '2026-06-01',
+    changes: [
+      'Added the conceptual paper "The Speed Illusion: Why AI-Assisted Software Engineering Still Takes Months" to project documentation.',
+    ]
+  },
+  {
     version: 'v0.5.99',
     date: '2026-06-01',
     changes: [
