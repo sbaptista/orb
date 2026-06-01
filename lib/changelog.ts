@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.96',
+    date: '2026-06-01',
+    changes: [
+      'Mutation approval protocol: Orb now proposes mutations and waits for user confirmation before executing. Supports multi-action parsing from natural language.',
+      'Capability check: Orb now discloses unsupported features (recurring tasks, dependencies, etc.) before proposing — never silently degrades a request.',
+      'Fuzzy search for knowledge repo: typo-tolerant matching (edit distance ≤ 2) and word-level matching. "smirtles" now finds "smirttles".',
+      'Contextual coaching: Orb weaves relevant observations into mid-conversation responses at natural moments.',
+      'UI self-awareness: Orb knows what view, filters, and device the user is on.',
+    ]
+  },
+  {
     version: 'v0.5.95',
     date: '2026-05-31',
     changes: [

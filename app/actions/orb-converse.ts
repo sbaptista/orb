@@ -15,6 +15,7 @@ import { createTicket } from '@/app/actions/ticket-actions'
 import { updateTicketStatus } from '@/app/actions/ticket-actions'
 import { createProject } from '@/app/actions/manage-project'
 import { DB_SCHEMA, ALLOWED_TABLES, SOFT_DELETE_TABLES, ALLOWED_OPS, COLUMN_NAME_RE } from '@/lib/db-schema'
+import { fuzzyMatch } from '@/lib/fuzzy-search'
 import { CHANGELOG } from '@/lib/changelog'
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -715,8 +716,8 @@ export async function orbConverse(req: OrbRequest) {
                 if (p) results = results.filter((k: any) => k.product_id === p.id)
             }
             if (input.query) {
-                const q = String(input.query).toLowerCase()
-                results = results.filter((k: any) => k.title.toLowerCase().includes(q) || k.content.toLowerCase().includes(q))
+                const q = String(input.query)
+                results = results.filter((k: any) => fuzzyMatch(q, `${k.title} ${k.content}`))
             }
             const returned = results.slice(0, 10).map((k: any) => ({ title: k.title, content: k.content, code: k.projects?.code }))
             output = { count: results.length, returned }

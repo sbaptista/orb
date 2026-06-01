@@ -7,6 +7,7 @@ import { ORB_PRINCIPLES, ORB_VOICE, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, buildUrg
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { DB_SCHEMA, ALLOWED_TABLES, SOFT_DELETE_TABLES, ALLOWED_OPS, COLUMN_NAME_RE } from '@/lib/db-schema'
+import { fuzzyMatch } from '@/lib/fuzzy-search'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
 
@@ -247,8 +248,8 @@ export async function processDevMessage(id: string): Promise<string | null> {
           if (p) results = results.filter((k: any) => k.product_id === p.id)
         }
         if (input.query) {
-          const q = String(input.query).toLowerCase()
-          results = results.filter((k: any) => k.title.toLowerCase().includes(q) || k.content.toLowerCase().includes(q))
+          const q = String(input.query)
+          results = results.filter((k: any) => fuzzyMatch(q, `${k.title} ${k.content}`))
         }
         output = { count: results.length, returned: results.slice(0, 10).map((k: any) => ({ title: k.title, content: k.content, code: k.projects?.code })) }
 
