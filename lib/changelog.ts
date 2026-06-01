@@ -7,6 +7,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.95',
+    date: '2026-05-31',
+    changes: [
+      'Kanban drag-and-drop: drag tasks between columns to change status. Works on desktop (HTML5 drag) and mobile (touch drag with floating card clone).',
+      'Drop target highlighting: columns glow green when a card is dragged over them. Empty columns show "Drop here" prompt.',
+      'Status changes via drag trigger audit logging, ticket propagation, and distill modal on close.',
+    ]
+  },
+  {
     version: 'v0.5.94',
     date: '2026-05-31',
     changes: [

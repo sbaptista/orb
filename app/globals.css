@@ -2026,6 +2026,14 @@ a, button, [role="button"], input, select, textarea {
 .tv-kanban-card[data-hovered] {
   background: var(--bg3);
 }
+.tv-kanban-card[data-dragging] {
+  opacity: 0.35;
+}
+.tv-kanban-column[data-drop-target] {
+  background: rgba(80, 130, 80, 0.08);
+  border-color: rgba(80, 130, 80, 0.4);
+  transition: background 0.15s, border-color 0.15s;
+}
 
 .tv-kanban-card-meta {
   display: flex;

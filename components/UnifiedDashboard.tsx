@@ -982,6 +982,36 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     }
   }
 
+  async function handleStatusChange(todo: Todo, newStatus: string) {
+    const isClosing = isClosed(newStatus) && !isClosed(todo.status)
+    const { data, error } = await supabase
+      .from('todos')
+      .update({
+        status: newStatus,
+        closed_at: isClosed(newStatus) ? new Date().toISOString() : (isClosing ? null : todo.closed_at),
+      })
+      .eq('id', todo.id)
+      .select('*, groups(name), categories(name)')
+      .single()
+    if (error) {
+      if (isAuthError(error.message)) { handleSessionExpired(toast); return }
+      toast.error('Failed to move task. Try again.')
+      return
+    }
+    if (data) {
+      const updated = data as Todo
+      setTodos(prev => prev.map(t => t.id === todo.id ? updated : t))
+      if (selectedTodo?.id === todo.id) setSelectedTodo(updated)
+      logAudit({ action: isClosing ? 'todo_close' : 'todo_update', table_name: 'todos', record_id: todo.id, before: { status: todo.status }, after: { status: newStatus, title: todo.title } })
+      if (isClosing) setDistillTodo(updated)
+      if (todo.ticket_id && isClosing) {
+        updateTicketStatus(todo.ticket_id, 'closed').catch(err => console.error('[UD] ticket propagation failed:', err))
+      }
+      fetchOrbTodos()
+      toast.success(`Moved to ${newStatus}`)
+    }
+  }
+
   async function handleSetViewMode(mode: ViewMode) {
     setViewMode(mode)
     if (selectedId) {
@@ -1426,6 +1456,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                   productCodeMap={productCodeMap}
                   onSelectTodo={setSelectedTodo}
                   onToggleDone={handleToggleDone}
+                  onStatusChange={handleStatusChange}
                   selectedTodo={selectedTodo}
                   selectedIds={selectedIds}
                   onToggleId={toggleId}

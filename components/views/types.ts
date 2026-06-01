@@ -37,6 +37,7 @@ export type ViewProps = {
   productCodeMap: Map<string, string | null>
   onSelectTodo: (todo: ViewTodo) => void
   onToggleDone: (e: React.MouseEvent, todo: ViewTodo) => void
+  onStatusChange?: (todo: ViewTodo, newStatus: string) => void
   selectedTodo: ViewTodo | null
   selectedIds: string[]
   onToggleId: (id: string) => void

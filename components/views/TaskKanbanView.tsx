@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useRef, useCallback } from 'react'
 import type { ViewProps, ViewTodo } from './types'
 import { parseLocalDatetime } from './types'
 
@@ -9,6 +10,7 @@ const COLUMN_ORDER = ['open', 'in progress', 'closed', 'deferred', 'on hold']
 function KanbanCard({
   todo, isClosed, statusColor, productCodeMap, priorities,
   onSelectTodo, selectedTodo, hoveredId, onHover,
+  onDragStart, isDragging,
 }: {
   todo: ViewTodo
   isClosed: (s: string) => boolean
@@ -19,6 +21,8 @@ function KanbanCard({
   selectedTodo: ViewTodo | null
   hoveredId: string | null
   onHover: (id: string | null) => void
+  onDragStart: (todo: ViewTodo) => void
+  isDragging: boolean
 }) {
   const isDone = isClosed(todo.status)
   const todoRef = productCodeMap.get(todo.product_id) && todo.todo_number != null
@@ -29,14 +33,23 @@ function KanbanCard({
   const isHovered = hoveredId === todo.id
 
   return (
-    <button
+    <div
       className="tv-kanban-card"
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData('text/plain', todo.id)
+        onDragStart(todo)
+      }}
       onClick={() => onSelectTodo(todo)}
       onMouseEnter={() => onHover(todo.id)}
       onMouseLeave={() => onHover(null)}
       aria-label={`${todo.title}, ${todo.status}`}
       data-selected={isSelected || undefined}
       data-hovered={isHovered || undefined}
+      data-dragging={isDragging || undefined}
+      role="button"
+      tabIndex={0}
     >
       {/* Priority dot + ref */}
       <div className="tv-kanban-card-meta">
@@ -75,14 +88,129 @@ function KanbanCard({
           </div>
         )
       })()}
-    </button>
+    </div>
   )
 }
 
 export default function TaskKanbanView({
   todos, priorities, isClosed, statusColor, productCodeMap,
-  onSelectTodo, selectedTodo, hoveredId, onHover,
+  onSelectTodo, selectedTodo, hoveredId, onHover, onStatusChange,
 }: ViewProps) {
+  const [draggingTodo, setDraggingTodo] = useState<ViewTodo | null>(null)
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
+
+  // Touch drag state
+  const touchDragRef = useRef<{
+    todo: ViewTodo
+    startX: number
+    startY: number
+    clone: HTMLElement | null
+    active: boolean
+  } | null>(null)
+  const kanbanRef = useRef<HTMLDivElement>(null)
+
+  const handleDragStart = useCallback((todo: ViewTodo) => {
+    setDraggingTodo(todo)
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent, status: string) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDropTarget(status)
+  }, [])
+
+  const handleDragLeave = useCallback(() => {
+    setDropTarget(null)
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent, targetStatus: string) => {
+    e.preventDefault()
+    setDropTarget(null)
+    if (draggingTodo && draggingTodo.status !== targetStatus && onStatusChange) {
+      onStatusChange(draggingTodo, targetStatus)
+    }
+    setDraggingTodo(null)
+  }, [draggingTodo, onStatusChange])
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingTodo(null)
+    setDropTarget(null)
+  }, [])
+
+  // Touch handlers for mobile drag-and-drop
+  const handleTouchStart = useCallback((e: React.TouchEvent, todo: ViewTodo) => {
+    const touch = e.touches[0]
+    touchDragRef.current = {
+      todo,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      clone: null,
+      active: false,
+    }
+  }, [])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const ref = touchDragRef.current
+    if (!ref) return
+
+    const touch = e.touches[0]
+    const dx = Math.abs(touch.clientX - ref.startX)
+    const dy = Math.abs(touch.clientY - ref.startY)
+
+    // Activate drag after 10px movement
+    if (!ref.active && (dx > 10 || dy > 10)) {
+      ref.active = true
+      setDraggingTodo(ref.todo)
+
+      // Create floating clone
+      const target = e.currentTarget as HTMLElement
+      const clone = target.cloneNode(true) as HTMLElement
+      clone.style.position = 'fixed'
+      clone.style.width = `${target.offsetWidth}px`
+      clone.style.opacity = '0.85'
+      clone.style.pointerEvents = 'none'
+      clone.style.zIndex = '9999'
+      clone.style.transform = 'rotate(2deg) scale(1.02)'
+      clone.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)'
+      document.body.appendChild(clone)
+      ref.clone = clone
+    }
+
+    if (ref.active && ref.clone) {
+      e.preventDefault()
+      ref.clone.style.left = `${touch.clientX - 90}px`
+      ref.clone.style.top = `${touch.clientY - 30}px`
+
+      // Find which column we're over
+      const kanban = kanbanRef.current
+      if (kanban) {
+        const columns = kanban.querySelectorAll<HTMLElement>('.tv-kanban-column')
+        let found = false
+        columns.forEach(col => {
+          const rect = col.getBoundingClientRect()
+          if (touch.clientX >= rect.left && touch.clientX <= rect.right) {
+            const status = col.dataset.status
+            if (status) { setDropTarget(status); found = true }
+          }
+        })
+        if (!found) setDropTarget(null)
+      }
+    }
+  }, [])
+
+  const handleTouchEnd = useCallback(() => {
+    const ref = touchDragRef.current
+    if (ref?.active && ref.clone) {
+      ref.clone.remove()
+      if (dropTarget && ref.todo.status !== dropTarget && onStatusChange) {
+        onStatusChange(ref.todo, dropTarget)
+      }
+    }
+    touchDragRef.current = null
+    setDraggingTodo(null)
+    setDropTarget(null)
+  }, [dropTarget, onStatusChange])
+
   // Group todos by status
   const columns = COLUMN_ORDER.map(status => ({
     status,
@@ -91,9 +219,17 @@ export default function TaskKanbanView({
   }))
 
   return (
-    <div className="tv-kanban">
+    <div className="tv-kanban" ref={kanbanRef} onDragEnd={handleDragEnd}>
       {columns.map(col => (
-        <div key={col.status} className="tv-kanban-column">
+        <div
+          key={col.status}
+          className="tv-kanban-column"
+          data-status={col.status}
+          data-drop-target={dropTarget === col.status || undefined}
+          onDragOver={(e) => handleDragOver(e, col.status)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, col.status)}
+        >
           <div className="tv-kanban-column-header">
             <span
               className="tv-kanban-column-dot"
@@ -104,21 +240,31 @@ export default function TaskKanbanView({
           </div>
           <div className="tv-kanban-column-body">
             {col.todos.length === 0 ? (
-              <p className="tv-kanban-empty">No tasks</p>
+              <p className="tv-kanban-empty">
+                {draggingTodo ? 'Drop here' : 'No tasks'}
+              </p>
             ) : (
               col.todos.map(todo => (
-                <KanbanCard
+                <div
                   key={todo.id}
-                  todo={todo}
-                  isClosed={isClosed}
-                  statusColor={statusColor}
-                  productCodeMap={productCodeMap}
-                  priorities={priorities}
-                  onSelectTodo={onSelectTodo}
-                  selectedTodo={selectedTodo}
-                  hoveredId={hoveredId}
-                  onHover={onHover}
-                />
+                  onTouchStart={(e) => handleTouchStart(e, todo)}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                >
+                  <KanbanCard
+                    todo={todo}
+                    isClosed={isClosed}
+                    statusColor={statusColor}
+                    productCodeMap={productCodeMap}
+                    priorities={priorities}
+                    onSelectTodo={onSelectTodo}
+                    selectedTodo={selectedTodo}
+                    hoveredId={hoveredId}
+                    onHover={onHover}
+                    onDragStart={handleDragStart}
+                    isDragging={draggingTodo?.id === todo.id}
+                  />
+                </div>
               ))
             )}
           </div>
