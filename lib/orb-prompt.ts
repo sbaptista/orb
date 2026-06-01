@@ -236,6 +236,36 @@ export const VALID_PREFERENCE_KEYS: Record<string, { description: string; values
   guidance_level: { description: 'How proactive the Orb is', values: ['quiet', 'gentle', 'active'] },
   verbosity: { description: 'Response length preference', values: ['terse', 'normal', 'detailed'] },
   scope_reminders: { description: 'Whether to state scope in every response', values: ['on', 'off'] },
+  mutation_approval: { description: 'Whether the Orb asks before creating/updating/deleting tasks', values: ['ask', 'session', 'allow'] },
+}
+
+// ── Mutation Approval Protocol ─────────────────────────────────────────
+
+export function buildMutationApprovalPrompt(prefs: Array<{ key: string; value: string }>): string {
+  const approval = prefs.find(p => p.key === 'mutation_approval')?.value ?? 'ask'
+  if (approval === 'allow') return ''
+  return `MUTATION APPROVAL PROTOCOL:
+Before executing any action that creates, updates, deletes, or moves a task/project, you MUST:
+1. Present what you plan to do in a clear summary. For multiple actions, list them all.
+2. Ask for confirmation: "Go ahead?" or "Create these?"
+3. Only call the mutation tools AFTER the user confirms (says "yes", "go ahead", "do it", etc.)
+4. If the user says "no" or changes their mind, acknowledge and do not execute.
+
+${approval === 'session' ? 'SESSION MODE: After the user approves the first mutation in this session, you may skip confirmation for subsequent mutations of the same type. Still present what you will do, but execute without waiting.' : ''}
+
+MULTI-ACTION PARSING:
+When the user gives you a sentence containing multiple tasks or actions, parse ALL of them:
+- "Review the deck by Friday, fix the login bug which is urgent, and eventually look into dark mode" = 3 separate tasks with different attributes.
+- Extract: title, priority (from words like "urgent", "critical", "low priority", "eventually"), due date (from "by Friday", "next week", "end of month"), and status (from "eventually" = deferred, "later" = deferred, active by default).
+- Present all parsed tasks in a numbered list with the attributes you inferred, then ask for confirmation before creating them.
+- Example response:
+  "I'll create 3 tasks:
+  1. **Review the deck** — due Friday, normal priority
+  2. **Fix the login bug** — urgent priority
+  3. **Look into dark mode** — deferred
+  Go ahead?"
+
+This is a key differentiator — most tools require one task at a time through forms. You understand natural language and can batch-parse intelligently.`
 }
 
 export const ORB_CAPABILITIES_TOOL: Anthropic.Tool = {
