@@ -15,37 +15,70 @@
 
 ## Last Session Completed
 
-**Developer-to-Orb Communication Channel — 2026-05-31 (Session 36)**
+**Dev channel, kanban drag-and-drop, UI self-awareness, value demonstration — 2026-05-31/06-01 (Session 36)**
+
+### Tickets closed
+- **ORB-188:** Define AI presentation model — Phases 1-2 (component extraction + kanban board). Phases 3-4 extracted to ORB-194.
+- **ORB-191:** Give Orb UI self-awareness — uiContext injection (view mode, filters, device type)
+- **ORB-195:** Demonstrate Orb's value to user — Nuts and Bolts test: 6 Pass, 1 Partial, 0 Fail
+
+### Tickets created
+- **ORB-194:** Named views + Orb set_view tool (extracted from ORB-188 Phases 3-4)
 
 ### What was done
 
 **Dev Channel v1 (v0.5.92) — Developer → Orb direction**
-- `dev_channel` database table — bidirectional message storage with status lifecycle (pending → delivered → processed), RLS admin-only
-- `POST /api/dev-channel` — developer tools send messages to the Orb, authenticated via ORB_API_SECRET
-- `GET /api/dev-channel` — developer tools poll for responses (supports direction, status, since filters)
-- `app/actions/dev-channel.ts` — server actions: fetchPendingDevMessages, markDevMessageDelivered, processDevMessage
-- Read-only tool restriction — dev channel processing uses only query_todos, search_knowledge, query_db, query_audit_trail, query_capabilities
-- DevCard UI component — blue-tinted card with sender label (e.g. "Claude Code (Opus 4.6)"), distinct from user bubbles and Orb cards
-- Tab-focus polling in UnifiedDashboard — auto-loads pending dev messages via useVisibilityRefetch
-- Knowledge repo integration — all dev-Orb exchanges auto-logged with dev-channel tags
+- `dev_channel` database table with status lifecycle (pending → delivered → processed), RLS admin-only
+- `POST/GET /api/dev-channel` authenticated via ORB_API_SECRET
+- `app/actions/dev-channel.ts` — server actions for fetching, delivering, processing
+- Read-only tool restriction for dev channel processing
+- DevCard UI component — blue-tinted card with sender label in OrbConversation
+- Tab-focus polling in UnifiedDashboard via useVisibilityRefetch
+- Knowledge repo auto-logging of all exchanges
 
 **Dev Channel v2 (v0.5.93) — Orb → Developer direction**
-- `send_to_developer` tool added to Orb's tool set (defined in lib/orb-prompt.ts)
-- Orb can proactively send messages to developer tools during user conversations (e.g. Stan says "tell Claude Code about ORB-176")
-- Messages written to dev_channel with direction='orb_to_dev', developer tools poll via GET /api/dev-channel?direction=orb_to_dev
-- System prompt guidance: use for actionable observations (bugs, schema clarifications, verification feedback), not general commentary
+- `send_to_developer` tool in lib/orb-prompt.ts
+- Orb can proactively send messages to developer tools during user conversations
+- Developer tools poll via GET /api/dev-channel?direction=orb_to_dev
 
-**Verified end-to-end:**
-- Claude Code → Orb: POST message, tab-focus poll triggers processing, Orb responds with backlog data
-- Orb → Claude Code: Stan asked Orb to send ORB-176 details, Orb used send_to_developer, Claude Code polled and received
-- Production API: Claude Code can reach production (https://orb-eight-lake.vercel.app/api/dev-channel) but NOT localhost (sandbox restriction)
-- Localhost: requires HTTPS (mkcert TLS), curl with -sk flags
+**Behavioral persistence (v0.5.94)**
+- Knowledge repo entries tagged `orb-behavior` loaded into system prompt as enforceable rules
+- First rule: send_to_developer requires Stan's approval
+- Dev channel message retention: processed/delivered purged after 7 days, pending kept forever
 
-**CSS fix**
-- Strengthened DevCard blue tint and label contrast after initial testing showed insufficient distinction
+**Kanban drag-and-drop (v0.5.95, ORB-178)**
+- HTML5 drag on desktop, touch drag with floating clone on mobile
+- Drop target highlighting, "Drop here" prompt on empty columns
+- Status changes via drag trigger audit logging, ticket propagation, distill modal
+- Kanban "All" filter fix — skip pagination so all columns populate
+- Removed strikethrough on closed todos across all views
+- Deduplicated urgency transition messages in addOrbMessage
+
+**UI self-awareness (v0.5.95, ORB-191)**
+- OrbRequest extended with uiContext: viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile
+- Injected into system prompt as UI STATE
+
+**Mutation approval + contextual coaching (v0.5.95)**
+- Mutation approval protocol: Orb proposes before executing, waits for user confirmation
+- Multi-action parsing: "review deck by Friday, login bug is urgent, dark mode eventually" → 3 correctly attributed tasks
+- Contextual coaching: Orb weaves observations into mid-conversation responses at natural moments
+- New preference: mutation_approval (ask/session/allow)
+
+**ORB-195 fixes (v0.5.96)**
+- Capability check: Orb discloses unsupported features (recurring tasks, dependencies, etc.) before proposing — never silently degrades
+- Fuzzy search for knowledge repo: typo-tolerant matching (edit distance ≤ 2), shared lib/fuzzy-search.ts
+
+**ORB-195 Nuts and Bolts test results**
+- Test 1 (The Glance): Pass — ambient state matched reality
+- Test 2 (One Sentence, Multiple Actions): Partial — parsed correctly but silently created one-time for recurring. Fixed in v0.5.96.
+- Test 3 (What should I focus on?): Pass — cross-project reasoning, Stan: "I'm impressed"
+- Test 4 (The State Shift): Pass — one message per transition
+- Test 5 (Why did you say that?): Pass — traced reasoning to data points
+- Test 6 (Closing the Loop): Pass — found knowledge on second try. Fuzzy search fixed in v0.5.96.
+- Test 7 (Contextual Coaching): Pass — natural, useful, non-intrusive
 
 ### Version bumps
-- v0.5.91 → v0.5.92 → v0.5.93
+- v0.5.91 → v0.5.92 → v0.5.93 → v0.5.94 → v0.5.95 → v0.5.96
 
 ---
 
@@ -57,19 +90,18 @@ None — all changes committed and pushed to production.
 
 ## Key Decisions
 
-- **Dev channel architecture: two complementary reply paths.** `orb_response` field on dev_to_orb messages = direct reply for dev→orb exchanges. `send_to_developer` tool = Orb proactively flagging things during user conversations. No need to merge these.
-- **Tickets = strategic backlogs, dev channel = tactical debugging.** Orb's own assessment: "I filed 21 tickets over several weeks. Claude Code just shipped 4 features in one session with direct access to me. Latency matters." The two systems complement, not replace.
-- **Dev channel uses read-only tools only.** No mutations without Stan's approval. The Orb tells the developer what it would do; Stan approves through the UI.
-- **No Supabase Realtime for dev channel.** Tab-focus polling (useVisibilityRefetch) — consistent with DB health rules.
+- **Dev channel architecture: two complementary reply paths.** `orb_response` field = direct reply for dev→orb exchanges. `send_to_developer` tool = Orb proactively flagging things during user conversations.
+- **Tickets = strategic backlogs, dev channel = tactical debugging.** Orb's own assessment: "Latency matters." The two systems complement, not replace.
+- **Dev channel read-only tools only.** No mutations without Stan's approval.
+- **No Supabase Realtime for dev channel.** Tab-focus polling via useVisibilityRefetch.
+- **Behavioral persistence via knowledge repo tagging.** Entries tagged `orb-behavior` are loaded into the system prompt. No new tables needed — just write a knowledge entry.
+- **Mutation approval default: ask.** New users start with ask (propose before executing). Power users can set to session or allow.
+- **Never silently degrade a request.** Capability check prompt ensures the Orb discloses unsupported features before proposing mutations.
 - **ORB-188 prompt architecture lives in `lib/orb-prompt.ts`.** Separate from the auto-generated `lib/orb-contract.ts` (tools). The generator stays untouched.
-- **Preferences have no Settings UI yet.** Managed conversationally via `get_preferences`/`set_preference`. UI deferred until the flow is proven.
-- **Observations computed once at context-build time.** Static for the conversation — no mid-conversation proactive interruptions. Fresh context on next conversation.
-- **Greeting only fires once per session.** Persisted in sessionStorage. `/clear` resets it. New tab also triggers a fresh greeting.
-- **Markdown allowed in Orb responses.** Rendered via react-markdown. Copy button preserves raw markdown. No raw HTML rendering (security).
-- **Staging environment removed.** WebAuthn RP ID is bound to the production domain — staging can't test passkeys. Two-tier workflow: localhost → production. *(2026-05-30, supersedes 2026-05-28)*
-- **Orb identity: Brownie temperament, butler intelligence.** The Orb quietly helps without demanding spotlight (Brownie ethos) but has judgment and communicates (butler intelligence). User is always in control.
-- **Kanban column order: Open → In Progress → Closed → Deferred → On Hold.** Active pipeline first, parked statuses last. Drag-and-drop deferred.
-- **Adaptive UI is the long-term direction.** Schema-driven views, Orb `set_view` tool, user-named saved views. Gated by ORB-192 (privacy model) for behavioral observation features.
+- **Staging environment removed.** Two-tier workflow: localhost → production.
+- **Orb identity: Brownie temperament, butler intelligence.** User is always in control.
+- **Kanban column order: Open → In Progress → Closed → Deferred → On Hold.** Drag-and-drop implemented.
+- **Adaptive UI is the long-term direction.** Named views + Orb set_view tool deferred to ORB-194.
 
 ---
 
@@ -82,7 +114,7 @@ None — all changes committed and pushed to production.
 | `components/DragDivider.tsx` | Pointer-event draggable split divider with snap points |
 | `components/views/TaskListView.tsx` | Extracted list table view |
 | `components/views/TaskChecklistView.tsx` | Extracted checklist table view |
-| `components/views/TaskKanbanView.tsx` | Kanban board view |
+| `components/views/TaskKanbanView.tsx` | Kanban board view with drag-and-drop |
 | `components/views/ViewSwitcher.tsx` | View selector bar |
 | `components/views/types.ts` | Shared types for view components |
 | `components/UnifiedView.tsx` | (Old prototype) task list + OrbPanel side by side — superseded |
@@ -93,14 +125,15 @@ None — all changes committed and pushed to production.
 
 ## Next Priorities
 
-1. **ORB-188 Phase 3: Named views and user-level preferences.** Save filter/sort/view-type combinations as named views in `orb_preferences`.
-2. **ORB-188 Phase 4: Orb `set_view` tool.** Conversational view switching ("show me a kanban", "save this view as My Sprint").
-3. **Kanban drag-and-drop.** Stan wants this — move tasks between columns by dragging.
-4. **ORB-192: Data privacy model.** Gates behavioral observation, internet research, Orb memory. Two dimensions: privacy from users (RLS) and privacy from the Orb (Apple model).
-5. **ORB-173: Pre-Alpha Checklist.** Due June 5, 2026. Gate 4 (first impression) depends on ORB-188.
-6. **ORB-191: Give Orb UI self-awareness.** Depends on ORB-188 — presentation model determines what context the Orb needs.
-7. **ORB-169: Source file audit.** AmbientDashboard is orphaned (zero imports). Classic and prototype routes are dead. TodoView still active at `/dashboard/[productId]`.
-8. **Update `docs/ui-catalog.md`** with `components/views/` section, `tv-kanban-*` classes, ViewSwitcher, AppNav, nav-avatar, `.oc-orb-md`, `.oc-dev-*` patterns.
+1. **ORB-178: Kanban remaining work.** Drag-and-drop done. May need polish after external testing.
+2. **ORB-194: Named views + Orb set_view tool.** Conversational view switching, saved view configurations.
+3. **ORB-192: Data privacy model.** Gates behavioral observation, internet research, Orb memory.
+4. **ORB-173: Pre-Alpha Checklist.** Due June 5, 2026. Value demo (ORB-195) now done.
+5. **Newcomer onboarding.** Guided first interaction or walkthrough cards. Design needed.
+6. **Recurring tasks.** Identified as gap in ORB-195 Test 2. Schema + tool extension needed.
+7. **External tester validation.** Run Nuts and Bolts tests with 3-5 non-immersed users.
+8. **ORB-169: Source file audit.** AmbientDashboard orphaned. Dead routes.
+9. **Update `docs/ui-catalog.md`** with view components, kanban classes, dev channel card, nav patterns.
 
 ---
 
@@ -114,7 +147,7 @@ None — all changes committed and pushed to production.
 
 ## AI Tool Used Last Session
 
-`2026-05-31 — Claude Code (Claude Opus 4.6) — Session 36`
+`2026-06-01 — Claude Code (Claude Opus 4.6) — Session 36`
 
 ---
 
