@@ -73,7 +73,7 @@ export default function TaskListView({
                 <td className="tv-td-content">
                   <div className="tv-td-content-row">
                     <div className="tv-td-content-inner">
-                      <p className="tv-todo-title" style={{ fontSize: 'var(--fs-base)', color: isDone ? 'var(--muted)' : 'var(--text)', textDecoration: isDone ? 'line-through' : 'none', margin: 0 }}>
+                      <p className="tv-todo-title" style={{ fontSize: 'var(--fs-base)', color: isDone ? 'var(--muted)' : 'var(--text)', margin: 0 }}>
                         {todo.title}
                       </p>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>

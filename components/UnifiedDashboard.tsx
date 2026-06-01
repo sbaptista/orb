@@ -703,13 +703,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
       if (filterPriority !== 'all') todoQuery = todoQuery.eq('priority_value', Number(filterPriority))
 
-      const fromRange = pageNum * PAGE_SIZE
-      const toRange = (pageNum + 1) * PAGE_SIZE
-      todoQuery = todoQuery.range(fromRange, toRange)
+      // Kanban needs all todos to populate every column — skip pagination
+      if (viewMode !== 'kanban') {
+        const fromRange = pageNum * PAGE_SIZE
+        const toRange = (pageNum + 1) * PAGE_SIZE
+        todoQuery = todoQuery.range(fromRange, toRange)
+      }
 
       const { data } = await todoQuery
       const results = (data as Todo[]) ?? []
-      const hasNextPage = results.length > PAGE_SIZE
+      const hasNextPage = viewMode !== 'kanban' && results.length > PAGE_SIZE
       const pageItems = hasNextPage ? results.slice(0, PAGE_SIZE) : results
 
       setHasMore(hasNextPage)
@@ -729,7 +732,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       if (!append) { setListLoading(false); listInitialLoadDone.current = true }
     }
     checkReminders().catch(err => console.error('Reminder check failed:', err))
-  }, [selectedId, supabase, sortAsc, filterStatus, filterPriority, closedNames])
+  }, [selectedId, supabase, sortAsc, filterStatus, filterPriority, closedNames, viewMode])
 
   useVisibilityRefetch(fetchTodos)
 

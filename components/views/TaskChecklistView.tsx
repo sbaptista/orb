@@ -27,7 +27,7 @@ export default function TaskChecklistView({ todos, isClosed, onSelectTodo, onTog
                     {isDone && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="var(--bg2)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                   </button>
                 </td>
-                <td><span style={{ color: isDone ? 'var(--muted)' : 'var(--text)', textDecoration: isDone ? 'line-through' : 'none', cursor: 'pointer' }}>{todo.title}</span></td>
+                <td><span style={{ color: isDone ? 'var(--muted)' : 'var(--text)', cursor: 'pointer' }}>{todo.title}</span></td>
               </tr>
             )
           })}

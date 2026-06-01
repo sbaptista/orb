@@ -66,7 +66,6 @@ function KanbanCard({
       {/* Title */}
       <p className="tv-kanban-card-title" style={{
         color: isDone ? 'var(--muted)' : 'var(--text)',
-        textDecoration: isDone ? 'line-through' : 'none',
       }}>
         {todo.title}
       </p>
