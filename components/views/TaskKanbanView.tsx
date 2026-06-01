@@ -240,7 +240,7 @@ export default function TaskKanbanView({
           <div className="tv-kanban-column-body">
             {col.todos.length === 0 ? (
               <p className="tv-kanban-empty">
-                {draggingTodo ? 'Drop here' : 'No tasks'}
+                {draggingTodo ? 'Drop here' : 'No tasks displayed, check filters.'}
               </p>
             ) : (
               col.todos.map(todo => (

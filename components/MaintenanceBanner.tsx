@@ -1,57 +1,15 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import { useSystemState } from '@/components/SystemStateProvider'
 
 export default function MaintenanceBanner() {
-  const [visible, setVisible] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
+  const { maintenance, lockedOut } = useSystemState()
 
-  const checkMaintenance = async () => {
-    try {
-      const res = await fetch('/api/version')
-      if (!res.ok) return
-      const data = await res.json()
-      
-      // Show banner if maintenance is active but the user is not locked out (i.e. is an admin)
-      if (data.maintenance && !data.lockedOut) {
-        setVisible(true)
-      } else {
-        setVisible(false)
-      }
-    } catch (err) {
-      console.error('[maint-banner-check] Failed to check status:', err)
-      setVisible(false)
-    }
-  }
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    // Run check on mount
-    checkMaintenance()
-
-    // Listen to visibility/focus changes
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        checkMaintenance()
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibility)
-
-    // Listen to focus changes
-    window.addEventListener('focus', checkMaintenance)
-
-    // Poll every 30 seconds for quick updates
-    const interval = setInterval(checkMaintenance, 30 * 1000)
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibility)
-      window.removeEventListener('focus', checkMaintenance)
-      clearInterval(interval)
-    }
-  }, [pathname])
+  // Show banner if maintenance is active but the user is not locked out (i.e. is an admin)
+  const visible = maintenance && !lockedOut
 
   // Don't render the banner on the standalone maintenance page
   if (pathname === '/maintenance') {

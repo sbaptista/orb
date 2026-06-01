@@ -7,6 +7,30 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.99',
+    date: '2026-06-01',
+    changes: [
+      'Consolidated health and version polling into a unified SystemStateProvider to eliminate duplicate API requests.',
+      'Reduced database connection overhead from maintenance checks by centralizing intervals.',
+      'Added a 500ms trailing debounce on window focus/visibility changes to prevent back-to-back fetching.',
+      'Optimized polling by relaxing the health check interval to 30s and pausing polling entirely when the document tab is hidden.',
+    ]
+  },
+  {
+    version: 'v0.5.98',
+    date: '2026-06-01',
+    changes: [
+      'Kanban view empty column text period fix ("No tasks displayed, check filters.").',
+    ]
+  },
+  {
+    version: 'v0.5.97',
+    date: '2026-06-01',
+    changes: [
+      'Kanban view empty column text updated to prompt checking active filters when empty ("No tasks displayed, check filters").',
+    ]
+  },
+  {
     version: 'v0.5.96',
     date: '2026-06-01',
     changes: [

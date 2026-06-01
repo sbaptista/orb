@@ -15,76 +15,40 @@
 
 ## Last Session Completed
 
-**Dev channel, kanban drag-and-drop, UI self-awareness, value demonstration — 2026-05-31/06-01 (Session 36)**
+**API Health and Version Polling Consolidation — 2026-06-01 (Session 38)**
 
 ### Tickets closed
-- **ORB-188:** Define AI presentation model — Phases 1-2 (component extraction + kanban board). Phases 3-4 extracted to ORB-194.
-- **ORB-191:** Give Orb UI self-awareness — uiContext injection (view mode, filters, device type)
-- **ORB-195:** Demonstrate Orb's value to user — Nuts and Bolts test: 6 Pass, 1 Partial, 0 Fail
-
-### Tickets created
-- **ORB-194:** Named views + Orb set_view tool (extracted from ORB-188 Phases 3-4)
+- None
 
 ### What was done
-
-**Dev Channel v1 (v0.5.92) — Developer → Orb direction**
-- `dev_channel` database table with status lifecycle (pending → delivered → processed), RLS admin-only
-- `POST/GET /api/dev-channel` authenticated via ORB_API_SECRET
-- `app/actions/dev-channel.ts` — server actions for fetching, delivering, processing
-- Read-only tool restriction for dev channel processing
-- DevCard UI component — blue-tinted card with sender label in OrbConversation
-- Tab-focus polling in UnifiedDashboard via useVisibilityRefetch
-- Knowledge repo auto-logging of all exchanges
-
-**Dev Channel v2 (v0.5.93) — Orb → Developer direction**
-- `send_to_developer` tool in lib/orb-prompt.ts
-- Orb can proactively send messages to developer tools during user conversations
-- Developer tools poll via GET /api/dev-channel?direction=orb_to_dev
-
-**Behavioral persistence (v0.5.94)**
-- Knowledge repo entries tagged `orb-behavior` loaded into system prompt as enforceable rules
-- First rule: send_to_developer requires Stan's approval
-- Dev channel message retention: processed/delivered purged after 7 days, pending kept forever
-
-**Kanban drag-and-drop (v0.5.95, ORB-178)**
-- HTML5 drag on desktop, touch drag with floating clone on mobile
-- Drop target highlighting, "Drop here" prompt on empty columns
-- Status changes via drag trigger audit logging, ticket propagation, distill modal
-- Kanban "All" filter fix — skip pagination so all columns populate
-- Removed strikethrough on closed todos across all views
-- Deduplicated urgency transition messages in addOrbMessage
-
-**UI self-awareness (v0.5.95, ORB-191)**
-- OrbRequest extended with uiContext: viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile
-- Injected into system prompt as UI STATE
-
-**Mutation approval + contextual coaching (v0.5.95)**
-- Mutation approval protocol: Orb proposes before executing, waits for user confirmation
-- Multi-action parsing: "review deck by Friday, login bug is urgent, dark mode eventually" → 3 correctly attributed tasks
-- Contextual coaching: Orb weaves observations into mid-conversation responses at natural moments
-- New preference: mutation_approval (ask/session/allow)
-
-**ORB-195 fixes (v0.5.96)**
-- Capability check: Orb discloses unsupported features (recurring tasks, dependencies, etc.) before proposing — never silently degrades
-- Fuzzy search for knowledge repo: typo-tolerant matching (edit distance ≤ 2), shared lib/fuzzy-search.ts
-
-**ORB-195 Nuts and Bolts test results**
-- Test 1 (The Glance): Pass — ambient state matched reality
-- Test 2 (One Sentence, Multiple Actions): Partial — parsed correctly but silently created one-time for recurring. Fixed in v0.5.96.
-- Test 3 (What should I focus on?): Pass — cross-project reasoning, Stan: "I'm impressed"
-- Test 4 (The State Shift): Pass — one message per transition
-- Test 5 (Why did you say that?): Pass — traced reasoning to data points
-- Test 6 (Closing the Loop): Pass — found knowledge on second try. Fuzzy search fixed in v0.5.96.
-- Test 7 (Contextual Coaching): Pass — natural, useful, non-intrusive
+- **Created SystemStateProvider (v0.5.99)**: Unified check logic for `/api/health` and `/api/version` inside a single client context provider.
+- **Deduplication & Debounce**: Implemented a 500ms trailing debounce on window focus and visibility change event listeners to prevent back-to-back duplicate fetching.
+- **Hidden Tab Polling Pause**: Configured the 30-second interval timers for health and version status checks to automatically pause ticks when `document.visibilityState === 'hidden'`.
+- **Refactored Consumers**: Rewrote `useOnlineStatus`, `MaintenanceOverlay`, `MaintenanceBanner`, and `UpdateBanner` to consume system state from `useSystemState` instead of running their own local intervals and listeners.
+- **DEV Panel Compatibility**: Supported `todos-dev-offline-change` and `todos-dev-update-change` simulation triggers and localStorage variables within the new provider layout.
+- **Layout Adjustments**: Moved `OfflinePage` and `MaintenanceOverlay` inside the `<Providers>` layout tree in `app/layout.tsx` to enable access to the React Context.
 
 ### Version bumps
-- v0.5.91 → v0.5.92 → v0.5.93 → v0.5.94 → v0.5.95 → v0.5.96
+- v0.5.96 → v0.5.97 → v0.5.98 → v0.5.99
 
 ---
 
 ## Uncommitted Changes
 
-None — all changes committed and pushed to production.
+- `app/layout.tsx` (modified)
+- `components/MaintenanceBanner.tsx` (modified)
+- `components/MaintenanceOverlay.tsx` (modified)
+- `components/Providers.tsx` (modified)
+- `components/UpdateBanner.tsx` (modified)
+- `components/views/TaskKanbanView.tsx` (modified)
+- `hooks/useOnlineStatus.ts` (modified)
+- `lib/changelog.ts` (modified)
+- `lib/version.ts` (modified)
+- `package.json` (modified)
+- `components/SystemStateProvider.tsx` (new file)
+- `output.css` (untracked)
+- `.claude/settings.local.json` (modified)
+- `docs/Consolidate_API_Health_and_Version_Polling.md` (untracked)
 
 ---
 
@@ -147,7 +111,7 @@ None — all changes committed and pushed to production.
 
 ## AI Tool Used Last Session
 
-`2026-06-01 — Claude Code (Claude Opus 4.6) — Session 36`
+`2026-06-01 — Antigravity (Gemini 3.5 Flash) — Session 38`
 
 ---
 

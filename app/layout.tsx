@@ -39,10 +39,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${dmSans.variable} ${cormorant.variable}`} suppressHydrationWarning>
       <body suppressHydrationWarning>
         <a href="#main-content" className="skip-link">Skip to content</a>
-        <OfflinePage />
-        <MaintenanceOverlay />
         <ServiceWorkerRegistrar />
         <Providers>
+          <OfflinePage />
+          <MaintenanceOverlay />
           <UpdateBanner />
           <MaintenanceBanner />
           {children}

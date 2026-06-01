@@ -2,64 +2,32 @@
 
 import { useEffect, useState } from 'react'
 import { VERSION } from '@/lib/version'
+import { useSystemState } from '@/components/SystemStateProvider'
 
 export default function UpdateBanner() {
-  const [updateAvailable, setUpdateAvailable] = useState(false)
+  const [tick, setTick] = useState(0)
+  const { version } = useSystemState()
 
-  const checkVersion = async () => {
-    const isSimulated = typeof window !== 'undefined' && localStorage.getItem('todos_dev_simulate_update') === 'true'
-
-    if (isSimulated) {
-      setUpdateAvailable(true)
-      return
-    }
-
-    try {
-      const res = await fetch('/api/version')
-      if (!res.ok) return
-      const data = await res.json()
-
-      if (data.version && data.version !== VERSION) {
-        setUpdateAvailable(true)
-      } else {
-        setUpdateAvailable(false)
-      }
-    } catch (err) {
-      console.error('[version-check] Failed to fetch server version:', err)
-    }
-  }
+  const isSimulated = typeof window !== 'undefined' && localStorage.getItem('todos_dev_simulate_update') === 'true'
+  const updateAvailable = isSimulated || (!!version && version !== VERSION)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
 
-    // Run check on mount
-    checkVersion()
-
-    // Listen to visibility/focus changes
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        checkVersion()
-      }
+    const handleSimChange = () => {
+      setTick(t => t + 1)
     }
-    document.addEventListener('visibilitychange', handleVisibility)
 
-    // Listen to DEV panel simulation events
-    window.addEventListener('todos-dev-update-change', checkVersion)
-
-    // Poll every 5 minutes
-    const interval = setInterval(checkVersion, 5 * 60 * 1000)
-
+    window.addEventListener('todos-dev-update-change', handleSimChange)
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibility)
-      window.removeEventListener('todos-dev-update-change', checkVersion)
-      clearInterval(interval)
+      window.removeEventListener('todos-dev-update-change', handleSimChange)
     }
   }, [])
 
   const handleUpdate = () => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then((registrations) => {
-        for (let registration of registrations) {
+        for (const registration of registrations) {
           registration.update()
         }
       })
@@ -69,6 +37,7 @@ export default function UpdateBanner() {
 
   return (
     <div
+      key={tick}
       className="update-banner"
       style={{
         height: updateAvailable ? '40px' : '0px',
