@@ -35,6 +35,16 @@ export type OrbResponse = {
   newProject?: { id: string; name: string; code: string; description: string | null; created_by: string }
 }
 
+export type UIContext = {
+  viewMode?: 'list' | 'checklist' | 'kanban'
+  filterStatus?: string
+  filterPriority?: string
+  sortAsc?: boolean
+  orbPaneVisible?: boolean
+  listPaneVisible?: boolean
+  isMobile?: boolean
+}
+
 export type OrbRequest = {
   input: string
   productId: string | null
@@ -42,6 +52,7 @@ export type OrbRequest = {
   history?: Array<{ role: 'user' | 'assistant'; text: string }>
   dryRun?: boolean
   roleOverride?: string | null
+  uiContext?: UIContext
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
@@ -296,6 +307,7 @@ export async function orbConverse(req: OrbRequest) {
             `The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering. When the user asks "how many tasks" or "my tasks" without specifying, report the ACTIVE count. If parked tasks exist, mention them separately.`,
             buildUrgencyRules(ctx.urgencyThresholdHours),
             `SCOPE: ${req.scopeToProduct ? `Scoped to the "${ctx.current?.name}" project. Only discuss or query this project's todos unless the user explicitly asks about another project or says "all". IMPORTANT: When calling tools (like create_todo or query_todos), ALWAYS pass the project code (e.g. product_code="${ctx.current?.code}") — never omit it. The tools require codes, but when speaking to the user, always refer to the project by its display name "${ctx.current?.name}".` : 'All projects visible.'}`,
+            req.uiContext ? `UI STATE: The user is viewing: ${req.uiContext.viewMode ?? 'list'} view | filter: ${req.uiContext.filterStatus ?? 'active'} | priority filter: ${req.uiContext.filterPriority ?? 'all'} | sort: ${req.uiContext.sortAsc ? 'oldest first' : 'newest first'} | orb pane: ${req.uiContext.orbPaneVisible ? 'visible' : 'hidden'} | list pane: ${req.uiContext.listPaneVisible ? 'visible' : 'hidden'} | device: ${req.uiContext.isMobile ? 'mobile' : 'desktop'}. Use this to understand what the user sees when they say "this view", "the list", "that column", etc.` : '',
             `BACKLOG (includes DORMANT section if any exist — answer dormant project questions from here, do not query):\n${ctx.contextString}`,
             `KNOWLEDGE BASE (Recent):\n${ctx.knowledgeList.slice(0, 5).map((k: any) => {
               const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''

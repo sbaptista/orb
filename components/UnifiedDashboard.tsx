@@ -859,7 +859,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     activeProcessingIdRef.current = processingId
 
     try {
-      const stream = await orbConverse({ input: text, productId: selectedId, scopeToProduct, history, dryRun })
+      const stream = await orbConverse({ input: text, productId: selectedId, scopeToProduct, history, dryRun, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile } })
       for await (const chunk of readStreamableValue(stream)) {
         if (abortConverseRef.current) break
         if (!chunk) continue
