@@ -25,6 +25,7 @@
 - **Onboarding Seeding Fix:** Resolved database project seeding failure where new users would successfully complete onboarding but default projects (`WELCOME`, `HOME`, `ECO`) failed to seed due to the kanban check constraint violation. This fix prevents the dashboard search bar error `[UnifiedDashboard] Project search returned 0 results after retries` for new users.
 - **Onboarding Verification:** Verified onboarding seeding correctness with a custom backend script.
 - **HTTPS Dev Invites Fix:** Upgraded invitation link generation in `invite-user` and `invitation-actions` to robustly use HTTPS for localhost in development, resolving empty response errors caused by fallback HTTP dev links.
+- **Auto-Onboarding Project Seeding:** Resolved the invitation bypass issue where invited users skip the create-account onboarding screen and land directly on the dashboard. Extracted seeding logic to a shared utility (`lib/onboarding-seeding.ts`) and called it within `resolveUser` (`lib/resolve-user.ts`) to ensure invited users always have their default projects and tasks seeded before they reach the dashboard.
 
 ### Version bumps
 - v0.5.126 → v0.5.127
@@ -34,9 +35,9 @@
 ## Uncommitted Changes
 
 - `HANDOFF.md` (modified)
-- `lib/changelog.ts` (modified)
-- `app/actions/invite-user.ts` (modified)
-- `app/actions/invitation-actions.ts` (modified)
+- `lib/onboarding-seeding.ts` (new file)
+- `lib/resolve-user.ts` (modified)
+- `app/actions/complete-onboarding.ts` (modified)
 
 ---
 

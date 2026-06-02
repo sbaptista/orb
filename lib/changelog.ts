@@ -12,6 +12,7 @@ export const CHANGELOG: Release[] = [
     changes: [
       'Fixed database project seeding failure for new users during onboarding: updated projects table check constraint (projects_view_mode_check) to allow the "kanban" view mode, preventing silent seeding failures and subsequent project search errors.',
       'Upgraded invitation link generation in invite-user and invitation-actions to robustly use HTTPS for localhost in development, resolving empty response errors caused by http:// dev links.',
+      'Resolved the invitation bypass issue where invited users skip the create-account onboarding screen and land directly on the dashboard. Integrated project and task seeding directly into resolveUser via a new shared onboarding seeding utility (lib/onboarding-seeding.ts) to guarantee their default projects are seeded before they reach the dashboard.',
     ]
   },
   {

@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createTicket } from '@/app/actions/ticket-actions'
 import { acceptInvitation } from '@/app/actions/invitation-actions'
 import { logAuditEvent } from '@/lib/audit'
+import { seedOnboardingProjects } from '@/lib/onboarding-seeding'
 
 export type ResolvedUser = {
   id: string
@@ -142,6 +143,9 @@ export async function resolveUser(authId: string, email: string): Promise<Resolv
         await autoTicket('User creation from invitation failed', insertErr)
         return { ok: false, redirectTo: '/auth/login?error=resolve_failed' }
       }
+
+      // Seed default projects and tasks for the new user immediately
+      await seedOnboardingProjects(admin, authId)
 
       const acceptResult = await acceptInvitation(email, authId)
       if ('error' in acceptResult && acceptResult.error) {
