@@ -15,21 +15,23 @@
 
 ## Last Session Completed
 
-**Desktop Pane Toggle & Viewport Layout Refinements — 2026-06-01 (Session 40)**
+**Kanban Touch Drag Cleanups, Selection, and Scroll Fixes — 2026-06-01 (Session 42)**
 
 ### Tickets closed
 - None
 
 ### What was done
-- **Fixed Desktop Full Width Switching (v0.5.105)**: Applied explicit `width: '100%'` inline styles to `.ud-orb-pane` and `.ud-list-pane` when they are rendered as the sole visible pane on desktop viewports. This fixes the layout bug where hiding one of the panes on desktop results in the remaining active pane staying stuck at 50% width next to an empty background.
-- **Grayed Out Active Mobile Toggles (v0.5.106)**: Configured the mobile tab toggle buttons ("Orb" and "List") to disable when their respective tab is already active, which dynamically grays them out and blocks redundant clicks.
-- **Enlarged Mobile Button Labels (v0.5.106)**: Changed `.nav-btn-label` to use the standard `var(--fs-sm)` button text font size variable, and bumped mobile `--fs-sm` font size override to `17px` (2px larger than the previous `15px`) to improve iPhone readability.
-- **Constant Project Search Placeholder (v0.5.106 / v0.5.108)**: Changed the project search input placeholder in both `UnifiedDashboard` and classic `TodoView` to always show `"Type to select project or user..."` instead of dynamically switching based on the current selection.
-- **Standardized Text Sizes (v0.5.107 / v0.5.108)**: Refactored hardcoded font sizes in search inputs, placeholders, and slash command view structures to use standardised CSS variables (`var(--fs-sm)` and `var(--fs-version)`), enabling them to scale dynamically with the rest of the application layouts.
-- **Orb Conversation Toolbar Text Labels (v0.5.108)**: Redesigned the icon button strip below the input field in the Orb conversation view to display text labels centered directly below the icons/characters. Enabled horizontal scrolling on the toolbar for mobile viewports to prevent layout wrapping.
+- **Fixed Horizontal Scroll Hijacking during Touch Drag (v0.5.124)**: Prevented horizontal column scrolling from reclaiming active touch gestures on iOS Safari. Once the 300ms long-press hold finishes and `holdReady` triggers, all early `touchmove` events are immediately `preventDefault()`ed (lowered movement activation threshold to 2px), blocking Safari from ever interpreting the touch action as horizontal container scrolling.
+- **Disabled Text Selection on Kanban Elements (v0.5.123)**: Added `user-select: none` and `-webkit-user-select: none` to the `.tv-kanban` column container and `.tv-kanban-card` classes to prevent accidental text highlight overlays and Safari magnification bubbles during touch drag actions on mobile.
+- **Removed Debug Coordinate Check Alert (v0.5.122)**: Cleaned up the touch drag coordinate debug alerts and associated tracking references (`dragHistoryRef` and `lastTouchXRef`) from `TaskKanbanView.tsx` now that mobile touch drag-and-drop drop testing is complete and successful.
+- **Fixed Mobile Drop Failures in Kanban View (v0.5.116)**: Resolved touch drag drops failing on iPhone by registering native document-level touch listeners for `touchmove`, `touchend`, and `touchcancel` with `{ passive: false }` to prevent iOS Safari scrolling interference. Added React refs for `dropTarget` and `onStatusChange` to bypass stale closure bugs during active touch gestures.
+- **Cleaned Up Card Wrapper JSX (v0.5.116)**: Removed unused React synthetic touch handlers (`onTouchMove`, `onTouchEnd`, `onTouchCancel`) from Kanban card divs to let native document listeners handle the touch flow.
+- **Cleaned Up Unused Props (v0.5.116)**: Removed unused `statusColor` prop from `KanbanCard` and its instantiation.
+- **Prevented Horizontal Scroll Interference (v0.5.120)**: Added `touch-action: pan-y` style rule on Kanban cards in `globals.css` to block browser-level horizontal scrolling gestures from claiming and cancelling the drag session.
+- **Disabled Native HTML5 Drag Hijacking (v0.5.121)**: Set `draggable={!isTouchDevice}` dynamically on cards so touch viewports execute custom touch drag-and-drop instead of browser-level native drag ghosting.
 
 ### Version bumps
-- v0.5.104 → v0.5.105 → v0.5.106 → v0.5.107 → v0.5.108
+- v0.5.121 → v0.5.122 → v0.5.123 → v0.5.124
 
 ---
 
@@ -38,9 +40,8 @@
 - `package.json` (modified)
 - `lib/version.ts` (modified)
 - `lib/changelog.ts` (modified)
-- `components/UnifiedDashboard.tsx` (modified)
+- `components/views/TaskKanbanView.tsx` (modified)
 - `app/globals.css` (modified)
-- `docs/mobile_dashboard_layout_proposal.md` (untracked)
 - `HANDOFF.md` (modified)
 
 ---
@@ -104,7 +105,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-01 — Antigravity (Gemini 1.5 Pro) — Session 40`
+`2026-06-01 — Antigravity (Gemini 3.5 Flash) — Session 42`
 
 ---
 

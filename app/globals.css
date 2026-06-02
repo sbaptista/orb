@@ -1946,7 +1946,8 @@ a, button, [role="button"], input, select, textarea {
   min-height: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .tv-kanban-column {
@@ -1996,7 +1997,6 @@ a, button, [role="button"], input, select, textarea {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
   padding: var(--sp-sm);
   display: flex;
   flex-direction: column;
@@ -2016,6 +2016,9 @@ a, button, [role="button"], input, select, textarea {
   font-family: var(--font-ui);
   transition: background var(--transition), border-color var(--transition);
   width: 100%;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .tv-kanban-card[data-selected] {

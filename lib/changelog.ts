@@ -7,6 +7,82 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.124',
+    date: '2026-06-01',
+    changes: [
+      'Kanban touch drag: Prevented horizontal column scrolling from reclaiming touch gestures by default-preventing early touchmove events immediately once the long-press drag gesture becomes ready.',
+    ]
+  },
+  {
+    version: 'v0.5.123',
+    date: '2026-06-01',
+    changes: [
+      'Kanban touch drag: Disabled text selection on Kanban cards and columns to prevent accidental highlighting and magnifying glass popups during drag-and-drop actions on mobile.',
+    ]
+  },
+  {
+    version: 'v0.5.122',
+    date: '2026-06-01',
+    changes: [
+      'Kanban touch drag: Removed temporary debug drop coordinate check alert and related tracking variables.',
+    ]
+  },
+  {
+    version: 'v0.5.121',
+    date: '2026-06-01',
+    changes: [
+      'Kanban touch drag: Disabled HTML5 draggable behavior on touch devices to prevent mobile browser native drag hijacking.',
+    ]
+  },
+  {
+    version: 'v0.5.120',
+    date: '2026-06-01',
+    changes: [
+      'Kanban touch drag: Configured touch-action: pan-y on Kanban cards to prevent browser horizontal scrolling from cancelling the drag gesture.',
+    ]
+  },
+  {
+    version: 'v0.5.119',
+    date: '2026-06-01',
+    changes: [
+      'Kanban touch drag: Extended drop diagnostic alerts with viewport coordinates and column boundary boxes mapping.',
+    ]
+  },
+  {
+    version: 'v0.5.118',
+    date: '2026-06-01',
+    changes: [
+      'Kanban touch drag: Extended drop diagnostic alerts with active column tracking history.',
+    ]
+  },
+  {
+    version: 'v0.5.117',
+    date: '2026-06-01',
+    changes: [
+      'Kanban touch drag: Added temporary diagnostic alerts for touch drop debugging.',
+    ]
+  },
+  {
+    version: 'v0.5.116',
+    date: '2026-06-01',
+    changes: [
+      'Kanban touch drag: Refactored touch event handling to register native document-level listeners with { passive: false } on touch start to prevent native scrolling interference.',
+      'Kanban touch drag: Resolved stale closure bugs during drag-and-drop by using refs for tracking active drop targets and props status-change callback functions.',
+      'Kanban touch drag: Cleaned up JSX by removing unused React synthetic touch listeners on Kanban cards.',
+    ]
+  },
+  {
+    version: 'v0.5.110',
+    date: '2026-06-01',
+    changes: [
+      'Kanban touch drag: fixed drops failing after the first successful drag on iPhone. Root cause: iOS Safari scroll containers (-webkit-overflow-scrolling) intercepted touch events before React\'s delegated handlers could call preventDefault(), causing column positions to shift mid-drag and drop target hit-testing to fail.',
+      'Touch handlers now use native document-level listeners with { passive: false } instead of React synthetic events, guaranteeing preventDefault() is respected regardless of scroll container nesting.',
+      'Removed deprecated -webkit-overflow-scrolling: touch from kanban CSS (unnecessary since iOS 13+).',
+      'Kanban touch drag: fixed ghost card images persisting on iPhone. Orphaned clones cleaned up on touchcancel, unmount, and before new drags.',
+      'Kanban touch drag: long-press activation model (300ms hold + movement) replaces instant 10px threshold. Scrolling no longer accidentally triggers drag.',
+    ]
+  },
+  {
     version: 'v0.5.108',
     date: '2026-06-01',
     changes: [
