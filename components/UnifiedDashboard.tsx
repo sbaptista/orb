@@ -130,6 +130,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [products, setProducts]       = useState<Product[]>(initialProducts ?? [])
   const [selectedId, setSelectedId]   = useState<string | null>(null)
   const [isMobile, setIsMobile]       = useState(false)
+  const [daysActive, setDaysActive]   = useState<number>(0)
   const [activeMobileTab, setActiveMobileTab] = useState<'orb' | 'list'>('list')
 
   // ── Orb / conversation state ──
@@ -440,7 +441,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
           const { data: profile } = await supabase
             .from('users')
-            .select('first_name, last_name, onboarded_at, urgency_threshold_hours, release_stage')
+            .select('first_name, last_name, onboarded_at, urgency_threshold_hours, release_stage, created_at')
             .eq('id', authUser.id)
             .single()
           const userWelcomeKey = `todos_welcome_shown_${authUser.id}`
@@ -450,6 +451,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             setUserFullName(full)
             setUrgencyThreshold(profile.urgency_threshold_hours ?? 0)
             setReleaseStage(profile.release_stage ?? 'pre-alpha')
+            if (profile.created_at) {
+              const created = new Date(profile.created_at)
+              const diffTime = Math.abs(Date.now() - created.getTime())
+              const days = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+              setDaysActive(days)
+            }
             if (!profile.onboarded_at && !localStorage.getItem(userWelcomeKey)) setIsNewUser(true)
           } else {
             setUserName(authUser.email?.charAt(0).toUpperCase() ?? '?')
@@ -773,7 +780,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     setMessages(prev => [
       ...prev,
       { id: genId(), type: 'user', text },
-      { id: genId(), type: 'orb', text: `Here's how to get started:\n\n• Add a task: "Add task: review the onboarding flow"\n• See your list: "Show my active tasks"\n• Create a project: "Create a project called Work"\n\nA couple of things to be aware of: your projects and tasks are visible to the developer (Stan) for troubleshooting and improvement purposes — please don't store anything confidential here. Also, Orb is under active development, so features may change and access isn't guaranteed long-term.\n\nIf you run into a bug or have a suggestion, just tell me — I'll log it automatically.\n\nType /? anytime for a full command list. What would you like to work on?` },
+      { id: genId(), type: 'orb', text: `Welcome to Orb! \n\nUnlike standard todo lists that just store tasks, Orb acts as an **ambient presence** and **strategic planning partner**. The color and motion of the Orb on your screen reflect your real-time workload (Calm, Busy, or Urgent).\n\nTo help you get started, I have created three projects for you. You can select them using the project search bar in the top bar:\n• **Welcome & Guide (WELCOME)** - Checklist view in an **Active** (lavender) state.\n• **Home Maintenance (HOME)** - List view in a **Calm** (green) state.\n• **Urban Compost Initiative (ECO)** - Kanban view in an **Urgent** (orange/solar flare) state.\n\nThese projects contain realistic tasks to let you immediately interact with Orb. Try asking me: *"What should I do next?"* or *"Why am I busy?"*, switch views, or test the Kanban touch drag-and-drop on your phone.\n\n**Note on Privacy & Testing:** Since this is a pre-alpha, task names and chat logs are visible to the developer (Stan) for debugging and optimizing the AI's logic. Please do not store highly sensitive personal information.\n\nType /? anytime for a full command list. Click on "Help" at the top of the screen to read our Pre-Alpha Testing guide. \n\nSelect one of the projects from the search bar at the top to see your onboarding tasks. What would you like to do first?` },
     ])
     setConversationActive(true)
     resetInactivity()
@@ -865,7 +872,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     activeProcessingIdRef.current = processingId
 
     try {
-      const stream = await orbConverse({ input: text, productId: selectedId, scopeToProduct, history, dryRun, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile } })
+      const stream = await orbConverse({ input: text, productId: selectedId, scopeToProduct, history, dryRun, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive } })
       for await (const chunk of readStreamableValue(stream)) {
         if (abortConverseRef.current) break
         if (!chunk) continue

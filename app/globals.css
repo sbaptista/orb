@@ -963,9 +963,9 @@ a, button, [role="button"], input, select, textarea {
   align-items: center;
   justify-content: space-between;
   padding: 4px 12px;
-  height: 36px;
-  min-height: 36px;
-  max-height: 36px;
+  height: 48px;
+  min-height: 48px;
+  max-height: 48px;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -1004,7 +1004,30 @@ a, button, [role="button"], input, select, textarea {
   display: inline;
 }
 /* Desktop: show full bar, hide mobile commands button */
-.appnav-desktop { display: flex !important; }
+.appnav-desktop {
+  display: flex !important;
+  gap: 8px;
+}
+.appnav-desktop .nav-btn {
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 2px !important;
+  padding: 2px 8px !important;
+  min-width: 50px !important;
+  height: 100% !important;
+}
+.appnav-desktop .nav-btn .nav-btn-label {
+  display: block !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+  text-align: center !important;
+  color: var(--muted) !important;
+}
+.appnav-desktop .nav-btn:hover .nav-btn-label {
+  color: var(--text2) !important;
+}
 .appnav-mobile { display: none !important; }
 
 @media (max-width: 767px) {
@@ -4382,30 +4405,30 @@ a, button, [role="button"], input, select, textarea {
 
   /* When Orb is active, hide list pane */
   .ud-split[data-active-tab="orb"] .ud-list-pane {
-    position: absolute;
-    visibility: hidden;
-    width: 0;
-    height: 0;
-    overflow: hidden;
+    position: absolute !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
   }
   .ud-split[data-active-tab="orb"] .ud-orb-pane {
     width: 100% !important;
     height: 100% !important;
-    visibility: visible;
+    visibility: visible !important;
   }
 
   /* When List is active, hide orb pane */
   .ud-split[data-active-tab="list"] .ud-orb-pane {
-    position: absolute;
-    visibility: hidden;
-    width: 0;
-    height: 0;
-    overflow: hidden;
+    position: absolute !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
   }
   .ud-split[data-active-tab="list"] .ud-list-pane {
     width: 100% !important;
     height: 100% !important;
-    visibility: visible;
+    visibility: visible !important;
   }
 }
 @media (min-width: 768px) {

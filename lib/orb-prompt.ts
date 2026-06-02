@@ -252,6 +252,8 @@ export const VALID_PREFERENCE_KEYS: Record<string, { description: string; values
   verbosity: { description: 'Response length preference', values: ['terse', 'normal', 'detailed'] },
   scope_reminders: { description: 'Whether to state scope in every response', values: ['on', 'off'] },
   mutation_approval: { description: 'Whether the Orb asks before creating/updating/deleting tasks', values: ['ask', 'session', 'allow'] },
+  survey_completed: { description: 'Whether the user completed the pre-alpha survey check-in', values: ['true', 'false'] },
+  survey_stage: { description: 'Pre-alpha survey stage progress', values: ['none', 'offered', 'q1', 'q2', 'q3', 'completed'] },
 }
 
 // ── Mutation Approval Protocol ─────────────────────────────────────────

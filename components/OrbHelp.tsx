@@ -22,36 +22,36 @@ const TOPICS: Topic[] = [
         <div className="help-section">
           <h2 className="help-h2">Create</h2>
           <ul className="help-ul">
-            <li className="help-li">"Add a note to review the API docs, high priority"</li>
-            <li className="help-li">"Remind me to follow up on the proposal"</li>
-            <li className="help-li">"[Project] needs a login page due Friday at 5pm"</li>
+            <li className="help-li">&quot;Add a note to review the API docs, high priority&quot;</li>
+            <li className="help-li">&quot;Remind me to follow up on the proposal&quot;</li>
+            <li className="help-li">&quot;[Project] needs a login page due Friday at 5pm&quot;</li>
           </ul>
         </div>
 
         <div className="help-section">
           <h2 className="help-h2">Query</h2>
           <ul className="help-ul">
-            <li className="help-li">"What's most urgent right now?"</li>
-            <li className="help-li">"Show me all active [project] todos"</li>
-            <li className="help-li">"What did I say about the auth work?"</li>
+            <li className="help-li">&quot;What&apos;s most urgent right now?&quot;</li>
+            <li className="help-li">&quot;Show me all active [project] todos&quot;</li>
+            <li className="help-li">&quot;What did I say about the auth work?&quot;</li>
           </ul>
         </div>
 
         <div className="help-section">
           <h2 className="help-h2">Update</h2>
           <ul className="help-ul">
-            <li className="help-li">"Mark [project]-14 as done"</li>
-            <li className="help-li">"Set the accessibility task to in progress"</li>
-            <li className="help-li">"Move [project]-10 to deferred"</li>
-            <li className="help-li">"Set due date for [project]-12 to tomorrow at 3pm"</li>
+            <li className="help-li">&quot;Mark [project]-14 as done&quot;</li>
+            <li className="help-li">&quot;Set the accessibility task to in progress&quot;</li>
+            <li className="help-li">&quot;Move [project]-10 to deferred&quot;</li>
+            <li className="help-li">&quot;Set due date for [project]-12 to tomorrow at 3pm&quot;</li>
           </ul>
         </div>
 
         <div className="help-section">
           <h2 className="help-h2">Delete</h2>
           <ul className="help-ul">
-            <li className="help-li">"Delete the invoice todo"</li>
-            <li className="help-li">"Delete [project]-14"</li>
+            <li className="help-li">&quot;Delete the invoice todo&quot;</li>
+            <li className="help-li">&quot;Delete [project]-14&quot;</li>
           </ul>
         </div>
 
@@ -61,8 +61,8 @@ const TOPICS: Topic[] = [
             <span className="text-xs text-muted" style={{ fontWeight: 400, letterSpacing: '0.04em' }}>coming soon</span>
           </h2>
           <ul className="help-ul">
-            <li className="help-li text-muted">"Archive everything closed in [project]"</li>
-            <li className="help-li text-muted">"Archive [project]-8"</li>
+            <li className="help-li text-muted">&quot;Archive everything closed in [project]&quot;</li>
+            <li className="help-li text-muted">&quot;Archive [project]-8&quot;</li>
           </ul>
         </div>
 
@@ -98,9 +98,9 @@ const TOPICS: Topic[] = [
         <div className="help-section">
           <h2 className="help-h2">Ask anything</h2>
           <ul className="help-ul">
-            <li className="help-li">"How do I use the keyboard?"</li>
-            <li className="help-li">"What does URGENT mean?"</li>
-            <li className="help-li">"What projects do I have?"</li>
+            <li className="help-li">&quot;How do I use the keyboard?&quot;</li>
+            <li className="help-li">&quot;What does URGENT mean?&quot;</li>
+            <li className="help-li">&quot;What projects do I have?&quot;</li>
           </ul>
         </div>
       </div>
@@ -130,7 +130,7 @@ const TOPICS: Topic[] = [
         </div>
 
         <p className="help-p text-sm text-muted" style={{ marginTop: '20px' }}>
-          You can also ask the orb: "How do I use the keyboard?" and it will explain.
+          You can also ask the orb: &quot;How do I use the keyboard?&quot; and it will explain.
         </p>
       </div>
     ),
@@ -194,6 +194,59 @@ const TOPICS: Topic[] = [
     ),
   },
   {
+    id: 'testing',
+    label: 'Pre-Alpha Testing',
+    icon: '🧪',
+    content: (
+      <div>
+        <p className="help-p">
+          Thank you for participating in the Orb pre-alpha! Your feedback helps us shape the strategic features and usability of the app.
+        </p>
+
+        <div className="help-section">
+          <h2 className="help-h2">Testing Goals</h2>
+          <p className="help-p">
+            During this phase, we are specifically focused on validating two core value propositions:
+          </p>
+          <ul className="help-ul">
+            <li className="help-li"><strong>Ambient Workload Reflection:</strong> Does the glowing Orb&rsquo;s visual presence (colors, speed, pulse) successfully keep you aware of workload pressure without you having to micromanage list views?</li>
+            <li className="help-li"><strong>Strategic AI Assistance:</strong> Does talking to the Orb for planning (asking what to do next, parsing complex task entries) provide more value than standard checkboxes?</li>
+          </ul>
+        </div>
+
+        <div className="help-section">
+          <h2 className="help-h2">Things to Try</h2>
+          <ul className="help-ul">
+            <li className="help-li">Ask the Orb: <em>&quot;What should I do next?&quot;</em> or <em>&quot;Why is the Orb urgent?&quot;</em> inside the <strong>Urban Compost Initiative (ECO)</strong> project to test strategic reasoning.</li>
+            <li className="help-li">Complete some tasks in the <strong>Welcome & Guide (WELCOME)</strong> checklist to observe color changes.</li>
+            <li className="help-li">Switch the <strong>ECO</strong> project to <strong>Kanban view</strong> and try drag-and-drop on mobile touch screens or desktop trackpads.</li>
+          </ul>
+        </div>
+
+        <div className="help-section">
+          <h2 className="help-h2">Report Bugs &amp; Suggestions</h2>
+          <p className="help-p">
+            You don&apos;t need a bug tracker form. Just tell the Orb during conversation:
+          </p>
+          <ul className="help-ul">
+            <li className="help-li"><em>&quot;Report a bug: Kanban board does not slide on iOS Safari&quot;</em></li>
+            <li className="help-li"><em>&quot;Suggestion: Add custom color options for projects&quot;</em></li>
+          </ul>
+          <p className="help-p text-sm text-muted" style={{ marginTop: '8px' }}>
+            The Orb will silently log these as tickets directly for the developer.
+          </p>
+        </div>
+
+        <div className="help-section" style={{ borderLeft: '3px solid var(--accent)', paddingLeft: '10px' }}>
+          <h2 className="help-h2">Privacy &amp; Observability</h2>
+          <p className="help-p text-sm">
+            To optimize the AI&apos;s prompts and debug issues, **task names and conversation logs are visible to the developer (Stan)**. Please do not input highly sensitive, confidential, or personal information during the pre-alpha phase.
+          </p>
+        </div>
+      </div>
+    ),
+  },
+  {
     id: 'about',
     label: 'About',
     icon: '◌',
@@ -206,10 +259,10 @@ const TOPICS: Topic[] = [
           Most todo apps put you in charge of the list. Orb puts the orb in charge of your attention. The orb reads your active work across all your projects and reflects it back — calm when things are light, busy when the backlog builds, urgent when something needs your attention now. Color, motion, glow, and animation all carry the same signal independently, so nothing gets lost.
         </p>
         <p className="help-p">
-          The orb is also conversational. Type plain English and it handles the rest — create a todo, ask what's most pressing, update a priority, mark something done. You don't navigate menus or fill out forms. You just talk to it.
+          The orb is also conversational. Type plain English and it handles the rest — create a todo, ask what&apos;s most pressing, update a priority, mark something done. You don&apos;t navigate menus or fill out forms. You just talk to it.
         </p>
         <p className="help-p" style={{ marginBottom: 0 }}>
-          Under the hood, the orb is powered by AI. It understands context and intent, not just keywords. "What's the most important thing right now?" reasons over your full backlog across all projects to answer.
+          Under the hood, the orb is powered by AI. It understands context and intent, not just keywords. &quot;What&apos;s the most important thing right now?&quot; reasons over your full backlog across all projects to answer.
         </p>
       </div>
     ),
@@ -221,7 +274,8 @@ export default function OrbHelp({ onClose }: { onClose: () => void }) {
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
-    setIsMobile(window.matchMedia('(hover: none) and (pointer: coarse)').matches)
+    const matches = window.matchMedia('(hover: none) and (pointer: coarse)').matches
+    Promise.resolve().then(() => setIsMobile(matches))
   }, [])
 
   useEffect(() => {

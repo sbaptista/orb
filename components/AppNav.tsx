@@ -67,16 +67,20 @@ export default function AppNav({ printContext, userInitial = '?' }: Props) {
           {printContext && (
             <button className="nav-btn" onClick={() => setShowPrint(true)} title="Print" aria-label="Print">
               <span className="nav-btn-icon">{IconPrint}</span>
+              <span className="nav-btn-label">Print</span>
             </button>
           )}
           <button className="nav-btn" onClick={() => setShowHelp(true)} title="Help" aria-label="Help">
             <span className="nav-btn-icon">{IconHelp}</span>
+            <span className="nav-btn-label">Help</span>
           </button>
           <Link href="/settings" className="nav-btn" title="Settings" aria-label="Settings">
             <span className="nav-btn-icon">{IconSettings}</span>
+            <span className="nav-btn-label">Settings</span>
           </Link>
           <Link href="/account" className="nav-btn" title="Account" aria-label="Account">
             <span className="nav-avatar">{userInitial}</span>
+            <span className="nav-btn-label">Account</span>
           </Link>
         </div>
 

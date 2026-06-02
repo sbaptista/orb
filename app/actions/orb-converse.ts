@@ -44,6 +44,7 @@ export type UIContext = {
   orbPaneVisible?: boolean
   listPaneVisible?: boolean
   isMobile?: boolean
+  daysActive?: number
 }
 
 export type OrbRequest = {
@@ -260,6 +261,58 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
 
 
 
+function buildSurveyPrompt(daysActive: number | undefined, prefs: Array<{ key: string; value: string }>): string {
+  const completed = prefs.find(p => p.key === 'survey_completed')?.value === 'true'
+  if (completed || !daysActive || daysActive < 7) return ''
+
+  const stage = prefs.find(p => p.key === 'survey_stage')?.value ?? 'none'
+
+  return `PRE-ALPHA USER SURVEY CHECK-IN RULES:
+Since the user has been active for ${daysActive} days (>= 7 days) and hasn't completed the survey, you MUST administer the pre-alpha check-in.
+The survey consists of 3 questions. Check the current value of survey_stage to determine what to do:
+
+- Current Stage: 'none' (or key not set)
+  Action: In your initial response, proactively ask if the user has a moment to answer 3 quick questions about their experience with Orb.
+  Example: "Welcome back! Since you've been using Orb for a week now, do you have a quick moment to answer 3 quick feedback questions to help us improve?"
+  Save preference "survey_stage" to "offered" using set_preference immediately.
+
+- Current Stage: 'offered'
+  - If the user agrees (says "yes", "sure", etc.):
+    Action: Present Question 1: "1. **The Ambient Orb:** Does the ambient Orb (its color shifts, pulse rates, and solar flares) actually help you stay aware of your workload without constantly checking lists, or do you ignore it?"
+    Save preference "survey_stage" to "q1" using set_preference immediately.
+  - If the user declines (says "no", "not now", etc.) or asks about something else:
+    Action: Drop the check-in and do not ask again in this turn. Address their query normally.
+
+- Current Stage: 'q1'
+  Action: Capture their response to Question 1.
+  1. Call tool create_ticket with:
+     - type: "suggestion"
+     - summary: "Pre-Alpha Feedback: Ambient Orb"
+     - detail: "User feedback on Ambient Orb (after ${daysActive} days active): [user's raw response text]"
+  2. Acknowledge briefly and present Question 2: "2. **Strategic Guidance:** Has the Orb's strategic support—such as asking 'What should I do next?' or receiving proactive summaries—provided genuine value in organizing your day compared to traditional todo lists?"
+  3. Save preference "survey_stage" to "q2" using set_preference immediately.
+
+- Current Stage: 'q2'
+  Action: Capture their response to Question 2.
+  1. Call tool create_ticket with:
+     - type: "suggestion"
+     - summary: "Pre-Alpha Feedback: Strategic Guidance"
+     - detail: "User feedback on Strategic Guidance (after ${daysActive} days active): [user's raw response text]"
+  2. Acknowledge briefly and present Question 3: "3. **Friction & Bugs:** Did you run into any major friction points or confusing behavior when talking to the Orb, switching between views (List, Checklist, Kanban), or navigating settings?"
+  3. Save preference "survey_stage" to "q3" using set_preference immediately.
+
+- Current Stage: 'q3'
+  Action: Capture their response to Question 3.
+  1. Call tool create_ticket with:
+     - type: "suggestion"
+     - summary: "Pre-Alpha Feedback: Friction & Bugs"
+     - detail: "User feedback on Friction & Bugs (after ${daysActive} days active): [user's raw response text]"
+  2. Thank the user warmly for their valuable time.
+  3. Save preference "survey_completed" to "true" AND save preference "survey_stage" to "completed" using set_preference immediately.
+
+IMPORTANT: Do not skip stages. Set the preference immediately when you present the question so that the stage updates. Focus on one question at a time. Be conversational and human.`
+}
+
 export async function orbConverse(req: OrbRequest) {
   const stream = createStreamableValue<OrbResponse>()
 
@@ -333,6 +386,7 @@ export async function orbConverse(req: OrbRequest) {
             ORB_SELF_DIAGNOSTICS,
             ORB_PREFERENCE_DISCOVERY,
             buildPreferencesPrompt(ctx.preferenceList),
+            buildSurveyPrompt(req.uiContext?.daysActive, ctx.preferenceList),
             ORB_PROACTIVE_TONE,
             buildObservationsPrompt(ctx.observations, ctx.guidanceLevel),
             ORB_ATTRIBUTION,

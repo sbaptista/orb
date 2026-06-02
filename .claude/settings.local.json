@@ -11,7 +11,6 @@
       "Bash(python3 -c \"import sys,json; t=json.load\\(sys.stdin\\); print\\('resolution_notes:', t['resolution_notes'], '| urls:', t['urls']\\)\")",
       "Bash(git add *)",
       "Bash(git commit -m 'feat: full CRUD API for AI sessions + dev login bypass — v0.2.13 *)",
-      "Bash(git push *)",
       "Bash(git rm *)",
       "Bash(git commit *)",
       "Bash(python3 -c \"import sys,json; t=json.load\\(sys.stdin\\); print\\('group_id:', t['group_id'], '| category_id:', t['category_id']\\)\")",
@@ -318,7 +317,8 @@
       "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?or=\\(title.ilike.*disk*,content.ilike.*disk*,title.ilike.*io*,content.ilike.*WAL*,title.ilike.*realtime*,content.ilike.*realtime*,title.ilike.*budget*,content.ilike.*budget*\\)&select=id,title,created_at,content&order=created_at.desc' -H 'apikey: __CMDSUB_OUTPUT__')",
       "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?or=\\(title.ilike.*disk%20io*,title.ilike.*RLS*,title.ilike.*auth.uid*,title.ilike.*sequential*,title.ilike.*seq_scan*,title.ilike.*supabase%20budget*\\)&select=id,title,created_at,content&order=created_at.desc' -H 'apikey: __CMDSUB_OUTPUT__')",
       "Bash(python3 -c \"import sys,json; todos=json.load\\(sys.stdin\\); [print\\(f'{t[\\\\\"todo_number\\\\\"]}: {t[\\\\\"title\\\\\"]} [{t[\\\\\"status\\\\\"]}]'\\) for t in todos if t.get\\('todo_number'\\)==188]\")",
-      "Bash(mkdir -p /Users/stanleybaptista/Projects/orb/components/views)"
+      "Bash(mkdir -p /Users/stanleybaptista/Projects/orb/components/views)",
+      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?or=\\(title.ilike.*kanban*,title.ilike.*touch*drag*,title.ilike.*drag*drop*\\)&select=id,title,created_at,content&order=created_at.desc&limit=5' -H 'apikey: __CMDSUB_OUTPUT__')"
     ]
   }
 }

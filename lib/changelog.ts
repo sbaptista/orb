@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.125',
+    date: '2026-06-02',
+    changes: [
+      'Implemented onboarding seeding (WELCOME, HOME, ECO projects with realistic demo tasks) to demonstrate strategic planning and ambient states for pre-alpha testers.',
+      'Added a 7-day survey check-in where the Orb queries active users on Ambient Orb utility, Strategic Guidance utility, and Friction/Bugs, automatically logging feedback as tickets.',
+      'Added a Pre-Alpha Testing guide to the Help panel detailing testing goals and how to report bugs or suggestions.',
+      'Fixed layout bugs: added vertically centered text labels under top-right nav icons on desktop, and resolved mobile layout pane isolation issues.',
+      'Cleaned up ESLint unescaped entities and synchronous state update warnings in OrbHelp.',
+    ]
+  },
+  {
     version: 'v0.5.124',
     date: '2026-06-01',
     changes: [
