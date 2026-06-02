@@ -68,8 +68,8 @@ export async function resendInvitation(invitationId: string) {
     const isDev = process.env.NODE_ENV === 'development'
     const defaultOrigin = isDev ? 'https://localhost:3001' : 'https://orb-eight-lake.vercel.app'
     let origin = process.env.NEXT_PUBLIC_SITE_URL ?? defaultOrigin
-    if (origin.startsWith('http://localhost:3001')) {
-        origin = origin.replace('http://localhost:3001', 'https://localhost:3001')
+    if (origin.startsWith('http://') && (origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('0.0.0.0'))) {
+        origin = origin.replace('http://', 'https://')
     }
 
     const { data: linkData, error: linkErr } = await ctx.admin.auth.admin.generateLink({
