@@ -15,23 +15,18 @@
 
 ## Last Session Completed
 
-**Tester Onboarding & Survey Implementation — 2026-06-02 (Session 43)**
+**Onboarding Kanban Seeding Fix — 2026-06-02 (Session 44)**
 
 ### Tickets closed
-- None (ORB-197 in progress / approved)
+- None (ORB-197 / Gates 4 & 5 fixes)
 
 ### What was done
-
-**Session 43 (Antigravity, Gemini 3.5 Pro):**
-- **Onboarding Seeding (WELCOME, HOME, ECO):** Configured default projects and tasks to automatically seed for new users, showing different views and ambient workload colors.
-- **7-Day Survey Check-in:** Implemented conversational feedback survey with questions on Ambient Orb, Strategic Guidance, and Friction & Bugs, automatically filing responses in the TICKETS project.
-- **Help Panel Guide:** Added Pre-Alpha Testing topic to OrbHelp explaining test goals, feedback logging, and data privacy.
-- **Centering desktop labels & Mobile isolation:** Vertically centered text labels below desktop header icons, and enforced single-pane mobile viewport isolation.
-- **User Invitation Error Handling & Casing Fixes:** Added missing return statement in the `SettingsCrudList` `handleAdd` error catch block so registration error messages (e.g. duplicate users) are correctly shown instead of closing the modal silently. Enhanced invitation email duplicate checks to be case-insensitive and trimmed.
-- **Lint & compiler cleanup:** Escaped JSX entities in OrbHelp and updated matches useEffect to run asynchronously to avoid setState-in-render lint warnings.
+- **Database Seeding Migration:** Executed SQL migration to update the `projects` table check constraint `projects_view_mode_check`, allowing the `kanban` view mode.
+- **Onboarding Seeding Fix:** Resolved database project seeding failure where new users would successfully complete onboarding but default projects (`WELCOME`, `HOME`, `ECO`) failed to seed due to the kanban check constraint violation. This fix prevents the dashboard search bar error `[UnifiedDashboard] Project search returned 0 results after retries` for new users.
+- **Onboarding Verification:** Verified onboarding seeding correctness with a custom backend script.
 
 ### Version bumps
-- v0.5.124 → v0.5.126
+- v0.5.126 → v0.5.127
 
 ---
 
@@ -40,8 +35,7 @@
 - `package.json` (modified)
 - `lib/version.ts` (modified)
 - `lib/changelog.ts` (modified)
-- `app/actions/invite-user.ts` (modified)
-- `components/settings/SettingsCrudList.tsx` (modified)
+- `scripts/migrations/20260602_projects_view_mode_kanban.sql` (new migration)
 
 ---
 
@@ -110,7 +104,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-02 — Antigravity (Gemini 3.5 Pro) — Session 43`
+`2026-06-02 — Antigravity (Gemini) — Session 44`
 
 ---
 

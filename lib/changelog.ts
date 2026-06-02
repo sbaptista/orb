@@ -7,6 +7,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.127',
+    date: '2026-06-02',
+    changes: [
+      'Fixed database project seeding failure for new users during onboarding: updated projects table check constraint (projects_view_mode_check) to allow the "kanban" view mode, preventing silent seeding failures and subsequent project search errors.',
+    ]
+  },
+  {
     version: 'v0.5.126',
     date: '2026-06-02',
     changes: [
