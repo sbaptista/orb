@@ -27,28 +27,21 @@
 - **7-Day Survey Check-in:** Implemented conversational feedback survey with questions on Ambient Orb, Strategic Guidance, and Friction & Bugs, automatically filing responses in the TICKETS project.
 - **Help Panel Guide:** Added Pre-Alpha Testing topic to OrbHelp explaining test goals, feedback logging, and data privacy.
 - **Centering desktop labels & Mobile isolation:** Vertically centered text labels below desktop header icons, and enforced single-pane mobile viewport isolation.
+- **User Invitation Error Handling & Casing Fixes:** Added missing return statement in the `SettingsCrudList` `handleAdd` error catch block so registration error messages (e.g. duplicate users) are correctly shown instead of closing the modal silently. Enhanced invitation email duplicate checks to be case-insensitive and trimmed.
 - **Lint & compiler cleanup:** Escaped JSX entities in OrbHelp and updated matches useEffect to run asynchronously to avoid setState-in-render lint warnings.
 
 ### Version bumps
-- v0.5.124 → v0.5.125
+- v0.5.124 → v0.5.126
 
 ---
 
 ## Uncommitted Changes
 
-- `.claude/settings.local.json` (modified)
-- `AGENTS.md` (modified)
 - `package.json` (modified)
 - `lib/version.ts` (modified)
 - `lib/changelog.ts` (modified)
-- `app/actions/complete-onboarding.ts` (modified)
-- `app/actions/orb-converse.ts` (modified)
-- `app/globals.css` (modified)
-- `components/AppNav.tsx` (modified)
-- `components/OrbHelp.tsx` (modified)
-- `components/UnifiedDashboard.tsx` (modified)
-- `lib/orb-prompt.ts` (modified)
-- `docs/pre-alpha-feedback-email.md` (new)
+- `app/actions/invite-user.ts` (modified)
+- `components/settings/SettingsCrudList.tsx` (modified)
 
 ---
 

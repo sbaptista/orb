@@ -22,10 +22,12 @@ export async function inviteUser(
   const origin = originInput || (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://orb-eight-lake.vercel.app')
 
   try {
+    const cleanEmail = email.trim().toLowerCase()
+
     const { data: existingUser } = await ctx.admin
       .from('users')
       .select('id')
-      .eq('email', email)
+      .ilike('email', cleanEmail)
       .maybeSingle()
 
     if (existingUser) {
@@ -35,7 +37,7 @@ export async function inviteUser(
     const { data: existingInvite } = await ctx.admin
       .from('invitations')
       .select('id')
-      .eq('email', email)
+      .ilike('email', cleanEmail)
       .eq('status', 'pending')
       .maybeSingle()
 
@@ -44,7 +46,7 @@ export async function inviteUser(
     }
 
     const { data: existingAuthUsers } = await ctx.admin.auth.admin.listUsers()
-    const existingAuth = existingAuthUsers?.users?.find(u => u.email === email)
+    const existingAuth = existingAuthUsers?.users?.find(u => u.email?.toLowerCase() === cleanEmail)
     if (existingAuth) {
       await ctx.admin.auth.admin.deleteUser(existingAuth.id)
     }

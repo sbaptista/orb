@@ -7,6 +7,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.126',
+    date: '2026-06-02',
+    changes: [
+      'Fixed user invitation modal error handling: added return statement to handleAdd catch block in SettingsCrudList to ensure error messages are displayed rather than closing the modal silently.',
+      'Enhanced user invitation checks to be case-insensitive and trimmed to prevent duplicate registrations via casing differences.',
+    ]
+  },
+  {
     version: 'v0.5.125',
     date: '2026-06-02',
     changes: [

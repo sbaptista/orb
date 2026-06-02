@@ -208,8 +208,11 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           setItems(prev => [...prev, data as T])
         }
       }
-    } catch (e: any) {
-      setError(e.message)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(msg)
+      setSaving(false)
+      return
     }
     setSaving(false)
     closeModal()
