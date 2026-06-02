@@ -143,7 +143,7 @@
   :root {
     --fs-version: 12px;
     --fs-xs:      13px;
-    --fs-sm:      15px;
+    --fs-sm:      17px;
     --fs-base:    16px;
     --fs-input:   17px;
     --fs-lg:      20px;
@@ -920,7 +920,7 @@ a, button, [role="button"], input, select, textarea {
   justify-content: center;
 }
 .nav-btn-label {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   letter-spacing: 0.01em;
 }
@@ -1460,7 +1460,7 @@ a, button, [role="button"], input, select, textarea {
 }
 .admin-search-input {
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   width: 300px;
   padding: 6px 26px 6px 6px;
   border: 1px solid var(--border);
@@ -1476,7 +1476,7 @@ a, button, [role="button"], input, select, textarea {
 }
 .admin-search-input::placeholder {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 .admin-search-clear {
   position: absolute;
@@ -2269,7 +2269,7 @@ a, button, [role="button"], input, select, textarea {
 .oc-slash-group-header {
   padding: 6px 10px 2px;
   font-family: var(--font-ui);
-  font-size: 9px;
+  font-size: var(--fs-version);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2321,22 +2321,33 @@ a, button, [role="button"], input, select, textarea {
 .oc-toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px 8px;
+  gap: 8px;
+  padding: 6px 10px;
   border-top: 1px solid var(--border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.oc-toolbar::-webkit-scrollbar {
+  display: none;
 }
 
 .oc-tool-btn {
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: 500;
-  padding: 3px 8px;
-  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 4px var(--sp-xs);
+  border-radius: var(--r-md);
   border: 1px solid var(--border);
   color: var(--muted);
   background: transparent;
   cursor: pointer;
   transition: all var(--transition);
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
 }
 
 .oc-tool-btn:disabled {
@@ -2348,6 +2359,22 @@ a, button, [role="button"], input, select, textarea {
   border-color: var(--pill-active-border);
   color: var(--pill-active-color);
   background: var(--pill-active-bg);
+}
+
+.oc-tool-btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.oc-tool-btn-label {
+  font-size: var(--fs-version);
+  font-weight: 500;
+  line-height: 1;
 }
 
 .oc-send-btn {
@@ -4341,7 +4368,42 @@ a, button, [role="button"], input, select, textarea {
 }
 
 @media (max-width: 767px) {
-  .ud-split { flex-direction: column; }
+  .ud-split {
+    flex-direction: column !important;
+    position: relative;
+  }
+  
+  .ud-divider {
+    display: none !important;
+  }
+
+  /* When Orb is active, hide list pane */
+  .ud-split[data-active-tab="orb"] .ud-list-pane {
+    position: absolute;
+    visibility: hidden;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+  }
+  .ud-split[data-active-tab="orb"] .ud-orb-pane {
+    width: 100% !important;
+    height: 100% !important;
+    visibility: visible;
+  }
+
+  /* When List is active, hide orb pane */
+  .ud-split[data-active-tab="list"] .ud-orb-pane {
+    position: absolute;
+    visibility: hidden;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+  }
+  .ud-split[data-active-tab="list"] .ud-list-pane {
+    width: 100% !important;
+    height: 100% !important;
+    visibility: visible;
+  }
 }
 @media (min-width: 768px) {
   .ud-split { flex-direction: row; }
@@ -4577,5 +4639,18 @@ a, button, [role="button"], input, select, textarea {
     padding-bottom: calc(var(--sp-xl) + var(--sab));
   }
 }
+
+
+/* Mobile command bar active toggles */
+@media (max-width: 767px) {
+  .ud-command-bar .ud-panel-toggle[aria-pressed="true"] {
+    color: var(--text) !important;
+  }
+  .ud-command-bar .ud-panel-toggle[aria-pressed="true"] .nav-btn-label {
+    font-weight: 600;
+  }
+}
+
+
 
 

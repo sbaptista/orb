@@ -15,22 +15,21 @@
 
 ## Last Session Completed
 
-**API Health and Version Polling Consolidation / AI Development Reflections — 2026-06-01 (Session 38)**
+**Desktop Pane Toggle & Viewport Layout Refinements — 2026-06-01 (Session 40)**
 
 ### Tickets closed
 - None
 
 ### What was done
-- **Created SystemStateProvider (v0.5.99)**: Unified check logic for `/api/health` and `/api/version` inside a single client context provider.
-- **Deduplication & Debounce**: Implemented a 500ms trailing debounce on window focus and visibility change event listeners to prevent back-to-back duplicate fetching.
-- **Hidden Tab Polling Pause**: Configured the 30-second interval timers for health and version status checks to automatically pause ticks when `document.visibilityState === 'hidden'`.
-- **Refactored Consumers**: Rewrote `useOnlineStatus`, `MaintenanceOverlay`, `MaintenanceBanner`, and `UpdateBanner` to consume system state from `useSystemState` instead of running their own local intervals and listeners.
-- **DEV Panel Compatibility**: Supported `todos-dev-offline-change` and `todos-dev-update-change` simulation triggers and localStorage variables within the new provider layout.
-- **Layout Adjustments**: Moved `OfflinePage` and `MaintenanceOverlay` inside the `<Providers>` layout tree in `app/layout.tsx` to enable access to the React Context.
-- **Reflective Essay (v0.5.100)**: Authored "The Speed Illusion: Why AI-Assisted Software Engineering Still Takes Months" outlining code generation speed vs long-term systems engineering challenges, saved at `docs/the_speed_illusion_ai_software_engineering.md`.
+- **Fixed Desktop Full Width Switching (v0.5.105)**: Applied explicit `width: '100%'` inline styles to `.ud-orb-pane` and `.ud-list-pane` when they are rendered as the sole visible pane on desktop viewports. This fixes the layout bug where hiding one of the panes on desktop results in the remaining active pane staying stuck at 50% width next to an empty background.
+- **Grayed Out Active Mobile Toggles (v0.5.106)**: Configured the mobile tab toggle buttons ("Orb" and "List") to disable when their respective tab is already active, which dynamically grays them out and blocks redundant clicks.
+- **Enlarged Mobile Button Labels (v0.5.106)**: Changed `.nav-btn-label` to use the standard `var(--fs-sm)` button text font size variable, and bumped mobile `--fs-sm` font size override to `17px` (2px larger than the previous `15px`) to improve iPhone readability.
+- **Constant Project Search Placeholder (v0.5.106 / v0.5.108)**: Changed the project search input placeholder in both `UnifiedDashboard` and classic `TodoView` to always show `"Type to select project or user..."` instead of dynamically switching based on the current selection.
+- **Standardized Text Sizes (v0.5.107 / v0.5.108)**: Refactored hardcoded font sizes in search inputs, placeholders, and slash command view structures to use standardised CSS variables (`var(--fs-sm)` and `var(--fs-version)`), enabling them to scale dynamically with the rest of the application layouts.
+- **Orb Conversation Toolbar Text Labels (v0.5.108)**: Redesigned the icon button strip below the input field in the Orb conversation view to display text labels centered directly below the icons/characters. Enabled horizontal scrolling on the toolbar for mobile viewports to prevent layout wrapping.
 
 ### Version bumps
-- v0.5.96 → v0.5.97 → v0.5.98 → v0.5.99 → v0.5.100
+- v0.5.104 → v0.5.105 → v0.5.106 → v0.5.107 → v0.5.108
 
 ---
 
@@ -39,7 +38,10 @@
 - `package.json` (modified)
 - `lib/version.ts` (modified)
 - `lib/changelog.ts` (modified)
-- `docs/the_speed_illusion_ai_software_engineering.md` (untracked)
+- `components/UnifiedDashboard.tsx` (modified)
+- `app/globals.css` (modified)
+- `docs/mobile_dashboard_layout_proposal.md` (untracked)
+- `HANDOFF.md` (modified)
 
 ---
 
@@ -102,7 +104,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-01 — Antigravity (Gemini 3.5 Flash) — Session 38`
+`2026-06-01 — Antigravity (Gemini 1.5 Pro) — Session 40`
 
 ---
 

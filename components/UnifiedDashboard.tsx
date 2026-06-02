@@ -130,6 +130,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [products, setProducts]       = useState<Product[]>(initialProducts ?? [])
   const [selectedId, setSelectedId]   = useState<string | null>(null)
   const [isMobile, setIsMobile]       = useState(false)
+  const [activeMobileTab, setActiveMobileTab] = useState<'orb' | 'list'>('list')
 
   // ── Orb / conversation state ──
   const [priorities, setPriorities]             = useState<Priority[]>([])
@@ -1246,7 +1247,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         {/* ── Command Bar (page-specific: panel toggles + project search) ── */}
         <div className="ud-command-bar">
           {/* Panel toggle — Orb */}
-          <button className="nav-btn ud-panel-toggle" onClick={() => setOrbPaneVisible(v => !v)} title={orbPaneVisible ? 'Hide Orb' : 'Show Orb'} aria-label={orbPaneVisible ? 'Hide Orb' : 'Show Orb'}>
+          <button className="nav-btn ud-panel-toggle" onClick={isMobile ? () => setActiveMobileTab('orb') : () => setOrbPaneVisible(v => !v)} title={isMobile ? 'Show Orb' : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')} aria-label={isMobile ? 'Show Orb' : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')} aria-pressed={isMobile ? activeMobileTab === 'orb' : undefined} disabled={isMobile && activeMobileTab === 'orb'}>
             <span className="nav-btn-icon">
               <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
                 <circle cx="16" cy="16" r="14.5" fill="url(#orbFavGrad)" />
@@ -1254,7 +1255,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                 <defs><radialGradient id="orbFavGrad" cx="36%" cy="30%" r="60%"><stop offset="0%" stopColor="#ffffff"/><stop offset="45%" stopColor="#d4e4d4"/><stop offset="100%" stopColor="#6a9a7a"/></radialGradient></defs>
               </svg>
             </span>
-            <span className="nav-btn-label">{orbPaneVisible ? 'Hide Orb' : 'Show Orb'}</span>
+            <span className="nav-btn-label">{isMobile ? 'Orb' : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')}</span>
           </button>
 
           {/* Project selector — search-based dropdown */}
@@ -1266,7 +1267,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               <input
                 type="text"
                 className="admin-search-input"
-                placeholder={selected?.name ?? 'Search projects...'}
+                placeholder="Type to select project or user..."
                 value={projectSearchQuery}
                 onChange={e => { setProjectSearchQuery(e.target.value); setProjectSearchOpen(true) }}
                 onFocus={handleSearchFocus}
@@ -1312,7 +1313,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           {/* Global nav (Print, Help, Settings, Account) moved to AppNav above */}
 
           {/* Panel toggle — List (far right) */}
-          <button className="nav-btn ud-panel-toggle" onClick={() => setListPaneVisible(v => !v)} title={listPaneVisible ? 'Hide List' : 'Show List'} aria-label={listPaneVisible ? 'Hide List' : 'Show List'}>
+          <button className="nav-btn ud-panel-toggle" onClick={isMobile ? () => setActiveMobileTab('list') : () => setListPaneVisible(v => !v)} title={isMobile ? 'Show List' : (listPaneVisible ? 'Hide List' : 'Show List')} aria-label={isMobile ? 'Show List' : (listPaneVisible ? 'Hide List' : 'Show List')} aria-pressed={isMobile ? activeMobileTab === 'list' : undefined} disabled={isMobile && activeMobileTab === 'list'}>
             <span className="nav-btn-icon">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -1322,15 +1323,15 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                 <line x1="3" y1="15" x2="21" y2="15" />
               </svg>
             </span>
-            <span className="nav-btn-label">{listPaneVisible ? 'Hide List' : 'Show List'}</span>
+            <span className="nav-btn-label">{isMobile ? 'List' : (listPaneVisible ? 'Hide List' : 'Show List')}</span>
           </button>
         </div>
 
         {/* ── Split Container ── */}
-        <div ref={splitRef} className="ud-split">
+        <div ref={splitRef} className="ud-split" data-active-tab={activeMobileTab}>
           {/* Orb pane */}
-          {orbPaneVisible && (
-          <div className="ud-orb-pane" style={bothPanesVisible ? orbPaneSizeStyle : { flex: 1 }}>
+          {(orbPaneVisible || isMobile) && (
+          <div className="ud-orb-pane" style={bothPanesVisible && !isMobile ? orbPaneSizeStyle : { flex: 1, width: '100%' }}>
             <OrbConversation
               orbElement={orbElement}
               messages={messages}
@@ -1355,18 +1356,18 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           </div>
           )}
 
-          {/* Divider — only when both panes visible */}
-          {bothPanesVisible && (
+          {/* Divider — only when both panes visible on desktop */}
+          {bothPanesVisible && !isMobile && (
             <DragDivider
-              direction={isMobile ? 'vertical' : 'horizontal'}
+              direction="horizontal"
               onResize={handleDividerResize}
               onResizeEnd={handleDividerResizeEnd}
             />
           )}
 
           {/* List pane */}
-          {listPaneVisible && (
-          <div className="ud-list-pane" style={!bothPanesVisible ? { flex: 1 } : undefined}>
+          {(listPaneVisible || isMobile) && (
+          <div className="ud-list-pane" style={!bothPanesVisible && !isMobile ? { flex: 1, width: '100%' } : undefined}>
             {/* List toolbar */}
             <div className="ud-list-toolbar">
               {selected && <h2 className="ud-list-title">{selected.name}</h2>}
@@ -1501,6 +1502,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           </div>
           )}
         </div>
+
+
 
         {/* Version */}
         <OrbVersionLabel as="div" className="dash-version" />

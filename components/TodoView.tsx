@@ -547,7 +547,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
           <input
             type="text"
             className="admin-search-input"
-            placeholder={isAdmin ? "Search projects or owners..." : "Search projects..."}
+            placeholder="Type to select project or user..."
             value={adminSearch}
             onChange={e => { setAdminSearch(e.target.value); setAdminSearchOpen(true) }}
             onFocus={handleSearchFocus}

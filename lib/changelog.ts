@@ -7,6 +7,72 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.108',
+    date: '2026-06-01',
+    changes: [
+      'Standardized project backlog search placeholder inside TodoView to "Type to select project or user..." to keep it consistent with the main dashboard.',
+      'Designed and added text labels below each icon button in the Orb conversation bottom toolbar.',
+      'Refactored the Orb conversation toolbar to be a horizontally scrollable container on smaller screen viewports to prevent wrapping and layout breakage.',
+    ]
+  },
+  {
+    version: 'v0.5.107',
+    date: '2026-06-01',
+    changes: [
+      'Standardized placeholder text sizes in search inputs and textareas to use var(--fs-sm) instead of hardcoded pixel sizes.',
+      'Standardized font sizes for slash command headers and item descriptions in the Orb conversation view to use var(--fs-version) instead of hardcoded pixel sizes.',
+    ]
+  },
+  {
+    version: 'v0.5.106',
+    date: '2026-06-01',
+    changes: [
+      'Grayed out / disabled active tab buttons on mobile viewports so user knows only the other button can be selected.',
+      'Enlarged button label font sizes by 2px on mobile viewports for better readability and accessibility.',
+      'Updated the project search input placeholder to always say "Type to select project or user...".',
+    ]
+  },
+  {
+    version: 'v0.5.105',
+    date: '2026-06-01',
+    changes: [
+      'Fixed layout bug where hiding one of the panes on desktop results in the remaining pane (specifically the Orb) staying stuck at 50% width.',
+    ]
+  },
+  {
+    version: 'v0.5.104',
+    date: '2026-06-01',
+    changes: [
+      'Eliminated mobile bottom tab switcher and repositioned tab controls to the top command bar.',
+      'Adapted top header toggles on mobile to act as view switchers ("Orb" and "List") instead of pane toggles, keeping desktop layout side-by-side toggles completely unchanged.',
+      'Added mobile-only CSS styles for active toggle highlights in the command bar.',
+    ]
+  },
+  {
+    version: 'v0.5.103',
+    date: '2026-06-01',
+    changes: [
+      'Corrected mobile breakpoint threshold to < 768px (down from < 1024px) to ensure tablet/iPad views and resized desktop browser viewports remain in side-by-side split screen mode.',
+      'Restored original panel toggle handlers and DragDivider layouts on desktop screens.',
+    ]
+  },
+  {
+    version: 'v0.5.102',
+    date: '2026-06-01',
+    changes: [
+      'Implemented Adaptive Viewport layout for Unified Dashboard, enabling full-screen tab switching on viewports < 1024px and side-by-side split screen on viewports >= 1024px.',
+      'Designed and added mobile-only bottom navigation bar utilizing existing SVG icons for Orb Assistant and Task Backlog.',
+      'Applied CSS-driven visibility: hidden toggling on inactive mobile tabs to preserve scroll positions, cursor focus, and DOM state without unmounting.',
+    ]
+  },
+  {
+    version: 'v0.5.101',
+    date: '2026-06-01',
+    changes: [
+      'Updated the mobile layout proposal (docs/mobile_dashboard_layout_proposal.md) to address separate screens on mobile vs. split-screen on desktop.',
+    ]
+  },
+  {
     version: 'v0.5.100',
     date: '2026-06-01',
     changes: [
