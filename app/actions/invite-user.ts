@@ -19,7 +19,12 @@ export async function inviteUser(
     return { error: e.message }
   }
 
-  const origin = originInput || (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://orb-eight-lake.vercel.app')
+  const isDev = process.env.NODE_ENV === 'development'
+  const defaultOrigin = isDev ? 'https://localhost:3001' : 'https://orb-eight-lake.vercel.app'
+  let origin = originInput || (process.env.NEXT_PUBLIC_SITE_URL ?? defaultOrigin)
+  if (origin.startsWith('http://localhost:3001')) {
+    origin = origin.replace('http://localhost:3001', 'https://localhost:3001')
+  }
 
   try {
     const cleanEmail = email.trim().toLowerCase()

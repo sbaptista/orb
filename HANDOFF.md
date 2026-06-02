@@ -24,6 +24,7 @@
 - **Database Seeding Migration:** Executed SQL migration to update the `projects` table check constraint `projects_view_mode_check`, allowing the `kanban` view mode.
 - **Onboarding Seeding Fix:** Resolved database project seeding failure where new users would successfully complete onboarding but default projects (`WELCOME`, `HOME`, `ECO`) failed to seed due to the kanban check constraint violation. This fix prevents the dashboard search bar error `[UnifiedDashboard] Project search returned 0 results after retries` for new users.
 - **Onboarding Verification:** Verified onboarding seeding correctness with a custom backend script.
+- **HTTPS Dev Invites Fix:** Upgraded invitation link generation in `invite-user` and `invitation-actions` to robustly use HTTPS for localhost in development, resolving empty response errors caused by fallback HTTP dev links.
 
 ### Version bumps
 - v0.5.126 → v0.5.127
@@ -32,10 +33,10 @@
 
 ## Uncommitted Changes
 
-- `package.json` (modified)
-- `lib/version.ts` (modified)
+- `HANDOFF.md` (modified)
 - `lib/changelog.ts` (modified)
-- `scripts/migrations/20260602_projects_view_mode_kanban.sql` (new migration)
+- `app/actions/invite-user.ts` (modified)
+- `app/actions/invitation-actions.ts` (modified)
 
 ---
 

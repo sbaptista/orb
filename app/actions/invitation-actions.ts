@@ -65,7 +65,12 @@ export async function resendInvitation(invitationId: string) {
         .single()
     if (fetchErr || !inv) return { error: fetchErr?.message ?? 'Invitation not found' }
 
-    const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://orb-eight-lake.vercel.app'
+    const isDev = process.env.NODE_ENV === 'development'
+    const defaultOrigin = isDev ? 'https://localhost:3001' : 'https://orb-eight-lake.vercel.app'
+    let origin = process.env.NEXT_PUBLIC_SITE_URL ?? defaultOrigin
+    if (origin.startsWith('http://localhost:3001')) {
+        origin = origin.replace('http://localhost:3001', 'https://localhost:3001')
+    }
 
     const { data: linkData, error: linkErr } = await ctx.admin.auth.admin.generateLink({
         type: 'invite',

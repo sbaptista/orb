@@ -11,6 +11,7 @@ export const CHANGELOG: Release[] = [
     date: '2026-06-02',
     changes: [
       'Fixed database project seeding failure for new users during onboarding: updated projects table check constraint (projects_view_mode_check) to allow the "kanban" view mode, preventing silent seeding failures and subsequent project search errors.',
+      'Upgraded invitation link generation in invite-user and invitation-actions to robustly use HTTPS for localhost in development, resolving empty response errors caused by http:// dev links.',
     ]
   },
   {
