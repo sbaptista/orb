@@ -96,21 +96,77 @@ export async function resendInvitation(invitationId: string) {
 
 export async function deleteInvitation(invitationId: string) {
     const ctx = await requireAdmin()
+
+    // Get the invitation email before deleting
+    const { data: inv } = await ctx.admin
+        .from('invitations')
+        .select('email')
+        .eq('id', invitationId)
+        .single()
+
     const { error } = await ctx.admin.from('invitations').delete().eq('id', invitationId)
     if (error) {
         console.error('deleteInvitation error:', error)
         return { error: error.message }
     }
+
+    if (inv?.email) {
+        const cleanEmail = inv.email.trim().toLowerCase()
+        // Check if the user exists in public.users
+        const { data: user } = await ctx.admin
+            .from('users')
+            .select('id')
+            .ilike('email', cleanEmail)
+            .maybeSingle()
+
+        // If not registered in public.users, clean up auth.users
+        if (!user) {
+            const { data: authUsers } = await ctx.admin.auth.admin.listUsers()
+            const existingAuth = authUsers?.users?.find(u => u.email?.toLowerCase() === cleanEmail)
+            if (existingAuth) {
+                await ctx.admin.auth.admin.deleteUser(existingAuth.id)
+            }
+        }
+    }
+
     return { ok: true }
 }
 
 export async function deleteInvitations(ids: string[]) {
     const ctx = await requireAdmin()
+
+    // Get emails of the invitations before deleting
+    const { data: invs } = await ctx.admin
+        .from('invitations')
+        .select('email')
+        .in('id', ids)
+
     const { error } = await ctx.admin.from('invitations').delete().in('id', ids)
     if (error) {
         console.error('deleteInvitations error:', error)
         return { error: error.message }
     }
+
+    if (invs && invs.length > 0) {
+        const emails = Array.from(new Set(invs.map(i => i.email.trim().toLowerCase())))
+        const { data: authUsers } = await ctx.admin.auth.admin.listUsers()
+
+        for (const email of emails) {
+            const { data: user } = await ctx.admin
+                .from('users')
+                .select('id')
+                .ilike('email', email)
+                .maybeSingle()
+
+            if (!user) {
+                const existingAuth = authUsers?.users?.find(u => u.email?.toLowerCase() === email)
+                if (existingAuth) {
+                    await ctx.admin.auth.admin.deleteUser(existingAuth.id)
+                }
+            }
+        }
+    }
+
     return { ok: true }
 }
 

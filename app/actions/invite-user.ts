@@ -56,6 +56,16 @@ export async function inviteUser(
       await ctx.admin.auth.admin.deleteUser(existingAuth.id)
     }
 
+    // Delete any existing stale invitations (accepted or declined) for this email
+    const { error: inviteCleanError } = await ctx.admin
+      .from('invitations')
+      .delete()
+      .ilike('email', cleanEmail)
+
+    if (inviteCleanError) {
+      console.warn('[inviteUser] Warning: Failed to clean up stale invitations:', inviteCleanError.message)
+    }
+
     const { data: linkData, error: linkErr } = await ctx.admin.auth.admin.generateLink({
       type: 'invite',
       email,

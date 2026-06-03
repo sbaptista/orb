@@ -7,6 +7,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.131',
+    date: '2026-06-02',
+    changes: [
+      'ORB-206: Clean up stale invitations (accepted/declined) when sending a new user invite to prevent duplicate records and resend confusion.',
+      'ORB-206: Clean up the auth.users record when a pending invitation is deleted from the system if the user has not registered yet.',
+    ]
+  },
+  {
     version: 'v0.5.130',
     date: '2026-06-02',
     changes: [

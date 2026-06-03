@@ -15,24 +15,27 @@
 
 ## Last Session Completed
 
-**User Deletion Invitation Cleanup — 2026-06-02 (Session 47)**
+**User Deletion & Invitation Cleanup — 2026-06-02 (Session 48)**
 
 ### Tickets closed
 - ORB-206: Bug: Make sure deleted users have their emails removed
 
 ### What was done
-- **Invitation Cleanup on User Delete:** Updated the `deleteUser` function in `app/actions/delete-user.ts` to automatically delete all associated invitation records in the `invitations` table (case-insensitively using `ilike` matching on email) when a user is deleted from the system, preventing conflicts when the email is reused.
-- **Verification:** Ran TypeScript compiler and ESLint audits, verifying type safety and formatting correctness. Tested the logic against custom database constraints.
+- **Invitation Cleanup on User Delete:** Verified that `deleteUser` deletes all invitations. Added stale invitation cleanup in `inviteUser` to automatically purge old accepted/declined invitations for an email when inviting again.
+- **Invitation Deletion Auth Cleanup:** Updated `deleteInvitation` and `deleteInvitations` to delete corresponding `auth.users` records if the email does not exist in `public.users` (meaning the invitee never registered), ensuring complete cleanup.
+- **Verification:** Wrote and ran a database verification script (`scripts/test-delete-user.ts`) demonstrating 100% success in cleaning up user, invitation, and auth records. Ran TypeScript compiles and verified eslint cleanliness on changed files.
 
 ---
 
 ## Uncommitted Changes
 
 - `HANDOFF.md` (modified)
-- `app/actions/delete-user.ts` (modified)
+- `app/actions/invitation-actions.ts` (modified)
+- `app/actions/invite-user.ts` (modified)
 - `lib/changelog.ts` (modified)
 - `lib/version.ts` (modified)
 - `package.json` (modified)
+- `scripts/test-delete-user.ts` (new)
 
 ---
 
@@ -101,7 +104,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-02 — Antigravity (Gemini) — Session 47`
+`2026-06-02 — Antigravity (Gemini) — Session 48`
 
 ---
 
