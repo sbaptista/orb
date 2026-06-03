@@ -7,6 +7,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.128',
+    date: '2026-06-02',
+    changes: [
+      'ORB-202: Tickets now auto-close when a todo is created from them. The reporter is notified that their feedback has been addressed.',
+      'ORB-203: Decoupled query scope from mutation scope — the Orb now sees all projects in every conversation (global query), while mutations (create/update) default to the currently selected project. Removes the "All/Scope" toggle button from the Orb toolbar.',
+      'ORB-203: Admins can now ask "how many open tasks in Helm?" while viewing the Orb project without toggling scope. Cross-project queries work naturally.',
+    ]
+  },
+  {
     version: 'v0.5.127',
     date: '2026-06-02',
     changes: [

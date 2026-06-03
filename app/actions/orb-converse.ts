@@ -1,5 +1,7 @@
 'use server'
 
+import fs from 'fs'
+import path from 'path'
 import Anthropic from '@anthropic-ai/sdk'
 import { createStreamableValue } from 'ai/rsc'
 import { getAuthContext, type AuthContext } from '@/lib/auth'
@@ -50,7 +52,7 @@ export type UIContext = {
 export type OrbRequest = {
   input: string
   productId: string | null
-  scopeToProduct?: boolean
+  // scopeToProduct removed — query scope is always global, mutations default to current project
   history?: Array<{ role: 'user' | 'assistant'; text: string }>
   dryRun?: boolean
   roleOverride?: string | null
@@ -68,7 +70,7 @@ function todoCode(todo: any, productList: any[]): string {
   return `${p?.code ?? p?.name ?? '???'}-${todo.todo_number}`
 }
 
-async function buildContext(supabase: any, auth: AuthContext, currentProductId: string | null, scopeToProduct: boolean = true) {
+async function buildContext(supabase: any, auth: AuthContext, currentProductId: string | null) {
   const fourteenDaysAgo = new Date(Date.now() - 14 * 86_400_000).toISOString()
   const [
     { data: products },
@@ -158,9 +160,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     const ownerName = userMap.get(p.created_by)
     const ownerTag = ownerName ? ` [Owner: ${ownerName}]` : ''
     const header = `${p.code ?? p.name}${p.description ? ` (${p.description})` : ''}${ownerTag}`
-    if (scopeToProduct && p.id !== currentProductId) {
-      return `${header}: (not in scope)`
-    }
+    // All projects always visible in query scope (ORB-203)
     const pTodos = todoList.filter((t: any) => t.product_id === p.id && !statusList.find((s: any) => s.name === t.status)?.is_closed)
     const activeLine = pTodos
       .filter((t: any) => isActive(t.status))
@@ -320,7 +320,15 @@ export async function orbConverse(req: OrbRequest) {
     try {
       const auth = await getAuthContext()
       const supabase = auth.supabase
-      const ctx = await buildContext(supabase, auth, req.productId, req.scopeToProduct ?? true)
+      const ctx = await buildContext(supabase, auth, req.productId)
+
+      let uiCatalog = ''
+      try {
+        const catalogPath = path.join(process.cwd(), 'docs/ui-catalog.md')
+        uiCatalog = fs.readFileSync(catalogPath, 'utf8')
+      } catch (err) {
+        console.error('[orbConverse] Failed to read ui-catalog.md:', err)
+      }
       const beforeUrgency = await snapshotUrgency(supabase, auth.user.id)
       let hasMutated = false
       const statusNames = ctx.statusList.map((s: any) => `${s.name}${s.is_closed ? ' (closed)' : s.is_open ? ' (default)' : ''}`).join(', ')
@@ -360,8 +368,9 @@ export async function orbConverse(req: OrbRequest) {
             STATUS_VOCABULARY,
             `The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering. When the user asks "how many tasks" or "my tasks" without specifying, report the ACTIVE count. If parked tasks exist, mention them separately.`,
             buildUrgencyRules(ctx.urgencyThresholdHours),
-            `SCOPE: ${req.scopeToProduct ? `Scoped to the "${ctx.current?.name}" project. Only discuss or query this project's todos unless the user explicitly asks about another project or says "all". IMPORTANT: When calling tools (like create_todo or query_todos), ALWAYS pass the project code (e.g. product_code="${ctx.current?.code}") — never omit it. The tools require codes, but when speaking to the user, always refer to the project by its display name "${ctx.current?.name}".` : 'All projects visible.'}`,
+            `SCOPE: You can see and discuss ALL projects in the backlog. When the user asks about tasks, answer from any project. When creating or updating todos, default to the currently selected project "${ctx.current?.name}" (code: "${ctx.current?.code}") unless the user explicitly names a different project. IMPORTANT: When calling tools (create_todo, query_todos, etc.), ALWAYS pass the project code — never omit it. When speaking to the user, refer to projects by display name. When reporting task counts, always state which project(s) you're counting from.`,
             req.uiContext ? `UI STATE: The user is viewing: ${req.uiContext.viewMode ?? 'list'} view | filter: ${req.uiContext.filterStatus ?? 'active'} | priority filter: ${req.uiContext.filterPriority ?? 'all'} | sort: ${req.uiContext.sortAsc ? 'oldest first' : 'newest first'} | orb pane: ${req.uiContext.orbPaneVisible ? 'visible' : 'hidden'} | list pane: ${req.uiContext.listPaneVisible ? 'visible' : 'hidden'} | device: ${req.uiContext.isMobile ? 'mobile' : 'desktop'}. Use this to understand what the user sees when they say "this view", "the list", "that column", etc.` : '',
+            uiCatalog ? `UI CATALOG & NAVIGATION (the layout structure, buttons, views, and settings of the app):\n${uiCatalog}` : '',
             `BACKLOG (includes DORMANT section if any exist — answer dormant project questions from here, do not query):\n${ctx.contextString}`,
             `KNOWLEDGE BASE (Recent):\n${ctx.knowledgeList.slice(0, 5).map((k: any) => {
               const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
@@ -451,8 +460,8 @@ export async function orbConverse(req: OrbRequest) {
           if (tc.name === 'create_todo') {
             if (!input.title) { output = { error: 'title is required' } }
             else {
-            if (!input.product_code && req.scopeToProduct) {
-              console.warn('[orbConverse] create_todo called without product_code while scoped to', ctx.current?.code, '— falling back to scoped project')
+            if (!input.product_code) {
+              console.warn('[orbConverse] create_todo called without product_code — falling back to current project', ctx.current?.code)
             }
             const product = input.product_code
               ? ctx.productList.find((p: any) => p.code?.toUpperCase() === String(input.product_code).toUpperCase())
@@ -1099,7 +1108,7 @@ export async function orbConverse(req: OrbRequest) {
 export async function orbGreeting(productId: string | null): Promise<string | null> {
   try {
     const auth = await getAuthContext()
-    const ctx = await buildContext(auth.supabase, auth, productId, false)
+    const ctx = await buildContext(auth.supabase, auth, productId)
 
     if (ctx.todoList.length === 0) return null
 

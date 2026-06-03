@@ -30,6 +30,16 @@ The target layout for the main app page. Two equal-citizen panes (Orb + List) wi
 | `ud-divider` / `ud-divider--vertical` / `ud-divider--horizontal` | Drag handle between panes |
 | `ud-divider-handle` | The visible pill inside the divider |
 
+Inside the `ud-list-toolbar`, the controls are laid out as follows:
+- **Project Title:** The active project's name is on the left.
+- **Views Button:** A button labeled "Views" (layout icon). Clicking it opens a dropdown to switch between:
+  - **List:** Labeled "List" (list table icon).
+  - **Checklist:** Labeled "Checklist" (check circles icon).
+  - **Kanban:** Labeled "Kanban" (column board icon).
+- **Sort Dropdown:** A button labeled "Sort" (arrows icon) that opens a dropdown to sort tasks.
+- **Filter Dropdown:** A button labeled "Filter" (funnel icon) that opens filter options (active, completed, priority).
+- **New Task Button:** A primary accent button labeled "+ New" (plus icon) to create a new task.
+
 ### Settings Page (`s-page`, `s-*`)
 **Files:** `app/settings/page.tsx` and sub-pages  
 **CSS prefix:** `s-`
@@ -47,6 +57,12 @@ Standard settings layout with centered content card.
 | `s-card-title` | Bold row label |
 | `s-card-desc` | Muted description text |
 | `s-form` | Form input styling context |
+
+### Settings Navigation & Updates
+- **Settings Sidebar:** Houses navigation for general configuration.
+- **Version Badge:** Located in the bottom corner of the Settings page sidebar (e.g. displaying `v0.5.127`). Non-clickable.
+- **What's New Screen:** Located under Settings. Displays recent release notes and contains:
+  - **Check for Update Button:** A button labeled "Check for Update" that allows users to manually fetch and apply newer app versions.
 
 ### Ambient Dashboard (`dash-*`)
 **Status:** Current `/dashboard` page — will be replaced by Unified Dashboard  
@@ -69,9 +85,20 @@ Standard settings layout with centered content card.
 **Pattern:** `flex` row — project search (left), spacer, nav buttons (right), panel toggles (edges)
 
 This is the canonical top bar for all future pages. Contains:
-- Panel toggle buttons (sidebar icons, far left and far right)
-- Project search dropdown (`admin-search-*` pattern)
-- Nav buttons: Print, Help, Settings, Account
+- **Left Panel Toggle:** Icon button on the far left. Tapping it collapses/expands the left (Orb conversation) pane.
+- **Project Search (Left/Center):** Labeled with the search icon (magnifying glass) and placeholder text "Type to select project or user...". Used to search and switch between active projects.
+- **Nav Buttons (Right):** Labeled buttons with icons that are hidden on mobile:
+  - **Print:** Labeled "Print" (printer icon) - opens the print/export view.
+  - **Help:** Labeled "Help" (question mark icon) - opens the Pre-Alpha Testing help documentation modal.
+  - **Settings:** Labeled "Settings" (gear icon) - opens the Settings page layout.
+  - **Account:** Labeled "Account" (user icon) - opens the user profile settings page.
+- **Right Panel Toggle:** Icon button on the far right. Tapping it collapses/expands the right (Task List) pane.
+- **Developer Panel Toggle:** Dev-only toggle button at the bottom-right corner of the viewport (visible in dev mode only).
+
+### Mobile Command Menu
+On narrow viewports (iPhone, mobile screens), the individual top nav buttons (Print, Help, Settings, Account) collapse into a single button in the top bar:
+- **Commands Button:** Labeled "Commands" (grid/menu icon).
+- **Behavior:** Tapping it opens a centered modal with links to the full commands: "Print Backlog", "Help & Guidelines", "Settings", and "Account Profile".
 
 ### Nav Buttons (`nav-btn`)
 **Used in:** Command bar, AmbientDashboard nav
@@ -265,7 +292,7 @@ Small count indicator.
 
 ### Version Label (`OrbVersionLabel`)
 **File:** `components/ui/OrbVersionLabel.tsx`  
-Displays current app version. Click opens changelog.
+Displays current app version. Non-clickable. Just displays the version text.
 
 ---
 

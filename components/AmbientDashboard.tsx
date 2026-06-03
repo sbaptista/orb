@@ -114,7 +114,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const [messages, setMessages]               = useState<ConversationMessage[]>([])
     const [conversationActive, setConversationActive] = useState(false)
     const [isRestored, setIsRestored]           = useState(false)
-    const [scopeToProduct, setScopeToProduct]     = useState(true)
+    // scopeToProduct removed (ORB-203)
     const [distillTodo, setDistillTodo]           = useState<{ id: string; productId: string; title: string; suggestion: { title: string; content: string } } | null>(null)
     const [showPrint, setShowPrint]               = useState(false)
     const [devError, setDevError]                 = useState(false)
@@ -714,7 +714,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
         activeProcessingIdRef.current = processingId
 
         try {
-            const stream = await orbConverse({ input: text, productId: selectedId, scopeToProduct, history, dryRun })
+            const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun })
             
             for await (const chunk of readStreamableValue(stream)) {
                 if (abortConverseRef.current) break
@@ -1049,16 +1049,14 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     submitting={submitting}
                     productCode={selected?.code ?? selected?.name ?? ''}
                     products={products}
-                    scopeToProduct={scopeToProduct}
                     conversationActive={conversationActive}
                     onRestoreConversation={() => setConversationActive(true)}
                     onClearTranscript={() => { setMessages([]); setConversationActive(false); sessionStorage.removeItem(SS_CONVERSATION) }}
                     onInputChange={v => { setInput(v); sessionStorage.setItem(SS_INPUT, v) }}
                     onSubmit={handleSubmit}
                     onStop={handleStop}
-                    onScopeChange={v => setScopeToProduct(v)}
                     onFocusChange={setIsInputFocused}
-                    onSelectProject={id => { setSelectedId(id); setScopeToProduct(true) }}
+                    onSelectProject={id => { setSelectedId(id) }}
                     selectedProjectId={selectedId}
                     onShowEditProject={() => setShowEditProduct(true)}
                     onShowAddProject={() => setShowAddProduct(true)}
@@ -1078,7 +1076,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                                                         type="button"
                                                         className="dash-strip-pill"
                                                         aria-current={p.id === selectedId ? 'true' : undefined}
-                                                        onClick={() => { setSelectedId(p.id); setScopeToProduct(true) }}
+                                                        onClick={() => { setSelectedId(p.id) }}
                                                         title={`Switch to ${p.code ?? p.name}`}
                                                     >
                                                         {p.code ?? p.name}

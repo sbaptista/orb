@@ -321,6 +321,23 @@ export async function createTodoFromTicket(
     // Non-fatal — todo was created, just the back-link failed
   }
 
+  // Auto-close the ticket — a todo now tracks this work
+  if (!linkErr) {
+    const { error: closeErr } = await ctx.admin
+      .from('tickets')
+      .update({ status: 'closed', closed_at: new Date().toISOString() })
+      .eq('id', ticketId)
+
+    if (closeErr) {
+      console.error('[createTodoFromTicket] auto-close error:', closeErr)
+    } else {
+      // Notify reporter that their feedback was addressed
+      updateTicketStatus(ticketId, 'closed').catch(err =>
+        console.error('[createTodoFromTicket] close notification failed:', err)
+      )
+    }
+  }
+
   const project = (todo as any).projects as { code: string | null } | null
   const todoRef = project?.code && todo.todo_number != null
     ? `${project.code}-${todo.todo_number}`

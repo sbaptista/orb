@@ -17,10 +17,8 @@ type Props = {
     submitting: boolean
     productCode: string
     products: { id: string; code: string | null; name: string }[]
-    scopeToProduct: boolean
     onInputChange: (v: string) => void
     onSubmit: (value: string) => void
-    onScopeChange: (v: boolean) => void
     onFocusChange: (v: boolean) => void
     onSelectProject: (id: string) => void
     selectedProjectId?: string | null
@@ -132,10 +130,8 @@ export default function OrbConversation({
     submitting,
     productCode,
     products,
-    scopeToProduct,
     onInputChange,
     onSubmit,
-    onScopeChange,
     onFocusChange,
     onSelectProject,
     selectedProjectId,
@@ -474,18 +470,6 @@ export default function OrbConversation({
                             >
                                 <span className="oc-tool-btn-icon" style={{ fontWeight: 600 }}>/</span>
                                 <span className="oc-tool-btn-label">Cmds</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                className="oc-tool-btn"
-                                aria-pressed={!scopeToProduct}
-                                onClick={() => onScopeChange(!scopeToProduct)}
-                                onMouseDown={(e) => e.preventDefault()}
-                                title={scopeToProduct ? 'Search all projects' : 'Search current project only'}
-                            >
-                                <span className="oc-tool-btn-icon" style={{ letterSpacing: '0.06em' }}>All</span>
-                                <span className="oc-tool-btn-label">Scope</span>
                             </button>
 
                             <button

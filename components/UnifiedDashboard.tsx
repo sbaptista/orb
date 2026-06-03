@@ -141,7 +141,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [messages, setMessages]                 = useState<ConversationMessage[]>([])
   const [conversationActive, setConversationActive] = useState(false)
   const [isRestored, setIsRestored]             = useState(false)
-  const [scopeToProduct, setScopeToProduct]     = useState(true)
+  // scopeToProduct removed (ORB-203) — query scope is always global, mutations default to selected project
   const [moodOverride, setMoodOverride]         = useState<MoodOverride>(null)
   const [roleOverride, setRoleOverride]         = useState<'Super Admin' | 'Admin' | 'Owner' | null>(null)
   const [dryRun, setDryRun]                     = useState(false)
@@ -872,7 +872,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     activeProcessingIdRef.current = processingId
 
     try {
-      const stream = await orbConverse({ input: text, productId: selectedId, scopeToProduct, history, dryRun, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive } })
+      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive } })
       for await (const chunk of readStreamableValue(stream)) {
         if (abortConverseRef.current) break
         if (!chunk) continue
@@ -1346,16 +1346,14 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               submitting={submitting}
               productCode={selected?.code ?? selected?.name ?? ''}
               products={products}
-              scopeToProduct={scopeToProduct}
               conversationActive={conversationActive}
               onRestoreConversation={() => setConversationActive(true)}
               onClearTranscript={() => { setMessages([]); setConversationActive(false); sessionStorage.removeItem(SS_CONVERSATION) }}
               onInputChange={v => { setInput(v); sessionStorage.setItem(SS_INPUT, v) }}
               onSubmit={handleSubmit}
               onStop={handleStop}
-              onScopeChange={v => setScopeToProduct(v)}
               onFocusChange={setIsInputFocused}
-              onSelectProject={id => { setSelectedId(id); setScopeToProduct(true) }}
+              onSelectProject={id => { setSelectedId(id) }}
               selectedProjectId={selectedId}
               onShowEditProject={() => setShowEditProduct(true)}
               onShowAddProject={() => setShowAddProduct(true)}

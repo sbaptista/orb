@@ -15,29 +15,28 @@
 
 ## Last Session Completed
 
-**Onboarding Kanban Seeding Fix — 2026-06-02 (Session 44)**
+**ORB-202, ORB-203, ORB-198, git push lockdown — 2026-06-02 (Sessions 38+45+46)**
 
 ### Tickets closed
-- None (ORB-197 / Gates 4 & 5 fixes)
+- ORB-198: Orb lacks UI navigation knowledge (Session 45, Antigravity)
+- ORB-202: When todos are created from tickets, close the ticket (Session 46, Claude Code)
+- ORB-203: Decouple query scope from mutation scope (Session 46, Claude Code)
 
 ### What was done
-- **Database Seeding Migration:** Executed SQL migration to update the `projects` table check constraint `projects_view_mode_check`, allowing the `kanban` view mode.
-- **Onboarding Seeding Fix:** Resolved database project seeding failure where new users would successfully complete onboarding but default projects (`WELCOME`, `HOME`, `ECO`) failed to seed due to the kanban check constraint violation. This fix prevents the dashboard search bar error `[UnifiedDashboard] Project search returned 0 results after retries` for new users.
-- **Onboarding Verification:** Verified onboarding seeding correctness with a custom backend script.
-- **HTTPS Dev Invites Fix:** Upgraded invitation link generation in `invite-user` and `invitation-actions` to robustly use HTTPS for localhost in development, resolving empty response errors caused by fallback HTTP dev links.
-- **Auto-Onboarding Project Seeding:** Resolved the invitation bypass issue where invited users skip the create-account onboarding screen and land directly on the dashboard. Extracted seeding logic to a shared utility (`lib/onboarding-seeding.ts`) and called it within `resolveUser` (`lib/resolve-user.ts`) to ensure invited users always have their default projects and tasks seeded before they reach the dashboard.
+- **ORB-202:** Tickets auto-close when a todo is created from them. Reporter notified via existing notification flow.
+- **ORB-203:** Removed scopeToProduct — Orb always sees all projects (global query), mutations default to selected project. Removed All/Scope toggle button from toolbar.
+- **ORB-198 (Antigravity):** Runtime loading of ui-catalog.md into Orb system prompt. Enriched UI catalog with button labels, locations, mobile behavior. Created verify-ui-catalog.js lint check.
+- **Git push lockdown:** Removed `Bash(git push *)` from allowlists in Orb and Helm. Documented in shared AGENTS.md, project AGENTS.md, and knowledge repo.
+- **Plan reviews:** SystemStateProvider consolidation plan (amended), mobile layout proposal (Model B endorsed).
 
 ### Version bumps
-- v0.5.126 → v0.5.127
+- v0.5.127 → v0.5.128
 
 ---
 
 ## Uncommitted Changes
 
-- `HANDOFF.md` (modified)
-- `lib/onboarding-seeding.ts` (new file)
-- `lib/resolve-user.ts` (modified)
-- `app/actions/complete-onboarding.ts` (modified)
+None (all committed this session).
 
 ---
 
@@ -106,7 +105,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-02 — Antigravity (Gemini) — Session 44`
+`2026-06-02 — Claude Code (Opus 4.6) — Session 46`
 
 ---
 

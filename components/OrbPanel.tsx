@@ -62,7 +62,6 @@ export default function OrbPanel({ productId, productCode, todoCount, onMutation
       const stream = await orbConverse({
         input: text,
         productId,
-        scopeToProduct: !!productId,
         history,
         dryRun: false,
       })
