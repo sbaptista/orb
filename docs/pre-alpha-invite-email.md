@@ -17,7 +17,7 @@ I'm inviting you to try Orb, a web application I've been building. It's a conver
 Orb works on most modern browsers: Safari, Chrome, Firefox, Edge, and Comet. On iPhone or iPad, you can install it as an app — open the link above in Safari, then tap Share → Add to Home Screen.
 
 **How to give feedback:**
-Just tell Orb. Say *"Add task to Orb Feedback: [your observation]."* That's it — it goes straight to me.
+Just tell Orb. Say something like *"I have a suggestion"* or *"something's broken"* — it'll log it automatically as a ticket and it goes straight to me.
 
 **Not interested?**
 No pressure — [click here to decline]([DECLINE_LINK]).
