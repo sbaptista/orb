@@ -52,6 +52,18 @@ export async function deleteUser(userId: string) {
 
     if (dbError) throw dbError
 
+    // Also delete any invitations associated with the user's email
+    if (target.email) {
+      const { error: inviteDelError } = await ctx.admin
+        .from('invitations')
+        .delete()
+        .ilike('email', target.email.trim().toLowerCase())
+
+      if (inviteDelError) {
+        console.warn('[deleteUser] Warning: Failed to delete user invitations:', inviteDelError.message)
+      }
+    }
+
     const { error: authError } = await ctx.admin.auth.admin.deleteUser(userId)
     if (authError) {
       console.warn('[deleteUser] Warning: Auth user deletion failed or already deleted:', authError.message)

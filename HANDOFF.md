@@ -15,27 +15,24 @@
 
 ## Last Session Completed
 
-**RLS Policy Audit & Verification Tooling — 2026-06-02 (Session 46)**
+**User Deletion Invitation Cleanup — 2026-06-02 (Session 47)**
 
 ### Tickets closed
-- ORB-198: Orb lacks UI navigation knowledge (button locations, view toggle labels, menu paths) - closed & resolution notes written.
+- ORB-206: Bug: Make sure deleted users have their emails removed
 
 ### What was done
-- **RLS Audit & Fix:** Audited the 43 RLS policies flagged by the default check query. Discovered that they were false positives caused by Postgres catalog formatting differences (`( SELECT auth.uid() AS uid)` was not matched by `%(select auth.uid()`). A refined query confirmed that **0 policies** run bare `auth.uid()`; all are already optimized.
-- **AGENTS.md Update:** Corrected the RLS check query in `AGENTS.md` to prevent future false positives.
-- **Knowledge Repo Update:** Added `RLS Check False Positives and Policy Optimization Audit` entry in the `knowledge_repo` database table documenting the finding.
-- **Verification:** Ran database health checks and confirmed that sequential scan, dead row, and query performance metrics are fully healthy.
+- **Invitation Cleanup on User Delete:** Updated the `deleteUser` function in `app/actions/delete-user.ts` to automatically delete all associated invitation records in the `invitations` table (case-insensitively using `ilike` matching on email) when a user is deleted from the system, preventing conflicts when the email is reused.
+- **Verification:** Ran TypeScript compiler and ESLint audits, verifying type safety and formatting correctness. Tested the logic against custom database constraints.
 
 ---
 
 ## Uncommitted Changes
 
 - `HANDOFF.md` (modified)
-- `AGENTS.md` (modified)
+- `app/actions/delete-user.ts` (modified)
 - `lib/changelog.ts` (modified)
 - `lib/version.ts` (modified)
 - `package.json` (modified)
-- `scripts/verify-ui-catalog.js` (modified)
 
 ---
 
@@ -104,7 +101,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-02 — Antigravity (Gemini) — Session 46`
+`2026-06-02 — Antigravity (Gemini) — Session 47`
 
 ---
 
