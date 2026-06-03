@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.129',
+    date: '2026-06-02',
+    changes: [
+      'ORB-198: Provided the Orb conversational AI with precise UI navigation knowledge by dynamically loading docs/ui-catalog.md at runtime.',
+      'ORB-198: Enriched docs/ui-catalog.md with exact button labels, panel toggles, mobile menu behaviors, settings updates, and corrected version badge interactivity.',
+      'Enforced UI Catalog updates by introducing scripts/verify-ui-catalog.js (run in npm run lint) which fails if UI files are modified without updating the documentation.',
+      'Audited database RLS policies and confirmed all 43 policies are correctly optimized; corrected the check query pattern in AGENTS.md to prevent false positives.',
+    ]
+  },
+  {
     version: 'v0.5.128',
     date: '2026-06-02',
     changes: [

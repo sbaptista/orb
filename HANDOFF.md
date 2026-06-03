@@ -15,28 +15,27 @@
 
 ## Last Session Completed
 
-**ORB-202, ORB-203, ORB-198, git push lockdown — 2026-06-02 (Sessions 38+45+46)**
+**RLS Policy Audit & Verification Tooling — 2026-06-02 (Session 46)**
 
 ### Tickets closed
-- ORB-198: Orb lacks UI navigation knowledge (Session 45, Antigravity)
-- ORB-202: When todos are created from tickets, close the ticket (Session 46, Claude Code)
-- ORB-203: Decouple query scope from mutation scope (Session 46, Claude Code)
+- ORB-198: Orb lacks UI navigation knowledge (button locations, view toggle labels, menu paths) - closed & resolution notes written.
 
 ### What was done
-- **ORB-202:** Tickets auto-close when a todo is created from them. Reporter notified via existing notification flow.
-- **ORB-203:** Removed scopeToProduct — Orb always sees all projects (global query), mutations default to selected project. Removed All/Scope toggle button from toolbar.
-- **ORB-198 (Antigravity):** Runtime loading of ui-catalog.md into Orb system prompt. Enriched UI catalog with button labels, locations, mobile behavior. Created verify-ui-catalog.js lint check.
-- **Git push lockdown:** Removed `Bash(git push *)` from allowlists in Orb and Helm. Documented in shared AGENTS.md, project AGENTS.md, and knowledge repo.
-- **Plan reviews:** SystemStateProvider consolidation plan (amended), mobile layout proposal (Model B endorsed).
-
-### Version bumps
-- v0.5.127 → v0.5.128
+- **RLS Audit & Fix:** Audited the 43 RLS policies flagged by the default check query. Discovered that they were false positives caused by Postgres catalog formatting differences (`( SELECT auth.uid() AS uid)` was not matched by `%(select auth.uid()`). A refined query confirmed that **0 policies** run bare `auth.uid()`; all are already optimized.
+- **AGENTS.md Update:** Corrected the RLS check query in `AGENTS.md` to prevent future false positives.
+- **Knowledge Repo Update:** Added `RLS Check False Positives and Policy Optimization Audit` entry in the `knowledge_repo` database table documenting the finding.
+- **Verification:** Ran database health checks and confirmed that sequential scan, dead row, and query performance metrics are fully healthy.
 
 ---
 
 ## Uncommitted Changes
 
-None (all committed this session).
+- `HANDOFF.md` (modified)
+- `AGENTS.md` (modified)
+- `lib/changelog.ts` (modified)
+- `lib/version.ts` (modified)
+- `package.json` (modified)
+- `scripts/verify-ui-catalog.js` (modified)
 
 ---
 
@@ -105,7 +104,7 @@ None (all committed this session).
 
 ## AI Tool Used Last Session
 
-`2026-06-02 — Claude Code (Opus 4.6) — Session 46`
+`2026-06-02 — Antigravity (Gemini) — Session 46`
 
 ---
 

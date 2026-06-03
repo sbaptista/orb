@@ -1,5 +1,5 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { execSync } = require('child_process');
-const path = require('path');
 
 try {
   // Get git porcelain status to identify modified, added, deleted, or renamed files

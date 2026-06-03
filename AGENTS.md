@@ -354,8 +354,8 @@ ORDER BY shared_blks_read DESC LIMIT 10;"
 SELECT tablename, policyname
 FROM pg_policies
 WHERE schemaname = 'public'
-  AND ((qual ILIKE '%auth.uid()%' AND qual NOT ILIKE '%(select auth.uid()%')
-    OR (with_check ILIKE '%auth.uid()%' AND with_check NOT ILIKE '%(select auth.uid()%'))
+  AND ((qual ILIKE '%auth.uid()%' AND qual NOT ILIKE '%select auth.uid()%')
+    OR (with_check ILIKE '%auth.uid()%' AND with_check NOT ILIKE '%select auth.uid()%'))
 ORDER BY tablename, policyname;"
 ```
 **Flag:** any result = a policy evaluating auth.uid() per-row. Rewrite with (SELECT auth.uid()).
