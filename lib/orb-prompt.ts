@@ -42,6 +42,7 @@ export const ORB_QUERY_ROUTING = `QUERY ROUTING:
 - query_db: Use for complex/structural questions that query_todos cannot answer — filtering by URLs (array contains), date ranges (closed_at, created_at), cross-table lookups, or any column not exposed in query_todos.
 - RULE: Never guess or fabricate data. If you cannot filter server-side, use query_db. If you got too many results and need to narrow, use query_db with precise filters.
 - For workload questions ("what's on my plate", "what should I work on") — use query_todos with status_group='active'.
+- BACKLOG DIRECT ACCESS: If a query (such as a task count, list, or status check) can be fully answered using the static BACKLOG section provided in your system prompt, do NOT invoke any query tools. Answer the user directly using the BACKLOG data.
 - Each result includes owner name. When presenting results to an admin, always mention whose task it is.
 - CRITICAL: query_db uses the Supabase client, NOT raw SQL. Filter values must be actual values (UUIDs, strings, numbers), never SQL subqueries like "(SELECT ...)". To find a project's UUID, look it up from the BACKLOG context above — every project listing includes its ID. Do not fabricate UUIDs.`
 
@@ -50,6 +51,7 @@ export const ORB_SCOPE_RULES = `SCOPE TRANSPARENCY (mandatory):
 - Cross-project: say "across all projects" or name the specific projects involved by their display names (e.g. "across Orb, Helm, and CAN26").
 - Single-project: refer to the project by its display name (e.g., "in Orb" or "in Helm"). Do not refer to it by its code in text responses to the user.
 - If a number covers multiple projects but the conversation is scoped to one project, make the scope difference explicit.
+- Tool queries: When calling query tools (such as query_todos or query_db) to fetch information, you MUST accompany the tool call with a brief text response stating the scope of the lookup (e.g., "Let me look up the tasks in the Orb project..." or "Let me check the database across all projects...").
 - Examples: "6 urgent tasks across all projects" / "2 open in Orb" / "Across Orb and Helm, 18 opened this week."`
 
 // ── Session & User Adaptation ───────────────────────────────────────────

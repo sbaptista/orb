@@ -7,6 +7,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.132',
+    date: '2026-06-02',
+    changes: [
+      'Scope transparency prompt fix: restructured the SCOPE instruction as a bullet list with an explicit mandatory rule — the Orb must name the project(s) in every response that mentions task counts or summaries.',
+      'Orb eval framework: new /api/orb-eval endpoint (dev-only) and scripts/orb-eval.ts test runner. Tier 1 tests verify tool call correctness (deterministic). Tier 2 tests verify behavioral properties (statistical, 3 runs, 2/3 pass). 11 initial test cases covering tool routing, scope transparency, cross-project awareness, mutation approval, and feature disclosure.',
+      'Orb prompt: added backlog direct access rule (answer simple counts from static context without tool calls) and tool query transparency rule (state lookup scope before calling query tools).',
+    ]
+  },
+  {
     version: 'v0.5.131',
     date: '2026-06-02',
     changes: [

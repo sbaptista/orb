@@ -15,27 +15,30 @@
 
 ## Last Session Completed
 
-**User Deletion & Invitation Cleanup — 2026-06-02 (Session 48)**
+**Eval framework, scope fix, ORB-202/203, git push lockdown — 2026-06-02 (Session 46)**
 
 ### Tickets closed
-- ORB-206: Bug: Make sure deleted users have their emails removed
+- ORB-202: When todos are created from tickets, close the ticket
+- ORB-203: Decouple query scope from mutation scope
+- ORB-206: Bug: Make sure deleted users have their emails removed (Session 48, Antigravity)
 
 ### What was done
-- **Invitation Cleanup on User Delete:** Verified that `deleteUser` deletes all invitations. Added stale invitation cleanup in `inviteUser` to automatically purge old accepted/declined invitations for an email when inviting again.
-- **Invitation Deletion Auth Cleanup:** Updated `deleteInvitation` and `deleteInvitations` to delete corresponding `auth.users` records if the email does not exist in `public.users` (meaning the invitee never registered), ensuring complete cleanup.
-- **Verification:** Wrote and ran a database verification script (`scripts/test-delete-user.ts`) demonstrating 100% success in cleaning up user, invitation, and auth records. Ran TypeScript compiles and verified eslint cleanliness on changed files.
+- **ORB-202:** Tickets auto-close when a todo is created from them. Reporter notified.
+- **ORB-203:** Removed scopeToProduct — Orb always sees all projects (global query), mutations default to selected project. Removed All/Scope toggle button from Orb toolbar. Files: orb-converse.ts, OrbConversation.tsx, UnifiedDashboard.tsx, AmbientDashboard.tsx, OrbPanel.tsx.
+- **Scope transparency prompt fix:** Restructured SCOPE instruction as bullet list with mandatory naming rule.
+- **Orb eval framework:** Built `app/api/orb-eval/route.ts` (dev-only, non-streaming), `scripts/orb-eval.ts` (runner with progress bar), `scripts/eval-cases.ts` (11 test cases). Tier 1: tool correctness (5 cases, deterministic). Tier 2: behavioral (6 cases, statistical 2/3 pass). Run: `NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts`. Results: Tier 1 5/5 ✅, Tier 2 6/6 ✅.
+- **Git push lockdown:** Removed `Bash(git push *)` from allowlists in Orb and Helm. Documented in shared AGENTS.md (with per-tool enforcement table), project AGENTS.md, knowledge repo.
+- **Plan reviews:** SystemStateProvider (amended), mobile layout proposal (Model B endorsed), dev-to-dev channel (deferred — control gap).
+- **DB vacuum:** Cleaned bloated tables from testing churn.
+
+### Version bumps
+- v0.5.128 → v0.5.132
 
 ---
 
 ## Uncommitted Changes
 
-- `HANDOFF.md` (modified)
-- `app/actions/invitation-actions.ts` (modified)
-- `app/actions/invite-user.ts` (modified)
-- `lib/changelog.ts` (modified)
-- `lib/version.ts` (modified)
-- `package.json` (modified)
-- `scripts/test-delete-user.ts` (new)
+None (all committed this session).
 
 ---
 
@@ -56,6 +59,8 @@
 - **Adaptive UI is the long-term direction.** Named views + Orb set_view tool deferred to ORB-194.
 - **Dev-to-dev channel proposal reviewed.** Decision: not implementing yet. Current HANDOFF.md + WIP.md + knowledge repo process works. The proposal (docs/dev-to-dev-channel-plan.md) introduces a control gap — AI-to-AI messages bypass Stan's visibility. Would only be justified if AIs work on separate machines/branches simultaneously.
 - **Mobile layout: Model B (client-side tabs) endorsed.** No swipe gestures, no auto-switching, bottom tab bar, data-attribute CSS. Portrait iPad gets tabs too (breakpoint ≥1024px for split).
+- **Orb eval framework built.** `scripts/orb-eval.ts` + `scripts/eval-cases.ts` + `app/api/orb-eval/route.ts`. After any change to orb-converse.ts, orb-prompt.ts, or orb-contract.ts, run `NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts` and report results. Tier 1 failures are regressions. Use `--tier 1` for cheap runs (~$0.15), full suite ~$0.71.
+- **API cost is a constraint.** Three cost streams: Claude Code (Opus), Orb conversations (Sonnet), eval runs (Sonnet). Highest-leverage cost reduction: route simple Orb queries (counts, lists) to deterministic code paths instead of LLM calls.
 
 ---
 
@@ -104,7 +109,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-02 — Antigravity (Gemini) — Session 48`
+`2026-06-02 — Claude Code (Opus 4.6) — Session 46`
 
 ---
 
