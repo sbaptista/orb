@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import CollapsibleSidebar from '@/components/CollapsibleSidebar'
+import { launchOrbTour } from './OrbTour'
 
 type Topic = {
   id: string
@@ -296,6 +297,14 @@ export default function OrbHelp({ onClose }: { onClose: () => void }) {
           ← back
         </button>
         <span className="panel-title">Help</span>
+        <button
+          onClick={() => { onClose(); setTimeout(() => launchOrbTour(), 120) }}
+          className="help-tour-btn"
+          aria-label="Take the guided tour"
+          style={{ marginLeft: 'auto' }}
+        >
+          Take the tour
+        </button>
       </div>
 
       {/* Sidebar + content below the top bar */}

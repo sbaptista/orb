@@ -1,6 +1,6 @@
 {
   "name": "orb",
-  "version": "0.5.132",
+  "version": "0.5.135",
   "private": true,
   "scripts": {
     "dev": "next dev --experimental-https --experimental-https-cert localhost+1.pem --experimental-https-key localhost+1-key.pem -H 0.0.0.0 -p 3001",
@@ -15,6 +15,7 @@
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
     "ai": "^4.1.24",
+    "driver.js": "^1.4.0",
     "next": "16.2.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",

@@ -4680,3 +4680,114 @@ a, button, [role="button"], input, select, textarea {
 
 
 
+
+/* ══════════════════════════════════════════════════════════
+   Orb guided tour (driver.js) — popover skin to match Orb
+   ══════════════════════════════════════════════════════════ */
+.driver-popover.orb-tour-popover {
+  background: var(--bg2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: 0 12px 40px rgba(40, 70, 40, 0.18), 0 2px 8px rgba(0, 0, 0, 0.06);
+  font-family: var(--font-ui);
+  max-width: 320px;
+}
+.driver-popover.orb-tour-popover .driver-popover-title {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.driver-popover.orb-tour-popover .driver-popover-description {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text2);
+}
+.driver-popover.orb-tour-popover .driver-popover-progress-text {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.driver-popover.orb-tour-popover .driver-popover-footer button {
+  background: var(--bg);
+  color: var(--text2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 5px 14px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  text-shadow: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.driver-popover.orb-tour-popover .driver-popover-footer button:hover {
+  background: var(--pill-active-bg);
+  border-color: var(--pill-active-border);
+  color: var(--pill-active-color);
+}
+.driver-popover.orb-tour-popover .driver-popover-next-btn {
+  background: var(--pill-active-bg);
+  border-color: var(--pill-active-border);
+  color: var(--pill-active-color);
+}
+.driver-popover.orb-tour-popover .driver-popover-arrow {
+  /* arrow inherits popover background via driver.js defaults */
+  color: var(--bg2);
+}
+/* Mobile: keep popover comfortably inside the viewport */
+@media (max-width: 640px) {
+  .driver-popover.orb-tour-popover {
+    max-width: calc(100vw - 32px);
+  }
+}
+
+/* Inline tour-nudge buttons inside an Orb conversation card */
+.oc-tour-start {
+  background: var(--pill-active-bg);
+  border: 1px solid var(--pill-active-border);
+  color: var(--pill-active-color);
+  border-radius: var(--r-lg);
+  padding: 6px 16px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.oc-tour-start:hover {
+  background: var(--pill-active-border);
+  color: #fff;
+}
+.oc-tour-later {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: var(--r-lg);
+  padding: 6px 14px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.oc-tour-later:hover {
+  color: var(--text2);
+  border-color: var(--border-focus);
+}
+.help-tour-btn {
+  background: var(--pill-active-bg);
+  border: 1px solid var(--pill-active-border);
+  color: var(--pill-active-color);
+  border-radius: var(--r-lg);
+  padding: 6px 14px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.help-tour-btn:hover {
+  background: var(--pill-active-border);
+  color: #fff;
+}

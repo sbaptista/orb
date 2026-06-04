@@ -70,7 +70,7 @@ export default function AppNav({ printContext, userInitial = '?' }: Props) {
               <span className="nav-btn-label">Print</span>
             </button>
           )}
-          <button className="nav-btn" onClick={() => setShowHelp(true)} title="Help" aria-label="Help">
+          <button className="nav-btn" data-tour="help" onClick={() => setShowHelp(true)} title="Help" aria-label="Help">
             <span className="nav-btn-icon">{IconHelp}</span>
             <span className="nav-btn-label">Help</span>
           </button>

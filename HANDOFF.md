@@ -15,6 +15,44 @@
 
 ## Last Session Completed
 
+**ORB-197 onboarding: driver.js guided tour + eval-suite rule in AGENTS — 2026-06-03 (Session, Perplexity Comet)**
+
+### What was done
+- **Replaced the dense text-list onboarding with a driver.js guided tour.** Root problem: the old welcome message used a numbered list, but react-markdown has no remarkGfm/remark-breaks, so single \n collapsed and the list rendered broken. Stan asked for a better approach (videos / screen highlights). Chose driver.js coach marks (v1.4.0, Stan ran `npm i driver.js` himself).
+- **Tour design = observational + state-safe.** Every step points at a real element and explains it; no step REQUIRES an action, so the tour is correct from any app state (fresh login or after poking around). Elements resolved at step-time via a query fn that tolerates missing anchors (driver.js shows a centered popover instead of erroring).
+- **No auto-start (Stan's call).** First-login shows a one-line nudge IN the conversation with "Start tour" / "Maybe later" buttons. "Take the tour" also lives in Help (top bar). Tour launched via a module-level singleton (registerOrbTour by dashboard / launchOrbTour from nudge + Help) to avoid prop-drilling.
+- **Mobile (iPhone/iPad) support.** App uses tabbed panes on mobile (activeMobileTab 'orb'|'list'). Tour does per-step pane prep (onHighlightStarted → switch pane → driver.refresh()) so spotlights land correctly. Popover sides are mobile-aware.
+- **Seeded WELCOME tasks retitled** to clean, prefix-free titles (the tour replaces the old message↔todo numbering bridge). Kept all 6 (count is load-bearing for the mood mechanic: 6 open medium tasks → busy/lavender; check one off → 5 active → calm/green = the visible shift testers see).
+- **Eval suite codified as a must-do in AGENTS.** The Orb eval framework (scripts/eval-cases.ts + scripts/orb-eval.ts) was previously only recorded in HANDOFF, not required anywhere. Added a mandatory "Orb Eval Suite" section to project AGENTS.md (+ top instruction + production-push gate) and a cross-project rule #13 in shared AGENTS.md. Scope kept tight: Orb-conversation capabilities only (tools/speech). NO ORB-197 eval case was added (the tour is pure UI — out of the suite's reach; Stan confirmed skip).
+
+### Files (tour — pushed to Mac, v0.5.135, COMMIT APPROVED by Stan, do NOT push to prod without his go-ahead)
+- NEW: components/OrbTour.tsx (singleton tour controller, 6 steps)
+- components/OrbConversation.tsx (nudge card + Start/Maybe-later buttons, action?:'tour', onDismissNudge, data-tour="conversation-input")
+- components/UnifiedDashboard.tsx (long welcome → one-line nudge; registerOrbTour effect; data-tour anchors orb/views; onDismissNudge)
+- components/AppNav.tsx (data-tour="help")
+- components/OrbHelp.tsx ("Take the tour" button in panel top bar → launchOrbTour)
+- app/globals.css (.orb-tour-popover skin, .oc-tour-start/.oc-tour-later, .help-tour-btn — Orb green tokens)
+- lib/onboarding-seeding.ts (6 WELCOME tasks retitled, clean)
+- package.json + lib/version.ts (0.5.134 → 0.5.135); package-lock.json (driver.js ^1.4.0)
+
+### Files (AGENTS eval rule — pushed to Mac, doc-only, NO version bump)
+- AGENTS.md (project): new "Orb Eval Suite (mandatory)" section + top instruction bullet + eval gate in Production Releases
+- ../shared/AGENTS.md: Working Rule #13 (keep each project's eval/behavior suite current)
+
+### Version bumps
+- v0.5.134 → v0.5.135 (tour code). AGENTS edits are doc-only (no bump).
+
+### Next / open
+- Stan was testing the tour locally (Mac/iPad/iPhone) when this handoff was written.
+- COMMIT APPROVED for the tour work + AGENTS edits (commit only, NO git push — prod deploy is Stan's call). Suggested message below.
+- changelog.ts NOT yet updated for v0.5.135 — required before any prod push (see AGENTS "Production Releases").
+- Suggested commit (run from main dir, after Stan confirms tests pass):
+  `cd /Users/stanleybaptista/Projects/orb && git add -A && git commit -m "ORB-197: driver.js guided onboarding tour (v0.5.135) + codify Orb eval suite as a must-do in AGENTS"`
+
+---
+
+## Earlier Sessions
+
 **Eval framework, scope fix, ORB-202/203, git push lockdown — 2026-06-02 (Session 46)**
 
 ### Tickets closed

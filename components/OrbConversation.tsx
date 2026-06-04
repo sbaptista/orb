@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ComponentPropsWithoutRef } from 'react'
 import Markdown from 'react-markdown'
+import { launchOrbTour } from './OrbTour'
 export type ConversationMessage = {
     id: string
     type: 'user' | 'orb' | 'dev'
@@ -9,6 +10,8 @@ export type ConversationMessage = {
     isStreaming?: boolean
     thoughts?: string[]
     senderLabel?: string
+    // When set, the Orb card renders an inline tour nudge with action buttons.
+    action?: 'tour'
 }
 
 type Props = {
@@ -30,10 +33,12 @@ type Props = {
     onStop?: () => void
     projectStrip?: React.ReactNode
     orbElement?: React.ReactNode
+    onDismissNudge?: () => void
 }
 
-function OrbCard({ msg }: { msg: ConversationMessage }) {
+function OrbCard({ msg, onDismissNudge }: { msg: ConversationMessage; onDismissNudge?: () => void }) {
     const [copied, setCopied] = useState(false)
+    const [nudgeHandled, setNudgeHandled] = useState(false)
 
     function copy() {
         navigator.clipboard.writeText(msg.text).then(() => {
@@ -66,6 +71,24 @@ function OrbCard({ msg }: { msg: ConversationMessage }) {
                     }}>
                         {msg.text}
                     </Markdown>
+                    {msg.action === 'tour' && !nudgeHandled && (
+                        <div className="flex-row" style={{ gap: '8px', marginTop: '10px' }}>
+                            <button
+                                type="button"
+                                className="oc-tour-start"
+                                onClick={() => { setNudgeHandled(true); onDismissNudge?.(); launchOrbTour() }}
+                            >
+                                Start tour
+                            </button>
+                            <button
+                                type="button"
+                                className="oc-tour-later"
+                                onClick={() => { setNudgeHandled(true); onDismissNudge?.() }}
+                            >
+                                Maybe later
+                            </button>
+                        </div>
+                    )}
                     {msg.isStreaming && (
                         <span style={{
                             display: 'inline-block',
@@ -143,6 +166,7 @@ export default function OrbConversation({
     onStop,
     projectStrip,
     orbElement,
+    onDismissNudge,
 }: Props) {
     const threadRef             = useRef<HTMLDivElement>(null)
     const textareaRef           = useRef<HTMLTextAreaElement>(null)
@@ -350,7 +374,7 @@ export default function OrbConversation({
                                     </div>
                                 </div>
                             ) : (
-                                <OrbCard key={msg.id} msg={msg} />
+                                <OrbCard key={msg.id} msg={msg} onDismissNudge={onDismissNudge} />
                             )
                     ))}
                 </div>
@@ -369,7 +393,7 @@ export default function OrbConversation({
                 </div>
             )}
 
-            <div className="oc-input-wrap" style={{ position: 'relative' }}>
+            <div className="oc-input-wrap" data-tour="conversation-input" style={{ position: 'relative' }}>
                 {showSlashMenu && (
                     <div className="oc-slash-menu">
                         {activeSlashCommands.map((c, i) => {

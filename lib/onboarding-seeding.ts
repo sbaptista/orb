@@ -73,7 +73,7 @@ export async function seedOnboardingProjects(admin: SupabaseClient, userId: stri
       // 1. WELCOME
       {
         productCode: 'WELCOME',
-        title: "Observe the Orb's ambient mood state (pulse & color shifts)",
+        title: "Mark this task as done to see the Orb shift its mood.",
         priority_value: 4,
         description: "The glowing Orb behaves like a living presence. Its color shifts and pulse rates are tied to the status and priorities of your active backlogs across all projects.",
         status: 'open'
@@ -87,28 +87,28 @@ export async function seedOnboardingProjects(admin: SupabaseClient, userId: stri
       },
       {
         productCode: 'WELCOME',
-        title: "Test the Kanban board drag-and-drop on mobile or desktop",
+        title: "Try out the Kanban board drag-and-drop.",
         priority_value: 4,
         description: "Open the 'Urban Compost Initiative' project, click 'Views' in the toolbar, switch to 'Kanban' mode, and test drag-and-drop of tasks between status columns.",
         status: 'open'
       },
       {
         productCode: 'WELCOME',
-        title: "Mark a task as done to see the Orb shift its mood",
+        title: "Send a feedback message or report a bug.",
         priority_value: 4,
         description: "Try checking this task or another onboarding item to closed. Note how the ambient glow reflects the lightened workload.",
         status: 'open'
       },
       {
         productCode: 'WELCOME',
-        title: "Send a feedback message or report a bug",
+        title: "Heads-up: this is a pre-alpha. Please don't store anything sensitive. Don't assume anything is permanent.",
         priority_value: 4,
         description: "Just talk to the Orb. Say 'Report a bug: [issue description]' or 'Suggestion: [your idea]'. It will automatically file a ticket for the developer.",
         status: 'open'
       },
       {
         productCode: 'WELCOME',
-        title: "Read the Pre-Alpha Testing guide in the Help tab",
+        title: "Read the Pre-Alpha Testing guide in the Help tab.",
         priority_value: 4,
         description: "Click on 'Help' in the top navigation bar to read detailed suggestions on what to test, strategic commands, and privacy policies.",
         status: 'open'

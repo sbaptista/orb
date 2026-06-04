@@ -10,6 +10,7 @@ import AddProductModal from './AddProductModal'
 import AppNav from './AppNav'
 import OrbHelp from './OrbHelp'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
+import { registerOrbTour, unregisterOrbTour, runOrbTour } from './OrbTour'
 import { OrbDevPanel, DevTestError, type MoodOverride } from './OrbDevPanel'
 import { orbConverse, orbGreeting, type OrbResponse } from '@/app/actions/orb-converse'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
@@ -516,13 +517,40 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     fetchStatuses()
   }, [supabase])
 
-  // Welcome message
+  // Welcome message — shown directly in the conversation on first login
   useEffect(() => {
     if (!isNewUser || welcomeDismissedRef.current) return
-    const firstName = userFullName ? (userFullName.split(' ')[0] || 'there') : 'there'
-    const welcome = `Hi ${firstName}! I'm Orb. Thanks for joining the ${releaseStage || 'pre-alpha'}. Press Return or tap the send button → to get started.`
-    setInput(prev => prev || welcome)
-  }, [isNewUser, userFullName, releaseStage])
+    welcomeDismissedRef.current = true
+    setIsNewUser(false)
+    supabase.auth.getUser().then(({ data: { user: authUser } }) => {
+      if (authUser) {
+        localStorage.setItem(`todos_welcome_shown_${authUser.id}`, '1')
+        supabase.from('users').update({ onboarded_at: new Date().toISOString() }).eq('id', authUser.id).then(() => {})
+      }
+    })
+    setMessages(prev => prev.length > 0 ? prev : [
+      { id: genId(), type: 'orb', action: 'tour', text: `Welcome to Orb.\n\nWant a quick tour? It takes about a minute. You can always start it later from **Help**.` },
+    ])
+    setConversationActive(true)
+    resetInactivity()
+  }, [isNewUser])
+
+  // Register the guided tour runner so the conversation nudge button and the
+  // Help modal can launch it (via launchOrbTour) without prop-drilling. The
+  // runner captures the live mobile state + pane switchers and best-effort
+  // selects the Welcome project so the tour's anchors exist on screen.
+  useEffect(() => {
+    registerOrbTour(() => runOrbTour({
+      isMobile,
+      showOrbPane: () => { if (isMobile) setActiveMobileTab('orb'); else setOrbPaneVisible(true) },
+      showListPane: () => { if (isMobile) setActiveMobileTab('list'); else setListPaneVisible(true) },
+      selectWelcomeProject: () => {
+        const welcome = products.find(p => p.code?.toUpperCase() === 'WELCOME')
+        if (welcome) setSelectedId(welcome.id)
+      },
+    }))
+    return () => unregisterOrbTour()
+  }, [isMobile, products])
 
   // Proactive greeting
   useEffect(() => {
@@ -766,31 +794,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // HANDLERS — Conversation
   // ══════════════════════════════════════════════════════════
 
-  function handleWelcomeSubmit(text: string) {
-    welcomeDismissedRef.current = true
-    setIsNewUser(false)
-    setInput('')
-    sessionStorage.removeItem(SS_INPUT)
-    supabase.auth.getUser().then(({ data: { user: authUser } }) => {
-      if (authUser) {
-        localStorage.setItem(`todos_welcome_shown_${authUser.id}`, '1')
-        supabase.from('users').update({ onboarded_at: new Date().toISOString() }).eq('id', authUser.id).then(() => {})
-      }
-    })
-    setMessages(prev => [
-      ...prev,
-      { id: genId(), type: 'user', text },
-      { id: genId(), type: 'orb', text: `Welcome to Orb! \n\nUnlike standard todo lists that just store tasks, Orb acts as an **ambient presence** and **strategic planning partner**. The color and motion of the Orb on your screen reflect your real-time workload (Calm, Busy, or Urgent).\n\nTo help you get started, I have created three projects for you. You can select them using the project search bar in the top bar:\n• **Welcome & Guide (WELCOME)** - Checklist view in an **Active** (lavender) state.\n• **Home Maintenance (HOME)** - List view in a **Calm** (green) state.\n• **Urban Compost Initiative (ECO)** - Kanban view in an **Urgent** (orange/solar flare) state.\n\nThese projects contain realistic tasks to let you immediately interact with Orb. Try asking me: *"What should I do next?"* or *"Why am I busy?"*, switch views, or test the Kanban touch drag-and-drop on your phone.\n\n**Note on Privacy & Testing:** Since this is a pre-alpha, task names and chat logs are visible to the developer (Stan) for debugging and optimizing the AI's logic. Please do not store highly sensitive personal information.\n\nType /? anytime for a full command list. Click on "Help" at the top of the screen to read our Pre-Alpha Testing guide. \n\nSelect one of the projects from the search bar at the top to see your onboarding tasks. What would you like to do first?` },
-    ])
-    setConversationActive(true)
-    resetInactivity()
-  }
-
   async function handleSubmit(value?: string) {
     const text = (value ?? input).trim()
     if (!text || submitting) return
-
-    if (isNewUser && !welcomeDismissedRef.current) { handleWelcomeSubmit(text); return }
 
     if (text === '?' || text === '/?') { setShowHelp(true); setInput(''); return }
 
@@ -1140,7 +1146,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const orbScale = (isInputFocused && isMobile) ? 0.45 : 1.0
 
   const orbElement = (
-    <div className="dash-orb-wrap" data-mode={conversationActive ? 'dialogue' : 'ambient'}>
+    <div className="dash-orb-wrap" data-tour="orb" data-mode={conversationActive ? 'dialogue' : 'ambient'}>
       <div
         onPointerDown={() => {
           orbPressedRef.current = false
@@ -1342,6 +1348,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             <OrbConversation
               orbElement={orbElement}
               messages={messages}
+              onDismissNudge={() => setMessages(prev => prev.map(m => m.action === 'tour' ? { ...m, action: undefined } : m))}
               input={input}
               submitting={submitting}
               productCode={selected?.code ?? selected?.name ?? ''}
@@ -1387,7 +1394,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                 <button className="tv-toolbar-btn" aria-pressed={showFilters} onClick={() => { setShowFilters(f => !f); setShowListViews(false) }} aria-label="Toggle filters">
                   Filter <span className="tv-badge">{todos.length}</span>
                 </button>
-                <button className="tv-toolbar-btn" aria-pressed={showListViews} onClick={() => { setShowListViews(v => !v); setShowFilters(false) }} title="List views">
+                <button className="tv-toolbar-btn" data-tour="views" aria-pressed={showListViews} onClick={() => { setShowListViews(v => !v); setShowFilters(false) }} title="List views">
                   Views
                 </button>
                 <button className="tv-toolbar-primary" onClick={() => setShowNewTodo(true)}>+ New</button>
