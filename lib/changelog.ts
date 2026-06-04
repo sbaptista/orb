@@ -7,6 +7,25 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.136',
+    date: '2026-06-03',
+    changes: [
+      'Closed ORB-173 (Pre-Alpha Checklist): all 5 gates met — core loop reliable, multi-user works, infrastructure holds, first impression competent, operator can manage.',
+      'Closed ORB-197 (Onboarding for Testers): driver.js guided tour shipped in v0.5.135.',
+    ]
+  },
+  {
+    version: 'v0.5.135',
+    date: '2026-06-03',
+    changes: [
+      'ORB-197: Replaced the text-list onboarding with a driver.js guided tour — 6 observational steps that highlight real UI elements (Orb, conversation input, views, help). No step requires an action, so the tour is correct from any app state.',
+      'ORB-197: Tour launch via one-line nudge in first conversation (not auto-start). Also accessible from Help panel. Mobile-aware with per-step pane switching for tabbed layout.',
+      'ORB-197: WELCOME seed tasks retitled to clean, prefix-free titles.',
+      'Codified the Orb eval suite as a mandatory rule in AGENTS.md — new capabilities must include matching eval cases, Tier 1 must be green before any production push.',
+      'ORB-197 onboarding plan: invite-email feedback wording improvements.',
+    ]
+  },
+  {
     version: 'v0.5.132',
     date: '2026-06-02',
     changes: [
