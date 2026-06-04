@@ -9,13 +9,14 @@
 ## Page Layouts
 
 ### Unified Dashboard (`ud-*`)
-**Status:** Active prototype at `/prototype`, will replace `/dashboard`  
+**Status:** Active main dashboard.  
 **Files:** `components/UnifiedDashboard.tsx`, `components/DragDivider.tsx`  
 **CSS prefix:** `ud-`
 
-The target layout for the main app page. Two equal-citizen panes (Orb + List) with a draggable divider:
+The main app layout. Two equal-citizen panes (Orb + List) with a draggable divider:
 - **iPhone:** Vertical stack (column), divider drags up/down
 - **Desktop:** Side-by-side (row), divider drags left/right
+- **Zero-Project State:** When no projects are loaded, clicking the Orb opens the project creation modal. The "+ New" todo button is disabled and triggers a friendly toast message requesting the user to create a project first.
 - Full-bleed `MuralCanvas` fractal at z:0 behind everything
 
 | Class | Purpose |
@@ -366,4 +367,4 @@ This catalog must stay in sync with `globals.css` and `components/`. Never leave
 
 ---
 
-*Last updated: 2026-05-27 — Session 27*
+*Last updated: 2026-06-04 — Session 50 (Antigravity)*

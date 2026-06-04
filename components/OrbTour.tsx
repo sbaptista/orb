@@ -60,7 +60,7 @@ export function runOrbTour(env: TourEnv) {
       popover: {
         title: 'Meet the Orb',
         description:
-          "This is the Orb. It's not just a todo list — its color and motion reflect your workload: Calm, Busy, or Urgent. Try checking off a task and watch it settle.",
+          "This is the Orb. It's not just a todo list — its color and motion reflect your workload: Calm, Busy, or Urgent. Lighter or heavier workloads change its appearance.",
         side: env.isMobile ? 'bottom' : 'right',
         align: 'center',
       },
@@ -80,7 +80,7 @@ export function runOrbTour(env: TourEnv) {
       popover: {
         title: 'Views',
         description:
-          'Orb does what a todo list should. Use Views to switch between List, Checklist, and Kanban — and drag tasks between columns in Kanban.',
+          "Use Views to switch between List, Checklist, and Kanban. Try dragging tasks between columns in Kanban.",
         side: env.isMobile ? 'bottom' : 'left',
         align: 'start',
       },
@@ -90,7 +90,17 @@ export function runOrbTour(env: TourEnv) {
       popover: {
         title: 'Feedback & bugs',
         description:
-          "See something you like or don't? Found a bug? Just tell the Orb — it files it for the developer.",
+          "See something you like or don't like? Found a bug? Just tell the Orb — it files it for the developer.",
+        side: 'top',
+        align: 'center',
+      },
+    },
+    {
+      element: q('[data-tour="conversation-input"]'),
+      popover: {
+        title: 'Create a Project',
+        description:
+          'Open the Slash commands by typing "/". Then select "/create [name]".',
         side: 'top',
         align: 'center',
       },
@@ -109,7 +119,7 @@ export function runOrbTour(env: TourEnv) {
       popover: {
         title: 'Help anytime',
         description:
-          "Tap Help anytime for the full guide — including this tour. You're all set. Go play. May all your projects be calm. — Stan",
+          "Tap Help anytime for the full guide — including this tour. You're all set. Go play and may all your projects be calm. — Stan",
         side: 'bottom',
         align: 'end',
       },
@@ -120,8 +130,7 @@ export function runOrbTour(env: TourEnv) {
   // so it's actually on screen when driver.js spotlights it.
   const ensurePaneFor = (index: number) => {
     if (!env.isMobile) return
-    // Steps 0 and 4 (heads-up, centered) → Orb pane; 1,3 (input) live with Orb pane;
-    // step 2 (Views) → list pane. Step 5 (Help) is in the top nav, visible on both.
+    // Step 2 (Views) lives in the list pane. All others live in or switch to the Orb pane.
     if (index === 2) env.showListPane()
     else env.showOrbPane()
   }

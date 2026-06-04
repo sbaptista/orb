@@ -6,9 +6,6 @@ import { resolveUser } from '@/lib/resolve-user'
 import { acceptInvitation } from './invitation-actions'
 import { createTicket } from '@/app/actions/ticket-actions'
 import { sendWelcomeEmail } from '@/lib/email'
-
-import { seedOnboardingProjects } from '@/lib/onboarding-seeding'
-
 export async function completeOnboarding(firstName: string, lastName: string) {
   try {
     const supabase = await createClient()
@@ -52,9 +49,6 @@ export async function completeOnboarding(firstName: string, lastName: string) {
     )
 
     await acceptInvitation(user.email)
-
-    // ── Seed Default Projects and Tasks for ORB-197 ──
-    await seedOnboardingProjects(admin, user.id)
 
     return { ok: true }
   } catch (err: unknown) {

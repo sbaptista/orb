@@ -1160,6 +1160,20 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         }}
         onPointerUp={() => { if (orbLongPressRef.current) { clearTimeout(orbLongPressRef.current); orbLongPressRef.current = null } }}
         onPointerCancel={() => { if (orbLongPressRef.current) { clearTimeout(orbLongPressRef.current); orbLongPressRef.current = null } }}
+        onClick={() => {
+          if (orbPressedRef.current) return
+          if (noProject) {
+            setShowAddProduct(true)
+          }
+        }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            if (noProject) {
+              setShowAddProduct(true)
+            }
+          }
+        }}
         title={noProject ? 'Add a project to get started' : 'Hold to return to ambient'}
         style={{
           position: 'relative',
@@ -1397,7 +1411,19 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                 <button className="tv-toolbar-btn" data-tour="views" aria-pressed={showListViews} onClick={() => { setShowListViews(v => !v); setShowFilters(false) }} title="List views">
                   Views
                 </button>
-                <button className="tv-toolbar-primary" onClick={() => setShowNewTodo(true)}>+ New</button>
+                <button
+                  className="tv-toolbar-primary"
+                  onClick={() => {
+                    if (products.length === 0) {
+                      toast.neutral('Please create a project first.')
+                    } else {
+                      setShowNewTodo(true)
+                    }
+                  }}
+                  style={products.length === 0 ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                >
+                  + New
+                </button>
               </div>
             </div>
 

@@ -4,8 +4,23 @@ export interface Release {
   changes: string[]
 }
 
-
 export const CHANGELOG: Release[] = [
+  {
+    version: 'v0.5.138',
+    date: '2026-06-04',
+    changes: [
+      'ORB-209: Removed onboarding sample projects and tasks (WELCOME, HOME, ECO) so new users start in zero-project state.',
+      'ORB-209: Configured Orb click/tap in zero-project state to open project creation modal, and disabled task "+ New" button on zero-projects with a friendly toast reminder.',
+      'ORB-209: Updated Guided Tour steps and descriptions to follow the new 7-step sequence.',
+    ]
+  },
+  {
+    version: 'v0.5.137',
+    date: '2026-06-04',
+    changes: [
+      'Clarified Comprehension Check instructions in AGENTS.md to explicitly allow read-only tool usage on the first turn to gather check answers.',
+    ]
+  },
   {
     version: 'v0.5.136',
     date: '2026-06-03',

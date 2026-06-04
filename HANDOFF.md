@@ -15,18 +15,33 @@
 
 ## Last Session Completed
 
-**Close ORB-173/197 + production push — 2026-06-03 (Session 47, Claude Code)**
+**Remove Onboarding Sample Projects & Update Guided Tour — 2026-06-04 (Session 50, Antigravity)**
 
 ### What was done
-- **Closed ORB-197 (Onboarding for Testers).** Verified Perplexity's driver.js guided tour implementation: 6 observational steps, mobile pane switching, no auto-start, singleton pattern. Code was already committed in v0.5.135. Resolution notes + KR entry (by Perplexity) already existed; added resolution_notes to the todo.
-- **Closed ORB-173 (Pre-Alpha Checklist).** Verified all 5 gates: core loop, multi-user, infrastructure, first impression (ORB-197 tour), operator management. Created KR entry documenting gate completion.
-- **Added changelog entries for v0.5.135** (tour + eval suite codification) and **v0.5.136** (ticket closures). Perplexity had skipped the changelog.
-- **Bumped version to v0.5.136** (package.json + lib/version.ts).
-- **Production push** of all accumulated changes (v0.5.128–v0.5.136).
+- **Removed onboarding sample projects/tasks (ORB-209)**: Disabled automatic seeding of projects (`WELCOME`, `HOME`, `ECO`) in `complete-onboarding.ts` and `resolve-user.ts`. Deleted `lib/onboarding-seeding.ts`.
+- **Zero-Project UX implementation**:
+  - Click/tap on the "No project selected" Orb state opens the project creation modal.
+  - Disabled the "+ New" todo button on zero-projects, showing a helpful toast notification to create a project first.
+- **Guided Tour updates (`components/OrbTour.tsx`)**: Reordered and matched the steps to the new 7-step sequence and copy specified by Stan.
+- **Verification**: Verified clean build (`npx tsc --noEmit`), verified UI catalog script check (`node scripts/verify-ui-catalog.js`), and ran Tier 1 of the Orb eval suite (5/5 passed ✅).
 
 ---
 
 ## Earlier Sessions
+
+**Clarify Comprehension Check Rules — 2026-06-04 (Session 49, Antigravity)**
+- **Comprehension check rules updated in AGENTS.md.** Clarified that read-only tools are allowed in the first turn to gather check answers, resolving literal rule deadlocks.
+- **Bumped version to v0.5.137** (package.json + lib/version.ts).
+- **Documented changes in lib/changelog.ts.**
+- **Ran Tier 1 eval suite (5/5 passed ✅).**
+
+**Close ORB-173/197 + production push — 2026-06-03 (Session 47, Claude Code)**
+- **Closed ORB-197 (Onboarding for Testers).** Guided tour verification.
+- **Closed ORB-173 (Pre-Alpha Checklist).** Checklist gates verified.
+- **Added changelog entries for v0.5.135 and v0.5.136.**
+- **Bumped version to v0.5.136.**
+- **Production push** of all accumulated changes (v0.5.128–v0.5.136).
+
 
 **Eval framework, scope fix, ORB-202/203, git push lockdown — 2026-06-02 (Session 46)**
 
@@ -51,9 +66,11 @@
 
 ## Uncommitted Changes
 
-- lib/changelog.ts (added v0.5.135 + v0.5.136 entries)
-- lib/version.ts (0.5.135 → 0.5.136)
-- package.json (0.5.135 → 0.5.136)
+- AGENTS.md (comprehension check clarification)
+- lib/changelog.ts (added v0.5.137 entry)
+- lib/version.ts (v0.5.136 → v0.5.137)
+- package.json (0.5.136 → 0.5.137)
+- .claude/settings.local.json (external tools update)
 - HANDOFF.md (this file)
 
 ---
@@ -123,7 +140,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-03 — Claude Code (Opus 4.6) — Session 47`
+`2026-06-04 — Antigravity (Gemini 3.5 Flash) — Session 50`
 
 ---
 
