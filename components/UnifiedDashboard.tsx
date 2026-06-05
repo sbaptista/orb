@@ -1269,6 +1269,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         <AppNav
           printContext={{ productId: selectedId, productName: selected?.name ?? null }}
           userInitial={(user?.first_name || user?.email || '?').charAt(0).toUpperCase()}
+          userName={[user?.first_name, user?.last_name].filter(Boolean).join(' ') || undefined}
         />
 
         {/* ── Command Bar (page-specific: panel toggles + project search) ── */}

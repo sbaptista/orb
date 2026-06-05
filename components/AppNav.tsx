@@ -11,6 +11,8 @@ type Props = {
   printContext?: { productId: string | null; productName: string | null }
   /** User initial for Account button */
   userInitial?: string
+  /** Full user name for Account tooltip */
+  userName?: string
 }
 
 // ── SVG Icons (shared across desktop bar + mobile modal) ──
@@ -41,7 +43,7 @@ const IconCommands = (
   </svg>
 )
 
-export default function AppNav({ printContext, userInitial = '?' }: Props) {
+export default function AppNav({ printContext, userInitial = '?', userName }: Props) {
   const pathname = usePathname()
   const onDashboard = pathname === '/dashboard' || pathname === '/'
   const [showHelp, setShowHelp] = useState(false)
@@ -78,7 +80,7 @@ export default function AppNav({ printContext, userInitial = '?' }: Props) {
             <span className="nav-btn-icon">{IconSettings}</span>
             <span className="nav-btn-label">Settings</span>
           </Link>
-          <Link href="/account" className="nav-btn" title="Account" aria-label="Account">
+          <Link href="/account" className="nav-btn" title={userName || 'Account'} aria-label="Account">
             <span className="nav-avatar">{userInitial}</span>
             <span className="nav-btn-label">Account</span>
           </Link>
