@@ -2152,6 +2152,10 @@ a, button, [role="button"], input, select, textarea {
   box-shadow: var(--shadow-md);
 }
 
+.oc-wrap[data-mode="dialogue"]:focus-within {
+  border-color: var(--border-focus);
+}
+
 .oc-wrap[data-mode="ambient"] {
   border: 1px solid transparent;
   background: transparent;
@@ -2167,7 +2171,7 @@ a, button, [role="button"], input, select, textarea {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 0 0 8px 0;
+  padding: 0 0 16px 0;
   mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 100%);
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 100%);
 }
@@ -2265,15 +2269,25 @@ a, button, [role="button"], input, select, textarea {
 
 .oc-input-wrap {
   flex-shrink: 0;
-  margin: 0 2px 12px;
+  margin: 16px 2px 12px;
 }
 
 .oc-input-border {
-  border: 1px solid var(--border);
+  border: 1.5px solid rgba(60, 110, 60, 0.28);
   border-radius: var(--r-xl);
   background: #fff;
   overflow: hidden;
-  transition: border-color 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.oc-input-border:hover {
+  border-color: rgba(60, 110, 60, 0.45);
+}
+
+.oc-input-border:focus-within {
+  border-color: rgba(60, 110, 60, 0.75);
+  box-shadow: 0 0 0 3px rgba(60, 110, 60, 0.12), var(--shadow-sm);
 }
 
 .oc-slash-menu {

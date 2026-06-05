@@ -15,16 +15,23 @@
 
 ## Last Session Completed
 
-**Review and Update Help Pre-Alpha Page — 2026-06-04 (Session 51, Antigravity)**
+**Make Conversation Input Field Prominent — 2026-06-04 (Session 52, Antigravity)**
 
 ### What was done
-- **Pre-Alpha Testing copy update (ORB-210)**: Removed references to the deleted onboarding seed projects (`WELCOME`, `ECO`) in the "Pre-Alpha Testing" tab of the Help sidebar, replacing them with generic project task scenarios.
-- **UI Catalog Check compliance**: Updated the last updated line in `docs/ui-catalog.md` to satisfy the verification requirement in `node scripts/verify-ui-catalog.js`.
+- **Prominent Input (ORB-211)**: Increased `.oc-input-border` default border thickness to `1.5px`, used a higher-contrast border color (`rgba(60, 110, 60, 0.28)`), and added a subtle shadow (`box-shadow: var(--shadow-sm);`).
+- **Hover & Focus Ring Glow**: Added `:hover` transition border color (`rgba(60, 110, 60, 0.45)`) and `:focus-within` border color (`rgba(60, 110, 60, 0.75)`) with an active accent glow focus ring.
+- **Spacing Separation**: Increased the separation space between the bottom message in the thread and the input container (changed `.oc-thread` bottom padding and `.oc-input-wrap` top margin to `16px`) to improve visual hierarchy and differentiate text blocks.
+- **Inline Style cleanup**: Removed inline styling overrides from `components/OrbConversation.tsx` to handle all transitions and borders inside CSS.
 - **Verification**: Verified clean build (`npx tsc --noEmit`), verified UI catalog check (`node scripts/verify-ui-catalog.js`), and ran Tier 1 of the Orb eval suite (5/5 passed ✅).
 
 ---
 
 ## Earlier Sessions
+
+**Review and Update Help Pre-Alpha Page — 2026-06-04 (Session 51, Antigravity)**
+- **Pre-Alpha Testing copy update (ORB-210)**: Removed references to the deleted onboarding seed projects (`WELCOME`, `ECO`) in the "Pre-Alpha Testing" tab of the Help sidebar, replacing them with generic project task scenarios.
+- **UI Catalog Check compliance**: Updated the last updated line in `docs/ui-catalog.md` to satisfy the verification requirement in `node scripts/verify-ui-catalog.js`.
+- **Verification**: Verified clean build (`npx tsc --noEmit`), verified UI catalog check (`node scripts/verify-ui-catalog.js`), and ran Tier 1 of the Orb eval suite (5/5 passed ✅).
 
 **Remove Onboarding Sample Projects & Update Guided Tour — 2026-06-04 (Session 50, Antigravity)**
 - **Removed onboarding sample projects/tasks (ORB-209)**: Disabled automatic seeding of projects (`WELCOME`, `HOME`, `ECO`) in `complete-onboarding.ts` and `resolve-user.ts`. Deleted `lib/onboarding-seeding.ts`.
@@ -71,10 +78,11 @@
 
 ## Uncommitted Changes
 
-- package.json (0.5.140 → 0.5.141)
-- lib/version.ts (v0.5.140 → v0.5.141)
-- components/OrbHelp.tsx (updated Things to Try copy)
-- lib/changelog.ts (added v0.5.141 entry)
+- package.json (0.5.141 → 0.5.142)
+- lib/version.ts (v0.5.141 → v0.5.142)
+- components/OrbConversation.tsx (removed inline border color overrides)
+- app/globals.css (prominent input border, hover, focus, shadow transitions)
+- lib/changelog.ts (added v0.5.142 entry)
 - docs/ui-catalog.md (updated last updated session tag)
 - HANDOFF.md (this file)
 
@@ -145,7 +153,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-04 — Antigravity (Gemini 3.5 Flash) — Session 51`
+`2026-06-04 — Antigravity (Gemini 3.5 Flash) — Session 52`
 
 ---
 

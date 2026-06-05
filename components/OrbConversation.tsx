@@ -354,9 +354,7 @@ export default function OrbConversation({
     }
 
     return (
-        <div className="oc-wrap" data-mode={conversationActive ? 'dialogue' : 'ambient'} style={{
-            borderColor: (inputFocused && conversationActive) ? 'var(--border-focus)' : undefined,
-        }}>
+        <div className="oc-wrap" data-mode={conversationActive ? 'dialogue' : 'ambient'}>
             {orbElement}
             {conversationActive ? (
                 <div ref={threadRef} className="oc-thread">
@@ -422,9 +420,7 @@ export default function OrbConversation({
                     </div>
                 )}
 
-                <div className="oc-input-border" style={{
-                    borderColor: inputFocused ? 'var(--border-focus)' : undefined,
-                }}>
+                <div className="oc-input-border">
                     <form onSubmit={handleFormSubmit}>
                         {!input && !submitting && (
                             <div className="oc-placeholder">

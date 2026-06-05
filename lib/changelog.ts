@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.142',
+    date: '2026-06-04',
+    changes: [
+      'ORB-211: Made the conversation input field more prominent by increasing default border thickness, using a higher-contrast border color, adding a subtle shadow, and implementing premium hover and focus ring glow effects in CSS.',
+      'ORB-211: Added visual separation spacing between the conversation thread and the input field to clearly differentiate the message flow from the input container.',
+    ]
+  },
+  {
     version: 'v0.5.141',
     date: '2026-06-04',
     changes: [
