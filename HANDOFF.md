@@ -105,14 +105,7 @@
 
 ## Uncommitted Changes
 
-- `package.json`: Bump version to 0.5.145
-- `lib/version.ts`: Bump VERSION to v0.5.145
-- `lib/changelog.ts`: Add release notes for v0.5.145
-- `app/actions/orb-converse.ts`: Query user names, map displayName, update SCOPE rules to restrict strategic guidance to user's projects
-- `app/api/orb-eval/route.ts`: Query user names, build userMap, format backlog owners, update SCOPE rules to match orb-converse
-- `scripts/eval-cases.ts`: Add `strategic-guidance-scoping` Tier 2 eval case
-- `scripts/orb-eval.ts`: Add retry wrapper and cool-off delay to resolve socket exhaustion during full eval runs
-- `docs/eval-suite-socket-exhaustion.md`: Document socket exhaustion / transient network failures during full eval runs
+- None (working tree clean)
 
 ---
 
