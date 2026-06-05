@@ -40,11 +40,164 @@ export function isPasskeyAvailable(): boolean {
   return window.location.hostname === PASSKEY_RP_HOSTNAME
 }
 
+// ── Conditional Mediation Support ──
+
+/**
+ * Check if the browser supports conditional mediation (passkey autofill).
+ * Four-step gate per the proposal:
+ * 1. window.PublicKeyCredential exists
+ * 2. isConditionalMediationAvailable exists
+ * 3. isConditionalMediationAvailable() returns true
+ * 4. Domain is production
+ */
+export async function isConditionalMediationSupported(): Promise<boolean> {
+  if (!isPasskeyAvailable()) return false
+  try {
+    if (typeof PublicKeyCredential.isConditionalMediationAvailable !== 'function') return false
+    return await PublicKeyCredential.isConditionalMediationAvailable()
+  } catch {
+    return false
+  }
+}
+
+// ── Base64URL helpers ──
+
+/** Decode a base64url string to Uint8Array. */
+function base64urlDecode(str: string): Uint8Array {
+  // Pad to multiple of 4
+  const padded = str + '='.repeat((4 - (str.length % 4)) % 4)
+  const binary = atob(padded.replace(/-/g, '+').replace(/_/g, '/'))
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes
+}
+
+/** Encode a Uint8Array to base64url string (no padding). */
+function base64urlEncode(bytes: Uint8Array): string {
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/**
+ * Parse the server's credential request options into the format
+ * navigator.credentials.get() expects (ArrayBuffer challenges/IDs).
+ */
+function parseRequestOptions(options: any): PublicKeyCredentialRequestOptions {
+  // Use browser's built-in parser if available
+  if (typeof PublicKeyCredential !== 'undefined' &&
+      'parseRequestOptionsFromJSON' in PublicKeyCredential &&
+      typeof (PublicKeyCredential as any).parseRequestOptionsFromJSON === 'function') {
+    return (PublicKeyCredential as any).parseRequestOptionsFromJSON(options)
+  }
+
+  const parsed: PublicKeyCredentialRequestOptions = {
+    ...options,
+    challenge: base64urlDecode(options.challenge).buffer,
+  }
+
+  if (options.allowCredentials?.length > 0) {
+    parsed.allowCredentials = options.allowCredentials.map((cred: any) => ({
+      ...cred,
+      id: base64urlDecode(cred.id).buffer,
+      type: cred.type || 'public-key',
+      transports: cred.transports,
+    }))
+  }
+
+  return parsed
+}
+
+/**
+ * Serialize a PublicKeyCredential response for Supabase's verify endpoint.
+ */
+function serializeCredentialResponse(credential: Credential): any {
+  // Use built-in toJSON if available
+  if ('toJSON' in credential && typeof (credential as any).toJSON === 'function') {
+    return (credential as any).toJSON()
+  }
+
+  const cred = credential as PublicKeyCredential
+  const response = cred.response as AuthenticatorAssertionResponse
+
+  return {
+    id: cred.id,
+    rawId: cred.id,
+    response: {
+      authenticatorData: base64urlEncode(new Uint8Array(response.authenticatorData)),
+      clientDataJSON: base64urlEncode(new Uint8Array(response.clientDataJSON)),
+      signature: base64urlEncode(new Uint8Array(response.signature)),
+      userHandle: response.userHandle
+        ? base64urlEncode(new Uint8Array(response.userHandle))
+        : undefined,
+    },
+    type: 'public-key',
+    clientExtensionResults: cred.getClientExtensionResults(),
+    authenticatorAttachment: (cred as any).authenticatorAttachment ?? undefined,
+  }
+}
+
 // ── Authentication ──
 
 /**
- * Sign in with a passkey. Handles the full WebAuthn ceremony via Supabase SDK.
- * Returns session data on success.
+ * Sign in with a passkey via conditional mediation (autofill).
+ * Runs in the background — the browser silently waits for the user to
+ * select a passkey from autofill. Returns session on success.
+ *
+ * Requires autocomplete="username webauthn" on the email input.
+ */
+export async function authenticateWithConditionalMediation(
+  supabase: SupabaseClient,
+  abortController: AbortController
+): Promise<PasskeyResult<{ session: any }>> {
+  try {
+    // Step 1: Get challenge from Supabase
+    const { data, error } = await (supabase.auth as any).passkey.startAuthentication()
+    if (error || !data) {
+      return { ok: false, error: error?.message ?? 'Failed to start authentication' }
+    }
+
+    // Step 2: Call navigator.credentials.get with conditional mediation
+    const publicKeyOptions = parseRequestOptions(data.options)
+    const credential = await navigator.credentials.get({
+      publicKey: publicKeyOptions,
+      mediation: 'conditional' as CredentialMediationRequirement,
+      signal: abortController.signal,
+    })
+
+    if (!credential) {
+      return { ok: false, error: 'no_credentials' }
+    }
+
+    // Step 3: Serialize and verify with Supabase
+    const serialized = serializeCredentialResponse(credential)
+    const verify = await (supabase.auth as any).passkey.verifyAuthentication({
+      challengeId: data.challenge_id,
+      credential: serialized,
+    })
+
+    if (verify.error) {
+      return { ok: false, error: verify.error.message }
+    }
+
+    return { ok: true, data: { session: verify.data?.session } }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    // Abort is expected — user typed email or navigated away
+    if (msg.includes('AbortError') || msg.includes('abort')) {
+      return { ok: false, error: 'aborted' }
+    }
+    return { ok: false, error: msg }
+  }
+}
+
+/**
+ * Sign in with a passkey (modal flow). Handles the full WebAuthn ceremony
+ * via Supabase SDK. Returns session data on success.
  */
 export async function authenticateWithPasskey(
   supabase: SupabaseClient
@@ -53,11 +206,9 @@ export async function authenticateWithPasskey(
     const { data, error } = await (supabase.auth as any).signInWithPasskey()
 
     if (error) {
-      // User cancelled the WebAuthn prompt
       if (error.message?.includes('AbortError') || error.message?.includes('cancelled') || error.message?.includes('canceled')) {
         return { ok: false, error: 'cancelled' }
       }
-      // No credentials found for this device
       if (error.message?.includes('no credentials') || error.message?.includes('NotAllowedError')) {
         return { ok: false, error: 'no_credentials' }
       }

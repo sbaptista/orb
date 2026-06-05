@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.140',
+    date: '2026-06-04',
+    changes: [
+      'Conditional mediation: returning users with a passkey see it in the email field\'s autofill. Tap it, biometric fires, signed in — no email or OTP needed.',
+      'Uses Supabase\'s two-step passkey API (startAuthentication + verifyAuthentication) with navigator.credentials.get({ mediation: "conditional" }).',
+      'Progressive enhancement: if the browser doesn\'t support conditional mediation, the page falls back to email/OTP silently. All failure paths are silent.',
+    ]
+  },
+  {
     version: 'v0.5.139',
     date: '2026-06-04',
     changes: [

@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import { checkLoginAllowed } from '@/app/actions/auth-actions'
+import { isConditionalMediationSupported, authenticateWithConditionalMediation } from '@/lib/passkey'
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -14,10 +15,42 @@ function LoginForm() {
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
+  const supabase = useMemo(() => createClient(), [])
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // ── Conditional mediation: background passkey autofill ──
+  useEffect(() => {
+    let cancelled = false
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    async function startConditionalMediation() {
+      const supported = await isConditionalMediationSupported()
+      if (!supported || cancelled) return
+
+      const result = await authenticateWithConditionalMediation(supabase, controller)
+
+      if (cancelled) return
+      if (result.ok) {
+        router.push('/dashboard')
+        return
+      }
+      // All failures are silent — aborted, cancelled, no credentials, errors.
+      // User continues with email/OTP normally.
+    }
+
+    startConditionalMediation()
+
+    return () => {
+      cancelled = true
+      controller.abort()
+      abortRef.current = null
+    }
+  }, [supabase, router])
 
   // Calculate remaining cooldown dynamically during render (only after hydration)
   const trimmedEmail = email.trim().toLowerCase()
@@ -67,6 +100,8 @@ function LoginForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    // Abort any pending conditional mediation — user chose OTP path
+    abortRef.current?.abort()
     setLoading(true)
     setError('')
 
@@ -86,7 +121,6 @@ function LoginForm() {
         return
       }
 
-      const supabase = createClient()
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email,
         options: { shouldCreateUser: false },
@@ -139,6 +173,7 @@ function LoginForm() {
             onChange={(e) => setEmail(e.target.value)}
             required
             placeholder="you@example.com"
+            autoComplete="username webauthn"
             className="auth-input"
           />
         </div>
