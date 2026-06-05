@@ -15,6 +15,20 @@
 
 ## Last Session Completed
 
+**Scope Strategic Guidance to Current User's Projects (ORB-212) — 2026-06-05 (Session 55, Antigravity)**
+
+### What was done
+- **Scoping Filter for Strategic Guidance**: Modified `app/actions/orb-converse.ts` to query `first_name` and `last_name` from the `users` table for the current user and use their full name/email in the user mapping.
+- **SCOPE Rules Update**: Added a new instruction under `SCOPE` in the system prompt in both `app/actions/orb-converse.ts` and `app/api/orb-eval/route.ts` telling the Orb to only recommend tasks from projects owned by the current user when providing strategic guidance, task recommendations, workload summaries, or next steps.
+- **Evaluation Suite Alignment**: Updated the `route.ts` handler to query all users and set up a `userMap` in the same way as `orb-converse.ts`, ensuring the evaluation backlog system prompt contains identical owner tags.
+- **Added Regression Case**: Appended `strategic-guidance-scoping` test case to `scripts/eval-cases.ts` to assert that strategic guidance responses do not suggest other users' projects (`PROJ-`, `TRAVEL-`, `PERSONAL-`).
+- **Release Documentation & Bump**: Bumped version to `v0.5.145` (package.json + version.ts) and added a release entry to `lib/changelog.ts`.
+- **Verification**: Verified Tier 1 passes (5/5 ✅) and the new behavioral Tier 2 test case passes (3/3 ✅).
+
+---
+
+## Earlier Sessions
+
 **Resolve Lint Failures and Restore Lint Signal (ORB-208) — 2026-06-04 (Session 54, Antigravity)**
 
 ### What was done
@@ -28,10 +42,6 @@
 - **JSX Entity Escaping**: Fixed unescaped entities (quotes and single quotes) in `SettingsNotifications.tsx`, `SettingsProjectTodos.tsx`, `SettingsUserDetail.tsx`, `SettingsFriction.tsx`, and `DeclineForm.tsx`.
 - **Database & Knowledge Repo**: Closed todo `df6115f5-8da2-414d-9ac6-095c59cdbb54` and logged a detailed knowledge repository entry summarizing the lint fixes.
 - **Verification**: Verified clean build (`npm run build`), verified typecheck (`npx tsc --noEmit`), and verified full linting checks (`npm run lint`) passed with 0 errors.
-
----
-
-## Earlier Sessions
 
 **Scope Proactive Observations by Project Ownership — 2026-06-04 (Session 53, Antigravity)**
 - **Scoping Proactive Observations (ORB-207)**: Filtered proactive observations (overdue/stale task highlights in the greeting prompt) in `app/actions/orb-converse.ts` and `app/api/orb-eval/route.ts` to analyze only projects owned/created by the current user (`auth.user.id`).
@@ -95,7 +105,14 @@
 
 ## Uncommitted Changes
 
-- None (working tree clean)
+- `package.json`: Bump version to 0.5.145
+- `lib/version.ts`: Bump VERSION to v0.5.145
+- `lib/changelog.ts`: Add release notes for v0.5.145
+- `app/actions/orb-converse.ts`: Query user names, map displayName, update SCOPE rules to restrict strategic guidance to user's projects
+- `app/api/orb-eval/route.ts`: Query user names, build userMap, format backlog owners, update SCOPE rules to match orb-converse
+- `scripts/eval-cases.ts`: Add `strategic-guidance-scoping` Tier 2 eval case
+- `scripts/orb-eval.ts`: Add retry wrapper and cool-off delay to resolve socket exhaustion during full eval runs
+- `docs/eval-suite-socket-exhaustion.md`: Document socket exhaustion / transient network failures during full eval runs
 
 ---
 
@@ -164,7 +181,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-04 — Antigravity (Gemini 1.5 Pro) — Session 54`
+`2026-06-05 — Antigravity (Gemini 3.5 Flash) — Session 55`
 
 ---
 

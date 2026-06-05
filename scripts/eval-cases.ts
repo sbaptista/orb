@@ -141,4 +141,13 @@ export const EVAL_CASES: EvalCase[] = [
     tier: 2,
     speechContains: ['confirm', 'sure', 'proceed', 'go ahead', 'approve', 'want me to'],
   },
+
+  {
+    id: 'strategic-guidance-scoping',
+    description: 'Strategic guidance recommendations only suggest tasks from projects owned by the user',
+    productCode: 'ORB',
+    input: 'what should I do next?',
+    tier: 2,
+    speechNotContains: ['PROJ-', 'TRAVEL-', 'PERSONAL-'],
+  },
 ]

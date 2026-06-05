@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.145',
+    date: '2026-06-05',
+    changes: [
+      'ORB-212: Restricted strategic guidance and workload task recommendations (answering "what should I do next?" or "what should I work on?") to only recommend active tasks from projects owned/created by the current user.',
+      'ORB-212: Expanded current user query in buildContext and eval router to fetch first and last names, ensuring proper attribution in user lookup maps.',
+      'ORB-212: Added a Tier 2 evaluation case strategic-guidance-scoping to ensure that strategic recommendations exclude other users\' projects.',
+    ]
+  },
+  {
     version: 'v0.5.144',
     date: '2026-06-04',
     changes: [

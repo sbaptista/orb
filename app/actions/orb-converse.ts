@@ -99,7 +99,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     supabase.from('priorities').select('*').order('value'),
     supabase.from('knowledge_repo').select('*, projects(code, name)').order('created_at', { ascending: false }),
     supabase.from('audit_log').select('action, record_id, created_at, before, after, actor', { count: 'exact' }).gte('created_at', fourteenDaysAgo).order('created_at', { ascending: false }).limit(200),
-    supabase.from('users').select('urgency_threshold_hours, timezone').eq('id', auth.user.id).maybeSingle(),
+    supabase.from('users').select('urgency_threshold_hours, timezone, first_name, last_name').eq('id', auth.user.id).maybeSingle(),
     // ── Additional context (ORB-146) ──
     supabase.from('categories').select('id, name, product_id').is('deleted_at', null).order('sort_order'),
     supabase.from('groups').select('id, name, product_id').is('deleted_at', null).order('sort_order'),
@@ -121,7 +121,8 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     supabase.from('knowledge_repo').select('title, content').contains('tags', ['orb-behavior']).order('created_at', { ascending: false }).limit(20),
   ])
 
-  const currentUser = { id: auth.user.id, email: auth.user.email, roles: { name: auth.role } }
+  const currentUserName = userProfile ? [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ') : ''
+  const currentUser = { id: auth.user.id, email: auth.user.email, name: currentUserName || null, roles: { name: auth.role } }
 
   const productList  = (products   ?? [])
   const dormantList  = (dormantProducts ?? [])
@@ -142,7 +143,9 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     userMap.set(u.id, name || u.email)
   }
   // Ensure the current user is always in the map
-  if (!userMap.has(auth.user.id)) {
+  if (currentUser.name) {
+    userMap.set(auth.user.id, currentUser.name)
+  } else if (!userMap.has(auth.user.id)) {
     userMap.set(auth.user.id, auth.user.email ?? 'you')
   }
 
@@ -361,7 +364,7 @@ export async function orbConverse(req: OrbRequest) {
             `You are the voice of the orb — the conversational layer of Orb.`,
             ORB_VOICE,
             `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
-            ctx.currentUser ? `USER CONTEXT: You are talking to ${ctx.currentUser.email} (Role: ${userRole || 'Unknown'}).` : '',
+            ctx.currentUser ? `USER CONTEXT: You are talking to ${ctx.currentUser.email} (Name: ${ctx.currentUser.name || 'Unknown'}, Role: ${userRole || 'Unknown'}).` : '',
 
             // Layer 1: Principles
             ORB_PRINCIPLES,
@@ -371,7 +374,7 @@ export async function orbConverse(req: OrbRequest) {
             STATUS_VOCABULARY,
             `The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering. When the user asks "how many tasks" or "my tasks" without specifying, report the ACTIVE count. If parked tasks exist, mention them separately.`,
             buildUrgencyRules(ctx.urgencyThresholdHours),
-            `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${ctx.current?.name}" (code: "${ctx.current?.code}") unless the user explicitly names a different project.\n- When calling tools (create_todo, query_todos, etc.), ALWAYS pass the project code — never omit it.\n- When speaking to the user, refer to projects by display name.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${ctx.current?.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.`,
+            `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${ctx.current?.name}" (code: "${ctx.current?.code}") unless the user explicitly names a different project.\n- When calling tools (create_todo, query_todos, etc.), ALWAYS pass the project code — never omit it.\n- When speaking to the user, refer to projects by display name.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${ctx.current?.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${ctx.currentUser.name || ctx.currentUser.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
             req.uiContext ? `UI STATE: The user is viewing: ${req.uiContext.viewMode ?? 'list'} view | filter: ${req.uiContext.filterStatus ?? 'active'} | priority filter: ${req.uiContext.filterPriority ?? 'all'} | sort: ${req.uiContext.sortAsc ? 'oldest first' : 'newest first'} | orb pane: ${req.uiContext.orbPaneVisible ? 'visible' : 'hidden'} | list pane: ${req.uiContext.listPaneVisible ? 'visible' : 'hidden'} | device: ${req.uiContext.isMobile ? 'mobile' : 'desktop'}. Use this to understand what the user sees when they say "this view", "the list", "that column", etc.` : '',
             uiCatalog ? `UI CATALOG & NAVIGATION (the layout structure, buttons, views, and settings of the app):\n${uiCatalog}` : '',
             `BACKLOG (includes DORMANT section if any exist — answer dormant project questions from here, do not query):\n${ctx.contextString}`,

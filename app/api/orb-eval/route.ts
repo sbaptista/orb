@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   // Resolve the eval user (first admin found)
   const { data: evalUser } = await admin
     .from('users')
-    .select('id, email, role_id, roles(name)')
+    .select('id, email, first_name, last_name, role_id, roles(name)')
     .in('role_id', [1, 3])
     .limit(1)
     .single()
@@ -59,8 +59,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No admin user found for eval' }, { status: 500 })
   }
 
+  const evalUserName = evalUser ? [evalUser.first_name, evalUser.last_name].filter(Boolean).join(' ') : ''
   const auth = {
-    user: { id: evalUser.id, email: evalUser.email ?? '' },
+    user: { id: evalUser.id, email: evalUser.email ?? '', name: evalUserName || null },
     role: (evalUser as any).roles?.name ?? 'Admin',
     roleId: evalUser.role_id,
     isAdmin: true,
@@ -78,6 +79,7 @@ export async function POST(request: NextRequest) {
     { data: knowledge },
     { data: orbPreferences },
     { data: behaviorRules },
+    { data: allUsers },
   ] = await Promise.all([
     visibleProjectsQuery(admin, 'id, name, code, description, created_by'),
     admin.from('projects').select('id, name, code').eq('is_dormant', true).order('sort_order'),
@@ -87,9 +89,21 @@ export async function POST(request: NextRequest) {
     admin.from('knowledge_repo').select('*, projects(code, name)').order('created_at', { ascending: false }),
     admin.from('orb_preferences').select('key, value').eq('user_id', evalUser.id),
     admin.from('knowledge_repo').select('title, content').contains('tags', ['orb-behavior']).order('created_at', { ascending: false }).limit(20),
+    admin.from('users').select('id, email, first_name, last_name').order('created_at'),
   ])
 
   const productList = products ?? []
+  const userList = allUsers ?? []
+  const userMap = new Map<string, string>()
+  for (const u of userList) {
+    const name = [u.first_name, u.last_name].filter(Boolean).join(' ')
+    userMap.set(u.id, name || u.email)
+  }
+  if (evalUserName) {
+    userMap.set(evalUser.id, evalUserName)
+  } else if (!userMap.has(evalUser.id)) {
+    userMap.set(evalUser.id, evalUser.email ?? 'you')
+  }
   const dormantList = dormantProducts ?? []
   const visibleProductIds = new Set(productList.map((p: any) => p.id))
   const todoList = (todos ?? []).filter((t: any) => visibleProductIds.has(t.product_id))
@@ -132,7 +146,9 @@ export async function POST(request: NextRequest) {
   }
 
   const byProduct = productList.map((p: any) => {
-    const header = `${p.code ?? p.name}${p.description ? ` (${p.description})` : ''}`
+    const ownerName = userMap.get(p.created_by)
+    const ownerTag = ownerName ? ` [Owner: ${ownerName}]` : ''
+    const header = `${p.code ?? p.name}${p.description ? ` (${p.description})` : ''}${ownerTag}`
     const pTodos = todoList.filter((t: any) => t.product_id === p.id && !statusList.find((s: any) => s.name === t.status)?.is_closed)
     const activeLine = pTodos.filter((t: any) => isActive(t.status)).map(todoLine).join('\n')
     const parkedLine = pTodos.filter((t: any) => !isActive(t.status)).map(todoLine).join('\n')
@@ -168,13 +184,13 @@ export async function POST(request: NextRequest) {
     `You are the voice of the orb — the conversational layer of Orb.`,
     ORB_VOICE,
     `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
-    `USER CONTEXT: You are talking to ${auth.user.email} (Role: ${auth.role}).`,
+    `USER CONTEXT: You are talking to ${auth.user.email} (Name: ${auth.user.name || 'Unknown'}, Role: ${auth.role}).`,
     ORB_PRINCIPLES,
     `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,
     STATUS_VOCABULARY,
     `The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering.`,
     buildUrgencyRules(24),
-    `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${current.name}" (code: "${current.code}") unless the user explicitly names a different project.\n- When calling tools (create_todo, query_todos, etc.), ALWAYS pass the project code — never omit it.\n- When speaking to the user, refer to projects by display name.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${current.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.`,
+    `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${current.name}" (code: "${current.code}") unless the user explicitly names a different project.\n- When calling tools (create_todo, query_todos, etc.), ALWAYS pass the project code — never omit it.\n- When speaking to the user, refer to projects by display name.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${current.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${auth.user.name || auth.user.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
     uiCatalog ? `UI CATALOG & NAVIGATION:\n${uiCatalog}` : '',
     `BACKLOG:\n${contextString}`,
     `KNOWLEDGE BASE (Recent):\n${knowledgeList.slice(0, 5).map((k: any) => {

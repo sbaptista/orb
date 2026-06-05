@@ -54,8 +54,9 @@ type TestResult = {
 
 // ── API Call ────────────────────────────────────────────────────────────────
 
+const INTER_RUN_DELAY_MS = 300
+
 async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
-  // Skip TLS verification for localhost self-signed cert
   const res = await fetch(`${BASE_URL}/api/orb-eval`, {
     method: 'POST',
     headers: {
@@ -75,6 +76,28 @@ async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
   }
 
   return res.json()
+}
+
+function isNetworkError(msg: string): boolean {
+  return /fetch failed|ECONNRESET|ETIMEDOUT|ECONNREFUSED|socket hang up/i.test(msg)
+}
+
+async function callOrbWithRetry(testCase: EvalCase, retries = 3): Promise<EvalResponse> {
+  let delay = 1000
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      return await callOrb(testCase)
+    } catch (err: any) {
+      if (isNetworkError(err.message ?? '') && attempt < retries - 1) {
+        process.stderr.write(`\n  ⚠️  Network error on ${testCase.id} — retrying in ${delay}ms...\n`)
+        await new Promise(r => setTimeout(r, delay))
+        delay *= 2
+        continue
+      }
+      throw err
+    }
+  }
+  throw new Error('Retries exhausted')
 }
 
 // ── Assertions ─────────────────────────────────────────────────────────────
@@ -160,7 +183,7 @@ async function runCase(testCase: EvalCase): Promise<TestResult> {
   for (let i = 0; i < runs; i++) {
     const start = Date.now()
     try {
-      const response = await callOrb(testCase)
+      const response = await callOrbWithRetry(testCase)
       totalMs += Date.now() - start
       lastResponse = response
 
@@ -177,6 +200,8 @@ async function runCase(testCase: EvalCase): Promise<TestResult> {
       totalMs += Date.now() - start
       lastFailures = [`Error: ${err.message}`]
     }
+
+    if (i < runs - 1) await new Promise(r => setTimeout(r, INTER_RUN_DELAY_MS))
   }
 
   // Tier 1: must pass 1/1. Tier 2: must pass 2/3.
@@ -276,7 +301,7 @@ async function main() {
 
       const runStart = Date.now()
       try {
-        const response = await callOrb(testCase)
+        const response = await callOrbWithRetry(testCase)
         totalMs += Date.now() - runStart
         lastResponse = response
 
@@ -292,7 +317,6 @@ async function main() {
       } catch (err: any) {
         totalMs += Date.now() - runStart
         const msg = err.message || ''
-        // Credit/rate limit errors are infrastructure, not behavioral failures — skip the run
         if (msg.includes('credit balance') || msg.includes('rate_limit') || msg.includes('overloaded')) {
           console.warn(`\n  ⚠️  API limit hit on ${testCase.id} run ${i + 1} — skipping run`)
           completedRuns++
@@ -301,6 +325,9 @@ async function main() {
         lastFailures = [`Error: ${msg}`]
       }
       completedRuns++
+
+      // Cool-off between runs to prevent socket exhaustion on the dev server
+      if (i < runs - 1) await new Promise(r => setTimeout(r, INTER_RUN_DELAY_MS))
     }
 
     // Tier 1: must pass 1/1. Tier 2: must pass majority of COMPLETED runs.
