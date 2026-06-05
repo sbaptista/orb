@@ -3,6 +3,7 @@ import { resolveUser } from '@/lib/resolve-user'
 import { redirect } from 'next/navigation'
 import { visibleProjectsQuery } from '@/lib/projects'
 import UnifiedDashboard from '@/components/UnifiedDashboard'
+import PasskeyGate from '@/components/PasskeyGate'
 
 type Product = { id: string; name: string; code: string | null; description?: string | null; created_by?: string; view_mode: 'list' | 'checklist' }
 
@@ -20,10 +21,12 @@ export default async function DashboardPage() {
     .eq('created_by', user.id)
 
   return (
-    <UnifiedDashboard
-      initialProducts={(data ?? []) as Product[]}
-      isAdmin={isAdmin}
-      user={result.user}
-    />
+    <PasskeyGate>
+      <UnifiedDashboard
+        initialProducts={(data ?? []) as Product[]}
+        isAdmin={isAdmin}
+        user={result.user}
+      />
+    </PasskeyGate>
   )
 }

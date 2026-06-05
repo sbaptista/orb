@@ -4,7 +4,6 @@ import { useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
-import { isPasskeyAvailable, listPasskeys } from '@/lib/passkey'
 
 function VerifyOtpContent() {
   const searchParams = useSearchParams()
@@ -40,23 +39,6 @@ function VerifyOtpContent() {
         setLoading(false)
       } else {
         setVerified(true)
-
-        // Check if we should prompt for passkey enrollment
-        try {
-          if (isPasskeyAvailable()) {
-            const skipped = localStorage.getItem('passkey_prompt_skipped')
-            if (!skipped) {
-              const result = await listPasskeys(supabase)
-              if (result.ok && result.data && result.data.length === 0) {
-                router.push('/auth/setup-passkey')
-                return
-              }
-            }
-          }
-        } catch {
-          // If passkey check fails, just go to dashboard
-        }
-
         router.push('/dashboard')
       }
     } catch (err: any) {

@@ -50,16 +50,7 @@ export default function SetupPasskeyPage() {
       return
     }
 
-    setError(result.error || 'Failed to register passkey. You can set one up later in Settings.')
-  }
-
-  function handleSkip() {
-    try {
-      localStorage.setItem('passkey_prompt_skipped', 'true')
-    } catch {
-      // localStorage unavailable — skip silently
-    }
-    router.push('/dashboard')
+    setError(result.error || 'Failed to register passkey. Please try again.')
   }
 
   if (loading) {
@@ -113,11 +104,6 @@ export default function SetupPasskeyPage() {
           )}
         </div>
 
-        {!success && (
-          <button onClick={handleSkip} className="auth-back">
-            Skip for now
-          </button>
-        )}
       </div>
 
       <div className="auth-version">

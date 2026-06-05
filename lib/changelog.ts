@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.139',
+    date: '2026-06-04',
+    changes: [
+      'Passkey registration is now mandatory: after OTP login, users are redirected to set up a passkey if their device supports it. No skip option.',
+      'Removed passkey button from login page — all users start with email/OTP. Passkeys are used automatically by the OS on subsequent logins.',
+      'Removed Settings > Passkeys page from navigation — passkey management is handled by the mandatory gate and the OS.',
+      'Passkeys settings page is now accessible to all users (not admin-only) if accessed by direct URL.',
+    ]
+  },
+  {
     version: 'v0.5.138',
     date: '2026-06-04',
     changes: [

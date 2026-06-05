@@ -5,23 +5,18 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import { checkLoginAllowed } from '@/app/actions/auth-actions'
-import { isPasskeyAvailable, authenticateWithPasskey } from '@/lib/passkey'
 
 function LoginForm() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
-  const [passkeyLoading, setPasskeyLoading] = useState(false)
   const [error, setError] = useState('')
-  const [passkeyInfo, setPasskeyInfo] = useState('')
   const [time, setTime] = useState(() => Date.now())
   const [mounted, setMounted] = useState(false)
-  const [passkeyAvailable, setPasskeyAvailable] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
 
   useEffect(() => {
     setMounted(true)
-    setPasskeyAvailable(isPasskeyAvailable())
   }, [])
 
   // Calculate remaining cooldown dynamically during render (only after hydration)
@@ -69,34 +64,6 @@ function LoginForm() {
       }, 0)
     }
   }, [searchParams])
-
-  async function handlePasskeyLogin() {
-    setPasskeyLoading(true)
-    setError('')
-    setPasskeyInfo('')
-
-    const supabase = createClient()
-    const result = await authenticateWithPasskey(supabase)
-
-    if (result.ok) {
-      router.push('/dashboard')
-      return
-    }
-
-    setPasskeyLoading(false)
-
-    if (result.error === 'cancelled') {
-      // User cancelled — silently return to idle
-      return
-    }
-
-    if (result.error === 'no_credentials') {
-      setPasskeyInfo('No passkey found for this device. Sign in with email below.')
-      return
-    }
-
-    setError(result.error || 'Passkey authentication failed. Try signing in with email.')
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -158,36 +125,9 @@ function LoginForm() {
       <div className="auth-header">
         <h1 className="auth-title">Orb</h1>
         <p className="auth-subtitle">
-          {passkeyAvailable ? 'Sign in with your passkey or email' : 'Enter your email to receive a verification code'}
+          Enter your email to receive a verification code
         </p>
       </div>
-
-      {passkeyAvailable && (
-        <>
-          <div className="auth-form">
-            <button
-              type="button"
-              onClick={handlePasskeyLogin}
-              disabled={passkeyLoading}
-              className="auth-submit"
-            >
-              {passkeyLoading ? 'Authenticating…' : 'Sign in with passkey'}
-            </button>
-          </div>
-
-          {passkeyInfo && (
-            <div className="auth-info">
-              <p className="text-sm" style={{ margin: 0, color: 'var(--muted)' }}>{passkeyInfo}</p>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 'var(--sp-lg) 0' }}>
-            <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-            <span className="text-xs text-muted">or</span>
-            <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-          </div>
-        </>
-      )}
 
       <form onSubmit={handleSubmit} className="auth-form">
         <div className="auth-field">
