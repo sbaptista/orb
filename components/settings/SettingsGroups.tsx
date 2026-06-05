@@ -119,63 +119,6 @@ export default function SettingsGroups() {
     setConfirmDeleteId(null)
   }
 
-  function GroupFormComp({
-    form,
-    onChange,
-    onSubmit,
-    onCancel,
-    submitLabel,
-  }: {
-    form: GroupForm
-    onChange: (f: GroupForm) => void
-    onSubmit: () => void
-    onCancel: () => void
-    submitLabel: string
-  }) {
-    return (
-      <div className="s-form">
-        <div className="grid-2col mb-md">
-          <div>
-            <label className="label">Name *</label>
-            <input
-              className="input"
-              value={form.name}
-              onChange={e => onChange({ ...form, name: e.target.value })}
-              autoFocus
-              placeholder="Group name"
-            />
-          </div>
-          <div>
-            <label className="label">Sort Order</label>
-            <input
-              type="number"
-              className="input"
-              value={form.sort_order}
-              onChange={e => onChange({ ...form, sort_order: e.target.value })}
-            />
-          </div>
-        </div>
-        <div className="mb-md">
-          <label className="label">Product</label>
-          <select
-            className="select"
-            value={form.product_id}
-            onChange={e => onChange({ ...form, product_id: e.target.value })}
-          >
-            <option value="">Global</option>
-            {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </div>
-        <div className="flex-row gap-sm">
-          <button className="btn-primary" onClick={onSubmit} disabled={saving}>
-            {saving ? 'Saving…' : submitLabel}
-          </button>
-          <button className="btn-cancel" onClick={onCancel}>Cancel</button>
-        </div>
-      </div>
-    )
-  }
-
   if (loading) return <div className="s-loading">Loading…</div>
 
   return (
@@ -215,6 +158,8 @@ export default function SettingsGroups() {
             onSubmit={handleAdd}
             onCancel={() => { setShowAdd(false); setError('') }}
             submitLabel="Add Group"
+            products={products}
+            saving={saving}
           />
         )}
 
@@ -230,6 +175,8 @@ export default function SettingsGroups() {
                 onSubmit={() => handleSave(g.id)}
                 onCancel={() => { setEditingId(null); setError('') }}
                 submitLabel="Save"
+                products={products}
+                saving={saving}
               />
             ) : confirmDeleteId === g.id ? (
               <div key={g.id} className="s-row-delete">
@@ -275,6 +222,67 @@ export default function SettingsGroups() {
             )
           )
         )}
+      </div>
+    </div>
+  )
+}
+
+function GroupFormComp({
+  form,
+  onChange,
+  onSubmit,
+  onCancel,
+  submitLabel,
+  products,
+  saving,
+}: {
+  form: GroupForm
+  onChange: (f: GroupForm) => void
+  onSubmit: () => void
+  onCancel: () => void
+  submitLabel: string
+  products: Product[]
+  saving: boolean
+}) {
+  return (
+    <div className="s-form">
+      <div className="grid-2col mb-md">
+        <div>
+          <label className="label">Name *</label>
+          <input
+            className="input"
+            value={form.name}
+            onChange={e => onChange({ ...form, name: e.target.value })}
+            autoFocus
+            placeholder="Group name"
+          />
+        </div>
+        <div>
+          <label className="label">Sort Order</label>
+          <input
+            type="number"
+            className="input"
+            value={form.sort_order}
+            onChange={e => onChange({ ...form, sort_order: e.target.value })}
+          />
+        </div>
+      </div>
+      <div className="mb-md">
+        <label className="label">Product</label>
+        <select
+          className="select"
+          value={form.product_id}
+          onChange={e => onChange({ ...form, product_id: e.target.value })}
+        >
+          <option value="">Global</option>
+          {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </div>
+      <div className="flex-row gap-sm">
+        <button className="btn-primary" onClick={onSubmit} disabled={saving}>
+          {saving ? 'Saving…' : submitLabel}
+        </button>
+        <button className="btn-cancel" onClick={onCancel}>Cancel</button>
       </div>
     </div>
   )

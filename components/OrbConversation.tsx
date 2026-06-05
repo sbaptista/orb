@@ -170,7 +170,7 @@ export default function OrbConversation({
 }: Props) {
     const threadRef             = useRef<HTMLDivElement>(null)
     const textareaRef           = useRef<HTMLTextAreaElement>(null)
-    const slashMenuDismissed    = useRef(false)
+    const [slashMenuDismissed, setSlashMenuDismissed] = useState(false)
     const [inputFocused, setInputFocused] = useState(false)
     const [copiedInput, setCopiedInput] = useState(false)
     const [copiedTranscript, setCopiedTranscript] = useState(false)
@@ -268,7 +268,7 @@ export default function OrbConversation({
     ]
 
     const activeSlashCommands = SLASH_COMMANDS.filter(c => c.cmd.toLowerCase().startsWith(input.toLowerCase()))
-    const showSlashMenu = inputFocused && input.startsWith('/') && activeSlashCommands.length > 0 && historyIndex === -1 && !slashMenuDismissed.current
+    const showSlashMenu = inputFocused && input.startsWith('/') && activeSlashCommands.length > 0 && historyIndex === -1 && !slashMenuDismissed
 
     function handleFormSubmit(e?: React.FormEvent, overrideValue?: string) {
         e?.preventDefault()
@@ -287,7 +287,7 @@ export default function OrbConversation({
     }
 
     function fillCommand(cmd: string) {
-        slashMenuDismissed.current = true
+        setSlashMenuDismissed(true)
         onInputChange(cmd)
         setSlashIndex(0)
         const match = cmd.match(/\[([^\]]+)\]/)
@@ -330,16 +330,19 @@ export default function OrbConversation({
         }
     }
 
-    const autoResize = useCallback(() => {
+    const autoResize = () => {
         const el = textareaRef.current
         if (!el) return
         el.style.height = 'auto'
         const h = Math.min(el.scrollHeight, 120)
         el.style.height = `${h}px`
         el.style.overflowY = el.scrollHeight > 120 ? 'auto' : 'hidden'
-    }, [])
+    }
 
-    useEffect(() => { autoResize() }, [input, autoResize])
+    useEffect(() => {
+        autoResize()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [input])
 
     function copyTranscript() {
         const transcript = messages.map(m => {
@@ -433,7 +436,7 @@ export default function OrbConversation({
                             className="oc-textarea"
                             rows={1}
                             value={input}
-                            onChange={e => { slashMenuDismissed.current = false; onInputChange(e.target.value); autoResize() }}
+                            onChange={e => { setSlashMenuDismissed(false); onInputChange(e.target.value); autoResize() }}
                             onKeyDown={e => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault()
@@ -458,7 +461,7 @@ export default function OrbConversation({
                                     }
                                 } else if (e.key === 'Escape') {
                                     if (showSlashMenu) {
-                                        slashMenuDismissed.current = true
+                                        setSlashMenuDismissed(true)
                                         setSlashIndex(0)
                                     }
                                 }
@@ -479,7 +482,7 @@ export default function OrbConversation({
                                     if (input.startsWith('/')) {
                                         onInputChange('')
                                     } else {
-                                        slashMenuDismissed.current = false
+                                        setSlashMenuDismissed(false)
                                         onInputChange('/')
                                     }
                                     textareaRef.current?.focus()

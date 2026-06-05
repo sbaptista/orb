@@ -159,7 +159,7 @@ export default function SettingsFriction() {
                     <td className="audit-td" style={{ fontSize: '12px', color: 'var(--text2)' }}>
                         {log.conversation_snippet ? (
                            <div style={{ fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                               "{log.conversation_snippet}"
+                               &ldquo;{log.conversation_snippet}&rdquo;
                            </div>
                         ) : '—'}
                     </td>

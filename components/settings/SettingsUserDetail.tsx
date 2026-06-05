@@ -158,7 +158,6 @@ export default function SettingsUserDetail({ userId }: { userId: string }) {
   const loaded = useRef(false)
 
   const load = useCallback(async () => {
-    if (!loaded.current) setLoading(true)
     const [userRes, projRes] = await Promise.all([
       getUserDetail(userId),
       getUserProjects(userId),
@@ -263,7 +262,7 @@ export default function SettingsUserDetail({ userId }: { userId: string }) {
           <div className="s-card" style={{ maxWidth: '500px', textAlign: 'center', padding: 'var(--sp-2xl)' }}>
               <h3 style={{ fontSize: 'var(--fs-lg)', marginBottom: 'var(--sp-sm)', fontWeight: 600 }}>Access Denied</h3>
               <p style={{ color: 'var(--text2)', marginBottom: 'var(--sp-xl)', lineHeight: 1.6 }}>
-                  You do not have permission to view this user's details.
+                  You do not have permission to view this user&apos;s details.
               </p>
               <Link href="/settings/users" className="btn-primary" style={{ display: 'inline-block', textDecoration: 'none' }}>
                   Back to Users
@@ -291,7 +290,7 @@ export default function SettingsUserDetail({ userId }: { userId: string }) {
     <div className="settings-page s-page">
       <div className="s-header">
         <div>
-            <h2 className="s-title" style={{ marginBottom: '4px' }}>{displayName}'s Projects</h2>
+            <h2 className="s-title" style={{ marginBottom: '4px' }}>{displayName}&apos;s Projects</h2>
             <p className="text-sm text-muted">{userProfile.email}</p>
         </div>
         {!showAdd && (

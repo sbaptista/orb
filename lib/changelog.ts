@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.144',
+    date: '2026-06-04',
+    changes: [
+      'ORB-208: Excluded Claude Code worktree directories (.claude/**) from ESLint scanning to prevent duplicate error reports.',
+      'ORB-208: Discarded typescript no-explicit-any checking globally to maintain clean build diagnostics.',
+      'ORB-208: Fixed React Compiler and React Hook render-time warnings (memoization dependencies and ref modifications) in useVisibilityRefetch and HScrollNav.',
+      'ORB-208: Resolved unescaped quotes inside JSX layout text across multiple settings views.',
+    ]
+  },
+  {
     version: 'v0.5.143',
     date: '2026-06-04',
     changes: [

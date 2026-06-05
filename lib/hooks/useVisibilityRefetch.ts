@@ -4,7 +4,9 @@ const MIN_REFETCH_GAP = 5_000
 
 export function useVisibilityRefetch(refetch: () => void) {
   const ref = useRef(refetch)
-  ref.current = refetch
+  useEffect(() => {
+    ref.current = refetch
+  })
   const lastFetch = useRef(0)
 
   useEffect(() => {

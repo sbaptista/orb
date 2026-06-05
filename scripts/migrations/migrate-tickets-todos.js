@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
 // scripts/migrations/migrate-tickets-todos.js
 // ORB-148: One-time migration — move TICKETS project todos → tickets table
 // Run: node scripts/migrations/migrate-tickets-todos.js

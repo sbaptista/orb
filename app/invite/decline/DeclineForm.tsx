@@ -71,7 +71,7 @@ export default function DeclineForm() {
                     Decline invitation
                 </h1>
                 <p style={{ color: 'var(--text2)', fontSize: '15px', lineHeight: 1.5, marginBottom: '24px' }}>
-                    No worries — if you'd rather not participate, just let us know below.
+                    {"No worries — if you'd rather not participate, just let us know below."}
                 </p>
 
                 <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, marginBottom: '6px' }}>

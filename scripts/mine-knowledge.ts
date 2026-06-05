@@ -42,7 +42,7 @@ async function mineKnowledge() {
         messages: [{ role: 'user', content: `Task: ${todo.title}\nDescription: ${todo.description}\nResolution: ${todo.resolution_notes}` }]
       })
 
-      let text = (response.content[0] as any).text
+      const text = (response.content[0] as any).text
       // Surgical JSON extraction: find first { and last }
       const firstBrace = text.indexOf('{')
       const lastBrace = text.lastIndexOf('}')

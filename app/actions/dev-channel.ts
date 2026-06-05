@@ -172,7 +172,7 @@ export async function processDevMessage(id: string): Promise<string | null> {
     sessionContext,
   ].filter(Boolean).join('\n\n')
 
-  let messages: any[] = [{ role: 'user', content: message.content }]
+  const messages: any[] = [{ role: 'user', content: message.content }]
   let turnCount = 0
   const MAX_TURNS = 3
   let finalSpeech = ''

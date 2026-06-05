@@ -33,16 +33,15 @@ export default function HScrollNav({
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
 
-  const checkScroll = useCallback(() => {
-    const el = activeRef.current
-    if (!el) return
-    setCanScrollLeft(el.scrollLeft > 2)
-    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2)
-  }, [activeRef])
-
   useEffect(() => {
     const el = activeRef.current
     if (!el) return
+
+    const checkScroll = () => {
+      setCanScrollLeft(el.scrollLeft > 2)
+      setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2)
+    }
+
     checkScroll()
     el.addEventListener('scroll', checkScroll, { passive: true })
     const ro = new ResizeObserver(checkScroll)
@@ -51,7 +50,7 @@ export default function HScrollNav({
       el.removeEventListener('scroll', checkScroll)
       ro.disconnect()
     }
-  }, [activeRef, checkScroll])
+  }, [activeRef])
 
   const scroll = (dir: -1 | 1) => {
     activeRef.current?.scrollBy({ left: dir * scrollStep, behavior: 'smooth' })

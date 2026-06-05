@@ -155,7 +155,9 @@ const COLOR_SHIFT_SPEED: Record<Urgency, number> = {
 export default function MuralCanvas({ urgency }: MuralProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const urgencyRef = useRef(urgency)
-  urgencyRef.current = urgency
+  useEffect(() => {
+    urgencyRef.current = urgency
+  }, [urgency])
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {

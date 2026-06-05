@@ -98,7 +98,7 @@ export default function SettingsNotifications() {
             fontSize: 'var(--fs-sm)',
             color: 'var(--error)',
           }}>
-            Notification permission was denied. To enable, update this site's permissions in your browser settings.
+            Notification permission was denied. To enable, update this site&apos;s permissions in your browser settings.
           </div>
         )}
 

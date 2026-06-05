@@ -339,7 +339,7 @@ export async function orbConverse(req: OrbRequest) {
 
       const userRole = req.roleOverride || auth.role
 
-      let messages: any[] = [
+      const messages: any[] = [
         ...(req.history?.map(h => ({ role: h.role, content: h.text })) ?? []),
         { role: 'user', content: req.input }
       ]
@@ -412,7 +412,7 @@ export async function orbConverse(req: OrbRequest) {
 
         let currentTurnSpeech = ''
         const baseSpeech = accumulatedSpeech
-        let toolCalls: any[] = []
+        const toolCalls: any[] = []
 
         for await (const chunk of response) {
           if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
@@ -630,7 +630,7 @@ export async function orbConverse(req: OrbRequest) {
                         messages: [{ role: 'user', content: `Task: ${data.title}\nDescription: ${data.description}\nResolution: ${data.resolution_notes}` }]
                     })
                     try {
-                        let text = (distillation.content[0] as any).text
+                        const text = (distillation.content[0] as any).text
                         const firstBrace = text.indexOf('{')
                         const lastBrace = text.lastIndexOf('}')
                         if (firstBrace !== -1 && lastBrace !== -1) {

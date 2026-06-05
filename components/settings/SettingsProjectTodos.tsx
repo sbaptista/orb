@@ -44,7 +44,6 @@ export default function SettingsProjectTodos({ projectId }: { projectId: string 
   const loaded = useRef(false)
 
   const load = useCallback(async () => {
-    if (!loaded.current) setLoading(true)
     const res = await getProjectTodos(projectId)
 
     if (res.error) {
@@ -62,7 +61,7 @@ export default function SettingsProjectTodos({ projectId }: { projectId: string 
     setPriorities(res.priorities as Priority[])
     setLoading(false)
     loaded.current = true
-  }, [projectId])
+  }, [projectId, setOverride])
 
   useVisibilityRefetch(load)
   useEffect(() => { load() }, [load])
@@ -73,7 +72,7 @@ export default function SettingsProjectTodos({ projectId }: { projectId: string 
       <div className="s-card" style={{ maxWidth: '500px', textAlign: 'center', padding: 'var(--sp-2xl)' }}>
         <h3 style={{ fontSize: 'var(--fs-lg)', marginBottom: 'var(--sp-sm)', fontWeight: 600 }}>Access Denied</h3>
         <p style={{ color: 'var(--text2)', marginBottom: 'var(--sp-xl)', lineHeight: 1.6 }}>
-          You do not have permission to view this project's todos.
+          You do not have permission to view this project&apos;s todos.
         </p>
         <Link href="/settings/users" className="btn-primary" style={{ display: 'inline-block', textDecoration: 'none' }}>
           Back to Users
