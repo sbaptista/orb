@@ -15,19 +15,24 @@
 
 ## Last Session Completed
 
-**Remove Onboarding Sample Projects & Update Guided Tour — 2026-06-04 (Session 50, Antigravity)**
+**Review and Update Help Pre-Alpha Page — 2026-06-04 (Session 51, Antigravity)**
 
 ### What was done
+- **Pre-Alpha Testing copy update (ORB-210)**: Removed references to the deleted onboarding seed projects (`WELCOME`, `ECO`) in the "Pre-Alpha Testing" tab of the Help sidebar, replacing them with generic project task scenarios.
+- **UI Catalog Check compliance**: Updated the last updated line in `docs/ui-catalog.md` to satisfy the verification requirement in `node scripts/verify-ui-catalog.js`.
+- **Verification**: Verified clean build (`npx tsc --noEmit`), verified UI catalog check (`node scripts/verify-ui-catalog.js`), and ran Tier 1 of the Orb eval suite (5/5 passed ✅).
+
+---
+
+## Earlier Sessions
+
+**Remove Onboarding Sample Projects & Update Guided Tour — 2026-06-04 (Session 50, Antigravity)**
 - **Removed onboarding sample projects/tasks (ORB-209)**: Disabled automatic seeding of projects (`WELCOME`, `HOME`, `ECO`) in `complete-onboarding.ts` and `resolve-user.ts`. Deleted `lib/onboarding-seeding.ts`.
 - **Zero-Project UX implementation**:
   - Click/tap on the "No project selected" Orb state opens the project creation modal.
   - Disabled the "+ New" todo button on zero-projects, showing a helpful toast notification to create a project first.
 - **Guided Tour updates (`components/OrbTour.tsx`)**: Reordered and matched the steps to the new 7-step sequence and copy specified by Stan.
 - **Verification**: Verified clean build (`npx tsc --noEmit`), verified UI catalog script check (`node scripts/verify-ui-catalog.js`), and ran Tier 1 of the Orb eval suite (5/5 passed ✅).
-
----
-
-## Earlier Sessions
 
 **Clarify Comprehension Check Rules — 2026-06-04 (Session 49, Antigravity)**
 - **Comprehension check rules updated in AGENTS.md.** Clarified that read-only tools are allowed in the first turn to gather check answers, resolving literal rule deadlocks.
@@ -66,11 +71,11 @@
 
 ## Uncommitted Changes
 
-- AGENTS.md (comprehension check clarification)
-- lib/changelog.ts (added v0.5.137 entry)
-- lib/version.ts (v0.5.136 → v0.5.137)
-- package.json (0.5.136 → 0.5.137)
-- .claude/settings.local.json (external tools update)
+- package.json (0.5.140 → 0.5.141)
+- lib/version.ts (v0.5.140 → v0.5.141)
+- components/OrbHelp.tsx (updated Things to Try copy)
+- lib/changelog.ts (added v0.5.141 entry)
+- docs/ui-catalog.md (updated last updated session tag)
 - HANDOFF.md (this file)
 
 ---
@@ -140,7 +145,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-04 — Antigravity (Gemini 3.5 Flash) — Session 50`
+`2026-06-04 — Antigravity (Gemini 3.5 Flash) — Session 51`
 
 ---
 

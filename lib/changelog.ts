@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.141',
+    date: '2026-06-04',
+    changes: [
+      'ORB-210: Updated the Pre-Alpha Testing help page in the Help sidebar to remove references to the deleted onboarding seed projects (WELCOME, ECO) and replaced them with general project task scenarios.',
+    ]
+  },
+  {
     version: 'v0.5.140',
     date: '2026-06-04',
     changes: [

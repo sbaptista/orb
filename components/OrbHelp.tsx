@@ -218,9 +218,9 @@ const TOPICS: Topic[] = [
         <div className="help-section">
           <h2 className="help-h2">Things to Try</h2>
           <ul className="help-ul">
-            <li className="help-li">Ask the Orb: <em>&quot;What should I do next?&quot;</em> or <em>&quot;Why is the Orb urgent?&quot;</em> inside the <strong>Urban Compost Initiative (ECO)</strong> project to test strategic reasoning.</li>
-            <li className="help-li">Complete some tasks in the <strong>Welcome & Guide (WELCOME)</strong> checklist to observe color changes.</li>
-            <li className="help-li">Switch the <strong>ECO</strong> project to <strong>Kanban view</strong> and try drag-and-drop on mobile touch screens or desktop trackpads.</li>
+            <li className="help-li">Create a project and add tasks with different priorities to observe how the Orb&rsquo;s color and status change as you complete or update them.</li>
+            <li className="help-li">Ask the Orb: <em>&quot;What should I do next?&quot;</em> or <em>&quot;Why is the Orb urgent?&quot;</em> to test strategic reasoning on your own project&apos;s tasks.</li>
+            <li className="help-li">Switch a project to <strong>Kanban view</strong> and try drag-and-drop on mobile touch screens or desktop trackpads.</li>
           </ul>
         </div>
 
