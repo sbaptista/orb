@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.143',
+    date: '2026-06-04',
+    changes: [
+      'ORB-207: Filtered proactive observations (such as overdue and stale task highlights in the greeting prompt) to only analyze and surface tasks belonging to projects owned/created by the current user.',
+    ]
+  },
+  {
     version: 'v0.5.142',
     date: '2026-06-04',
     changes: [

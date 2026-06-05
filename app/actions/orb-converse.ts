@@ -240,7 +240,10 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   const urgencyThresholdHours = userProfile?.urgency_threshold_hours ?? 0
   const preferenceList = (orbPreferences ?? []) as Array<{ key: string; value: string }>
   const guidanceLevel = preferenceList.find(p => p.key === 'guidance_level')?.value ?? 'gentle'
-  const observations = guidanceLevel !== 'quiet' ? computeObservations(todoList, productList) : []
+  const myProducts = productList.filter((p: any) => p.created_by === auth.user.id)
+  const myProductIds = new Set(myProducts.map((p: any) => p.id))
+  const myTodos = todoList.filter((t: any) => myProductIds.has(t.product_id))
+  const observations = guidanceLevel !== 'quiet' ? computeObservations(myTodos, myProducts) : []
   if (observations.length > 0) console.log('[buildContext] Proactive observations:', observations)
   else console.log('[buildContext] No observations computed. guidanceLevel:', guidanceLevel, 'todos:', todoList.length, 'products:', productList.length)
 

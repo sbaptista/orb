@@ -157,7 +157,10 @@ export async function POST(request: NextRequest) {
   } catch { /* ignore */ }
 
   // Compute observations for proactive guidance
-  const observations = computeObservations(todoList as any, productList as any)
+  const myProducts = productList.filter((p: any) => p.created_by === evalUser.id)
+  const myProductIds = new Set(myProducts.map((p: any) => p.id))
+  const myTodos = todoList.filter((t: any) => myProductIds.has(t.product_id))
+  const observations = computeObservations(myTodos as any, myProducts as any)
   const guidanceLevel = preferenceList.find(p => p.key === 'guidance_level')?.value ?? 'standard'
 
   // Build system prompt (same structure as orbConverse)

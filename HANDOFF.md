@@ -15,18 +15,24 @@
 
 ## Last Session Completed
 
-**Make Conversation Input Field Prominent — 2026-06-04 (Session 52, Antigravity)**
+**Scope Proactive Observations by Project Ownership — 2026-06-04 (Session 53, Antigravity)**
 
 ### What was done
-- **Prominent Input (ORB-211)**: Increased `.oc-input-border` default border thickness to `1.5px`, used a higher-contrast border color (`rgba(60, 110, 60, 0.28)`), and added a subtle shadow (`box-shadow: var(--shadow-sm);`).
-- **Hover & Focus Ring Glow**: Added `:hover` transition border color (`rgba(60, 110, 60, 0.45)`) and `:focus-within` border color (`rgba(60, 110, 60, 0.75)`) with an active accent glow focus ring.
-- **Spacing Separation**: Increased the separation space between the bottom message in the thread and the input container (changed `.oc-thread` bottom padding and `.oc-input-wrap` top margin to `16px`) to improve visual hierarchy and differentiate text blocks.
-- **Inline Style cleanup**: Removed inline styling overrides from `components/OrbConversation.tsx` to handle all transitions and borders inside CSS.
+- **Scoping Proactive Observations (ORB-207)**: Filtered proactive observations (overdue/stale task highlights in the greeting prompt) in `app/actions/orb-converse.ts` and `app/api/orb-eval/route.ts` to analyze only projects owned/created by the current user (`auth.user.id`).
+- **Data Segregation**: Prevented leakage of other users' tasks into an Admin's proactive observations greeting while keeping the global query backlog context in the main panels intact.
+- **Database & Knowledge Repo**: Closed task `ec5d4980-efa0-4fad-8002-3342c6610904` and created a matching `knowledge_repo` entry describing the scoping design decisions.
 - **Verification**: Verified clean build (`npx tsc --noEmit`), verified UI catalog check (`node scripts/verify-ui-catalog.js`), and ran Tier 1 of the Orb eval suite (5/5 passed ✅).
 
 ---
 
 ## Earlier Sessions
+
+**Make Conversation Input Field Prominent — 2026-06-04 (Session 52, Antigravity)**
+- **Prominent Input (ORB-211)**: Increased `.oc-input-border` default border thickness to `1.5px`, used a higher-contrast border color (`rgba(60, 110, 60, 0.28)`), and added a subtle shadow (`box-shadow: var(--shadow-sm);`).
+- **Hover & Focus Ring Glow**: Added `:hover` transition border color (`rgba(60, 110, 60, 0.45)`) and `:focus-within` border color (`rgba(60, 110, 60, 0.75)`) with an active accent glow focus ring.
+- **Spacing Separation**: Increased the separation space between the bottom message in the thread and the input container (changed `.oc-thread` bottom padding and `.oc-input-wrap` top margin to `16px`) to improve visual hierarchy and differentiate text blocks.
+- **Inline Style cleanup**: Removed inline styling overrides from `components/OrbConversation.tsx` to handle all transitions and borders inside CSS.
+- **Verification**: Verified clean build (`npx tsc --noEmit`), verified UI catalog check (`node scripts/verify-ui-catalog.js`), and ran Tier 1 of the Orb eval suite (5/5 passed ✅).
 
 **Review and Update Help Pre-Alpha Page — 2026-06-04 (Session 51, Antigravity)**
 - **Pre-Alpha Testing copy update (ORB-210)**: Removed references to the deleted onboarding seed projects (`WELCOME`, `ECO`) in the "Pre-Alpha Testing" tab of the Help sidebar, replacing them with generic project task scenarios.
@@ -78,11 +84,11 @@
 
 ## Uncommitted Changes
 
-- package.json (0.5.141 → 0.5.142)
-- lib/version.ts (v0.5.141 → v0.5.142)
-- components/OrbConversation.tsx (removed inline border color overrides)
-- app/globals.css (prominent input border, hover, focus, shadow transitions)
-- lib/changelog.ts (added v0.5.142 entry)
+- package.json (0.5.142 → 0.5.143)
+- lib/version.ts (v0.5.142 → v0.5.143)
+- app/actions/orb-converse.ts (filter observations by project owner)
+- app/api/orb-eval/route.ts (filter observations by project owner)
+- lib/changelog.ts (added v0.5.143 entry)
 - docs/ui-catalog.md (updated last updated session tag)
 - HANDOFF.md (this file)
 
@@ -153,7 +159,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-04 — Antigravity (Gemini 3.5 Flash) — Session 52`
+`2026-06-04 — Antigravity (Gemini 3.5 Flash) — Session 53`
 
 ---
 
