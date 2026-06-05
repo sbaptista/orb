@@ -105,7 +105,7 @@ function OrbCard({ msg, onDismissNudge }: { msg: ConversationMessage; onDismissN
                     type="button"
                     className="oc-copy-btn"
                     onClick={copy}
-                    title="Copy response"
+                    data-tooltip="Copy response"
                     aria-label="Copy response"
                     style={{ color: copied ? 'var(--pill-active-color)' : 'var(--muted)' }}
                 >
@@ -488,7 +488,7 @@ export default function OrbConversation({
                                     textareaRef.current?.focus()
                                 }}
                                 onMouseDown={(e) => e.preventDefault()}
-                                title="Show commands (/)"
+                                data-tooltip="Show commands (/)"
                                 aria-label="Show commands"
                             >
                                 <span className="oc-tool-btn-icon" style={{ fontWeight: 600 }}>/</span>
@@ -501,7 +501,7 @@ export default function OrbConversation({
                                 onClick={handleHistoryUp}
                                 onMouseDown={(e) => e.preventDefault()}
                                 disabled={history.length === 0}
-                                title="Previous command"
+                                data-tooltip="Previous command"
                                 aria-label="Previous command"
                             >
                                 <span className="oc-tool-btn-icon">&uarr;</span>
@@ -513,7 +513,7 @@ export default function OrbConversation({
                                 onClick={handleHistoryDown}
                                 onMouseDown={(e) => e.preventDefault()}
                                 disabled={historyIndex === -1}
-                                title="Next command"
+                                data-tooltip="Next command"
                                 aria-label="Next command"
                             >
                                 <span className="oc-tool-btn-icon">&darr;</span>
@@ -530,7 +530,7 @@ export default function OrbConversation({
                                 }).catch(() => {})}
                                 onMouseDown={(e) => e.preventDefault()}
                                 disabled={!input.trim()}
-                                title="Copy input"
+                                data-tooltip="Copy input"
                                 aria-label="Copy input"
                             >
                                 <span className="oc-tool-btn-icon">
@@ -555,7 +555,7 @@ export default function OrbConversation({
                                 onClick={copyTranscript}
                                 onMouseDown={(e) => e.preventDefault()}
                                 disabled={messages.length === 0}
-                                title="Copy transcript"
+                                data-tooltip="Copy transcript"
                                 aria-label="Copy transcript"
                             >
                                 <span className="oc-tool-btn-icon">
@@ -582,7 +582,7 @@ export default function OrbConversation({
                                     onClick={onClearTranscript}
                                     onMouseDown={(e) => e.preventDefault()}
                                     disabled={messages.length === 0 || submitting}
-                                    title="Clear transcript"
+                                    data-tooltip="Clear transcript"
                                     aria-label="Clear transcript"
                                 >
                                     <span className="oc-tool-btn-icon">
@@ -602,7 +602,7 @@ export default function OrbConversation({
                                 onClick={() => isListening ? stopListening() : startListening()}
                                 onMouseDown={(e) => e.preventDefault()}
                                 disabled={!supportsVoice || submitting}
-                                title={isListening ? 'Stop recording' : 'Voice input'}
+                                data-tooltip={isListening ? 'Stop recording' : 'Voice input'}
                                 aria-label={isListening ? 'Stop recording' : 'Voice input'}
                                 style={{
                                     color: isListening ? '#c00' : undefined,
@@ -628,7 +628,7 @@ export default function OrbConversation({
                                     type="button"
                                     className="oc-stop-btn"
                                     onClick={onStop}
-                                    title="Stop processing"
+                                    data-tooltip="Stop processing"
                                     aria-label="Stop processing"
                                     style={{
                                         display: 'flex',
@@ -656,7 +656,7 @@ export default function OrbConversation({
                                     type="submit"
                                     className="oc-send-btn"
                                     disabled={!input.trim()}
-                                    title="Send (Shift+Enter)"
+                                    data-tooltip="Send (Shift+Enter)"
                                     aria-label="Send"
                                 >
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

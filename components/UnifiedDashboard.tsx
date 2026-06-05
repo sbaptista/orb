@@ -1174,7 +1174,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             }
           }
         }}
-        title={noProject ? 'Add a project to get started' : 'Hold to return to ambient'}
+        data-tooltip={noProject ? 'Add a project to get started' : 'Hold to return to ambient'}
         style={{
           position: 'relative',
           width: 'clamp(140px, 25vh, 200px)', height: 'clamp(140px, 25vh, 200px)',
@@ -1275,7 +1275,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         {/* ── Command Bar (page-specific: panel toggles + project search) ── */}
         <div className="ud-command-bar">
           {/* Panel toggle — Orb */}
-          <button className="nav-btn ud-panel-toggle" onClick={isMobile ? () => setActiveMobileTab('orb') : () => setOrbPaneVisible(v => !v)} title={isMobile ? 'Show Orb' : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')} aria-label={isMobile ? 'Show Orb' : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')} aria-pressed={isMobile ? activeMobileTab === 'orb' : undefined} disabled={isMobile && activeMobileTab === 'orb'}>
+          <button className="nav-btn ud-panel-toggle" onClick={isMobile ? () => setActiveMobileTab('orb') : () => setOrbPaneVisible(v => !v)} data-tooltip={isMobile ? 'Show Orb' : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')} aria-label={isMobile ? 'Show Orb' : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')} aria-pressed={isMobile ? activeMobileTab === 'orb' : undefined} disabled={isMobile && activeMobileTab === 'orb'}>
             <span className="nav-btn-icon">
               <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
                 <circle cx="16" cy="16" r="14.5" fill="url(#orbFavGrad)" />
@@ -1341,7 +1341,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           {/* Global nav (Print, Help, Settings, Account) moved to AppNav above */}
 
           {/* Panel toggle — List (far right) */}
-          <button className="nav-btn ud-panel-toggle" onClick={isMobile ? () => setActiveMobileTab('list') : () => setListPaneVisible(v => !v)} title={isMobile ? 'Show List' : (listPaneVisible ? 'Hide List' : 'Show List')} aria-label={isMobile ? 'Show List' : (listPaneVisible ? 'Hide List' : 'Show List')} aria-pressed={isMobile ? activeMobileTab === 'list' : undefined} disabled={isMobile && activeMobileTab === 'list'}>
+          <button className="nav-btn ud-panel-toggle" onClick={isMobile ? () => setActiveMobileTab('list') : () => setListPaneVisible(v => !v)} data-tooltip={isMobile ? 'Show List' : (listPaneVisible ? 'Hide List' : 'Show List')} aria-label={isMobile ? 'Show List' : (listPaneVisible ? 'Hide List' : 'Show List')} aria-pressed={isMobile ? activeMobileTab === 'list' : undefined} disabled={isMobile && activeMobileTab === 'list'}>
             <span className="nav-btn-icon">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -1400,16 +1400,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               {selected && <h2 className="ud-list-title">{selected.name}</h2>}
               <div style={{ flex: 1 }} />
               <div className="tv-toolbar">
-                <button className="tv-toolbar-btn" onClick={() => setSortAsc(v => !v)} aria-label={sortAsc ? 'Sort newest first' : 'Sort oldest first'} title={sortAsc ? 'Oldest first' : 'Newest first'}>
+                <button className="tv-toolbar-btn" onClick={() => setSortAsc(v => !v)} aria-label={sortAsc ? 'Sort newest first' : 'Sort oldest first'} data-tooltip={sortAsc ? 'Oldest first' : 'Newest first'}>
                   Sort
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     {sortAsc ? <path d="M12 19V5M5 12l7-7 7 7"/> : <path d="M12 5v14M5 12l7 7 7-7"/>}
                   </svg>
                 </button>
-                <button className="tv-toolbar-btn" aria-pressed={showFilters} onClick={() => { setShowFilters(f => !f); setShowListViews(false) }} aria-label="Toggle filters">
+                <button className="tv-toolbar-btn" aria-pressed={showFilters} onClick={() => { setShowFilters(f => !f); setShowListViews(false) }} aria-label="Toggle filters" data-tooltip="Filter tasks">
                   Filter <span className="tv-badge">{todos.length}</span>
                 </button>
-                <button className="tv-toolbar-btn" data-tour="views" aria-pressed={showListViews} onClick={() => { setShowListViews(v => !v); setShowFilters(false) }} title="List views">
+                <button className="tv-toolbar-btn" data-tour="views" aria-pressed={showListViews} onClick={() => { setShowListViews(v => !v); setShowFilters(false) }} data-tooltip="List views">
                   Views
                 </button>
                 <button
@@ -1422,6 +1422,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                     }
                   }}
                   style={products.length === 0 ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                  data-tooltip="Create a new task"
                 >
                   + New
                 </button>

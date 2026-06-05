@@ -4805,3 +4805,30 @@ a, button, [role="button"], input, select, textarea {
   background: var(--pill-active-border);
   color: #fff;
 }
+
+/* ── Global Custom Tooltips ── */
+.global-tooltip {
+  position: fixed;
+  background: rgba(30, 38, 30, 0.96);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f2f5f2;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.95) translateY(2px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.global-tooltip.visible {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+

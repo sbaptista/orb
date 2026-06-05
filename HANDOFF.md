@@ -13,21 +13,30 @@
 
 ---
 
-## Last Session Completed
+### Last Session Completed
 
-**Scope Strategic Guidance to Current User's Projects (ORB-212) — 2026-06-05 (Session 55, Antigravity)**
+**Custom Fast Tooltips (ORB-176) — 2026-06-05 (Session 56, Antigravity)**
 
 ### What was done
+- **Global Tooltip Provider**: Implemented `TooltipProvider` (`components/ui/Tooltip.tsx`) to manage fast, custom global tooltips. Trigger delay is configured to 200ms.
+- **Dynamic Positioning**: Positions custom tooltips centered above the hovered/focused element, reverting to bottom placement if clipping against the top viewport edge. Disabled on touch/mobile devices.
+- **UI Integration**: Swapped `title` attributes with `data-tooltip` on global AppNav components (Dashboard, Print, Help, Settings, Account, Commands).
+- **Design System Styles**: Added `.global-tooltip` styling in `app/globals.css` with frosted glass background (`rgba(242, 245, 242, 0.94)`) and matching borders.
+- **Component Catalog**: Documented `TooltipProvider` pattern under Feedback & Status in `docs/ui-catalog.md`.
+- **Release Documentation & Bump**: Bumped version to `v0.5.146` (package.json + version.ts) and documented the release in `lib/changelog.ts`.
+- **Verification**: Verified linting and compiler passes, and verified Tier 1 of the Orb eval suite (5/5 passed ✅).
+
+---
+
+## Earlier Sessions
+
+**Scope Strategic Guidance to Current User's Projects (ORB-212) — 2026-06-05 (Session 55, Antigravity)**
 - **Scoping Filter for Strategic Guidance**: Modified `app/actions/orb-converse.ts` to query `first_name` and `last_name` from the `users` table for the current user and use their full name/email in the user mapping.
 - **SCOPE Rules Update**: Added a new instruction under `SCOPE` in the system prompt in both `app/actions/orb-converse.ts` and `app/api/orb-eval/route.ts` telling the Orb to only recommend tasks from projects owned by the current user when providing strategic guidance, task recommendations, workload summaries, or next steps.
 - **Evaluation Suite Alignment**: Updated the `route.ts` handler to query all users and set up a `userMap` in the same way as `orb-converse.ts`, ensuring the evaluation backlog system prompt contains identical owner tags.
 - **Added Regression Case**: Appended `strategic-guidance-scoping` test case to `scripts/eval-cases.ts` to assert that strategic guidance responses do not suggest other users' projects (`PROJ-`, `TRAVEL-`, `PERSONAL-`).
 - **Release Documentation & Bump**: Bumped version to `v0.5.145` (package.json + version.ts) and added a release entry to `lib/changelog.ts`.
 - **Verification**: Verified Tier 1 passes (5/5 ✅) and the new behavioral Tier 2 test case passes (3/3 ✅).
-
----
-
-## Earlier Sessions
 
 **Resolve Lint Failures and Restore Lint Signal (ORB-208) — 2026-06-04 (Session 54, Antigravity)**
 
@@ -64,8 +73,8 @@
 **Remove Onboarding Sample Projects & Update Guided Tour — 2026-06-04 (Session 50, Antigravity)**
 - **Removed onboarding sample projects/tasks (ORB-209)**: Disabled automatic seeding of projects (`WELCOME`, `HOME`, `ECO`) in `complete-onboarding.ts` and `resolve-user.ts`. Deleted `lib/onboarding-seeding.ts`.
 - **Zero-Project UX implementation**:
-  - Click/tap on the "No project selected" Orb state opens the project creation modal.
-  - Disabled the "+ New" todo button on zero-projects, showing a helpful toast notification to create a project first.
+-   Click/tap on the "No project selected" Orb state opens the project creation modal.
+-   Disabled the "+ New" todo button on zero-projects, showing a helpful toast notification to create a project first.
 - **Guided Tour updates (`components/OrbTour.tsx`)**: Reordered and matched the steps to the new 7-step sequence and copy specified by Stan.
 - **Verification**: Verified clean build (`npx tsc --noEmit`), verified UI catalog script check (`node scripts/verify-ui-catalog.js`), and ran Tier 1 of the Orb eval suite (5/5 passed ✅).
 
@@ -174,7 +183,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-05 — Antigravity (Gemini 3.5 Flash) — Session 55`
+`2026-06-05 — Antigravity (Gemini 3.5 Flash) — Session 56`
 
 ---
 

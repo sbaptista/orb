@@ -295,6 +295,10 @@ Small count indicator.
 **File:** `components/ui/OrbVersionLabel.tsx`  
 Displays current app version. Non-clickable. Just displays the version text.
 
+### Custom Tooltips (`TooltipProvider`)
+**File:** `components/ui/Tooltip.tsx`  
+Global custom tooltip component triggered by `data-tooltip` attribute. Configured with a 200ms delay and styled with a frosted glass background (`global-tooltip` class). Disabled on touch/mobile devices to prevent visual stickiness.
+
 ---
 
 ## Responsive Rules
@@ -367,4 +371,4 @@ This catalog must stay in sync with `globals.css` and `components/`. Never leave
 
 ---
 
-*Last updated: 2026-06-04 — Session 54 (Antigravity)*
+*Last updated: 2026-06-05 — Session 56 (Antigravity)*

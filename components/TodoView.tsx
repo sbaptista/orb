@@ -480,7 +480,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
           className="tv-toolbar-btn"
           onClick={() => setSortAsc(v => !v)}
           aria-label={sortAsc ? 'Sort newest first' : 'Sort oldest first'}
-          title={sortAsc ? 'Oldest first' : 'Newest first'}
+          data-tooltip={sortAsc ? 'Oldest first' : 'Newest first'}
         >
           Sort
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -491,7 +491,6 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
           </svg>
         </button>
 
-        {/* Filter toggle */}
         <button
           className="tv-toolbar-btn"
           aria-pressed={showFilters}
@@ -500,6 +499,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
             setShowListViews(false)
           }}
           aria-label="Toggle filters"
+          data-tooltip="Filter tasks"
         >
           Filter
           <span className="tv-badge">{filtered.length}</span>
@@ -514,7 +514,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
               setShowListViews(v => !v)
               setShowFilters(false)
             }}
-            title="Configure dashboard view layout"
+            data-tooltip="Configure dashboard view layout"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
@@ -526,10 +526,10 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
           </button>
         )}
 
-        {/* New todo */}
         <button
           className="tv-toolbar-primary"
           onClick={() => setShowNewTodo(true)}
+          data-tooltip="Create a new task"
         >
           + New
         </button>
@@ -854,7 +854,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
                               setSelectedTodo(todo)
                             }}
                             aria-label="Edit task"
-                            title="Edit task"
+                            data-tooltip="Edit task"
                           >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
@@ -867,7 +867,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
                         className="tv-action-btn"
                         onClick={e => handleToggleDone(e, todo)}
                         aria-label={isDone ? 'Reopen' : 'Done'}
-                        title={isDone ? 'Reopen task' : 'Mark as done'}
+                        data-tooltip={isDone ? 'Reopen task' : 'Mark as done'}
                       >
                         <span className="tv-done-toggle" style={{
                           border: `2px solid ${isDone ? statusColor(todo.status) : 'var(--muted)'}`,

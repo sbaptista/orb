@@ -57,7 +57,7 @@ export default function AppNav({ printContext, userInitial = '?', userName }: Pr
         {/* Left: back to dashboard (when not on dashboard) */}
         <div className="appnav-left">
           {!onDashboard && (
-            <Link href="/dashboard" className="nav-btn appnav-back" title="Dashboard" aria-label="Back to Dashboard">
+            <Link href="/dashboard" className="nav-btn appnav-back" data-tooltip="Dashboard" aria-label="Back to Dashboard">
               <span className="nav-btn-icon">{IconBack}</span>
               <span className="nav-btn-label">Dashboard</span>
             </Link>
@@ -67,20 +67,20 @@ export default function AppNav({ printContext, userInitial = '?', userName }: Pr
         {/* Right: global actions — desktop only */}
         <div className="appnav-right appnav-desktop">
           {printContext && (
-            <button className="nav-btn" onClick={() => setShowPrint(true)} title="Print" aria-label="Print">
+            <button className="nav-btn" onClick={() => setShowPrint(true)} data-tooltip="Print" aria-label="Print">
               <span className="nav-btn-icon">{IconPrint}</span>
               <span className="nav-btn-label">Print</span>
             </button>
           )}
-          <button className="nav-btn" data-tour="help" onClick={() => setShowHelp(true)} title="Help" aria-label="Help">
+          <button className="nav-btn" data-tour="help" onClick={() => setShowHelp(true)} data-tooltip="Help" aria-label="Help">
             <span className="nav-btn-icon">{IconHelp}</span>
             <span className="nav-btn-label">Help</span>
           </button>
-          <Link href="/settings" className="nav-btn" title="Settings" aria-label="Settings">
+          <Link href="/settings" className="nav-btn" data-tooltip="Settings" aria-label="Settings">
             <span className="nav-btn-icon">{IconSettings}</span>
             <span className="nav-btn-label">Settings</span>
           </Link>
-          <Link href="/account" className="nav-btn" title={userName || 'Account'} aria-label="Account">
+          <Link href="/account" className="nav-btn" data-tooltip={userName || 'Account'} aria-label="Account">
             <span className="nav-avatar">{userInitial}</span>
             <span className="nav-btn-label">Account</span>
           </Link>
@@ -88,7 +88,7 @@ export default function AppNav({ printContext, userInitial = '?', userName }: Pr
 
         {/* Mobile: commands button */}
         <div className="appnav-right appnav-mobile">
-          <button className="nav-btn appnav-commands-btn" onClick={() => setCommandsOpen(true)} title="Commands" aria-label="Commands">
+          <button className="nav-btn appnav-commands-btn" onClick={() => setCommandsOpen(true)} data-tooltip="Commands" aria-label="Commands">
             <span className="nav-btn-icon">{IconCommands}</span>
             <span className="nav-btn-label">Commands</span>
           </button>

@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.146',
+    date: '2026-06-05',
+    changes: [
+      'ORB-176: Implemented custom global TooltipProvider with a fast 200ms trigger delay to replace slow native browser tooltips.',
+      'ORB-176: Updated desktop navigation AppNav buttons (Dashboard, Print, Help, Settings, Account, Commands) to use the new custom tooltip pattern.',
+      'ORB-176: Added .global-tooltip styling in globals.css matching the project\'s visual aesthetic and documented the new pattern in ui-catalog.md.',
+    ]
+  },
+  {
     version: 'v0.5.145',
     date: '2026-06-05',
     changes: [
