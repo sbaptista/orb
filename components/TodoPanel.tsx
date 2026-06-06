@@ -8,7 +8,6 @@ import { logAudit } from '@/app/actions/log-audit'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { useToast } from '@/components/ui/Toast'
 import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
-import { updateTicketStatus } from '@/app/actions/ticket-actions'
 
 type Props = {
   todo: Todo
@@ -123,17 +122,7 @@ export default function TodoPanel({
         setShowDistill(true)
       }
 
-      // Propagate status to linked ticket (fire-and-forget)
-      if (todo.ticket_id && form.status !== todo.status) {
-        const ticketStatus =
-          form.status === 'in progress' ? 'in_progress' :
-          (statuses.find(s => s.name === form.status)?.is_closed ? 'closed' : null)
-        if (ticketStatus) {
-          updateTicketStatus(todo.ticket_id, ticketStatus).catch(err =>
-            console.error('[TodoPanel] ticket propagation failed:', err)
-          )
-        }
-      }
+
     }
   }
 

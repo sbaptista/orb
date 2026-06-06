@@ -15,20 +15,35 @@
 
 ### Last Session Completed
 
-**Custom Fast Tooltips (ORB-176) — 2026-06-05 (Session 56, Antigravity)**
+**Interactive Column Resizing & Tickets CRUD Migration — 2026-06-06 (Session 59, Antigravity)**
 
 ### What was done
-- **Global Tooltip Provider**: Implemented `TooltipProvider` (`components/ui/Tooltip.tsx`) to manage fast, custom global tooltips. Trigger delay is configured to 200ms.
-- **Dynamic Positioning**: Positions custom tooltips centered above the hovered/focused element, reverting to bottom placement if clipping against the top viewport edge. Disabled on touch/mobile devices.
-- **UI Integration**: Swapped `title` attributes with `data-tooltip` on global AppNav components (Dashboard, Print, Help, Settings, Account, Commands).
-- **Design System Styles**: Added `.global-tooltip` styling in `app/globals.css` with frosted glass background (`rgba(242, 245, 242, 0.94)`) and matching borders.
-- **Component Catalog**: Documented `TooltipProvider` pattern under Feedback & Status in `docs/ui-catalog.md`.
-- **Release Documentation & Bump**: Bumped version to `v0.5.146` (package.json + version.ts) and documented the release in `lib/changelog.ts`.
-- **Verification**: Verified linting and compiler passes, and verified Tier 1 of the Orb eval suite (5/5 passed ✅).
+- **Interactive Column Resizing**: Replaced static header cell layouts with stateful React refs and drag handlers (`onPointerDown`/`PointerEvent` tracking) inside `SettingsCrudList.tsx` to support horizontal resizing of individual table columns. Added specific drag handles to table headers.
+- **Tickets Crud Migration**: Refactored the tickets page (`SettingsTickets.tsx`) to implement the generic `SettingsCrudList` component.
+- **Reporter Bugfix**: Corrected data mapping structure in `load()` callback to restore reporter name rendering.
+- **Release Documentation & Bump**: Bumped the app version to `v0.5.153` in `package.json`, `lib/version.ts` and registered it in `lib/changelog.ts`.
+- **Verification**: Verified clean compiler typechecks and ran the Tier 1 evaluation suite (5/5 passed ✅).
 
 ---
 
 ## Earlier Sessions
+
+**Manual Progression Model for Ticket Lifecycles (ORB-213) — 2026-06-06 (Session 58, Antigravity)**
+- **Decoupled Lifecycle**: Removed automated ticket closing/updating triggers from `orb-converse.ts`, `TodoPanel.tsx`, `TodoView.tsx`, and `UnifiedDashboard.tsx`. Setting a Todo to in-progress or closed no longer automatically modifies the linked ticket.
+- **Multiple Statuses**: Integrated pending, awaiting input, pending release, pending verification, on hold, and deferred ticket statuses.
+- **Custom Notification Preview**: Redesigned the ticket edit modal to support two columns (960px width) with form fields for email notification triggers, custom message body overrides, and a real-time responsive "Email Preview (Live)" mockup showing the generated email with the reporter's name, ticket code, and summary.
+- **Todo Generation Context**: Refactored `createTodoFromTicket` to fetch full ticket metrics and append them as a detailed context block to the Todo description field, while automatically transitioning the ticket to `in_progress` when generating a todo.
+- **Release Documentation & Bump**: Bumped version to `v0.5.149` (package.json + version.ts) and documented the release in `lib/changelog.ts`.
+- **Verification**: Verified linting and compiler passes, and verified Tier 1 of the Orb eval suite (5/5 passed ✅).
+
+---
+
+## Earlier Sessions (Cont.)
+
+**Multiline Tickets Edit Summary & Detail loading (ORB-213) — 2026-06-05 (Session 57, Antigravity)**
+- Replaced the single-line summary input field in the Settings Tickets edit modal with a multiline `<textarea>`.
+- Resolved a data-loading bug where the `detail` and `conversation_snippet` columns were omitted from the `getTickets()` database query.
+- Bumped version to `v0.5.148` (package.json + version.ts) and documented in `lib/changelog.ts`.
 
 **Scope Strategic Guidance to Current User's Projects (ORB-212) — 2026-06-05 (Session 55, Antigravity)**
 - **Scoping Filter for Strategic Guidance**: Modified `app/actions/orb-converse.ts` to query `first_name` and `last_name` from the `users` table for the current user and use their full name/email in the user mapping.
@@ -107,14 +122,24 @@
 - **Plan reviews:** SystemStateProvider (amended), mobile layout proposal (Model B endorsed), dev-to-dev channel (deferred — control gap).
 - **DB vacuum:** Cleaned bloated tables from testing churn.
 
-### Version bumps
-- v0.5.128 → v0.5.132
+### Uncommitted Changes
 
----
-
-## Uncommitted Changes
-
-- None (working tree clean)
+- Modified: `HANDOFF.md`
+- Modified: `app/actions/orb-converse.ts`
+- Modified: `app/actions/ticket-actions.ts`
+- Modified: `app/globals.css`
+- Modified: `components/TodoPanel.tsx`
+- Modified: `components/TodoView.tsx`
+- Modified: `components/UnifiedDashboard.tsx`
+- Modified: `components/settings/SettingsCrudList.tsx`
+- Modified: `components/settings/SettingsTickets.tsx`
+- Modified: `docs/ui-catalog.md`
+- Modified: `lib/changelog.ts`
+- Modified: `lib/email.ts`
+- Modified: `lib/version.ts`
+- Modified: `package.json`
+- Untracked: `scripts/migrations/20260605_add_notified_dismissed.sql`
+- Untracked: `scripts/migrations/20260605_tickets_status_states.sql`
 
 ---
 
@@ -179,12 +204,11 @@
 - **Always bump version** on any user-facing change so Stan can confirm new code is live when testing
 - **Run DB health check** (AGENTS.md → Database Health) at the start of any session where DB changes are made
 
----
-
 ## AI Tool Used Last Session
 
-`2026-06-05 — Antigravity (Gemini 3.5 Flash) — Session 56`
+`2026-06-06 — Antigravity (Gemini 3.5 Flash) — Session 59`
 
 ---
 
 *Updated by AI at end of each session. Committed with session code changes.*
+

@@ -6,6 +6,63 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.154',
+    date: '2026-06-06',
+    changes: [
+      'Fix column resizing: merged duplicate .audit-table CSS rules so table-layout: fixed takes effect, enabling drag-to-resize column widths.',
+      'Fix column resizing: changed border-collapse to separate so position: relative works on th elements (required for the resize handle).',
+      'Column resize is now desktop-only: hidden on touch devices via pointer: fine media query. Touch devices keep sensible fixed-width columns with horizontal scroll.',
+      'Added visible hover indicator on resize handle (vertical bar appears on hover).',
+    ]
+  },
+  {
+    version: 'v0.5.153',
+    date: '2026-06-06',
+    changes: [
+      'Tickets Crud Migration: Refactored the tickets dashboard page to use the generic SettingsCrudList component layout.',
+      'Interactive Column Resizing: Implemented interactive click-and-drag handles on table headers in SettingsCrudList to support custom column stretching.',
+      'Reporter Bugfix: Restored reporter details mappings inside the database load result converter.',
+    ]
+  },
+  {
+    version: 'v0.5.151',
+    date: '2026-06-06',
+    changes: [
+      'Ticket Filters: Added status filter tabs (Active, All, Open, In Progress, Pending, Awaiting Input, Pending Release, Pending Verification, On Hold, Deferred, Closed, Dismissed) on the Tickets dashboard page.',
+      'Ticket Deletion Actions: Added individual delete actions with inline prompt confirmations and bulk delete buttons to support ticket removal.',
+      'Email Explanation Formatting: Formatted email dismiss/decline reason notifications with a clear "Explanation:" section header.',
+    ]
+  },
+  {
+    version: 'v0.5.149',
+    date: '2026-06-06',
+    changes: [
+      'Tickets Manual Progression: Decoupled ticket states from todo actions so closing a todo does not automatically close its linked ticket.',
+      'Multiple Ticket States: Added support for pending, awaiting input, pending release, pending verification, on hold, and deferred ticket statuses.',
+      'Manual Email Preview and overrides: Added a live-updating email notification preview in the ticket edit modal, allowing admins to view the dynamically generated email and customize it prior to sending.',
+    ]
+  },
+  {
+    version: 'v0.5.148',
+    date: '2026-06-05',
+    changes: [
+      'Tickets Edit Rework: Changed the Edit Ticket modal summary field from a single-line input to a multiline textarea to accommodate longer feedback.',
+      'Tickets Detail Bugfix: Fixed a bug where getTickets selected fields omitted the detail and conversation_snippet columns, preventing details from showing in the UI.',
+      'Tickets UI Layout: Placed Status and Type select dropdowns side-by-side in a two-column grid, giving the multiline Summary field full width at the top.',
+    ]
+  },
+  {
+    version: 'v0.5.147',
+    date: '2026-06-05',
+    changes: [
+      'ORB-213: Reporter now receives an acknowledgment email when they submit feedback via the Orb ("We received your feedback").',
+      'ORB-213: Fixed createTodoFromTicket to move ticket to in_progress (not closed) — reporter gets "We\'re working on your feedback" at the right time.',
+      'ORB-213: Resolution email now includes the version number when a linked todo is closed ("This change is included in version vX.X.X").',
+      'ORB-213: New declined email sent to reporter when a ticket is dismissed with a reason. Dismissing without a reason is silent (no notification).',
+      'Eval suite reliability: Added retry with exponential backoff and 300ms cool-off delay between runs to prevent socket exhaustion on full suite runs.',
+    ]
+  },
+  {
     version: 'v0.5.146',
     date: '2026-06-05',
     changes: [

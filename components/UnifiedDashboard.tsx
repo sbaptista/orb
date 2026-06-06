@@ -29,7 +29,6 @@ import { computeUrgency, isDueWithinWarning, type Urgency } from '@/lib/orb-stat
 import TodoPanel from './TodoPanel'
 import TodoForm from './TodoForm'
 import { logAudit } from '@/app/actions/log-audit'
-import { updateTicketStatus } from '@/app/actions/ticket-actions'
 import DragDivider from './DragDivider'
 import TaskListView from './views/TaskListView'
 import TaskChecklistView from './views/TaskChecklistView'
@@ -997,9 +996,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         }
       }
       if (isClosed(newStatus)) setDistillTodo(updated)
-      if (todo.ticket_id && isClosed(newStatus)) {
-        updateTicketStatus(todo.ticket_id, 'closed').catch(err => console.error('[UD] ticket propagation failed:', err))
-      }
+
       fetchOrbTodos()
     }
   }
@@ -1026,9 +1023,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       if (selectedTodo?.id === todo.id) setSelectedTodo(updated)
       logAudit({ action: isClosing ? 'todo_close' : 'todo_update', table_name: 'todos', record_id: todo.id, before: { status: todo.status }, after: { status: newStatus, title: todo.title } })
       if (isClosing) setDistillTodo(updated)
-      if (todo.ticket_id && isClosing) {
-        updateTicketStatus(todo.ticket_id, 'closed').catch(err => console.error('[UD] ticket propagation failed:', err))
-      }
+
       fetchOrbTodos()
       toast.success(`Moved to ${newStatus}`)
     }
@@ -1073,9 +1068,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     }
     await fetchTodos()
     fetchOrbTodos()
-    todos.filter(t => ids.includes(t.id) && t.ticket_id).forEach(t => {
-      updateTicketStatus(t.ticket_id!, 'closed').catch(err => console.error('[UD] ticket propagation failed:', err))
-    })
+
     setSelectedIds([])
   }
 

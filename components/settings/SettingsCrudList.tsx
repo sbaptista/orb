@@ -114,6 +114,12 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const [search, setSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
+  // Column width resizing state/refs (declared at top level to obey hook rules)
+  const [colWidths, setColWidths] = useState<Record<number, number>>({})
+  const startX = useRef(0)
+  const startWidth = useRef(0)
+  const resizingIdx = useRef<number | null>(null)
+
   const canSelect = config.bulkDelete?.canSelect ?? (() => true)
 
   const load = useCallback(async () => {
@@ -452,6 +458,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
             onChange={e => setSearch(e.target.value)}
             placeholder={config.searchPlaceholder ?? 'Filter…'}
             className="crud-search-input"
+            style={config.searchPlaceholder?.includes('summary') ? { maxWidth: '480px' } : undefined}
           />
         </div>
       )}
@@ -504,20 +511,65 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                       {config.tableColumns?.map((col, i) => {
                         const isSortable = !!col.sortKey
                         const isActive = sortKey === col.sortKey
+                        const dynamicWidth = colWidths[i]
+                        const widthStyle = dynamicWidth ? `${dynamicWidth}px` : col.width
+
+                        const handleResizeStart = (e: React.PointerEvent) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          resizingIdx.current = i
+                          startX.current = e.clientX
+                          const thEl = (e.target as HTMLElement).closest('th')
+                          startWidth.current = thEl ? thEl.getBoundingClientRect().width : 100
+                          
+                          const onPointerMove = (moveEvent: PointerEvent) => {
+                            if (resizingIdx.current === null) return
+                            const delta = moveEvent.clientX - startX.current
+                            const newWidth = Math.max(50, startWidth.current + delta)
+                            setColWidths(prev => ({ ...prev, [i]: newWidth }))
+                          }
+
+                          const onPointerUp = () => {
+                            resizingIdx.current = null
+                            window.removeEventListener('pointermove', onPointerMove)
+                            window.removeEventListener('pointerup', onPointerUp)
+                          }
+
+                          window.addEventListener('pointermove', onPointerMove)
+                          window.addEventListener('pointerup', onPointerUp)
+                        }
+
                         return (
                           <th key={i} className="audit-th"
                             style={{
-                              width: col.width,
+                              width: widthStyle,
                               textAlign: col.align ?? 'left',
                               cursor: isSortable ? 'pointer' : undefined,
-                              userSelect: isSortable ? 'none' : undefined,
+                              userSelect: 'none',
+                              position: 'relative',
                             }}
-                            onClick={isSortable ? () => {
+                            onClick={isSortable ? (e) => {
+                              // If user clicked the resize handle, don't sort
+                              if ((e.target as HTMLElement).classList.contains('col-resize-handle')) return
                               if (isActive) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
                               else { setSortKey(col.sortKey!); setSortDir('asc') }
                             } : undefined}
                           >
-                            {col.label}{isSortable ? (isActive ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕') : ''}
+                            <div style={{ display: 'flex', alignItems: 'center', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {col.label}
+                              </span>
+                              {isSortable && (
+                                <span style={{ flexShrink: 0, marginLeft: '4px' }}>
+                                  {isActive ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
+                                </span>
+                              )}
+                            </div>
+                            
+                            <div
+                              className="col-resize-handle"
+                              onPointerDown={handleResizeStart}
+                            />
                           </th>
                         )
                       })}

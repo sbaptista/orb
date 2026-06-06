@@ -479,7 +479,54 @@ export async function sendWelcomeEmail({
   return { ok: true, messageId: data?.id }
 }
 
-// ── Ticket Status Email ───────────────────────────────────────────────────────
+// ── Ticket Acknowledgment Email (step 1 — reporter) ─────────────────────────
+
+export async function sendTicketAcknowledgmentEmail({
+  to,
+  firstName,
+  summary,
+  ticketCode,
+}: {
+  to: string
+  firstName: string
+  summary: string
+  ticketCode: string
+}) {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a; line-height: 1.6;">
+  <div style="text-align: center; margin-bottom: 28px;">
+    <img src="${ICON_URL}" alt="Orb" width="64" height="64" style="border-radius: 50%;" />
+  </div>
+
+  <p>Hi ${escapeHtml(firstName)},</p>
+
+  <p>Thanks for letting us know. Your feedback has been logged and we'll take a look.</p>
+
+  <p style="background: #f7fafc; border-left: 4px solid #cbd5e0; border-radius: 0 6px 6px 0; padding: 12px; font-style: italic; color: #2d3748;">&ldquo;${escapeHtml(summary)}&rdquo;</p>
+
+  <p style="font-size: 13px; color: #888; margin-top: 24px;">Ref: ${escapeHtml(ticketCode)}</p>
+</body>
+</html>`
+
+  const { data, error } = await getResend().emails.send({
+    from: FROM_EMAIL,
+    to,
+    subject: '[Orb] We received your feedback',
+    html,
+  })
+
+  if (error) {
+    console.error('[sendTicketAcknowledgmentEmail] Resend error:', error)
+    return { error: error.message }
+  }
+
+  return { ok: true, messageId: data?.id }
+}
+
+// ── Ticket Status Email (steps 3 & 5a — reporter) ───────────────────────────
 
 export async function sendTicketStatusEmail({
   to,
@@ -487,21 +534,55 @@ export async function sendTicketStatusEmail({
   status,
   summary,
   ticketCode,
+  version,
+  dismissReason,
+  emailMessageOverride,
 }: {
   to: string
   firstName: string
-  status: 'in_progress' | 'closed'
+  status: string
   summary: string
   ticketCode: string
+  version?: string
+  dismissReason?: string
+  emailMessageOverride?: string
 }) {
-  const isInProgress = status === 'in_progress'
-  const subject = isInProgress
-    ? "[Orb] We're working on your feedback"
-    : '[Orb] Your feedback has been addressed'
+  let subject = '[Orb] Update on your feedback'
+  if (status === 'in_progress') {
+    subject = "[Orb] We're working on your feedback"
+  } else if (status === 'closed') {
+    subject = '[Orb] Your feedback has been addressed'
+  } else if (status === 'dismissed') {
+    subject = '[Orb] Update on your feedback'
+  }
 
-  const bodyText = isInProgress
-    ? `We've started working on your feedback: &ldquo;${escapeHtml(summary)}&rdquo;. We'll let you know when it's resolved.`
-    : `Your feedback has been addressed: &ldquo;${escapeHtml(summary)}&rdquo;. Thanks for helping us improve Orb.`
+  let bodyText: string
+  if (emailMessageOverride) {
+    // Override raw text converts newlines to HTML breaks
+    bodyText = escapeHtml(emailMessageOverride).replace(/\n/g, '<br/>')
+  } else {
+    switch (status) {
+      case 'in_progress':
+        bodyText = `We've started working on your feedback: &ldquo;${escapeHtml(summary)}&rdquo;. We'll let you know when it's resolved.`
+        break
+      case 'closed':
+        if (version) {
+          bodyText = `We have addressed your feedback: &ldquo;${escapeHtml(summary)}&rdquo;</p><p>This change is included in version ${escapeHtml(version)}.</p><p>Thanks for helping us improve Orb.`
+        } else {
+          bodyText = `We have addressed your feedback: &ldquo;${escapeHtml(summary)}&rdquo;. Thanks for helping us improve Orb.`
+        }
+        break
+      case 'dismissed':
+        bodyText = `We reviewed your feedback: &ldquo;${escapeHtml(summary)}&rdquo;. After consideration, we've decided not to act on this at this time.`
+        if (dismissReason) {
+          bodyText += `</p><p><strong>Explanation:</strong><br/>${escapeHtml(dismissReason)}`
+        }
+        break
+      default:
+        bodyText = `We reviewed your feedback: &ldquo;${escapeHtml(summary)}&rdquo; and placed it on status ${escapeHtml(status.replace('_', ' '))}.`
+        break
+    }
+  }
 
   const html = `
 <!DOCTYPE html>
@@ -529,6 +610,64 @@ export async function sendTicketStatusEmail({
 
   if (error) {
     console.error('[sendTicketStatusEmail] Resend error:', error)
+    return { error: error.message }
+  }
+
+  return { ok: true, messageId: data?.id }
+}
+
+// ── Ticket Declined Email (step 5b — reporter) ──────────────────────────────
+// Only sent when dismiss_reason is provided. Silent dismiss = no email.
+
+export async function sendTicketDeclinedEmail({
+  to,
+  firstName,
+  summary,
+  dismissReason,
+  ticketCode,
+  emailMessageOverride,
+}: {
+  to: string
+  firstName: string
+  summary: string
+  dismissReason: string
+  ticketCode: string
+  emailMessageOverride?: string
+}) {
+  const bodyContent = emailMessageOverride
+    ? escapeHtml(emailMessageOverride).replace(/\n/g, '<br/>')
+    : `After consideration, we've decided not to act on this at this time.</p><p><strong>Explanation:</strong><br/>${escapeHtml(dismissReason)}`
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a; line-height: 1.6;">
+  <div style="text-align: center; margin-bottom: 28px;">
+    <img src="${ICON_URL}" alt="Orb" width="64" height="64" style="border-radius: 50%;" />
+  </div>
+
+  <p>Hi ${escapeHtml(firstName)},</p>
+
+  <p>We reviewed your feedback: &ldquo;${escapeHtml(summary)}&rdquo;</p>
+
+  <p>${bodyContent}</p>
+
+  <p>We appreciate you taking the time to share your thoughts.</p>
+
+  <p style="font-size: 13px; color: #888; margin-top: 24px;">Ref: ${escapeHtml(ticketCode)}</p>
+</body>
+</html>`
+
+  const { data, error } = await getResend().emails.send({
+    from: FROM_EMAIL,
+    to,
+    subject: '[Orb] Update on your feedback',
+    html,
+  })
+
+  if (error) {
+    console.error('[sendTicketDeclinedEmail] Resend error:', error)
     return { error: error.message }
   }
 
