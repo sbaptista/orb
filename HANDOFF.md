@@ -15,19 +15,14 @@
 
 ### Last Session Completed
 
-**Orb Conversation Toolbar Buttons Redesign — 2026-06-06 (Session 60, Antigravity)**
+**Admin Zero-Task Project Display Fix — 2026-06-07 (Session 62, Antigravity)**
 
 ### What was done
-- **Toolbar Buttons Redesign**: Styled the `.oc-tool-btn` component below the Orb conversation input field with a solid forest green background and white text (`#fff`). Adjusted the unhovered default state to `#408040` to maximize visual contrast with hover and active states.
-- **Button CSS Variables Refactor & Calibration**:
-  - Introduced global `--btn-primary` variables (`--btn-primary-bg`, `--btn-primary-hover-bg`, `--btn-primary-active-bg`) in `globals.css` root, migrating all primary/toolbar buttons to use these tokens.
-  - Calibrated colors to be slightly lighter: `#408040` (default), `#2d5a2d` (hover), and `#204020` (active/pressed) for better visual balance.
-- **Task List Toolbar & DEV Buttons Standardization**:
-  - Changed `.tv-toolbar-btn` (Sort, Filter, Views), `.tv-toolbar-primary` ("+ New"), and `.btn-dev` (DEV panel controls) to use standard solid green primary buttons (`var(--btn-primary-bg)`) by default, and dark green (`var(--btn-primary-active-bg)`) when active/pressed (`aria-pressed="true"`).
-  - Redesigned the filter badge (`.tv-badge`) to have a permanent white background with a dynamic green text color matching the button state (`var(--btn-primary-bg)` or `var(--btn-primary-active-bg)`) for high legibility.
-- **Release Documentation & Bump**: Bumped the app version to `v0.5.162` in `package.json`, `lib/version.ts`, and added the release entries in `lib/changelog.ts`.
-- **UI Catalog**: Documented the button patterns in `docs/ui-catalog.md` and bumped the catalog's last updated timestamp to Session 60.
-- **Verification**: Verified clean compiler typechecks, ran the linter (UI Catalog verification successfully passed), and verified the Tier 1 evaluation suite (5/5 passed ✅).
+- **Admin Project Filtering Fix**: Conditionally bypassed the `created_by` owner filter on the projects list query for admin users in both backend dashboard pages (`app/dashboard/page.tsx`, `app/prototype/page.tsx`) and frontend components (`AmbientDashboard.tsx`, `UnifiedDashboard.tsx`).
+- **Zero-Task Project Switch**: Confirmed project metadata resolves correctly and displays the clamped uppercase name on the Orb face and list pane header when switching to other users' projects with 0 tasks as an admin.
+- **Release Documentation & Bump**: Bumped the app version to `v0.5.164` in `package.json` and `lib/version.ts`, and logged the release details in `lib/changelog.ts`.
+- **UI Catalog**: Updated the last updated timestamp in `docs/ui-catalog.md` to Session 62.
+- **Verification**: Successfully completed clean linting/typechecking checks, and confirmed UI Catalog validation passes.
 
 ---
 
@@ -130,9 +125,13 @@
 ### Uncommitted Changes
 
 - Modified: `HANDOFF.md`
-- Modified: `app/globals.css`
+- Modified: `app/dashboard/page.tsx`
+- Modified: `app/prototype/page.tsx`
+- Modified: `components/AmbientDashboard.tsx`
+- Modified: `components/UnifiedDashboard.tsx`
 - Modified: `docs/ui-catalog.md`
 - Modified: `lib/changelog.ts`
+- Modified: `lib/projects.ts`
 - Modified: `lib/version.ts`
 - Modified: `package.json`
 
@@ -201,7 +200,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-06 — Antigravity (Gemini 1.5 Pro) — Session 60`
+`2026-06-07 — Antigravity (Gemini 3.5 Flash) — Session 62`
 
 ---
 

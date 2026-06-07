@@ -6,6 +6,20 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.164',
+    date: '2026-06-07',
+    changes: [
+      'Admin Zero-Task Project Display Fix: Conditionally disabled the created_by owner filter on visibleProjectsQuery inside dashboard pages (dashboard, prototype) and components (AmbientDashboard, UnifiedDashboard) if the user is an admin. This ensures that switching to another user\'s project (which may have 0 tasks) properly resolves the project metadata and displays the name on the Orb face and list headers.',
+    ]
+  },
+  {
+    version: 'v0.5.163',
+    date: '2026-06-07',
+    changes: [
+      'Orb Face Project Name Clamping (ORB-223): Updated the Orb face to render the uppercase project name instead of its code, dynamically clamping the string based on DM Sans 11px font metrics to ensure it fits within half the circumference (182px).',
+    ]
+  },
+  {
     version: 'v0.5.162',
     date: '2026-06-06',
     changes: [

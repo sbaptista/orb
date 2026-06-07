@@ -5,7 +5,7 @@ import { readStreamableValue } from 'ai/rsc'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { visibleProjectsQuery } from '@/lib/projects'
+import { visibleProjectsQuery, clampProjectName } from '@/lib/projects'
 import AddProductModal from './AddProductModal'
 import OrbHelp from './OrbHelp'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
@@ -306,7 +306,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
                 }
 
                 const q = visibleProjectsQuery(supabase, 'id, name, code, description, created_by')
-                const { data } = user ? await q.eq('created_by', user.id) : await q
+                const { data } = (user && !isAdmin) ? await q.eq('created_by', user.id) : await q
                 const list = (data ?? []) as Product[]
                 setProducts(list)
                 if (list.length > 0) {
@@ -742,7 +742,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     if (chunk.mutationType === 'dormancy') {
                         const { data: { user: authUser } } = await supabase.auth.getUser()
                         const dq = visibleProjectsQuery(supabase, 'id, name, code, description, created_by')
-                        const { data: freshProjects } = authUser ? await dq.eq('created_by', authUser.id) : await dq
+                        const { data: freshProjects } = (authUser && !isAdmin) ? await dq.eq('created_by', authUser.id) : await dq
                         const list = (freshProjects ?? []) as Product[]
                         setProducts(list)
                         if (list.length > 0 && !list.find(p => p.id === selectedId)) {
@@ -986,10 +986,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                                 style={{ textTransform: 'uppercase', transition: 'fill 0.8s' }}
                             >
                                 <textPath href="#todos-orb-name-arc" startOffset="50%" textAnchor="middle">
-                                    {noProject ? 'WAITING' : (() => {
-                                        const raw = (selected?.code ?? selected?.name ?? '').toUpperCase()
-                                        return raw.length > 10 ? `${raw.slice(0, 9)}…` : raw
-                                    })()}
+                                    {noProject ? 'WAITING' : clampProjectName(selected?.name ?? '')}
                                 </textPath>
                             </text>
                             <text

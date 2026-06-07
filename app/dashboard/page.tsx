@@ -17,8 +17,8 @@ export default async function DashboardPage() {
 
   const isAdmin = result.user.role_id === 1 || result.user.role_id === 3
 
-  const { data } = await visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode')
-    .eq('created_by', user.id)
+  const query = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode')
+  const { data } = isAdmin ? await query : await query.eq('created_by', user.id)
 
   return (
     <PasskeyGate>

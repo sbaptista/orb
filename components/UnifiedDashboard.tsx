@@ -5,7 +5,7 @@ import { readStreamableValue } from 'ai/rsc'
 import { useRouter } from 'next/navigation'
 // Link removed — global nav moved to AppNav
 import { createClient } from '@/lib/supabase/client'
-import { visibleProjectsQuery } from '@/lib/projects'
+import { visibleProjectsQuery, clampProjectName } from '@/lib/projects'
 import AddProductModal from './AddProductModal'
 import AppNav from './AppNav'
 import OrbHelp from './OrbHelp'
@@ -474,7 +474,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         }
 
         const q = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode')
-        const { data } = authUser ? await q.eq('created_by', authUser.id) : await q
+        const { data } = (authUser && !isAdmin) ? await q.eq('created_by', authUser.id) : await q
         const list = (data ?? []) as Product[]
         setProducts(list)
         if (list.length > 0) {
@@ -893,7 +893,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           if (chunk.mutationType === 'dormancy') {
             const { data: { user: authUser } } = await supabase.auth.getUser()
             const dq = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode')
-            const { data: freshProjects } = authUser ? await dq.eq('created_by', authUser.id) : await dq
+            const { data: freshProjects } = (authUser && !isAdmin) ? await dq.eq('created_by', authUser.id) : await dq
             const list = (freshProjects ?? []) as Product[]
             setProducts(list)
             if (list.length > 0 && !list.find(p => p.id === selectedId)) setSelectedId(list[0].id)
@@ -1219,7 +1219,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             </defs>
             <text fontFamily="var(--font-ui)" fontSize="11" fontWeight={600} letterSpacing="3" fill={noProject ? NO_PROJECT_STYLE.labelColor : style.labelColor} style={{ textTransform: 'uppercase', transition: 'fill 0.8s' }}>
               <textPath href="#ud-orb-name-arc" startOffset="50%" textAnchor="middle">
-                {noProject ? 'WAITING' : (() => { const raw = (selected?.code ?? selected?.name ?? '').toUpperCase(); return raw.length > 10 ? `${raw.slice(0, 9)}…` : raw })()}
+                {noProject ? 'WAITING' : clampProjectName(selected?.name ?? '')}
               </textPath>
             </text>
             <text fontFamily="var(--font-ui)" fontSize="11" fontWeight={600} letterSpacing="3" fill={noProject ? NO_PROJECT_STYLE.labelColor : style.labelColor} style={{ textTransform: 'uppercase', transition: 'fill 0.8s' }}>

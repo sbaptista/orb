@@ -374,4 +374,4 @@ This catalog must stay in sync with `globals.css` and `components/`. Never leave
 
 ---
 
-*Last updated: 2026-06-06 — Session 60 (Antigravity)*
+*Last updated: 2026-06-07 — Session 62 (Antigravity) - Admin zero-task project name display fix
