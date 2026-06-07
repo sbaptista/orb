@@ -150,4 +150,24 @@ export const EVAL_CASES: EvalCase[] = [
     tier: 2,
     speechNotContains: ['PROJ-', 'TRAVEL-', 'PERSONAL-'],
   },
+
+  // ── ORB-205: Judgment-Driven Resolution ────────────────────────────────
+
+  {
+    id: 'resolve-duplicate-searches-first',
+    description: 'When told a task is a duplicate, the Orb searches before asking which one',
+    productCode: 'ORB',
+    input: 'ORB-178 is a duplicate of another task',
+    tier: 1,
+    expectTool: { name: 'query_todos' },
+  },
+
+  {
+    id: 'no-lazy-escalation-on-lookup',
+    description: 'When asked which task covers a topic, the Orb searches instead of guessing',
+    productCode: 'ORB',
+    input: 'which task covers the kanban work?',
+    tier: 2,
+    speechNotContains: ['are you referring to', 'did you mean', 'which one do you mean'],
+  },
 ]

@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.165',
+    date: '2026-06-07',
+    changes: [
+      'Judgment-Driven Resolution (ORB-205): Added ORB_RESOLUTION_LAWS prompt block enforcing three epistemic laws — Resolve Before Escalating, Name Your Uncertainty, No Lazy Escalation. The Orb must now search with its tools before presenting options for factual questions, and only escalate to the user when genuine intent ambiguity remains.',
+      'Added eval cases: resolve-duplicate-searches-first (Tier 1) and no-lazy-escalation-on-lookup (Tier 2) to catch regressions.',
+    ]
+  },
+  {
     version: 'v0.5.164',
     date: '2026-06-07',
     changes: [
