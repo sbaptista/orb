@@ -6,6 +6,55 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.162',
+    date: '2026-06-06',
+    changes: [
+      'Dev Button Standardization: Updated the DEV button (.btn-dev) to use the standard primary button CSS variables for its background, border, hover, and active states.',
+    ]
+  },
+  {
+    version: 'v0.5.161',
+    date: '2026-06-06',
+    changes: [
+      'Button Color Calibration: Adjusted standard button variables to be slightly lighter (#408040 default, #2d5a2d hover, and #204020 active) for improved overall visual balance and readability across the app.',
+    ]
+  },
+  {
+    version: 'v0.5.160',
+    date: '2026-06-06',
+    changes: [
+      'Task List Toolbar Buttons Standardization: Changed Sort, Filter, and Views from outline style to standard solid green buttons (using --btn-primary-bg) by default, and dark green (using --btn-primary-active-bg) when active/pressed, with a permanent white background for the Filter badge for high legibility.',
+    ]
+  },
+  {
+    version: 'v0.5.159',
+    date: '2026-06-06',
+    changes: [
+      'Task List Toolbar Buttons Restyling: Standardized Sort, Filter, Views, and New buttons using standard primary button CSS variables. Redesigned Filter badge (.tv-badge) to invert colors (white background, green text) when the Filter button is active (pressed) for clean visual contrast.',
+    ]
+  },
+  {
+    version: 'v0.5.158',
+    date: '2026-06-06',
+    changes: [
+      'Button CSS Variables Refactor: Introduced global --btn-primary variables (--btn-primary-bg, --btn-primary-hover-bg, --btn-primary-active-bg) in globals.css root so that both primary buttons (.btn-primary) and conversation toolbar buttons (.oc-tool-btn) share the same design-system tokens for consistent propagation.',
+    ]
+  },
+  {
+    version: 'v0.5.157',
+    date: '2026-06-06',
+    changes: [
+      'Orb Conversation Toolbar Buttons styling: Lightened the default unhovered background and border color to #387038 to provide clearer visual contrast with the hover and active states.',
+    ]
+  },
+  {
+    version: 'v0.5.156',
+    date: '2026-06-06',
+    changes: [
+      'Orb Conversation Toolbar Buttons styling: Updated button states (non-hovered, hovered, active, disabled) to a darker forest green theme to match the Enable Push Notifications button aesthetic.',
+    ]
+  },
+  {
     version: 'v0.5.155',
     date: '2026-06-06',
     changes: [

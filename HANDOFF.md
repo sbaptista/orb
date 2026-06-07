@@ -15,14 +15,19 @@
 
 ### Last Session Completed
 
-**Interactive Column Resizing & Tickets CRUD Migration — 2026-06-06 (Session 59, Antigravity)**
+**Orb Conversation Toolbar Buttons Redesign — 2026-06-06 (Session 60, Antigravity)**
 
 ### What was done
-- **Interactive Column Resizing**: Replaced static header cell layouts with stateful React refs and drag handlers (`onPointerDown`/`PointerEvent` tracking) inside `SettingsCrudList.tsx` to support horizontal resizing of individual table columns. Added specific drag handles to table headers.
-- **Tickets Crud Migration**: Refactored the tickets page (`SettingsTickets.tsx`) to implement the generic `SettingsCrudList` component.
-- **Reporter Bugfix**: Corrected data mapping structure in `load()` callback to restore reporter name rendering.
-- **Release Documentation & Bump**: Bumped the app version to `v0.5.153` in `package.json`, `lib/version.ts` and registered it in `lib/changelog.ts`.
-- **Verification**: Verified clean compiler typechecks and ran the Tier 1 evaluation suite (5/5 passed ✅).
+- **Toolbar Buttons Redesign**: Styled the `.oc-tool-btn` component below the Orb conversation input field with a solid forest green background and white text (`#fff`). Adjusted the unhovered default state to `#408040` to maximize visual contrast with hover and active states.
+- **Button CSS Variables Refactor & Calibration**:
+  - Introduced global `--btn-primary` variables (`--btn-primary-bg`, `--btn-primary-hover-bg`, `--btn-primary-active-bg`) in `globals.css` root, migrating all primary/toolbar buttons to use these tokens.
+  - Calibrated colors to be slightly lighter: `#408040` (default), `#2d5a2d` (hover), and `#204020` (active/pressed) for better visual balance.
+- **Task List Toolbar & DEV Buttons Standardization**:
+  - Changed `.tv-toolbar-btn` (Sort, Filter, Views), `.tv-toolbar-primary` ("+ New"), and `.btn-dev` (DEV panel controls) to use standard solid green primary buttons (`var(--btn-primary-bg)`) by default, and dark green (`var(--btn-primary-active-bg)`) when active/pressed (`aria-pressed="true"`).
+  - Redesigned the filter badge (`.tv-badge`) to have a permanent white background with a dynamic green text color matching the button state (`var(--btn-primary-bg)` or `var(--btn-primary-active-bg)`) for high legibility.
+- **Release Documentation & Bump**: Bumped the app version to `v0.5.162` in `package.json`, `lib/version.ts`, and added the release entries in `lib/changelog.ts`.
+- **UI Catalog**: Documented the button patterns in `docs/ui-catalog.md` and bumped the catalog's last updated timestamp to Session 60.
+- **Verification**: Verified clean compiler typechecks, ran the linter (UI Catalog verification successfully passed), and verified the Tier 1 evaluation suite (5/5 passed ✅).
 
 ---
 
@@ -125,21 +130,11 @@
 ### Uncommitted Changes
 
 - Modified: `HANDOFF.md`
-- Modified: `app/actions/orb-converse.ts`
-- Modified: `app/actions/ticket-actions.ts`
 - Modified: `app/globals.css`
-- Modified: `components/TodoPanel.tsx`
-- Modified: `components/TodoView.tsx`
-- Modified: `components/UnifiedDashboard.tsx`
-- Modified: `components/settings/SettingsCrudList.tsx`
-- Modified: `components/settings/SettingsTickets.tsx`
 - Modified: `docs/ui-catalog.md`
 - Modified: `lib/changelog.ts`
-- Modified: `lib/email.ts`
 - Modified: `lib/version.ts`
 - Modified: `package.json`
-- Untracked: `scripts/migrations/20260605_add_notified_dismissed.sql`
-- Untracked: `scripts/migrations/20260605_tickets_status_states.sql`
 
 ---
 
@@ -206,7 +201,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-06 — Antigravity (Gemini 3.5 Flash) — Session 59`
+`2026-06-06 — Antigravity (Gemini 1.5 Pro) — Session 60`
 
 ---
 

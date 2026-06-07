@@ -162,10 +162,10 @@ Red background. Used only inside confirmation flows (e.g., "Confirm delete").
 Small inline button for table row actions. Variants: `btn-row-delete`, `btn-row-edit`.
 
 ### Toolbar Button (`tv-toolbar-btn`)
-Bordered pill button used in list toolbars (Sort, Filter, View). Supports `aria-pressed="true"` active state.
+Solid pill button used in list toolbars (Sort, Filter, View). Styled with standard primary button variables; pressed active state (`aria-pressed="true"`) uses dark `var(--btn-primary-active-bg)`.
 
 ### Toolbar Primary (`tv-toolbar-primary`)
-Accent-colored variant of toolbar button (e.g., "+ New").
+Primary-colored variant of toolbar button (e.g., "+ New"). Styled with standard primary button variables.
 
 ### Text Button (`text-btn`)
 Minimal, unstyled-looking button for low-emphasis actions (e.g., "Cancel", "Delete").
@@ -189,10 +189,13 @@ Arrow button for reordering items in CRUD lists.
 Full-width destructive-style button at bottom of account pages.
 
 ### Dev Button (`btn-dev`)
-Small orange button for dev-only controls.
+Small button for dev-only controls. Styled with standard primary button variables.
 
 ### Pager Button (`btn-pager`)
 Pagination arrow button.
+
+### Orb Conversation Tool Button (`oc-tool-btn`)
+Used for buttons below the input field in the Orb conversation view. Styled with standard primary button background (`var(--btn-primary-bg)`).
 
 ---
 
@@ -371,4 +374,4 @@ This catalog must stay in sync with `globals.css` and `components/`. Never leave
 
 ---
 
-*Last updated: 2026-06-06 — Session 58 (Antigravity)*
+*Last updated: 2026-06-06 — Session 60 (Antigravity)*
