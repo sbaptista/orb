@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.155',
+    date: '2026-06-06',
+    changes: [
+      'Responsive CRUD tables (ORB-221): scope filters with >5 options now render as a dropdown instead of pills, reducing visual clutter on all viewports.',
+      'Mobile card layout: Tickets page renders as tappable cards on iPhone (<768px) instead of a cramped horizontal-scroll table.',
+      'Header word-wrap: table column headers wrap text instead of truncating, keeping all columns visible without horizontal scroll.',
+      'Added "Filters" label above scope pills and dropdowns for clarity.',
+      'Dev server gotcha: expanded AGENTS.md to explicitly prohibit AI tools from starting, stopping, or killing the dev server.',
+    ]
+  },
+  {
     version: 'v0.5.154',
     date: '2026-06-06',
     changes: [

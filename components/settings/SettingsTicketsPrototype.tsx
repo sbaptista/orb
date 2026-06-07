@@ -1,10 +1,10 @@
 'use client'
 
-import SettingsCrudList from './SettingsCrudList'
-import { getTickets, createTodoFromTicket, dismissTicket, updateTicket, deleteTicket, type Ticket, type TicketType, type TicketStatus } from '@/app/actions/ticket-actions'
+import SettingsCrudListV2 from './SettingsCrudListV2'
+import { getTickets, dismissTicket, updateTicket, deleteTicket, type Ticket, type TicketType, type TicketStatus } from '@/app/actions/ticket-actions'
 import { getAdminProjects } from '@/app/actions/manage-project'
 import { useToast } from '@/components/ui/Toast'
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 
 type Project = { id: string; name: string; code: string | null }
 type TicketForm = {
@@ -106,20 +106,17 @@ const EMPTY_FORM: TicketForm = {
   sendEmail: true,
 }
 
-export default function SettingsTickets() {
+export default function SettingsTicketsPrototype() {
   const toast = useToast()
-  
-  // Custom modal / inline UI helper states
-  const [createTodoFor, setCreateTodoFor] = useState<string | null>(null) // ticketId
-  const [createForm, setCreateForm] = useState({ projectId: '', title: '' })
-  const [creating, setCreating] = useState(false)
-  const [refresher, setRefresher] = useState(0) // increment to trigger reload inside child
+
+  const [createTodoFor, setCreateTodoFor] = useState<string | null>(null)
+  const [refresher, setRefresher] = useState(0)
 
   return (
-    <SettingsCrudList<Ticket, TicketForm>
+    <SettingsCrudListV2<Ticket, TicketForm>
       key={refresher}
       config={{
-        title: 'Tickets',
+        title: 'Tickets (Prototype)',
         table: 'tickets',
         itemLabel: 'Ticket',
         emptyForm: EMPTY_FORM,
@@ -141,7 +138,6 @@ export default function SettingsTickets() {
             getTickets(),
             getAdminProjects(),
           ])
-          // Explicitly map nested users relation to reporter to align with expected reporterName lookup key
           const rawTickets = (ticketsRes.data ?? []) as any[]
           const ticketsWithReporter = rawTickets.map(t => ({
             ...t,
@@ -212,14 +208,9 @@ export default function SettingsTickets() {
           emailMessageOverride: item.resolution_notes || getDefaultEmailMessage(item.status, item.summary, item.dismiss_reason || '', item.version || ''),
           sendEmail: true,
         }),
-        toRecord: (form) => ({
-          // We handle saving specifically in onSave override below
-        }),
+        toRecord: (form) => ({}),
         getId: item => item.id,
-        onSave: async (supabase, id, record, items) => {
-          // In standard flow, onSave receives our updated record, but we want to customize the parameters sent to updateTicket
-          // We intercept this by caching the modalForm state inside the custom form renderer
-        },
+        onSave: async (supabase, id, record, items) => {},
         onDelete: async (supabase, item) => {
           const res = await deleteTicket(item.id)
           if (res.error) throw new Error(res.error)
@@ -251,7 +242,6 @@ export default function SettingsTickets() {
             }
           }
 
-          // We hijack renderForm to handle custom submit save
           return (
             <div className="grid-2col" style={{ gap: 'var(--sp-xl)', width: '920px', maxWidth: '100%' }}>
               {/* Left Column: Form Controls */}
@@ -360,12 +350,12 @@ export default function SettingsTickets() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                     <input
                       type="checkbox"
-                      id="send-email-checkbox"
+                      id="send-email-checkbox-proto"
                       checked={form.sendEmail}
                       onChange={e => onChange({ ...form, sendEmail: e.target.checked })}
                       style={{ cursor: 'pointer' }}
                     />
-                    <label htmlFor="send-email-checkbox" style={{ fontWeight: 500, fontSize: '13px', cursor: 'pointer' }}>
+                    <label htmlFor="send-email-checkbox-proto" style={{ fontWeight: 500, fontSize: '13px', cursor: 'pointer' }}>
                       Send email notification to reporter
                     </label>
                   </div>
@@ -383,7 +373,7 @@ export default function SettingsTickets() {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="flex-row gap-sm" style={{ marginTop: '16px' }}>
                   <button className="btn-primary" onClick={handleCustomSave} disabled={saving}>
                     {saving ? 'Saving…' : 'Save'}
@@ -443,81 +433,12 @@ export default function SettingsTickets() {
           )
         },
 
+        // Desktop table row — simplified (no inline create-todo form; use modal instead)
         renderRow: ({ item, index, items, onEdit, onDelete, saving, extra, checkbox }) => {
           const ref = linkedRef(item)
           const statusStyle = STATUS_STYLES[item.status] ?? STATUS_STYLES.open
           const typeColor = TYPE_COLORS[item.type] ?? '#4a5568'
           const canAct = item.status !== 'dismissed' && item.status !== 'closed'
-          const isCreating = createTodoFor === item.id
-          const projects = (extra.projects ?? []) as Project[]
-
-          const handleCreateTodo = async () => {
-            if (!createForm.projectId || !createForm.title.trim()) {
-              toast.error('Project and title are required.')
-              return
-            }
-            setCreating(true)
-            const res = await createTodoFromTicket(item.id, {
-              projectId: createForm.projectId,
-              title: createForm.title.trim(),
-            })
-            setCreating(false)
-            if (res.error) { toast.error(res.error); return }
-            toast.success(`Created ${res.data?.ref ?? 'todo'}.`)
-            setCreateTodoFor(null)
-            setCreateForm({ projectId: '', title: '' })
-            setRefresher(r => r + 1)
-          }
-
-          if (isCreating) {
-            return (
-              <tr key={item.id}>
-                {checkbox && <td className="audit-td" />}
-                <td colSpan={8} className="audit-td">
-                  <div className="s-form" style={{ padding: '12px 16px' }}>
-                    <p className="text-sm" style={{ marginBottom: '12px', fontWeight: 500 }}>
-                      Create todo for: <em>{item.summary}</em>
-                    </p>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px', marginBottom: '12px' }}>
-                      <div>
-                        <label className="label">Project</label>
-                        <select
-                          className="input"
-                          style={{ width: '100%', height: '40px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}
-                          value={createForm.projectId}
-                          onChange={e => setCreateForm(f => ({ ...f, projectId: e.target.value }))}
-                        >
-                          <option value="">— Select project</option>
-                          {projects.map(p => (
-                            <option key={p.id} value={p.id}>
-                              {p.code ? `${p.code} — ${p.name}` : p.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="label">Title</label>
-                        <input
-                          className="input"
-                          value={createForm.title}
-                          onChange={e => setCreateForm(f => ({ ...f, title: e.target.value }))}
-                          placeholder={item.summary}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex-row gap-sm">
-                      <button className="btn-primary" onClick={handleCreateTodo} disabled={creating}>
-                        {creating ? 'Creating…' : 'Create todo'}
-                      </button>
-                      <button className="btn-cancel" onClick={() => { setCreateTodoFor(null); setCreateForm({ projectId: '', title: '' }) }}>
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            )
-          }
 
           return (
             <tr key={item.id} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
@@ -525,16 +446,14 @@ export default function SettingsTickets() {
                 const tag = (e.target as HTMLElement).tagName
                 if (['BUTTON', 'A', 'INPUT', 'SELECT', 'SVG', 'PATH'].includes(tag)) return
                 if ((e.target as HTMLElement).closest('button, a, input, select')) return
-                setCreateTodoFor(item.id) // Cache editing ticket ID
+                setCreateTodoFor(item.id)
                 onEdit(e)
               }}
             >
               {checkbox}
-              {/* Code */}
               <td className="audit-td" style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text2)', fontSize: '12px' }}>
                 TICKETS-{item.ticket_number}
               </td>
-              {/* Type */}
               <td className="audit-td">
                 <span style={{
                   display: 'inline-block',
@@ -550,15 +469,12 @@ export default function SettingsTickets() {
                   {item.type.replace(/_/g, ' ')}
                 </span>
               </td>
-              {/* Summary */}
               <td className="audit-td" style={{ fontWeight: 500 }}>
                 {item.summary}
               </td>
-              {/* Reporter */}
               <td className="audit-td" style={{ color: 'var(--text)', fontSize: '12px' }}>
                 {reporterName(item)}
               </td>
-              {/* Status */}
               <td className="audit-td" style={{ textAlign: 'center' }}>
                 <span style={{
                   padding: '2px 8px',
@@ -572,15 +488,12 @@ export default function SettingsTickets() {
                   {item.status.replace('_', ' ')}
                 </span>
               </td>
-              {/* Linked todo */}
               <td className="audit-td" style={{ fontFamily: 'monospace', fontSize: '12px', color: ref ? 'var(--text)' : undefined }}>
                 {ref ?? <span style={{ opacity: 0.4 }}>—</span>}
               </td>
-              {/* Created */}
               <td className="audit-td" style={{ fontSize: '12px', color: 'var(--muted)' }}>
                 {relativeDate(item.created_at)}
               </td>
-              {/* Actions */}
               <td className="audit-td" style={{ textAlign: 'right' }}>
                 <div className="flex-row gap-xs" style={{ justifyContent: 'flex-end' }}>
                   <button
@@ -593,18 +506,6 @@ export default function SettingsTickets() {
                   >
                     Edit
                   </button>
-                  {canAct && !ref && (
-                    <button
-                      className="text-btn"
-                      style={{ fontSize: '12px', padding: '4px' }}
-                      onClick={() => {
-                        setCreateForm({ projectId: '', title: item.summary })
-                        setCreateTodoFor(item.id)
-                      }}
-                    >
-                      Create todo
-                    </button>
-                  )}
                   {canAct && (
                     <button
                       className="text-btn"
@@ -631,6 +532,7 @@ export default function SettingsTickets() {
           )
         },
 
+        // Mobile card row
         renderMobileRow: ({ item, onEdit, onDelete, saving, extra }) => {
           const ref = linkedRef(item)
           const statusStyle = STATUS_STYLES[item.status] ?? STATUS_STYLES.open
@@ -653,7 +555,9 @@ export default function SettingsTickets() {
                 <span className="crud-card-code">TICKETS-{item.ticket_number}</span>
                 <span className="crud-card-date">{relativeDate(item.created_at)}</span>
               </div>
+
               <div className="crud-card-title">{item.summary}</div>
+
               <div className="crud-card-pills">
                 <span style={{
                   display: 'inline-block',
@@ -681,27 +585,41 @@ export default function SettingsTickets() {
                   {item.status.replace(/_/g, ' ')}
                 </span>
               </div>
+
               <div className="crud-card-meta">
                 <span>{reporterName(item)}</span>
                 {ref && <span style={{ fontFamily: 'monospace' }}>{ref}</span>}
               </div>
+
               <div className="crud-card-actions">
-                <button className="text-btn" style={{ fontSize: '12px', padding: '6px 8px' }}
-                  onClick={e => { setCreateTodoFor(item.id); onEdit(e) }}>
+                <button
+                  className="text-btn"
+                  style={{ fontSize: '12px', padding: '6px 8px' }}
+                  onClick={e => {
+                    setCreateTodoFor(item.id)
+                    onEdit(e)
+                  }}
+                >
                   Edit
                 </button>
                 {canAct && (
-                  <button className="text-btn" style={{ fontSize: '12px', padding: '6px 8px', color: 'var(--error)' }}
+                  <button
+                    className="text-btn"
+                    style={{ fontSize: '12px', padding: '6px 8px', color: 'var(--error)' }}
                     onClick={async () => {
                       const res = await dismissTicket(item.id)
                       if (res.error) { toast.error(res.error) }
                       else { toast.success('Ticket dismissed.'); setRefresher(r => r + 1) }
-                    }}>
+                    }}
+                  >
                     Dismiss
                   </button>
                 )}
-                <button className="text-btn" style={{ fontSize: '12px', padding: '6px 8px', color: 'var(--error)' }}
-                  onClick={onDelete}>
+                <button
+                  className="text-btn"
+                  style={{ fontSize: '12px', padding: '6px 8px', color: 'var(--error)' }}
+                  onClick={onDelete}
+                >
                   Delete
                 </button>
               </div>

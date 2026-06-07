@@ -37,21 +37,16 @@ type CrudConfig<T, F> = {
   getId: (item: T) => string
 
   onAdd?: (supabase: any, record: Record<string, any>, items: T[]) => Promise<void>
-  /** Custom save handler for edit. When provided, replaces the default Supabase update. */
   onSave?: (supabase: any, id: string, record: Record<string, any>, items: T[]) => Promise<void>
   onDelete?: (supabase: any, item: T, items: T[]) => Promise<void>
   onBeforeDelete?: (supabase: any, item: T) => Promise<void>
   deleteWarning?: (item: T, extra: any) => ReactNode
   canDelete?: (item: T, extra: any) => boolean
 
-  /** Label for the add button. Defaults to "Add {itemLabel}". */
   addButtonLabel?: string
-  /** Label for the modal title when adding. Defaults to "Add {itemLabel}". */
   addModalTitle?: string
-  /** Label for the modal title when editing. Defaults to "Edit {itemLabel}". */
   editModalTitle?: string
 
-  /** When omitted, no Add button or Edit modal is shown (read-only table). */
   renderForm?: (props: {
     form: F
     onChange: (f: F) => void
@@ -104,7 +99,7 @@ type CrudConfig<T, F> = {
   }
 }
 
-export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<T, F> }) {
+export default function SettingsCrudListV2<T, F>({ config }: { config: CrudConfig<T, F> }) {
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
   const tableScrollRef = useRef<HTMLDivElement>(null)
@@ -115,7 +110,6 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // Modal state: 'add' | 'edit' | null
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null)
   const [modalForm, setModalForm] = useState<F>(config.emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -127,7 +121,6 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const [search, setSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
-  // Column width resizing state/refs (declared at top level to obey hook rules)
   const [colWidths, setColWidths] = useState<Record<number, number>>({})
   const startX = useRef(0)
   const startWidth = useRef(0)
@@ -178,6 +171,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const isTable = config.layout === 'table'
   const hasMobileCards = isTable && !!config.renderMobileRow
 
+  // Scope filter: pills vs dropdown
   const allScopes = config.scopeFilter
     ? [
         { id: config.scopeFilter.defaultScope, label: config.scopeFilter.defaultLabel },
@@ -402,6 +396,43 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     )
   }
 
+  function renderItemRow(item: T, idx: number) {
+    const id = config.getId(item)
+    const selectable = hasBulk && canSelect(item)
+    const checkbox = hasBulk ? (
+      <td className="audit-td" style={{ textAlign: 'center' }}>
+        {selectable ? (
+          <input
+            type="checkbox"
+            checked={selectedIds.includes(id)}
+            onChange={() => toggleSelect(id)}
+            style={{ cursor: 'pointer' }}
+          />
+        ) : null}
+      </td>
+    ) : undefined
+    const rowNode = config.renderRow({
+      item,
+      index: idx,
+      items: displayed,
+      onEdit: (e?: React.MouseEvent) => {
+        if (e) {
+          const tag = (e.target as HTMLElement).tagName
+          if (['BUTTON', 'A', 'INPUT', 'SELECT', 'SVG', 'PATH'].includes(tag)) return
+          if ((e.target as HTMLElement).closest('button, a, input, select')) return
+        }
+        openEditModal(item)
+      },
+      onDelete: () => { setConfirmDeleteId(config.getId(item)); setModalMode(null); setEditingId(null) },
+      onMove: config.onMove ? (dir) => handleMove(item, dir) : undefined,
+      saving,
+      extra,
+      checkbox,
+    })
+    if (isTable) return rowNode
+    return <div key={config.getId(item)}>{rowNode}</div>
+  }
+
   function renderMobileCard(item: T, idx: number) {
     if (!config.renderMobileRow) return null
     const id = config.getId(item)
@@ -424,51 +455,12 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     })
   }
 
-  function renderItemRow(item: T, idx: number) {
-    const id = config.getId(item)
-    const selectable = hasBulk && canSelect(item)
-    const checkbox = hasBulk ? (
-      <td className="audit-td" style={{ textAlign: 'center' }}>
-        {selectable ? (
-          <input
-            type="checkbox"
-            checked={selectedIds.includes(id)}
-            onChange={() => toggleSelect(id)}
-            style={{ cursor: 'pointer' }}
-          />
-        ) : null}
-      </td>
-    ) : undefined
-    const rowNode = config.renderRow({
-      item,
-      index: idx,
-      items: displayed,
-      onEdit: (e?: React.MouseEvent) => {
-        // Don't trigger row-edit when clicking buttons, links, inputs, selects
-        if (e) {
-          const tag = (e.target as HTMLElement).tagName
-          if (['BUTTON', 'A', 'INPUT', 'SELECT', 'SVG', 'PATH'].includes(tag)) return
-          if ((e.target as HTMLElement).closest('button, a, input, select')) return
-        }
-        openEditModal(item)
-      },
-      onDelete: () => { setConfirmDeleteId(config.getId(item)); setModalMode(null); setEditingId(null) },
-      onMove: config.onMove ? (dir) => handleMove(item, dir) : undefined,
-      saving,
-      extra,
-      checkbox,
-    })
-    if (isTable) return rowNode
-    return <div key={config.getId(item)}>{rowNode}</div>
-  }
-
   const itemRows = displayed.map((item, idx) => {
     const id = config.getId(item)
     if (confirmDeleteId === id) return renderDeleteConfirm(item)
     return renderItemRow(item, idx)
   })
 
-  // ── Modal ──
   const modalOpen = modalMode !== null
   const modalTitle = modalMode === 'add'
     ? (config.addModalTitle ?? `Add ${config.itemLabel}`)
@@ -501,6 +493,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         )}
       </div>
 
+      {/* Scope filter: pills or dropdown based on count */}
       {config.scopeFilter && usePills && (
         <div style={{ marginBottom: 'var(--sp-xl)' }}>
           <label className="label">Filters</label>
@@ -685,7 +678,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         </div>
       )}
 
-      {/* ── Floating modal for Add / Edit ── */}
+      {/* Modal for Add / Edit */}
       {modalOpen && (
         <>
           <div className="modal-backdrop" onClick={closeModal} />

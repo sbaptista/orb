@@ -713,6 +713,86 @@ a, button, [role="button"], input, select, textarea {
   }
 }
 
+/* ── Scope filter dropdown (when pill count > threshold) ── */
+.crud-scope-select {
+  width: 100%;
+  max-width: 280px;
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg);
+  color: var(--text);
+  height: 40px;
+  cursor: pointer;
+}
+
+/* ── Responsive CRUD: mobile card layout ── */
+.crud-mobile-cards { display: none !important; }
+.crud-desktop-table { display: block; }
+@media (max-width: 767px) {
+  .crud-desktop-table { display: none !important; }
+  .crud-mobile-cards { display: block !important; }
+}
+
+.crud-card {
+  padding: var(--sp-md);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  margin-bottom: var(--sp-sm);
+  background: var(--bg2);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.crud-card:hover {
+  background: var(--bg3);
+}
+.crud-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.crud-card-code {
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+}
+.crud-card-date {
+  font-size: 12px;
+  color: var(--muted);
+}
+.crud-card-title {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+.crud-card-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.crud-card-meta {
+  display: flex;
+  gap: var(--sp-md);
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.crud-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-xs);
+  min-height: 44px;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+
 .color-swatch {
   height: 32px;
   width: 64px;
@@ -865,7 +945,6 @@ a, button, [role="button"], input, select, textarea {
   padding: 8px var(--sp-md);
   font-weight: var(--fw-medium);
   color: var(--text3);
-  white-space: nowrap;
   border-right: 1px solid var(--border);
 }
 

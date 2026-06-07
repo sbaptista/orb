@@ -278,7 +278,7 @@ Test design decisions across all three form factors. When in doubt, err on the s
 
 # Known Gotchas
 
-- **Dev server**: User-started only. No AI tool can start it — always blocked. Assume it's running when Stan says it is; if you need it, ask.
+- **Dev server**: User-started only. The dev server runs on `0.0.0.0:3001` with `--experimental-https` so iPad and iPhone can reach it over the local network. No AI tool can replicate this setup. **Do not:** run `npm run dev`, call `preview_start`, kill processes on port 3001 (`lsof -ti :3001 | xargs kill`), or otherwise start/stop/restart the dev server. Assume it's running when Stan says it is; if you need it started, ask Stan.
 - **Version:** `package.json` is canonical; `lib/version.ts` mirrors it. Both updated together on every bump.
 
 ---
