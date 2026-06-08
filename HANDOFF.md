@@ -15,18 +15,26 @@
 
 ### Last Session Completed
 
-**Admin Zero-Task Project Display Fix — 2026-06-07 (Session 62, Antigravity)**
+**Ticket Edit Modal Todo Form Pollution Fix — 2026-06-07 (Session 64, Antigravity)**
 
 ### What was done
+- **Decoupled Ticket Editing State**: Introduced `editingTicketId` state variable in [SettingsTickets.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsTickets.tsx) to isolate ticket editing ID. This resolves a state pollution issue where using `createTodoFor` for both ticket edits and inline todo creations caused rows to transform into the "Create todo" inline form whenever the Edit modal was opened or closed.
+- **Close Modal Callback Support**: Added an optional `onClose` callback to `CrudConfig` in [SettingsCrudList.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsCrudList.tsx) that is invoked within `closeModal()`, allowing parent views to cleanly reset local editing state when the modal closes.
+- **Release Documentation & Bump**: Bumped version to `v0.5.167` ([package.json](file:///Users/stanleybaptista/Projects/orb/package.json) + [version.ts](file:///Users/stanleybaptista/Projects/orb/lib/version.ts)) and documented the release in [changelog.ts](file:///Users/stanleybaptista/Projects/orb/lib/changelog.ts).
+- **UI Catalog**: Updated the last updated line in [ui-catalog.md](file:///Users/stanleybaptista/Projects/orb/docs/ui-catalog.md) to Session 64.
+- **Verification**: Ran the Orb evaluation suite and confirmed Tier 1 passes cleanly (6/6 ✅). Verified clean typescript compilation and lint checks.
+
+---
+
+## Earlier Sessions
+
+**Admin Zero-Task Project Display Fix — 2026-06-07 (Session 62, Antigravity)**
 - **Admin Project Filtering Fix**: Conditionally bypassed the `created_by` owner filter on the projects list query for admin users in both backend dashboard pages (`app/dashboard/page.tsx`, `app/prototype/page.tsx`) and frontend components (`AmbientDashboard.tsx`, `UnifiedDashboard.tsx`).
 - **Zero-Task Project Switch**: Confirmed project metadata resolves correctly and displays the clamped uppercase name on the Orb face and list pane header when switching to other users' projects with 0 tasks as an admin.
 - **Release Documentation & Bump**: Bumped the app version to `v0.5.164` in `package.json` and `lib/version.ts`, and logged the release details in `lib/changelog.ts`.
 - **UI Catalog**: Updated the last updated timestamp in `docs/ui-catalog.md` to Session 62.
 - **Verification**: Successfully completed clean linting/typechecking checks, and confirmed UI Catalog validation passes.
 
----
-
-## Earlier Sessions
 
 **Manual Progression Model for Ticket Lifecycles (ORB-213) — 2026-06-06 (Session 58, Antigravity)**
 - **Decoupled Lifecycle**: Removed automated ticket closing/updating triggers from `orb-converse.ts`, `TodoPanel.tsx`, `TodoView.tsx`, and `UnifiedDashboard.tsx`. Setting a Todo to in-progress or closed no longer automatically modifies the linked ticket.
@@ -124,14 +132,12 @@
 
 ### Uncommitted Changes
 
+- Modified: `.claude/settings.local.json`
 - Modified: `HANDOFF.md`
-- Modified: `app/dashboard/page.tsx`
-- Modified: `app/prototype/page.tsx`
-- Modified: `components/AmbientDashboard.tsx`
-- Modified: `components/UnifiedDashboard.tsx`
+- Modified: `components/settings/SettingsCrudList.tsx`
+- Modified: `components/settings/SettingsTickets.tsx`
 - Modified: `docs/ui-catalog.md`
 - Modified: `lib/changelog.ts`
-- Modified: `lib/projects.ts`
 - Modified: `lib/version.ts`
 - Modified: `package.json`
 
@@ -200,7 +206,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-07 — Antigravity (Gemini 3.5 Flash) — Session 62`
+`2026-06-07 — Antigravity (Gemini 3.5 Flash) — Session 64`
 
 ---
 

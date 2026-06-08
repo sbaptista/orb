@@ -52,6 +52,8 @@ type CrudConfig<T, F> = {
   editModalTitle?: string
   /** Additional CSS class(es) for the modal container. E.g. "modal-compose" for wide compose layouts. */
   modalClass?: string
+  /** Callback when the modal is closed/cancelled */
+  onClose?: () => void
 
   /** When omitted, no Add button or Edit modal is shown (read-only table). */
   renderForm?: (props: {
@@ -213,6 +215,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     setModalMode(null)
     setEditingId(null)
     setError('')
+    config.onClose?.()
   }
 
   async function handleAdd() {

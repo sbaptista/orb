@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.167',
+    date: '2026-06-07',
+    changes: [
+      'Fix Ticket Edit Modal Todo Pollution: Decoupled editing state from create-todo state in SettingsTickets. Defined a new editingTicketId state variable specifically for tracking the ticket being modified inside the Edit modal, preventing the row from rendering the inline "Create todo" form upon opening or closing the Edit modal.',
+      'Add onClose Callback Support: Extended SettingsCrudList component configuration (CrudConfig) with an onClose callback, invoked inside closeModal, to clean up editing state in parent views cleanly.',
+    ]
+  },
+  {
     version: 'v0.5.166',
     date: '2026-06-07',
     changes: [

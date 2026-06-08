@@ -111,6 +111,7 @@ export default function SettingsTickets() {
   
   // Custom modal / inline UI helper states
   const [createTodoFor, setCreateTodoFor] = useState<string | null>(null) // ticketId
+  const [editingTicketId, setEditingTicketId] = useState<string | null>(null) // ticketId for edit modal
   const [createForm, setCreateForm] = useState({ projectId: '', title: '' })
   const [creating, setCreating] = useState(false)
   const [refresher, setRefresher] = useState(0) // increment to trigger reload inside child
@@ -228,12 +229,13 @@ export default function SettingsTickets() {
 
         editModalTitle: 'Edit Ticket',
         modalClass: 'modal-compose',
+        onClose: () => setEditingTicketId(null),
 
         renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving, extra }) => {
           const projects = (extra.projects ?? []) as Project[]
           const handleCustomSave = async () => {
-            if (!createTodoFor) return
-            const res = await updateTicket(createTodoFor, {
+            if (!editingTicketId) return
+            const res = await updateTicket(editingTicketId, {
               summary: form.summary.trim(),
               type: form.type,
               status: form.status,
@@ -248,6 +250,7 @@ export default function SettingsTickets() {
             } else {
               toast.success('Ticket updated.')
               onCancel()
+              setEditingTicketId(null)
               setRefresher(r => r + 1)
             }
           }
@@ -524,7 +527,7 @@ export default function SettingsTickets() {
                 const tag = (e.target as HTMLElement).tagName
                 if (['BUTTON', 'A', 'INPUT', 'SELECT', 'SVG', 'PATH'].includes(tag)) return
                 if ((e.target as HTMLElement).closest('button, a, input, select')) return
-                setCreateTodoFor(item.id) // Cache editing ticket ID
+                setEditingTicketId(item.id) // Cache editing ticket ID
                 onEdit(e)
               }}
             >
@@ -586,7 +589,7 @@ export default function SettingsTickets() {
                     className="text-btn"
                     style={{ fontSize: '12px', padding: '4px' }}
                     onClick={(e) => {
-                      setCreateTodoFor(item.id)
+                      setEditingTicketId(item.id)
                       onEdit(e)
                     }}
                   >
@@ -644,7 +647,7 @@ export default function SettingsTickets() {
                 const tag = (e.target as HTMLElement).tagName
                 if (['BUTTON', 'A', 'INPUT', 'SELECT', 'SVG', 'PATH'].includes(tag)) return
                 if ((e.target as HTMLElement).closest('button, a, input, select')) return
-                setCreateTodoFor(item.id)
+                setEditingTicketId(item.id)
                 onEdit(e)
               }}
             >
@@ -686,7 +689,7 @@ export default function SettingsTickets() {
               </div>
               <div className="crud-card-actions">
                 <button className="text-btn" style={{ fontSize: '12px', padding: '6px 8px' }}
-                  onClick={e => { setCreateTodoFor(item.id); onEdit(e) }}>
+                  onClick={e => { setEditingTicketId(item.id); onEdit(e) }}>
                   Edit
                 </button>
                 {canAct && (
