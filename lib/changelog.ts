@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.175',
+    date: '2026-06-08',
+    changes: [
+      'Assisted Ticket Lifecycle Progression Bugfixes (ORB-190): Fixed mapping of linked_todo in the settings tickets load query to correctly populate the Linked todo column, show the Todo Closed warning badge, and hide the Create todo action when a linked todo is in progress.',
+      'Email Message Override Saving: Fixed the Edit Ticket modal to correctly save custom email message overrides into the resolution_notes database column.',
+      'Bi-directional Link Resetting: Configured updateTicket and updateTicketStatus to bi-directionally sever the connection between a ticket and its associated todo (by setting todo_id and ticket_id to null) when the status is changed back to Open.',
+      'Table Column Resizing: Omitted the column resize handle on the last column (Actions) of SettingsCrudList to prevent layout instability.',
+    ]
+  },
+  {
     version: 'v0.5.174',
     date: '2026-06-08',
     changes: [

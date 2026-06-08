@@ -190,6 +190,7 @@ export async function updateTicket(
   if (fields.status !== undefined) {
     patch.status = fields.status
     if (fields.status === 'closed') patch.closed_at = new Date().toISOString()
+    if (fields.status === 'open') patch.todo_id = null
   }
   if (fields.dismiss_reason !== undefined) patch.dismiss_reason = fields.dismiss_reason
   if (fields.resolution_notes !== undefined) patch.resolution_notes = fields.resolution_notes
@@ -200,6 +201,16 @@ export async function updateTicket(
   const admin = createAdminClient()
   const { error } = await admin.from('tickets').update(patch).eq('id', ticketId)
   if (error) return { error: error.message }
+
+  if (fields.status === 'open') {
+    const { error: todoErr } = await admin
+      .from('todos')
+      .update({ ticket_id: null })
+      .eq('ticket_id', ticketId)
+    if (todoErr) {
+      console.error('[updateTicket] failed to clear todo.ticket_id:', todoErr)
+    }
+  }
 
   if (fields.status) {
     updateTicketStatus(ticketId, fields.status, {
@@ -240,6 +251,7 @@ export async function updateTicketStatus(
 
   const patch: Record<string, any> = { status: newStatus }
   if (newStatus === 'closed') patch.closed_at = new Date().toISOString()
+  if (newStatus === 'open') patch.todo_id = null
 
   const { error: updateErr } = await admin
     .from('tickets')
@@ -249,6 +261,16 @@ export async function updateTicketStatus(
   if (updateErr) {
     console.error('[updateTicketStatus] update error:', updateErr)
     return
+  }
+
+  if (newStatus === 'open') {
+    const { error: todoErr } = await admin
+      .from('todos')
+      .update({ ticket_id: null })
+      .eq('ticket_id', ticketId)
+    if (todoErr) {
+      console.error('[updateTicketStatus] failed to clear todo.ticket_id:', todoErr)
+    }
   }
 
   if (opts?.sendEmail === false) {

@@ -15,9 +15,22 @@
 
 ### Last Session Completed
 
-**Assisted Ticket Lifecycle Progression (ORB-190) — 2026-06-08 (Session 69, Antigravity)**
+**Assisted Ticket Lifecycle Progression Bugfixes (ORB-190) — 2026-06-08 (Session 70, Antigravity)**
 
 ### What was done
+- **Linked Todo Mapping**: Fixed mapping of `linked_todo` inside SettingsTickets component load query so the Linked Todo column, Todo Closed badge, and warnings display correctly.
+- **Email Override Saving**: Fixed saving of custom email message overrides into `resolution_notes` database column on custom form save.
+- **Open Status Link Reset**: Configured bi-directional connection severing when ticket status transitions back to Open, setting both ticket `todo_id` and todo `ticket_id` to `null`.
+- **Table Resize Polish**: Omitted column resize handles on the last column (Actions) of SettingsCrudList to prevent table layout instability.
+- **Super Admin Project Selection**: Updated `getAdminProjects` to resolve the project with code `ORB` owned by the Super Admin (role_id = 3) dynamically. Pre-selected and rendered this project as a read-only field in the inline "Create todo" form inside the Tickets settings, removing the manual dropdown select.
+- **Verification**: Ran standard linting, typechecking, and the Orb evaluation suite. Passed with 0 errors/warnings and Tier 1 7/7 passed.
+- **Release Documentation & Bump**: Bumped version to `v0.5.175` (`package.json` + `version.ts`) and updated `lib/changelog.ts` and `docs/ui-catalog.md`.
+
+---
+
+## Earlier Sessions
+
+**Assisted Ticket Lifecycle Progression (ORB-190) — 2026-06-08 (Session 69, Antigravity)**
 - **Manual Progression Model**: Prevented automatic ticket closures/status shifts when linked todos are completed/closed. Developers/admins must manually progress ticket lifecycles and confirm notification dispatches in the Settings UI and conversation Orb.
 - **Settings UI warning systems**:
   - Added a visual amber warning badge (`Todo Closed` using HSL-tailored `#fef3c7`/`#d97706` palette) next to the todo link on desktop table rows and mobile card views when a linked todo is closed but the ticket remains open.
@@ -29,10 +42,6 @@
 - **Orb Evaluation Suite & Verification**: Added a Tier 1 deterministic test case `close-todo-linked-ticket-tool` in `scripts/eval-cases.ts` to assert that closing a todo calls `update_todo` but leaves the ticket untouched. All 7/7 Tier 1 test cases pass.
 - **UI Component Catalog**: Documented the warning badge/banner styling patterns in `docs/ui-catalog.md` and successfully completed clean build/typecheck/lint diagnostics with 0 errors.
 - **Release Documentation & Bump**: Bumped version to `v0.5.174` (`package.json` + `version.ts`) and updated `lib/changelog.ts`.
-
----
-
-## Earlier Sessions
 
 **Admin Zero-Task Project Display Fix — 2026-06-07 (Session 62, Antigravity)**
 - **Admin Project Filtering Fix**: Conditionally bypassed the `created_by` owner filter on the projects list query for admin users in both backend dashboard pages (`app/dashboard/page.tsx`, `app/prototype/page.tsx`) and frontend components (`AmbientDashboard.tsx`, `UnifiedDashboard.tsx`).
@@ -205,7 +214,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-08 — Antigravity (Gemini 3.5 Flash) — Session 69`
+`2026-06-08 — Antigravity (Gemini 3.5 Flash) — Session 70`
 
 ---
 

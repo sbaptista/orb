@@ -74,15 +74,25 @@ export async function getAdminProjects() {
   try {
     ctx = await requireAdmin()
   } catch (e: any) {
-    return { error: e.message as string, projects: [] as any[] }
+    return { error: e.message as string, projects: [] as any[], superAdminProjectId: null }
   }
 
   const { data, error } = await ctx.admin
     .from('projects')
-    .select('id, name, code, description, is_dormant, sort_order, created_by')
+    .select(`
+      id, name, code, description, is_dormant, sort_order, created_by,
+      users!created_by ( role_id )
+    `)
     .order('sort_order')
-  if (error) return { error: error.message, projects: [] as any[] }
-  return { projects: data ?? [] }
+
+  if (error) return { error: error.message, projects: [] as any[], superAdminProjectId: null }
+
+  const projects = data ?? []
+  // Find project with code 'ORB' owned by a Super Admin (role_id = 3)
+  const superAdminProject = projects.find((p: any) => p.users?.role_id === 3 && p.code === 'ORB')
+  const superAdminProjectId = superAdminProject?.id ?? null
+
+  return { projects, superAdminProjectId }
 }
 
 export async function getUserProjects() {

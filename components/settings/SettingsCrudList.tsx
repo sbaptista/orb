@@ -656,10 +656,12 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                                   )}
                                 </div>
 
-                                <div
-                                  className="col-resize-handle"
-                                  onPointerDown={handleResizeStart}
-                                />
+                                {i < (config.tableColumns?.length ?? 0) - 1 && (
+                                  <div
+                                    className="col-resize-handle"
+                                    onPointerDown={handleResizeStart}
+                                  />
+                                )}
                               </th>
                             )
                           })}

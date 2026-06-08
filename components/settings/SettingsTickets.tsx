@@ -147,11 +147,13 @@ export default function SettingsTickets() {
           const ticketsWithReporter = rawTickets.map(t => ({
             ...t,
             reporter: t.users || null,
+            linked_todo: t.todos || null,
           })) as Ticket[]
           return {
             items: ticketsWithReporter,
             extra: {
               projects: (projectsRes.projects ?? []) as Project[],
+              superAdminProjectId: (projectsRes as any).superAdminProjectId || null,
             }
           }
         },
@@ -242,7 +244,7 @@ export default function SettingsTickets() {
               type: form.type,
               status: form.status,
               dismiss_reason: form.status === 'dismissed' ? (form.dismissReason || null) : null,
-              resolution_notes: form.resolution_notes || null,
+              resolution_notes: form.emailMessageOverride || null,
               version: ['closed', 'pending_release'].includes(form.status) ? (form.version || null) : null,
               emailMessageOverride: form.emailMessageOverride || undefined,
               sendEmail: form.sendEmail,
@@ -469,6 +471,7 @@ export default function SettingsTickets() {
           const canAct = item.status !== 'dismissed' && item.status !== 'closed'
           const isCreating = createTodoFor === item.id
           const projects = (extra.projects ?? []) as Project[]
+          const superAdminProjectId = (extra as any).superAdminProjectId as string | null
 
           const handleCreateTodo = async () => {
             if (!createForm.projectId || !createForm.title.trim()) {
@@ -500,19 +503,36 @@ export default function SettingsTickets() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px', marginBottom: '12px' }}>
                       <div>
                         <label className="label">Project</label>
-                        <select
-                          className="input"
-                          style={{ width: '100%', height: '40px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}
-                          value={createForm.projectId}
-                          onChange={e => setCreateForm(f => ({ ...f, projectId: e.target.value }))}
-                        >
-                          <option value="">— Select project</option>
-                          {projects.map(p => (
-                            <option key={p.id} value={p.id}>
-                              {p.code ? `${p.code} — ${p.name}` : p.name}
-                            </option>
-                          ))}
-                        </select>
+                        {superAdminProjectId ? (
+                          <div style={{
+                            height: '40px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '0 var(--sp-sm)',
+                            background: 'var(--bg-hover)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--r)',
+                            fontSize: 'var(--fs-base)',
+                            color: 'var(--text2)',
+                            fontWeight: 500
+                          }}>
+                            {projects.find(p => p.id === superAdminProjectId)?.name || 'Orb'}
+                          </div>
+                        ) : (
+                          <select
+                            className="input"
+                            style={{ width: '100%', height: '40px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}
+                            value={createForm.projectId}
+                            onChange={e => setCreateForm(f => ({ ...f, projectId: e.target.value }))}
+                          >
+                            <option value="">— Select project</option>
+                            {projects.map(p => (
+                              <option key={p.id} value={p.id}>
+                                {p.code ? `${p.code} — ${p.name}` : p.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                       <div>
                         <label className="label">Title</label>
@@ -635,7 +655,7 @@ export default function SettingsTickets() {
                       className="text-btn"
                       style={{ fontSize: '12px', padding: '4px' }}
                       onClick={() => {
-                        setCreateForm({ projectId: '', title: item.summary })
+                        setCreateForm({ projectId: superAdminProjectId || '', title: item.summary })
                         setCreateTodoFor(item.id)
                       }}
                     >
