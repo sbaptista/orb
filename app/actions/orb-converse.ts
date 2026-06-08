@@ -99,7 +99,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   ] = await Promise.all([
     visibleProjectsQuery(supabase, 'id, name, code, description, created_by'),
     auth.isAdmin ? supabase.from('projects').select('id, name, code').eq('is_dormant', true).order('sort_order') : Promise.resolve({ data: [] }),
-    supabase.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes, due_at, urls, group_id, category_id, groups(name), categories(name)').is('deleted_at', null),
+    supabase.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes, due_at, urls, group_id, category_id, ticket_id, groups(name), categories(name), tickets!ticket_id(ticket_number)').is('deleted_at', null),
     supabase.from('statuses').select('*').order('sort_order'),
     supabase.from('priorities').select('*').order('value'),
     supabase.from('knowledge_repo').select('*, projects(code, name)').order('created_at', { ascending: false }),
@@ -159,6 +159,8 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     if (t.due_at) parts.push(`[Due: ${t.due_at.replace('T', ' ')}]`)
     if (t.groups?.name) parts.push(`[Group: ${t.groups.name}]`)
     if (t.categories?.name) parts.push(`[Cat: ${t.categories.name}]`)
+    const ticketNum = t.tickets?.ticket_number
+    if (ticketNum) parts.push(`[Linked: TICKETS-${ticketNum}]`)
     const urlList = Array.isArray(t.urls) ? t.urls : []
     if (urlList.length > 0) parts.push(`[${urlList.length} URL${urlList.length > 1 ? 's' : ''}]`)
     return parts.join(' ')
@@ -623,7 +625,11 @@ export async function orbConverse(req: OrbRequest) {
 
               if (error) output = { error: error.message }
               else {
-                output = { ok: true }
+                const ticketNum = todo.tickets?.ticket_number
+                output = {
+                  ok: true,
+                  ...(ticketNum && closingStatus ? { linked_ticket: `TICKETS-${ticketNum}`, is_closing: true } : {})
+                }
                 stream.update({ speech: accumulatedSpeech, thought: `Updated ${input.code}`, refresh: true, mutatedProductId: todo.product_id, mutationType: 'update' })
                 hasMutated = true
                 await logAuditEvent({
@@ -1115,7 +1121,11 @@ export async function orbConverse(req: OrbRequest) {
             if (output?.error) {
               output._verification = `VERIFICATION: This "${tc.name}" call FAILED with error: "${output.error}". You MUST tell the user it failed. Do NOT claim success or cite any codes.`
             } else {
-              output._verification = `VERIFICATION: This "${tc.name}" call SUCCEEDED. Report ONLY the code/ID returned in this result. Do NOT invent or guess any codes.`
+              if (tc.name === 'update_todo' && output.linked_ticket && output.is_closing) {
+                output._verification = `VERIFICATION: This "update_todo" call SUCCEEDED in closing ${input.code}. IMPORTANT: This todo is linked to reporter ticket "${output.linked_ticket}". You MUST notify the user about this linkage in your speech and ask what should happen to the reporter ticket. Do not update or close the ticket automatically.`
+              } else {
+                output._verification = `VERIFICATION: This "${tc.name}" call SUCCEEDED. Report ONLY the code/ID returned in this result. Do NOT invent or guess any codes.`
+              }
             }
           }
 

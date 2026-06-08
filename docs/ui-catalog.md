@@ -296,6 +296,11 @@ Simpler form styling context for settings card rows.
 **File:** `components/ui/Toast.tsx`  
 `useToast()` hook → `toast.success(msg)` / `toast.error(msg)`. Auto-dismissing notification.
 
+### Warning Badge / Alert Banner
+Used to flag when action is required (e.g. a ticket's linked todo is completed/closed, but the ticket itself remains open).
+- **Badge:** Labeled "Todo Closed". Small amber pill (`background: #fef3c7`, `color: #d97706`). Enforces HIG tap guidelines, wrapped cleanly inside lists.
+- **Alert Banner:** Prominent warning block at the top of the Edit Modal form. Amber background (`background: #fef3c7`, `color: #d97706`, `border: 1px solid rgba(217, 119, 6, 0.2)`).
+
 ### Pill (`pill-active`)
 Active state pill with accent background. Used for selected filters/tabs.
 
@@ -382,4 +387,5 @@ This catalog must stay in sync with `globals.css` and `components/`. Never leave
 
 ---
 
-*Last updated: 2026-06-07 — Session 64 (Antigravity) - Fix Ticket Edit Modal Todo Pollution
+*Last updated: 2026-06-08 — Session 69 (Antigravity) - Assisted Ticket Lifecycle Progression (ORB-190)
+*

@@ -42,7 +42,7 @@ export type Ticket = {
   closed_at: string | null
   // Joined
   reporter?: { first_name: string | null; last_name: string | null; email: string } | null
-  linked_todo?: { todo_number: number | null; projects: { code: string | null } | null } | null
+  linked_todo?: { todo_number: number | null; status: string | null; projects: { code: string | null } | null } | null
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -425,7 +425,7 @@ export async function getTickets(filter?: { status?: TicketStatus }) {
       created_at, closed_at,
       reported_by,
       users!reported_by ( first_name, last_name, email ),
-      todos!todo_id ( todo_number, projects!product_id ( code ) )
+      todos!todo_id ( todo_number, status, projects!product_id ( code ) )
     `)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })

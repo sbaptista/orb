@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
   ] = await Promise.all([
     visibleProjectsQuery(admin, 'id, name, code, description, created_by'),
     admin.from('projects').select('id, name, code').eq('is_dormant', true).order('sort_order'),
-    admin.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes, due_at, urls, group_id, category_id, groups(name), categories(name)').is('deleted_at', null),
+    admin.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes, due_at, urls, group_id, category_id, ticket_id, groups(name), categories(name), tickets!ticket_id(ticket_number)').is('deleted_at', null),
     admin.from('statuses').select('*').order('sort_order'),
     admin.from('priorities').select('*').order('value'),
     admin.from('knowledge_repo').select('*, projects(code, name)').order('created_at', { ascending: false }),
@@ -140,6 +140,8 @@ export async function POST(request: NextRequest) {
     if (t.due_at) parts.push(`[Due: ${t.due_at.replace('T', ' ')}]`)
     if (t.groups?.name) parts.push(`[Group: ${t.groups.name}]`)
     if (t.categories?.name) parts.push(`[Cat: ${t.categories.name}]`)
+    const ticketNum = t.tickets?.ticket_number
+    if (ticketNum) parts.push(`[Linked: TICKETS-${ticketNum}]`)
     const urlList = Array.isArray(t.urls) ? t.urls : []
     if (urlList.length > 0) parts.push(`[${urlList.length} URL${urlList.length > 1 ? 's' : ''}]`)
     return parts.join(' ')

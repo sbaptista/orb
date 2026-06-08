@@ -205,4 +205,16 @@ export const EVAL_CASES: EvalCase[] = [
     // Codes follow patterns like ORB-123 or TICKETS-45 — none should appear before tool runs
     speechPattern: /^(?!.*\b(?:ORB|HELM|TICKETS)-\d+\b)/i,
   },
+
+  {
+    id: 'close-todo-linked-ticket-tool',
+    description: 'Closing a todo calls update_todo with correct parameters',
+    productCode: 'ORB',
+    input: 'Close ORB-198 and add resolution notes: "Fixed auth issue"',
+    tier: 1,
+    expectTool: {
+      name: 'update_todo',
+      params: { code: 'ORB-198', new_status: 'closed' },
+    },
+  },
 ]

@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.174',
+    date: '2026-06-08',
+    changes: [
+      'Assisted Ticket Lifecycle Progression (ORB-190): When a linked todo is closed, the system now prompts the developer/admin to decide the ticket\'s status and review reporter notifications rather than closing the ticket automatically.',
+      'Warning badges and alert banners: Added a visual amber warning badge (Todo Closed) in the tickets list rows and mobile card views, and an alert banner at the top of the Edit Modal form when a linked todo is completed.',
+      'Conversational Orb context and prompts: Updated backlog query to fetch and format linked tickets (e.g. [Linked: TICKETS-N]), return linked_ticket status updates from update_todo, and inject a custom verification prompt instructing the Orb to prompt the user to transition the ticket.',
+    ]
+  },
+  {
     version: 'v0.5.173',
     date: '2026-06-08',
     changes: [

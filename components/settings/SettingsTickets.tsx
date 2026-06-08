@@ -4,7 +4,7 @@ import SettingsCrudList from './SettingsCrudList'
 import { getTickets, createTodoFromTicket, dismissTicket, updateTicket, deleteTicket, type Ticket, type TicketType, type TicketStatus } from '@/app/actions/ticket-actions'
 import { getAdminProjects } from '@/app/actions/manage-project'
 import { useToast } from '@/components/ui/Toast'
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 
 type Project = { id: string; name: string; code: string | null }
 type TicketForm = {
@@ -110,6 +110,7 @@ export default function SettingsTickets() {
   const toast = useToast()
   
   // Custom modal / inline UI helper states
+  const [tickets, setTickets] = useState<Ticket[]>([])
   const [createTodoFor, setCreateTodoFor] = useState<string | null>(null) // ticketId
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null) // ticketId for edit modal
   const [createForm, setCreateForm] = useState({ projectId: '', title: '' })
@@ -137,7 +138,7 @@ export default function SettingsTickets() {
           { label: 'Created', width: '9%' },
           { label: 'Actions', width: '18%', align: 'right' },
         ],
-        load: async (supabase) => {
+        load: async () => {
           const [ticketsRes, projectsRes] = await Promise.all([
             getTickets(),
             getAdminProjects(),
@@ -148,6 +149,7 @@ export default function SettingsTickets() {
             ...t,
             reporter: t.users || null,
           })) as Ticket[]
+          setTickets(ticketsWithReporter)
           return {
             items: ticketsWithReporter,
             extra: {
@@ -213,11 +215,11 @@ export default function SettingsTickets() {
           emailMessageOverride: item.resolution_notes || getDefaultEmailMessage(item.status, item.summary, item.dismiss_reason || '', item.version || ''),
           sendEmail: true,
         }),
-        toRecord: (form) => ({
+        toRecord: () => ({
           // We handle saving specifically in onSave override below
         }),
         getId: item => item.id,
-        onSave: async (supabase, id, record, items) => {
+        onSave: async () => {
           // In standard flow, onSave receives our updated record, but we want to customize the parameters sent to updateTicket
           // We intercept this by caching the modalForm state inside the custom form renderer
         },
@@ -231,8 +233,12 @@ export default function SettingsTickets() {
         modalClass: 'modal-compose',
         onClose: () => setEditingTicketId(null),
 
-        renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving, extra }) => {
-          const projects = (extra.projects ?? []) as Project[]
+        renderForm: ({ form, onChange, onCancel, saving }) => {
+          const editingTicket = tickets.find(t => t.id === editingTicketId)
+          const isLinkedTodoClosed = editingTicket?.linked_todo?.status === 'closed'
+          const needsAction = isLinkedTodoClosed && form.status !== 'closed' && form.status !== 'dismissed'
+          const ref = editingTicket ? linkedRef(editingTicket) : null
+
           const handleCustomSave = async () => {
             if (!editingTicketId) return
             const res = await updateTicket(editingTicketId, {
@@ -260,6 +266,19 @@ export default function SettingsTickets() {
             <div className="compose-body">
               {/* Left Column: Form Controls */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-md)' }}>
+                {needsAction && ref && (
+                  <div style={{
+                    padding: 'var(--sp-md)',
+                    background: '#fef3c7',
+                    color: '#d97706',
+                    border: '1px solid rgba(217, 119, 6, 0.2)',
+                    borderRadius: 'var(--r)',
+                    fontSize: 'var(--fs-sm)',
+                    fontWeight: 500,
+                  }}>
+                    ⚠️ The linked todo <strong>{ref}</strong> has been completed. Please update the ticket status and notify the reporter.
+                  </div>
+                )}
                 <div className="pf-field">
                   <label className="pf-label">Summary *</label>
                   <textarea
@@ -445,8 +464,10 @@ export default function SettingsTickets() {
           )
         },
 
-        renderRow: ({ item, index, items, onEdit, onDelete, saving, extra, checkbox }) => {
+        renderRow: ({ item, onEdit, onDelete, extra, checkbox }) => {
           const ref = linkedRef(item)
+          const isLinkedTodoClosed = item.linked_todo?.status === 'closed'
+          const needsAction = isLinkedTodoClosed && item.status !== 'closed' && item.status !== 'dismissed'
           const statusStyle = STATUS_STYLES[item.status] ?? STATUS_STYLES.open
           const typeColor = TYPE_COLORS[item.type] ?? '#4a5568'
           const canAct = item.status !== 'dismissed' && item.status !== 'closed'
@@ -576,7 +597,25 @@ export default function SettingsTickets() {
               </td>
               {/* Linked todo */}
               <td className="audit-td" style={{ fontFamily: 'monospace', fontSize: '12px', color: ref ? 'var(--text)' : undefined }}>
-                {ref ?? <span style={{ opacity: 0.4 }}>—</span>}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {ref ?? <span style={{ opacity: 0.4 }}>—</span>}
+                  {needsAction && (
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      background: '#fef3c7',
+                      color: '#d97706',
+                      width: 'fit-content'
+                    }}>
+                      Todo Closed
+                    </span>
+                  )}
+                </div>
               </td>
               {/* Created */}
               <td className="audit-td" style={{ fontSize: '12px', color: 'var(--muted)' }}>
@@ -633,8 +672,10 @@ export default function SettingsTickets() {
           )
         },
 
-        renderMobileRow: ({ item, onEdit, onDelete, saving, extra }) => {
+        renderMobileRow: ({ item, onEdit, onDelete }) => {
           const ref = linkedRef(item)
+          const isLinkedTodoClosed = item.linked_todo?.status === 'closed'
+          const needsAction = isLinkedTodoClosed && item.status !== 'closed' && item.status !== 'dismissed'
           const statusStyle = STATUS_STYLES[item.status] ?? STATUS_STYLES.open
           const typeColor = TYPE_COLORS[item.type] ?? '#4a5568'
           const canAct = item.status !== 'dismissed' && item.status !== 'closed'
@@ -685,7 +726,26 @@ export default function SettingsTickets() {
               </div>
               <div className="crud-card-meta">
                 <span>{reporterName(item)}</span>
-                {ref && <span style={{ fontFamily: 'monospace' }}>{ref}</span>}
+                {ref && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontFamily: 'monospace' }}>{ref}</span>
+                    {needsAction && (
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        background: '#fef3c7',
+                        color: '#d97706',
+                      }}>
+                        Todo Closed
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="crud-card-actions">
                 <button className="text-btn" style={{ fontSize: '12px', padding: '6px 8px' }}

@@ -15,12 +15,20 @@
 
 ### Last Session Completed
 
-**Two-Turn Mutation Verification (ORB-225) — 2026-06-07 (Session 68, Antigravity)**
+**Assisted Ticket Lifecycle Progression (ORB-190) — 2026-06-08 (Session 69, Antigravity)**
 
 ### What was done
-- **Two-Turn Mutation Verification**: Rewrote the `ORB_MUTATION_VERIFICATION` protocol instructions in [lib/orb-prompt.ts](file:///Users/stanleybaptista/Projects/orb/lib/orb-prompt.ts) to explicitly structure all database mutations and ticket creations as a strict two-turn process (Turn 1: Tool Call, Turn 2: Confirmation). This explicitly prohibits the use of past-tense verbs and guessed/implied code citations in the first turn, and mandates verifying the result and citing the generated ID in the second turn.
-- **Release Documentation & Bump**: Bumped version to `v0.5.171` (`package.json` + `version.ts`) and updated `lib/changelog.ts` with release details.
-- **Verification**: Checked that all local changes compile and ran the Tier 1 eval tests successfully.
+- **Manual Progression Model**: Prevented automatic ticket closures/status shifts when linked todos are completed/closed. Developers/admins must manually progress ticket lifecycles and confirm notification dispatches in the Settings UI and conversation Orb.
+- **Settings UI warning systems**:
+  - Added a visual amber warning badge (`Todo Closed` using HSL-tailored `#fef3c7`/`#d97706` palette) next to the todo link on desktop table rows and mobile card views when a linked todo is closed but the ticket remains open.
+  - Added a warning alert banner inside the Edit Modal form alerting the admin that the linked todo is completed and prompting them to update status.
+- **Conversational Orb changes**:
+  - Queried the linked `tickets!ticket_id(ticket_number)` relation and updated `todoLine` formatting to print `[Linked: TICKETS-N]`.
+  - Configured `update_todo` to return `linked_ticket` code and an `is_closing` flag when a linked todo is closed.
+  - Injected custom instruction signals in the `_verification` prompt telling the Orb to explicitly prompt the user to transition the linked ticket rather than claiming automatic completion.
+- **Orb Evaluation Suite & Verification**: Added a Tier 1 deterministic test case `close-todo-linked-ticket-tool` in `scripts/eval-cases.ts` to assert that closing a todo calls `update_todo` but leaves the ticket untouched. All 7/7 Tier 1 test cases pass.
+- **UI Component Catalog**: Documented the warning badge/banner styling patterns in `docs/ui-catalog.md` and successfully completed clean build/typecheck/lint diagnostics with 0 errors.
+- **Release Documentation & Bump**: Bumped version to `v0.5.174` (`package.json` + `version.ts`) and updated `lib/changelog.ts`.
 
 ---
 
@@ -197,7 +205,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-07 — Antigravity (Gemini 3.5 Flash) — Session 68`
+`2026-06-08 — Antigravity (Gemini 3.5 Flash) — Session 69`
 
 ---
 
