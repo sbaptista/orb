@@ -110,9 +110,8 @@ export default function SettingsTickets() {
   const toast = useToast()
   
   // Custom modal / inline UI helper states
-  const [tickets, setTickets] = useState<Ticket[]>([])
+  const [editingTicket, setEditingTicket] = useState<Ticket | null>(null)
   const [createTodoFor, setCreateTodoFor] = useState<string | null>(null) // ticketId
-  const [editingTicketId, setEditingTicketId] = useState<string | null>(null) // ticketId for edit modal
   const [createForm, setCreateForm] = useState({ projectId: '', title: '' })
   const [creating, setCreating] = useState(false)
   const [refresher, setRefresher] = useState(0) // increment to trigger reload inside child
@@ -149,7 +148,6 @@ export default function SettingsTickets() {
             ...t,
             reporter: t.users || null,
           })) as Ticket[]
-          setTickets(ticketsWithReporter)
           return {
             items: ticketsWithReporter,
             extra: {
@@ -228,20 +226,18 @@ export default function SettingsTickets() {
           if (res.error) throw new Error(res.error)
         },
         deleteWarning: (item) => <>Permanently delete <strong>{item.summary}</strong>? This cannot be undone.</>,
-
         editModalTitle: 'Edit Ticket',
         modalClass: 'modal-compose',
-        onClose: () => setEditingTicketId(null),
+        onClose: () => setEditingTicket(null),
 
         renderForm: ({ form, onChange, onCancel, saving }) => {
-          const editingTicket = tickets.find(t => t.id === editingTicketId)
           const isLinkedTodoClosed = editingTicket?.linked_todo?.status === 'closed'
           const needsAction = isLinkedTodoClosed && form.status !== 'closed' && form.status !== 'dismissed'
           const ref = editingTicket ? linkedRef(editingTicket) : null
 
           const handleCustomSave = async () => {
-            if (!editingTicketId) return
-            const res = await updateTicket(editingTicketId, {
+            if (!editingTicket) return
+            const res = await updateTicket(editingTicket.id, {
               summary: form.summary.trim(),
               type: form.type,
               status: form.status,
@@ -256,7 +252,7 @@ export default function SettingsTickets() {
             } else {
               toast.success('Ticket updated.')
               onCancel()
-              setEditingTicketId(null)
+              setEditingTicket(null)
               setRefresher(r => r + 1)
             }
           }
@@ -548,7 +544,7 @@ export default function SettingsTickets() {
                 const tag = (e.target as HTMLElement).tagName
                 if (['BUTTON', 'A', 'INPUT', 'SELECT', 'SVG', 'PATH'].includes(tag)) return
                 if ((e.target as HTMLElement).closest('button, a, input, select')) return
-                setEditingTicketId(item.id) // Cache editing ticket ID
+                setEditingTicket(item) // Cache editing ticket
                 onEdit(e)
               }}
             >
@@ -628,7 +624,7 @@ export default function SettingsTickets() {
                     className="text-btn"
                     style={{ fontSize: '12px', padding: '4px' }}
                     onClick={(e) => {
-                      setEditingTicketId(item.id)
+                      setEditingTicket(item)
                       onEdit(e)
                     }}
                   >
@@ -688,7 +684,7 @@ export default function SettingsTickets() {
                 const tag = (e.target as HTMLElement).tagName
                 if (['BUTTON', 'A', 'INPUT', 'SELECT', 'SVG', 'PATH'].includes(tag)) return
                 if ((e.target as HTMLElement).closest('button, a, input, select')) return
-                setEditingTicketId(item.id)
+                setEditingTicket(item)
                 onEdit(e)
               }}
             >
@@ -749,7 +745,7 @@ export default function SettingsTickets() {
               </div>
               <div className="crud-card-actions">
                 <button className="text-btn" style={{ fontSize: '12px', padding: '6px 8px' }}
-                  onClick={e => { setEditingTicketId(item.id); onEdit(e) }}>
+                  onClick={e => { setEditingTicket(item); onEdit(e) }}>
                   Edit
                 </button>
                 {canAct && (
