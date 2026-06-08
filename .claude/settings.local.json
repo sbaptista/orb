@@ -327,7 +327,9 @@
       "Bash(grep -oP '\\\\S+$')",
       "Bash(grep -E \"render[s]?$\")",
       "Bash(curl -s -X POST https://orb-eight-lake.vercel.app/api/todos -H 'x-api-key: __CMDSUB_OUTPUT__')",
-      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'ORB-{d[\\\\\"todo_number\\\\\"]}: {d[\\\\\"title\\\\\"]}'\\)\")"
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'ORB-{d[\\\\\"todo_number\\\\\"]}: {d[\\\\\"title\\\\\"]}'\\)\")",
+      "Bash(curl -s -X PATCH https://orb-eight-lake.vercel.app/api/tasks/fb07920b-a1f9-4996-baa3-1dcacfbd29d7 -H 'Authorization: __CMDSUB_OUTPUT__')",
+      "Bash(git -C /Users/stanleybaptista/Projects/orb add -A)"
     ]
   }
 }

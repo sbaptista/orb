@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.166',
+    date: '2026-06-07',
+    changes: [
+      'Standardize Edit Modals (ORB-222): Unified all edit modals to use modal-center with width modifiers (modal-sm, modal-lg, modal-compose). Close button enlarged to 28px/44px hit target. Form fields now use --fs-input on phone for consistent legibility.',
+      'New compose modal pattern (modal-compose): 920px two-column layout for form + live preview, stacks on narrow viewports. Used by SettingsTickets edit form.',
+      'Migrated AddProductModal (apm-*) and DistillModal (dm-*) to standard modal-center. Removed all custom modal CSS classes.',
+      'Deleted dead prototype code: SettingsCrudListV2, SettingsTicketsPrototype, /settings/tickets-prototype route.',
+      'Stripped all inline fontSize overrides from SettingsTickets edit form — now uses pf-* classes throughout.',
+    ]
+  },
+  {
     version: 'v0.5.165',
     date: '2026-06-07',
     changes: [

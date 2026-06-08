@@ -2831,7 +2831,7 @@ a, button, [role="button"], input, select, textarea {
   z-index: 50;
   width: 100%;
   max-width: 480px;
-  max-height: 70dvh;
+  max-height: 85dvh;
   background: var(--bg2);
   border-radius: var(--r-xl);
   border: 1px solid var(--border);
@@ -2839,6 +2839,13 @@ a, button, [role="button"], input, select, textarea {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  resize: both;
+}
+.modal-center.modal-sm { max-width: 400px; resize: none; }
+.modal-center.modal-lg { max-width: 680px; }
+.modal-center.modal-compose {
+  max-width: 920px;
+  resize: both;
 }
 
 .modal-header {
@@ -2864,6 +2871,21 @@ a, button, [role="button"], input, select, textarea {
   flex-shrink: 0;
 }
 
+/* ── Compose modal: two-column form + preview ── */
+.compose-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-xl);
+  padding: var(--sp-xl);
+  overflow-y: auto;
+  flex: 1;
+}
+@media (max-width: 1023px) {
+  .compose-body {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Inline form fields (panels & modals) ── */
 
 .pf-field {
@@ -2882,7 +2904,7 @@ a, button, [role="button"], input, select, textarea {
 
 .pf-input {
   font-family: var(--font-ui);
-  font-size: var(--fs-base);
+  font-size: var(--fs-input, var(--fs-base));
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--r);
@@ -2898,7 +2920,7 @@ a, button, [role="button"], input, select, textarea {
 
 .pf-select {
   font-family: var(--font-ui);
-  font-size: var(--fs-base);
+  font-size: var(--fs-input, var(--fs-base));
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--r);
@@ -2915,7 +2937,7 @@ a, button, [role="button"], input, select, textarea {
 
 .pf-textarea {
   font-family: var(--font-ui);
-  font-size: var(--fs-base);
+  font-size: var(--fs-input, var(--fs-base));
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--r);
@@ -2935,9 +2957,25 @@ a, button, [role="button"], input, select, textarea {
   border: none;
   color: var(--muted);
   cursor: pointer;
-  padding: 4px;
-  line-height: 1;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  border-radius: var(--r);
+  transition: background 0.15s, color 0.15s;
+}
+.close-btn:hover {
+  background: var(--bg3);
+  color: var(--text);
+}
+.close-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
 }
 
 .text-btn {
@@ -3166,72 +3204,7 @@ a, button, [role="button"], input, select, textarea {
   margin-top: var(--sp-md);
 }
 
-/* ── Add/Edit product modal (`.apm-*`) ── */
-
-.apm-modal {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 50;
-  width: 100%;
-  max-width: 400px;
-  background: var(--bg2);
-  border-radius: var(--r-xl);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
-  padding: var(--sp-2xl);
-}
-
-.apm-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--sp-xl);
-}
-
-.apm-title {
-  font-size: var(--fs-lg);
-  font-weight: var(--fw-bold);
-  color: var(--text);
-  margin: 0;
-}
-
-.apm-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-lg);
-}
-
-.apm-footer {
-  display: flex;
-  gap: var(--sp-md);
-  align-items: center;
-  margin-top: var(--sp-xs);
-}
-
-.apm-delete-btn {
-  background: none;
-  border: none;
-  font-size: var(--fs-sm);
-  color: var(--error);
-  cursor: pointer;
-  padding: 8px 0;
-  margin-right: auto;
-}
-
-.apm-submit {
-  background: var(--success);
-  color: #fff;
-  border: none;
-  border-radius: var(--r);
-  padding: 8px var(--sp-xl);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
-  cursor: pointer;
-  transition: opacity var(--transition);
-}
-.apm-submit:disabled { cursor: not-allowed; opacity: 0.6; }
+/* (apm-* classes removed — AddProductModal now uses modal-center modal-sm) */
 
 /* ── Todo form modal (`.tf-*`) ── */
 
@@ -3284,50 +3257,7 @@ a, button, [role="button"], input, select, textarea {
   padding-top: var(--sp-xs);
 }
 
-/* ── Distill modal (`.dm-*`) ── */
-
-.dm-modal {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 500px;
-  max-width: 90vw;
-  background: var(--bg2);
-  border-radius: var(--r-lg);
-  border: 1px solid var(--border);
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
-  padding: var(--sp-2xl);
-  z-index: 101;
-  font-family: var(--font-ui);
-}
-
-.dm-title {
-  font-size: var(--fs-lg);
-  font-weight: 600;
-  color: var(--text);
-  margin: 0 0 var(--sp-xs);
-}
-
-.dm-subtitle {
-  font-size: var(--fs-xs);
-  color: var(--muted);
-  margin: 0 0 var(--sp-xl);
-}
-
-.dm-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: var(--sp-lg);
-}
-
-.dm-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--sp-md);
-  margin-top: var(--sp-xl);
-}
+/* (dm-* classes removed — DistillModal now uses modal-center) */
 
 /* ── Dev panel (`.dev-*`) ── */
 

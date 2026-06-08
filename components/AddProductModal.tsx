@@ -89,19 +89,15 @@ export default function AddProductModal({
     <>
       <div className="modal-backdrop" onClick={onClose} />
 
-      <div role="dialog" aria-modal="true" aria-labelledby="apm-title" className="apm-modal">
-        <div className="apm-title-row">
-          <h2 id="apm-title" className="apm-title">
+      <div role="dialog" aria-modal="true" aria-labelledby="add-project-title" className="modal-center modal-sm">
+        <div className="modal-header" style={{ justifyContent: 'space-between' }}>
+          <h2 id="add-project-title" style={{ margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 'var(--fw-bold)' }}>
             {isEdit ? 'Edit project' : 'New project'}
           </h2>
-          <button onClick={onClose} className="close-btn" aria-label="Close">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
+          <button onClick={onClose} className="close-btn" aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="apm-form">
+        <form onSubmit={handleSubmit} className="modal-body" style={{ padding: 'var(--sp-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-lg)' }}>
           <div>
             <label htmlFor="apm-name" className="pf-label" style={{ marginBottom: 'var(--sp-xs)' }}>Name *</label>
             <input
@@ -142,9 +138,9 @@ export default function AddProductModal({
 
           {error && <p className="text-sm text-error" style={{ margin: 0 }}>{error}</p>}
 
-          <div className="apm-footer">
+          <div className="modal-footer">
             {isEdit && !confirmDelete && (
-              <button type="button" onClick={() => setConfirmDelete(true)} className="apm-delete-btn">
+              <button type="button" onClick={() => setConfirmDelete(true)} className="text-btn text-error">
                 Delete
               </button>
             )}
@@ -164,7 +160,7 @@ export default function AddProductModal({
                 <button type="button" onClick={onClose} className="text-btn" style={{ marginLeft: isEdit ? 0 : 'auto' }}>
                   Cancel
                 </button>
-                <button type="submit" disabled={saving} className="apm-submit">
+                <button type="submit" disabled={saving} className="save-btn">
                   {saving ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Save' : 'Create')}
                 </button>
               </>

@@ -227,6 +227,7 @@ export default function SettingsTickets() {
         deleteWarning: (item) => <>Permanently delete <strong>{item.summary}</strong>? This cannot be undone.</>,
 
         editModalTitle: 'Edit Ticket',
+        modalClass: 'modal-compose',
 
         renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving, extra }) => {
           const projects = (extra.projects ?? []) as Project[]
@@ -253,14 +254,13 @@ export default function SettingsTickets() {
 
           // We hijack renderForm to handle custom submit save
           return (
-            <div className="grid-2col" style={{ gap: 'var(--sp-xl)', width: '920px', maxWidth: '100%' }}>
+            <div className="compose-body">
               {/* Left Column: Form Controls */}
-              <div>
-                <div className="mb-md">
-                  <label className="label">Summary *</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-md)' }}>
+                <div className="pf-field">
+                  <label className="pf-label">Summary *</label>
                   <textarea
-                    className="input"
-                    style={{ width: '100%', minHeight: '80px', padding: '10px var(--sp-md)', resize: 'vertical', fontFamily: 'inherit' }}
+                    className="pf-textarea"
                     value={form.summary}
                     onChange={e => {
                       const newSummary = e.target.value
@@ -274,12 +274,11 @@ export default function SettingsTickets() {
                   />
                 </div>
 
-                <div className="grid-2col mb-md">
-                  <div>
-                    <label className="label">Type</label>
+                <div className="grid-2col">
+                  <div className="pf-field">
+                    <label className="pf-label">Type</label>
                     <select
-                      className="input"
-                      style={{ width: '100%', padding: '6px var(--sp-sm)', height: '40px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}
+                      className="pf-select"
                       value={form.type}
                       onChange={e => onChange({ ...form, type: e.target.value as TicketType })}
                     >
@@ -289,11 +288,10 @@ export default function SettingsTickets() {
                       <option value="workflow_friction">Workflow Friction</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="label">Status</label>
+                  <div className="pf-field">
+                    <label className="pf-label">Status</label>
                     <select
-                      className="input"
-                      style={{ width: '100%', padding: '6px var(--sp-sm)', height: '40px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}
+                      className="pf-select"
                       value={form.status}
                       onChange={e => {
                         const newStatus = e.target.value as TicketStatus
@@ -319,10 +317,10 @@ export default function SettingsTickets() {
                 </div>
 
                 {form.status === 'dismissed' && (
-                  <div className="mb-md">
-                    <label className="label">Dismiss Reason</label>
+                  <div className="pf-field">
+                    <label className="pf-label">Dismiss Reason</label>
                     <input
-                      className="input"
+                      className="pf-input"
                       value={form.dismissReason}
                       onChange={e => {
                         const newReason = e.target.value
@@ -338,10 +336,10 @@ export default function SettingsTickets() {
                 )}
 
                 {['closed', 'pending_release'].includes(form.status) && (
-                  <div className="mb-md">
-                    <label className="label">Release Version</label>
+                  <div className="pf-field">
+                    <label className="pf-label">Release Version</label>
                     <input
-                      className="input"
+                      className="pf-input"
                       value={form.version}
                       onChange={e => {
                         const newVersion = e.target.value
@@ -356,26 +354,25 @@ export default function SettingsTickets() {
                   </div>
                 )}
 
-                <div className="mb-md" style={{ padding: 'var(--sp-md)', background: 'var(--bg-hover)', borderRadius: 'var(--r)', border: '1px solid var(--border)' }}>
+                <div style={{ padding: 'var(--sp-md)', background: 'var(--bg-hover)', borderRadius: 'var(--r)', border: '1px solid var(--border)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                     <input
                       type="checkbox"
                       id="send-email-checkbox"
                       checked={form.sendEmail}
                       onChange={e => onChange({ ...form, sendEmail: e.target.checked })}
-                      style={{ cursor: 'pointer' }}
+                      style={{ cursor: 'pointer', width: '20px', height: '20px' }}
                     />
-                    <label htmlFor="send-email-checkbox" style={{ fontWeight: 500, fontSize: '13px', cursor: 'pointer' }}>
+                    <label htmlFor="send-email-checkbox" style={{ fontWeight: 500, cursor: 'pointer' }}>
                       Send email notification to reporter
                     </label>
                   </div>
 
                   {form.sendEmail && (
-                    <div>
-                      <label className="label" style={{ fontSize: '11px', marginTop: 'var(--sp-sm)' }}>Custom Email Message</label>
+                    <div className="pf-field" style={{ marginTop: 'var(--sp-sm)' }}>
+                      <label className="pf-label">Custom Email Message</label>
                       <textarea
-                        className="input"
-                        style={{ width: '100%', minHeight: '80px', padding: '8px 10px', fontSize: '13px', resize: 'vertical', fontFamily: 'inherit' }}
+                        className="pf-textarea"
                         value={form.emailMessageOverride}
                         onChange={e => onChange({ ...form, emailMessageOverride: e.target.value })}
                         placeholder="Customize the message body..."
@@ -383,18 +380,18 @@ export default function SettingsTickets() {
                     </div>
                   )}
                 </div>
-                
-                <div className="flex-row gap-sm" style={{ marginTop: '16px' }}>
+
+                <div className="flex-row gap-sm" style={{ marginTop: 'var(--sp-sm)', justifyContent: 'flex-end' }}>
+                  <button className="btn-cancel" onClick={onCancel}>Cancel</button>
                   <button className="btn-primary" onClick={handleCustomSave} disabled={saving}>
                     {saving ? 'Saving…' : 'Save'}
                   </button>
-                  <button className="btn-cancel" onClick={onCancel}>Cancel</button>
                 </div>
               </div>
 
               {/* Right Column: Live Email Preview */}
               <div>
-                <label className="label">Email Preview (Live)</label>
+                <label className="pf-label">Email Preview (Live)</label>
                 {!form.sendEmail ? (
                   <div style={{
                     padding: 'var(--sp-xl)',
@@ -403,7 +400,8 @@ export default function SettingsTickets() {
                     borderRadius: 'var(--r)',
                     textAlign: 'center',
                     color: 'var(--muted)',
-                    fontSize: '13px'
+                    marginTop: '5px',
+                    fontSize: 'var(--fs-base)',
                   }}>
                     Email notification is disabled for this update.
                   </div>
@@ -416,10 +414,11 @@ export default function SettingsTickets() {
                     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                     color: '#1a1a1a',
                     boxShadow: 'var(--shadow-sm)',
-                    fontSize: '13px',
+                    fontSize: 'var(--fs-base)',
                     lineHeight: '1.5',
+                    marginTop: '5px',
                   }}>
-                    <div style={{ borderBottom: '1px solid #edf2f7', paddingBottom: '8px', marginBottom: '12px', fontSize: '11px', color: '#718096' }}>
+                    <div style={{ borderBottom: '1px solid #edf2f7', paddingBottom: '8px', marginBottom: '12px', color: '#718096' }}>
                       <div><strong>From:</strong> Stan Baptista &lt;noreply@stanbaptista.me&gt;</div>
                       <div style={{ marginTop: '2px', color: '#2d3748' }}>
                         <strong>Subject:</strong> {

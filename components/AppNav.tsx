@@ -111,7 +111,7 @@ export default function AppNav({ printContext, userInitial = '?', userName }: Pr
           <div className="modal-center" onClick={e => e.stopPropagation()} style={{ maxWidth: '320px' }}>
             <div className="modal-header">
               <h2 style={{ flex: 1, margin: 0 }}>Commands</h2>
-              <button className="close-btn" onClick={() => setCommandsOpen(false)} aria-label="Close">×</button>
+              <button className="close-btn" onClick={() => setCommandsOpen(false)} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div className="ud-commands-list">
               {!onDashboard && (

@@ -238,17 +238,25 @@ Reusable pattern for settings lists with count badges, reorder arrows, and add/e
 ## Modals & Panels
 
 ### Centered Modal (`modal-center`)
-**Canonical modal pattern.** Fixed center of viewport, max-width 480px, max-height 70dvh.
+**Canonical modal pattern.** Fixed center of viewport, resizable, max-height 85dvh.
 
 | Class | Purpose |
 |---|---|
 | `modal-backdrop` | Full-screen semi-transparent backdrop (click to close) |
-| `modal-center` | The modal container — centered, rounded, shadow |
+| `modal-center` | The modal container — centered, rounded, shadow, resizable. Default max-width 480px |
+| `modal-sm` | Width modifier: max-width 400px (e.g. AddProductModal) |
+| `modal-lg` | Width modifier: max-width 680px |
+| `modal-compose` | Width modifier: max-width 920px. For form + live preview layouts |
 | `modal-header` | Top bar with title/close button, border-bottom |
 | `modal-body` | Scrollable content area |
 | `modal-footer` | Bottom bar with actions (Save/Delete/Cancel), border-top |
+| `compose-body` | Two-column grid body (form left, preview right). Stacks to single column on mobile |
+| `close-btn` | Standard close button — 28px font, 44×44px hit target, hover state |
 
-**Use for:** Todo edit, new todo form, distill modal, any focused editing task.
+**Use for:** Todo edit, new project form, distill modal, any focused editing task.  
+**Use `modal-compose` for:** Compose/edit workflows with a live preview (e.g. ticket email editing).
+
+**Deprecated patterns (removed):** `.apm-modal`, `.dm-modal` — replaced by `modal-center` with width modifiers.
 
 ### Slide Panel (`slide-panel`)
 **Status:** Being phased out in favor of `modal-center`  
@@ -374,4 +382,4 @@ This catalog must stay in sync with `globals.css` and `components/`. Never leave
 
 ---
 
-*Last updated: 2026-06-07 — Session 62 (Antigravity) - Admin zero-task project name display fix
+*Last updated: 2026-06-07 — Session 63 (Claude Code) - Standardize edit modals (ORB-222)

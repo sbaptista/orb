@@ -207,7 +207,7 @@ export default function SettingsAudit() {
               <h3 style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 600 }}>
                 Audit Entry
               </h3>
-              <button className="close-btn" onClick={() => setViewingRow(null)} aria-label="Close">×</button>
+              <button className="close-btn" onClick={() => setViewingRow(null)} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div className="modal-body" style={{ padding: 'var(--sp-lg) var(--sp-xl)' }}>
               {columns.filter(c => c !== 'id').map(col => (

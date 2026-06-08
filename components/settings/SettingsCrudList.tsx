@@ -50,6 +50,8 @@ type CrudConfig<T, F> = {
   addModalTitle?: string
   /** Label for the modal title when editing. Defaults to "Edit {itemLabel}". */
   editModalTitle?: string
+  /** Additional CSS class(es) for the modal container. E.g. "modal-compose" for wide compose layouts. */
+  modalClass?: string
 
   /** When omitted, no Add button or Edit modal is shown (read-only table). */
   renderForm?: (props: {
@@ -689,12 +691,12 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       {modalOpen && (
         <>
           <div className="modal-backdrop" onClick={closeModal} />
-          <div className="modal-center">
-            <div className="modal-header">
+          <div className={`modal-center ${config.modalClass ?? ''}`}>
+            <div className="modal-header" style={{ justifyContent: 'space-between' }}>
               <h3 style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 600 }}>
                 {modalTitle}
               </h3>
-              <button className="close-btn" onClick={closeModal} aria-label="Close">×</button>
+              <button className="close-btn" onClick={closeModal} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div className="modal-body" style={{ padding: 'var(--sp-lg) var(--sp-xl)' }}>
               {error && <p className="s-error" style={{ marginBottom: 'var(--sp-md)' }}>{error}</p>}
