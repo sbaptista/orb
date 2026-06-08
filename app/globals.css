@@ -2363,6 +2363,13 @@ a, button, [role="button"], input, select, textarea {
   border-radius: var(--r-xl);
 }
 
+/* ── Service error card (billing, overloaded, network) ── */
+.oc-service-error {
+  background: rgba(255, 237, 210, 0.95);
+  border: 1px solid rgba(200, 150, 50, 0.4);
+  border-left: 4px solid rgba(210, 140, 20, 0.8);
+}
+
 /* ── Developer channel card ── */
 .oc-dev-card {
   margin: 5px 2px;
@@ -3266,11 +3273,13 @@ a, button, [role="button"], input, select, textarea {
   bottom: 16px;
   right: 16px;
   z-index: 100000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .dev-toggle {
   display: block;
-  margin-left: auto;
   padding: 4px 10px;
   background: var(--action, var(--pill-active-color));
   color: var(--action-text, #fff);
@@ -3284,7 +3293,7 @@ a, button, [role="button"], input, select, textarea {
 }
 
 .dev-menu {
-  margin-top: 6px;
+  margin-bottom: 6px;
   padding: 10px;
   background: var(--bg);
   border: 1px solid var(--border2, var(--border));

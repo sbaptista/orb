@@ -11,7 +11,7 @@ import AppNav from './AppNav'
 import OrbHelp from './OrbHelp'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { registerOrbTour, unregisterOrbTour, runOrbTour } from './OrbTour'
-import { OrbDevPanel, DevTestError, type MoodOverride } from './OrbDevPanel'
+import { OrbDevPanel, DevTestError, type MoodOverride, type SimulateError } from './OrbDevPanel'
 import { orbConverse, orbGreeting, type OrbResponse } from '@/app/actions/orb-converse'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { checkReminders } from '@/app/actions/reminder-actions'
@@ -145,6 +145,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [moodOverride, setMoodOverride]         = useState<MoodOverride>(null)
   const [roleOverride, setRoleOverride]         = useState<'Super Admin' | 'Admin' | 'Owner' | null>(null)
   const [dryRun, setDryRun]                     = useState(false)
+  const [simulateError, setSimulateError]       = useState<SimulateError>(null)
   const [isInputFocused, setIsInputFocused]     = useState(false)
   const [userName, setUserName]                 = useState<string>('')
   const [userFullName, setUserFullName]         = useState<string>('')
@@ -877,7 +878,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     activeProcessingIdRef.current = processingId
 
     try {
-      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive } })
+      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive } })
       for await (const chunk of readStreamableValue(stream)) {
         if (abortConverseRef.current) break
         if (!chunk) continue
@@ -885,7 +886,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           if (m.id !== processingId) return m
           const newThoughts = m.thoughts ? [...m.thoughts] : []
           if (chunk.thought && !newThoughts.includes(chunk.thought)) newThoughts.push(chunk.thought)
-          return { ...m, text: chunk.speech || m.text, thoughts: newThoughts, isStreaming: chunk.isStreaming }
+          return { ...m, text: chunk.speech || m.text, thoughts: newThoughts, isStreaming: chunk.isStreaming, isServiceError: chunk.isServiceError || m.isServiceError }
         }))
         if (chunk.refresh) {
           setPulse(true)
@@ -1591,6 +1592,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         onSubmit={handleSubmit} dryRun={dryRun} onDryRunChange={setDryRun}
         messages={messages} onForceQuiet={() => setConversationActive(false)}
         onErrorTest={() => setDevError(true)}
+        simulateError={simulateError} onSimulateErrorChange={setSimulateError}
       />
 
       {/* Orb animations */}

@@ -9,7 +9,7 @@ import { visibleProjectsQuery, clampProjectName } from '@/lib/projects'
 import AddProductModal from './AddProductModal'
 import OrbHelp from './OrbHelp'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
-import { OrbDevPanel, DevTestError, type MoodOverride } from './OrbDevPanel'
+import { OrbDevPanel, DevTestError, type MoodOverride, type SimulateError } from './OrbDevPanel'
 import { orbConverse, orbGreeting, type OrbResponse } from '@/app/actions/orb-converse'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import DistillModal from './DistillModal'
@@ -110,6 +110,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const [moodOverride, setMoodOverride]       = useState<MoodOverride>(null)
     const [roleOverride, setRoleOverride]       = useState<'Super Admin' | 'Admin' | 'Owner' | null>(null)
     const [dryRun, setDryRun]                   = useState(false)
+    const [simulateError, setSimulateError]     = useState<SimulateError>(null)
     const [showHelp, setShowHelp]               = useState(false)
     const [messages, setMessages]               = useState<ConversationMessage[]>([])
     const [conversationActive, setConversationActive] = useState(false)
@@ -714,7 +715,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
         activeProcessingIdRef.current = processingId
 
         try {
-            const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun })
+            const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError })
             
             for await (const chunk of readStreamableValue(stream)) {
                 if (abortConverseRef.current) break
@@ -733,6 +734,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                         text: chunk.speech || m.text,
                         thoughts: newThoughts,
                         isStreaming: chunk.isStreaming,
+                        isServiceError: chunk.isServiceError || m.isServiceError,
                     }
                 }))
 
@@ -1236,6 +1238,8 @@ Type /? anytime for a full command list. What would you like to work on?` },
                 messages={messages}
                 onForceQuiet={() => setConversationActive(false)}
                 onErrorTest={() => setDevError(true)}
+                simulateError={simulateError}
+                onSimulateErrorChange={setSimulateError}
             />
 
             {showAddProduct && (

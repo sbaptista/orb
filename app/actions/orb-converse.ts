@@ -14,6 +14,8 @@ import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { computeUrgency, type Urgency } from '@/lib/orb-state'
 import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
 import { createTicket } from '@/app/actions/ticket-actions'
+import { sendTicketNotificationEmail } from '@/lib/email'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 import { VERSION } from '@/lib/version'
 import { createProject } from '@/app/actions/manage-project'
@@ -33,6 +35,7 @@ export type OrbResponse = {
   mutationType?: 'create' | 'update' | 'delete' | 'project_create' | 'dormancy'
   clientAction?: { action: string; target?: string }
   error?: string
+  isServiceError?: boolean // True when the error is a service-level issue (billing, overloaded, network)
   isStreaming?: boolean
   suggestedKnowledge?: { id: string; productId: string; title: string; suggestion: { title: string; content: string } }
   knowledgeResults?: Array<{ title: string; content: string; code?: string }>
@@ -58,6 +61,7 @@ export type OrbRequest = {
   dryRun?: boolean
   roleOverride?: string | null
   uiContext?: UIContext
+  simulateError?: 'billing' | 'overloaded' | null
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
@@ -327,6 +331,17 @@ export async function orbConverse(req: OrbRequest) {
     let accumulatedSpeech = ''
     try {
       const auth = await getAuthContext()
+
+      // DEV-only error simulation — throws synthetic errors to test error UX
+      if (process.env.NODE_ENV === 'development' && req.simulateError) {
+        const syntheticErrors: Record<string, any> = {
+          billing: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API.' },
+          overloaded: { type: 'overloaded_error', message: 'Overloaded' },
+        }
+        const err = syntheticErrors[req.simulateError]
+        if (err) throw Object.assign(new Error(err.message), { type: err.type })
+      }
+
       const supabase = auth.supabase
       const ctx = await buildContext(supabase, auth, req.productId)
 
@@ -1139,21 +1154,41 @@ export async function orbConverse(req: OrbRequest) {
         userMessage = 'Something went wrong. Try again — if it persists, let Stan know.'
       }
 
-      // Auto-file a ticket on billing errors so Stan is notified immediately
+      // Auto-file a ticket AND email admins on billing errors
       if (isBillingError) {
+        const ticketDetail = { error: errMsg, type: errType, timestamp: new Date().toISOString() }
+        const ticketSummary = 'Anthropic API credit balance exhausted — Orb conversations unavailable'
+        // File ticket (fire-and-forget)
         createTicket({
           source: 'orb-auto',
           type: 'bug',
-          summary: 'Anthropic API credit balance exhausted — Orb conversations unavailable',
-          detail: { error: errMsg, type: errType, timestamp: new Date().toISOString() },
+          summary: ticketSummary,
+          detail: ticketDetail,
         }).catch(ticketErr => console.error('[orbConverse] Failed to auto-file billing ticket:', ticketErr))
+        // Email all admins immediately (fire-and-forget)
+        try {
+          const adminClient = createAdminClient()
+          const { data: admins } = await adminClient.from('users').select('email').in('role_id', [1, 3])
+          if (admins && admins.length > 0) {
+            for (const adm of admins) {
+              if (adm.email) {
+                sendTicketNotificationEmail({
+                  to: adm.email,
+                  ticket: { source: 'orb-auto', type: 'bug', summary: ticketSummary, detail: ticketDetail },
+                }).catch(emailErr => console.error('[orbConverse] Admin billing email failed:', emailErr))
+              }
+            }
+          }
+        } catch (adminErr) {
+          console.error('[orbConverse] Failed to email admins about billing error:', adminErr)
+        }
       }
 
       // If we had partial speech before the error, preserve it
       const finalSpeech = accumulatedSpeech
         ? `${accumulatedSpeech}\n\n*${userMessage}*`
         : userMessage
-      stream.done({ speech: finalSpeech, error: String(err) })
+      stream.done({ speech: finalSpeech, isServiceError: true, error: String(err) })
     }
   })()
 

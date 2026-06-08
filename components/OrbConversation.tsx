@@ -8,6 +8,7 @@ export type ConversationMessage = {
     type: 'user' | 'orb' | 'dev'
     text: string
     isStreaming?: boolean
+    isServiceError?: boolean
     thoughts?: string[]
     senderLabel?: string
     // When set, the Orb card renders an inline tour nudge with action buttons.
@@ -48,7 +49,7 @@ function OrbCard({ msg, onDismissNudge }: { msg: ConversationMessage; onDismissN
     }
 
     return (
-        <div className="oc-orb-card">
+        <div className={msg.isServiceError ? 'oc-orb-card oc-service-error' : 'oc-orb-card'}>
             {msg.thoughts && msg.thoughts.length > 0 && (
                 <div className="flex-col" style={{ gap: '1px', marginBottom: '4px' }}>
                     {msg.thoughts.map((t, i) => (

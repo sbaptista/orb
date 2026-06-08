@@ -12,6 +12,8 @@ export type MoodOverride = 'calm' | 'busy' | 'urgent' | null
 export type RoleOverride = 'Super Admin' | 'Admin' | 'Owner' | null
 export type Speech = { text: string; autoFade?: number } | null
 
+export type SimulateError = 'billing' | 'overloaded' | null
+
 type Props = {
   override: MoodOverride
   onChange: (m: MoodOverride) => void
@@ -24,6 +26,8 @@ type Props = {
   messages: ConversationMessage[]
   onForceQuiet?: () => void
   onErrorTest?: () => void
+  simulateError: SimulateError
+  onSimulateErrorChange: (v: SimulateError) => void
 }
 
 const SPEECH_PRESETS: Record<string, Speech> = {
@@ -35,7 +39,7 @@ const SPEECH_PRESETS: Record<string, Speech> = {
   },
 }
 
-function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChange, onSpeak, onSubmit, dryRun, onDryRunChange, messages, onForceQuiet, onErrorTest }: Props) {
+function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChange, onSpeak, onSubmit, dryRun, onDryRunChange, messages, onForceQuiet, onErrorTest, simulateError, onSimulateErrorChange }: Props) {
   const [open, setOpen] = useState(false)
   const [simulatedOffline, setSimulatedOffline] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -83,10 +87,6 @@ function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChan
 
   return (
     <div className="dev-panel">
-      <button type="button" onClick={() => setOpen(v => !v)} className="dev-toggle">
-        DEV
-      </button>
-
       {open && (
         <div className="dev-menu">
           <div className="dev-section">Orb mood</div>
@@ -168,8 +168,20 @@ function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChan
           <button type="button" className="dev-btn" onClick={copyTranscript}>
             Copy Transcript ({messages.length})
           </button>
+
+          <div className="dev-section">Simulate API errors</div>
+          <button type="button" className="dev-btn" aria-pressed={simulateError === 'billing'} onClick={() => onSimulateErrorChange(simulateError === 'billing' ? null : 'billing')}>
+            Billing / credits {simulateError === 'billing' ? '✓' : ''}
+          </button>
+          <button type="button" className="dev-btn" aria-pressed={simulateError === 'overloaded'} onClick={() => onSimulateErrorChange(simulateError === 'overloaded' ? null : 'overloaded')}>
+            Overloaded {simulateError === 'overloaded' ? '✓' : ''}
+          </button>
         </div>
       )}
+
+      <button type="button" onClick={() => setOpen(v => !v)} className="dev-toggle">
+        DEV {open ? '▼' : '▲'}
+      </button>
     </div>
   )
 }

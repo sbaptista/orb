@@ -6,10 +6,11 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
-    version: 'v0.5.172',
-    date: '2026-06-07',
+    version: 'v0.5.173',
+    date: '2026-06-08',
     changes: [
-      'Server-enforced mutation verification (ORB-225): Added try/catch around every tool handler to prevent uncaught exceptions from crashing the streaming loop. Injected _verification signals into mutation tool results so the model cannot ignore failures or fabricate codes. Tightened ORB_MUTATION_VERIFICATION prompt. Added code-fabrication eval case.',
+      'Service error UX: Human-readable error messages for API failures (overloaded, rate limit, billing, network) replace opaque "System error." Amber card styling for service errors. Admin email + auto-ticket on billing/credit exhaustion. DEV panel: simulate billing and overloaded errors, toggle anchored at bottom.',
+      'Server-enforced mutation verification (ORB-225): Try/catch per tool handler, _verification signals in mutation tool results, tightened prompt, code-fabrication eval case.',
     ]
   },
   {
