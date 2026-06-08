@@ -15,12 +15,12 @@
 
 ### Last Session Completed
 
-**Fix Ticket Code Propagation (ORB-225) — 2026-06-07 (Session 66, Antigravity)**
+**Refine Ticket Code Verification (ORB-225) — 2026-06-07 (Session 67, Antigravity)**
 
 ### What was done
-- **Ticket Code Propagation**: Fixed a bug where the `create_ticket` result handler in `orb-converse.ts` returned only `{ ok: true }`. Propagated the generated ticket code `res.data?.code` back to the Orb, enabling it to successfully state the ticket code (e.g. `TICKETS-xxx`) to the user.
-- **Release Documentation & Bump**: Bumped version to `v0.5.169` (`package.json` + `version.ts`) and updated `lib/changelog.ts` with release details.
-- **Verification**: Verified that the changes successfully pass the full evaluation suite (Tier 1 and Tier 2).
+- **Ticket Code Verification Refinement**: Updated the `ORB_MUTATION_VERIFICATION` protocol instructions in [lib/orb-prompt.ts](file:///Users/stanleybaptista/Projects/orb/lib/orb-prompt.ts) to explicitly mandate that the Orb state the generated ticket code (e.g. `TICKETS-xxx`) in its second-turn confirmation response for both proactive and user-requested ticket creations.
+- **Release Documentation & Bump**: Bumped version to `v0.5.170` (`package.json` + `version.ts`) and updated `lib/changelog.ts` with release details.
+- **Verification**: Verified that all Tier 1 tests pass cleanly.
 
 ---
 
@@ -197,7 +197,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-07 — Antigravity (Gemini 3.5 Flash) — Session 66`
+`2026-06-07 — Antigravity (Gemini 3.5 Flash) — Session 67`
 
 ---
 

@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.170',
+    date: '2026-06-07',
+    changes: [
+      'Refine Ticket Code Verification: Updated ORB_MUTATION_VERIFICATION protocol prompt in lib/orb-prompt.ts to explicitly mandate that the Orb report the generated ticket code (e.g. TICKETS-xxx) in its second-turn confirmation response for both proactive and user-requested ticket creations.',
+    ]
+  },
+  {
     version: 'v0.5.169',
     date: '2026-06-07',
     changes: [

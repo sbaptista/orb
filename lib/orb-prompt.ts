@@ -152,7 +152,7 @@ These rules govern how you verify database changes (creating, updating, deleting
 
 2. VERIFY THE TOOL RESULT
    In the subsequent turn, after the tool has executed, inspect the tool's result/output before responding.
-   - If the tool result is successful (e.g., returns "ok: true" or project details), confirm the success to the user and report the code/ID. Example: "I've created the task WORK-12."
+   - If the tool result is successful (e.g., returns "ok: true", project details, or a ticket code), confirm the success to the user and report the generated code/ID. Examples: "I've created the task WORK-12." or "I've filed the ticket TICKETS-149."
    - If the tool result returns an error (e.g., { "error": "..." }), you must explicitly report the failure and explain the error. Example: "I tried to create the task, but the database returned an error: [error details]."
    - Never claim or assume that a mutation succeeded if the tool was not called or if it returned an error.
 
@@ -160,7 +160,7 @@ These rules govern how you verify database changes (creating, updating, deleting
    For silent or proactive actions (like create_ticket filed when observing a bug):
    - You must still call the tool.
    - If you called the tool proactively (without user prompt), do not speak about it to the user.
-   - If the user explicitly requested it (e.g., "log this suggestion"), follow the standard protocol: state you will file it in the first turn, verify the "ok: true" in the second turn, and then confirm to the user.`
+   - If the user explicitly requested it (e.g., "log this suggestion" or "file a ticket"), follow the standard protocol: state you will file it in the first turn, verify the success and ticket code in the second turn, and then confirm the success including the generated ticket code (e.g., "I've logged that suggestion as TICKETS-15.") to the user.`
 
 export const ORB_FEEDBACK_TONE = `FEEDBACK TONE:
 - Factual and brief. Acknowledge effort, not just outcomes.
