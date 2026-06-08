@@ -324,6 +324,7 @@ export async function orbConverse(req: OrbRequest) {
   const stream = createStreamableValue<OrbResponse>()
 
   ;(async () => {
+    let accumulatedSpeech = ''
     try {
       const auth = await getAuthContext()
       const supabase = auth.supabase
@@ -350,7 +351,6 @@ export async function orbConverse(req: OrbRequest) {
 
       let turnCount = 0
       const MAX_TURNS = 5
-      let accumulatedSpeech = ''
 
       // Heartbeat to open the pipe
       stream.update({ speech: '', isStreaming: true })
@@ -1119,9 +1119,28 @@ export async function orbConverse(req: OrbRequest) {
       // Reached MAX_TURNS without a no-tool-call response — close the stream
       // so the client's for-await loop doesn't hang.
       stream.done({ speech: accumulatedSpeech, isStreaming: false })
-    } catch (err) {
+    } catch (err: any) {
       console.error('[orbConverse] Error:', err)
-      stream.done({ speech: 'System error.', error: String(err) })
+      // Surface a human-readable message instead of "System error."
+      const errType = err?.type || err?.error?.type || ''
+      const errMsg = err?.message || err?.error?.message || ''
+      let userMessage: string
+      if (errType === 'overloaded_error' || errMsg.includes('Overloaded')) {
+        userMessage = 'The AI service is momentarily overloaded. Try again in a few seconds.'
+      } else if (errType === 'rate_limit_error' || errMsg.includes('rate_limit')) {
+        userMessage = 'Rate limit reached. Give it a moment and try again.'
+      } else if (errMsg.includes('credit balance') || errMsg.includes('billing')) {
+        userMessage = 'There is a billing issue with the AI service. Let Stan know.'
+      } else if (errMsg.includes('ECONNREFUSED') || errMsg.includes('ETIMEDOUT') || errMsg.includes('fetch failed')) {
+        userMessage = 'Could not reach the AI service. Check your connection and try again.'
+      } else {
+        userMessage = 'Something went wrong. Try again — if it persists, let Stan know.'
+      }
+      // If we had partial speech before the error, preserve it
+      const finalSpeech = accumulatedSpeech
+        ? `${accumulatedSpeech}\n\n*${userMessage}*`
+        : userMessage
+      stream.done({ speech: finalSpeech, error: String(err) })
     }
   })()
 
