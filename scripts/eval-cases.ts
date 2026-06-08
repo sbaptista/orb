@@ -175,19 +175,34 @@ export const EVAL_CASES: EvalCase[] = [
 
   {
     id: 'mutation-no-premature-success',
-    description: 'The Orb does not claim a task has been created/added or cite task codes before the tool runs',
+    description: 'The Orb uses future/progressive tense and does not claim completion before the tool runs',
     productCode: 'ORB',
     input: 'Create a task: fix the login page bug',
     tier: 2,
-    speechNotContains: ['created', 'added', 'success', 'orb-'],
+    expectTool: { name: 'create_todo' },
+    // Pre-tool text must not contain past-tense completion claims or codes
+    speechNotContains: ['created', 'added', 'done', 'orb-'],
   },
 
   {
     id: 'ticket-no-premature-success',
-    description: 'The Orb does not claim a ticket has been filed/created or cite ticket codes before the tool runs',
+    description: 'The Orb uses future/progressive tense and does not claim completion before the tool runs',
     productCode: 'ORB',
     input: 'There is a bug on the login page, please file it',
     tier: 2,
+    expectTool: { name: 'create_ticket' },
+    // Pre-tool text must not contain past-tense completion claims or codes
     speechNotContains: ['filed', 'created', 'logged', 'tickets-'],
+  },
+
+  {
+    id: 'mutation-no-code-fabrication',
+    description: 'The Orb never fabricates task/ticket codes in pre-tool text',
+    productCode: 'ORB',
+    input: 'Create a high priority task called "Refactor auth module"',
+    tier: 2,
+    expectTool: { name: 'create_todo' },
+    // Codes follow patterns like ORB-123 or TICKETS-45 — none should appear before tool runs
+    speechPattern: /^(?!.*\b(?:ORB|HELM|TICKETS)-\d+\b)/i,
   },
 ]

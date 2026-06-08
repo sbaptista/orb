@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.172',
+    date: '2026-06-07',
+    changes: [
+      'Server-enforced mutation verification (ORB-225): Added try/catch around every tool handler to prevent uncaught exceptions from crashing the streaming loop. Injected _verification signals into mutation tool results so the model cannot ignore failures or fabricate codes. Tightened ORB_MUTATION_VERIFICATION prompt. Added code-fabrication eval case.',
+    ]
+  },
+  {
     version: 'v0.5.171',
     date: '2026-06-07',
     changes: [

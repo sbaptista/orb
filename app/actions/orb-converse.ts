@@ -451,6 +451,13 @@ export async function orbConverse(req: OrbRequest) {
           return
         }
 
+        // Mutation tools that change data — used to inject verification signals
+        const MUTATION_TOOLS = new Set([
+          'create_todo', 'update_todo', 'delete_todo', 'move_todo',
+          'create_project', 'update_project', 'delete_project', 'set_dormancy',
+          'create_ticket', 'add_knowledge', 'set_preference',
+        ])
+
         const toolOutputs: any[] = []
         for (const tc of toolCalls) {
           let input: any
@@ -465,6 +472,9 @@ export async function orbConverse(req: OrbRequest) {
           if (inputTruncated) {
             output = { error: 'Your tool call was truncated (incomplete JSON). The parameters were too long for the response limit. Try again with a shorter description, or create the task first with just a title and update it separately.' }
           } else
+
+          // try/catch wraps every tool handler so a throw doesn't crash the stream
+          try {
 
           if (tc.name === 'create_todo') {
             if (!input.title) { output = { error: 'title is required' } }
@@ -1073,9 +1083,27 @@ export async function orbConverse(req: OrbRequest) {
               stream.update({ speech: accumulatedSpeech, thought: `Sent to ${targetTool}` })
             }
           }
+          } catch (toolErr: any) {
+            // Safety net: if any tool handler throws, catch it cleanly
+            // instead of crashing the entire streaming loop
+            console.error(`[orbConverse] Tool "${tc.name}" threw:`, toolErr)
+            output = { error: `Tool execution failed: ${toolErr.message || 'Unknown error'}` }
+          }
+
           if (output?.error) {
             stream.update({ speech: accumulatedSpeech, thought: `Error: ${output.error}` })
           }
+
+          // For mutation tools, inject explicit verification signals so the model
+          // cannot ignore errors or fabricate codes in its post-tool response
+          if (MUTATION_TOOLS.has(tc.name)) {
+            if (output?.error) {
+              output._verification = `VERIFICATION: This "${tc.name}" call FAILED with error: "${output.error}". You MUST tell the user it failed. Do NOT claim success or cite any codes.`
+            } else {
+              output._verification = `VERIFICATION: This "${tc.name}" call SUCCEEDED. Report ONLY the code/ID returned in this result. Do NOT invent or guess any codes.`
+            }
+          }
+
           toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
         }
         messages.push({ role: 'user', content: toolOutputs })

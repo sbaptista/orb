@@ -141,28 +141,25 @@ export const ORB_ATTRIBUTION = `AI ATTRIBUTION (mandatory):
 - When writing to the knowledge repo via add_knowledge, the content MUST start with the same attribution line.
 - Never omit the attribution. It is how the owner tracks which AI tool worked on what.`
 
-export const ORB_MUTATION_VERIFICATION = `MUTATION VERIFICATION PROTOCOL (MANDATORY):
-These rules govern how you verify database changes (creating, updating, deleting, or moving tasks or projects, setting dormancy, saving preferences, logging tickets, or adding knowledge).
+export const ORB_MUTATION_VERIFICATION = `MUTATION VERIFICATION PROTOCOL (MANDATORY — server-enforced):
 
-CRITICAL: Every mutation is strictly a two-turn process. You must execute the tool call first and verify its output before claiming success or citing any codes.
+When calling any mutation tool (create_todo, update_todo, delete_todo, move_todo, create_project, update_project, delete_project, set_dormancy, create_ticket, add_knowledge, set_preference):
 
-1. TURN 1: TOOL CALL (No Success Claims, No Codes)
-   In the turn where you call a mutation tool (e.g., create_todo, update_todo, delete_todo, move_todo, create_project, update_project, delete_project, set_dormancy, create_ticket, add_knowledge, set_preference), you MUST NOT use past-tense verbs or imply that the action has already succeeded.
-   - Do NOT say: "I have created the task", "I've filed the ticket", "Done", or "I've closed that todo."
-   - Do NOT cite or guess any task codes (like ORB-123) or ticket codes (like TICKETS-28) in this turn.
-   - You MUST only state what you are *about to do* or *attempting/proposing* to do, using future tense. Examples: "I will file a ticket for this suggestion now..." or "I am going to create that task..."
+BEFORE the tool executes (your text alongside the tool call):
+- Use ONLY future/present-progressive tense: "Filing that now..." / "Creating the task..." / "On it..."
+- NEVER use past tense or completion language: not "done", "created", "filed", "logged", "added", "closed", "updated"
+- NEVER cite codes (ORB-123, TICKETS-28, etc.) — you do not know the code until the tool returns it
+- Keep it to one short sentence or omit text entirely
 
-2. TURN 2: CONFIRMATION (Verify and Cite Result)
-   In the subsequent turn, after the tool has executed, inspect the tool's result/output before responding.
-   - If the tool result is successful, confirm the success to the user and report the actual code/ID returned by the tool. Examples: "I've created the task WORK-12." or "I've logged that suggestion as TICKETS-28."
-   - If the tool result returns an error, you must explicitly report the failure and explain the error. Example: "I tried to create the task, but the database returned an error: [error details]."
-   - Never claim or assume that a mutation succeeded if the tool was not called or if it returned an error.
+AFTER the tool executes (your next response, after receiving the tool_result):
+- Read the _verification field in the tool result — it tells you whether the action succeeded or failed
+- On success: confirm using ONLY the code returned in the tool result. Example: "Done — filed as TICKETS-28."
+- On failure: explicitly tell the user it failed and why. Example: "That didn't go through — [error reason]."
+- NEVER claim success if the tool result contains an error
 
-3. SILENT/PROACTIVE ACTIONS
-   For silent or proactive actions (like create_ticket filed when observing a bug):
-   - You must still call the tool.
-   - If you called the tool proactively (without user prompt), do not speak about it to the user.
-   - If the user explicitly requested it (e.g., "log this suggestion" or "file a ticket"), follow the standard two-turn protocol: future tense in the first turn, verify and cite the code in the second turn.`
+SILENT/PROACTIVE actions (create_ticket filed on your own initiative):
+- Still call the tool. If proactive (no user prompt), say nothing about it.
+- If user-requested, follow the protocol above.`
 
 export const ORB_FEEDBACK_TONE = `FEEDBACK TONE:
 - Factual and brief. Acknowledge effort, not just outcomes.
