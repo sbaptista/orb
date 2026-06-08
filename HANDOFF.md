@@ -15,13 +15,12 @@
 
 ### Last Session Completed
 
-**Orb Mutation Verification (ORB-225) — 2026-06-07 (Session 65, Antigravity)**
+**Fix Ticket Code Propagation (ORB-225) — 2026-06-07 (Session 66, Antigravity)**
 
 ### What was done
-- **Mutation Verification Protocol**: Implemented `ORB_MUTATION_VERIFICATION` in [orb-prompt.ts](file:///Users/stanleybaptista/Projects/orb/lib/orb-prompt.ts) and integrated it in [orb-converse.ts](file:///Users/stanleybaptista/Projects/orb/app/actions/orb-converse.ts) and [route.ts](file:///Users/stanleybaptista/Projects/orb/app/api/orb-eval/route.ts). This protocol prevents the Orb conversational AI from claiming success or referencing task/ticket IDs prematurely before the tool runs, and enforces explicit failure reporting on error.
-- **Regression Test Cases**: Appended Tier 2 test cases `mutation-no-premature-success` and `ticket-no-premature-success` to [eval-cases.ts](file:///Users/stanleybaptista/Projects/orb/scripts/eval-cases.ts) to assert that success claims and code citations are not generated on the tool-use turn.
-- **Release Documentation & Bump**: Bumped version to `v0.5.168` ([package.json](file:///Users/stanleybaptista/Projects/orb/package.json) + [version.ts](file:///Users/stanleybaptista/Projects/orb/lib/version.ts)) and documented in [changelog.ts](file:///Users/stanleybaptista/Projects/orb/lib/changelog.ts).
-- **Verification**: Ran the evaluation suite; Tier 1 passed 6/6 and Tier 2 passed 10/10 (including the new cases).
+- **Ticket Code Propagation**: Fixed a bug where the `create_ticket` result handler in `orb-converse.ts` returned only `{ ok: true }`. Propagated the generated ticket code `res.data?.code` back to the Orb, enabling it to successfully state the ticket code (e.g. `TICKETS-xxx`) to the user.
+- **Release Documentation & Bump**: Bumped version to `v0.5.169` (`package.json` + `version.ts`) and updated `lib/changelog.ts` with release details.
+- **Verification**: Verified that the changes successfully pass the full evaluation suite (Tier 1 and Tier 2).
 
 ---
 
@@ -131,14 +130,7 @@
 
 ### Uncommitted Changes
 
-- Modified: `HANDOFF.md`
-- Modified: `app/actions/orb-converse.ts`
-- Modified: `app/api/orb-eval/route.ts`
-- Modified: `lib/changelog.ts`
-- Modified: `lib/orb-prompt.ts`
-- Modified: `lib/version.ts`
-- Modified: `package.json`
-- Modified: `scripts/eval-cases.ts`
+- None (all changes committed locally)
 
 ---
 
@@ -205,7 +197,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-07 — Antigravity (Gemini 3.5 Flash) — Session 65`
+`2026-06-07 — Antigravity (Gemini 3.5 Flash) — Session 66`
 
 ---
 

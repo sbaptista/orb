@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.169',
+    date: '2026-06-07',
+    changes: [
+      'Fix Ticket Code Propagation: Modified the create_ticket tool result handler inside app/actions/orb-converse.ts to return the generated ticket code (e.g., TICKETS-xxx) in the tool output object and streamed thought updates, enabling the Orb to successfully state the specific ticket code to the user after verification.',
+    ]
+  },
+  {
     version: 'v0.5.168',
     date: '2026-06-07',
     changes: [

@@ -1024,8 +1024,8 @@ export async function orbConverse(req: OrbRequest) {
             })
             if (res.error) output = { error: res.error }
             else {
-              output = { ok: true }
-              stream.update({ speech: accumulatedSpeech, thought: 'Noted' })
+              output = { ok: true, code: res.data?.code }
+              stream.update({ speech: accumulatedSpeech, thought: `Noted ${res.data?.code || ''}`.trim() })
             }
 
           } else if (tc.name === 'get_preferences') {
