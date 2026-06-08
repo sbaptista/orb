@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.171',
+    date: '2026-06-07',
+    changes: [
+      'Two-Turn Mutation Verification: Rewrote ORB_MUTATION_VERIFICATION protocol prompt in lib/orb-prompt.ts to explicitly structure all database mutations and ticket creations as strict two-turn processes, ensuring the first turn only proposes the action using future tense and prohibits any past-tense success claims or guessed ID codes.',
+    ]
+  },
+  {
     version: 'v0.5.170',
     date: '2026-06-07',
     changes: [

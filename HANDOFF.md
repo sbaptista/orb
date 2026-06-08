@@ -15,12 +15,12 @@
 
 ### Last Session Completed
 
-**Refine Ticket Code Verification (ORB-225) — 2026-06-07 (Session 67, Antigravity)**
+**Two-Turn Mutation Verification (ORB-225) — 2026-06-07 (Session 68, Antigravity)**
 
 ### What was done
-- **Ticket Code Verification Refinement**: Updated the `ORB_MUTATION_VERIFICATION` protocol instructions in [lib/orb-prompt.ts](file:///Users/stanleybaptista/Projects/orb/lib/orb-prompt.ts) to explicitly mandate that the Orb state the generated ticket code (e.g. `TICKETS-xxx`) in its second-turn confirmation response for both proactive and user-requested ticket creations.
-- **Release Documentation & Bump**: Bumped version to `v0.5.170` (`package.json` + `version.ts`) and updated `lib/changelog.ts` with release details.
-- **Verification**: Verified that all Tier 1 tests pass cleanly.
+- **Two-Turn Mutation Verification**: Rewrote the `ORB_MUTATION_VERIFICATION` protocol instructions in [lib/orb-prompt.ts](file:///Users/stanleybaptista/Projects/orb/lib/orb-prompt.ts) to explicitly structure all database mutations and ticket creations as a strict two-turn process (Turn 1: Tool Call, Turn 2: Confirmation). This explicitly prohibits the use of past-tense verbs and guessed/implied code citations in the first turn, and mandates verifying the result and citing the generated ID in the second turn.
+- **Release Documentation & Bump**: Bumped version to `v0.5.171` (`package.json` + `version.ts`) and updated `lib/changelog.ts` with release details.
+- **Verification**: Checked that all local changes compile and ran the Tier 1 eval tests successfully.
 
 ---
 
@@ -197,7 +197,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-07 — Antigravity (Gemini 3.5 Flash) — Session 67`
+`2026-06-07 — Antigravity (Gemini 3.5 Flash) — Session 68`
 
 ---
 
