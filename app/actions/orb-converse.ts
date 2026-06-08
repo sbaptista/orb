@@ -1125,17 +1125,30 @@ export async function orbConverse(req: OrbRequest) {
       const errType = err?.type || err?.error?.type || ''
       const errMsg = err?.message || err?.error?.message || ''
       let userMessage: string
+      let isBillingError = false
       if (errType === 'overloaded_error' || errMsg.includes('Overloaded')) {
         userMessage = 'The AI service is momentarily overloaded. Try again in a few seconds.'
       } else if (errType === 'rate_limit_error' || errMsg.includes('rate_limit')) {
         userMessage = 'Rate limit reached. Give it a moment and try again.'
       } else if (errMsg.includes('credit balance') || errMsg.includes('billing')) {
-        userMessage = 'There is a billing issue with the AI service. Let Stan know.'
+        isBillingError = true
+        userMessage = 'The AI service has run out of credits and is temporarily unavailable. Stan has been notified and will restore service as soon as possible.'
       } else if (errMsg.includes('ECONNREFUSED') || errMsg.includes('ETIMEDOUT') || errMsg.includes('fetch failed')) {
         userMessage = 'Could not reach the AI service. Check your connection and try again.'
       } else {
         userMessage = 'Something went wrong. Try again — if it persists, let Stan know.'
       }
+
+      // Auto-file a ticket on billing errors so Stan is notified immediately
+      if (isBillingError) {
+        createTicket({
+          source: 'orb-auto',
+          type: 'bug',
+          summary: 'Anthropic API credit balance exhausted — Orb conversations unavailable',
+          detail: { error: errMsg, type: errType, timestamp: new Date().toISOString() },
+        }).catch(ticketErr => console.error('[orbConverse] Failed to auto-file billing ticket:', ticketErr))
+      }
+
       // If we had partial speech before the error, preserve it
       const finalSpeech = accumulatedSpeech
         ? `${accumulatedSpeech}\n\n*${userMessage}*`
