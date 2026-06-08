@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.168',
+    date: '2026-06-07',
+    changes: [
+      'Verify Tickets and Mutation Success (ORB-225): Appended ORB_MUTATION_VERIFICATION guidelines to the system prompt in both app/actions/orb-converse.ts and app/api/orb-eval/route.ts. This protocol prohibits the Orb from claiming success or reporting code/ID values before mutation tools run (first turn), and mandates verifying the tool results and explicitly reporting failures on error (second turn).',
+      'Added Mutation Verification Eval Cases: Appended Tier 2 regression cases (mutation-no-premature-success and ticket-no-premature-success) to scripts/eval-cases.ts to verify the Orb does not output premature success claims or cite codes in the initial tool execution turn.',
+    ]
+  },
+  {
     version: 'v0.5.167',
     date: '2026-06-07',
     changes: [

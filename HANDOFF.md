@@ -15,14 +15,13 @@
 
 ### Last Session Completed
 
-**Ticket Edit Modal Todo Form Pollution Fix — 2026-06-07 (Session 64, Antigravity)**
+**Orb Mutation Verification (ORB-225) — 2026-06-07 (Session 65, Antigravity)**
 
 ### What was done
-- **Decoupled Ticket Editing State**: Introduced `editingTicketId` state variable in [SettingsTickets.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsTickets.tsx) to isolate ticket editing ID. This resolves a state pollution issue where using `createTodoFor` for both ticket edits and inline todo creations caused rows to transform into the "Create todo" inline form whenever the Edit modal was opened or closed.
-- **Close Modal Callback Support**: Added an optional `onClose` callback to `CrudConfig` in [SettingsCrudList.tsx](file:///Users/stanleybaptista/Projects/orb/components/settings/SettingsCrudList.tsx) that is invoked within `closeModal()`, allowing parent views to cleanly reset local editing state when the modal closes.
-- **Release Documentation & Bump**: Bumped version to `v0.5.167` ([package.json](file:///Users/stanleybaptista/Projects/orb/package.json) + [version.ts](file:///Users/stanleybaptista/Projects/orb/lib/version.ts)) and documented the release in [changelog.ts](file:///Users/stanleybaptista/Projects/orb/lib/changelog.ts).
-- **UI Catalog**: Updated the last updated line in [ui-catalog.md](file:///Users/stanleybaptista/Projects/orb/docs/ui-catalog.md) to Session 64.
-- **Verification**: Ran the Orb evaluation suite and confirmed Tier 1 passes cleanly (6/6 ✅). Verified clean typescript compilation and lint checks.
+- **Mutation Verification Protocol**: Implemented `ORB_MUTATION_VERIFICATION` in [orb-prompt.ts](file:///Users/stanleybaptista/Projects/orb/lib/orb-prompt.ts) and integrated it in [orb-converse.ts](file:///Users/stanleybaptista/Projects/orb/app/actions/orb-converse.ts) and [route.ts](file:///Users/stanleybaptista/Projects/orb/app/api/orb-eval/route.ts). This protocol prevents the Orb conversational AI from claiming success or referencing task/ticket IDs prematurely before the tool runs, and enforces explicit failure reporting on error.
+- **Regression Test Cases**: Appended Tier 2 test cases `mutation-no-premature-success` and `ticket-no-premature-success` to [eval-cases.ts](file:///Users/stanleybaptista/Projects/orb/scripts/eval-cases.ts) to assert that success claims and code citations are not generated on the tool-use turn.
+- **Release Documentation & Bump**: Bumped version to `v0.5.168` ([package.json](file:///Users/stanleybaptista/Projects/orb/package.json) + [version.ts](file:///Users/stanleybaptista/Projects/orb/lib/version.ts)) and documented in [changelog.ts](file:///Users/stanleybaptista/Projects/orb/lib/changelog.ts).
+- **Verification**: Ran the evaluation suite; Tier 1 passed 6/6 and Tier 2 passed 10/10 (including the new cases).
 
 ---
 
@@ -132,14 +131,14 @@
 
 ### Uncommitted Changes
 
-- Modified: `.claude/settings.local.json`
 - Modified: `HANDOFF.md`
-- Modified: `components/settings/SettingsCrudList.tsx`
-- Modified: `components/settings/SettingsTickets.tsx`
-- Modified: `docs/ui-catalog.md`
+- Modified: `app/actions/orb-converse.ts`
+- Modified: `app/api/orb-eval/route.ts`
 - Modified: `lib/changelog.ts`
+- Modified: `lib/orb-prompt.ts`
 - Modified: `lib/version.ts`
 - Modified: `package.json`
+- Modified: `scripts/eval-cases.ts`
 
 ---
 
@@ -206,7 +205,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-07 — Antigravity (Gemini 3.5 Flash) — Session 64`
+`2026-06-07 — Antigravity (Gemini 3.5 Flash) — Session 65`
 
 ---
 

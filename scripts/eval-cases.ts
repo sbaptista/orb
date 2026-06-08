@@ -170,4 +170,24 @@ export const EVAL_CASES: EvalCase[] = [
     tier: 2,
     speechNotContains: ['are you referring to', 'did you mean', 'which one do you mean'],
   },
+
+  // ── ORB-225: Mutation Verification ─────────────────────────────────────
+
+  {
+    id: 'mutation-no-premature-success',
+    description: 'The Orb does not claim a task has been created/added or cite task codes before the tool runs',
+    productCode: 'ORB',
+    input: 'Create a task: fix the login page bug',
+    tier: 2,
+    speechNotContains: ['created', 'added', 'success', 'orb-'],
+  },
+
+  {
+    id: 'ticket-no-premature-success',
+    description: 'The Orb does not claim a ticket has been filed/created or cite ticket codes before the tool runs',
+    productCode: 'ORB',
+    input: 'There is a bug on the login page, please file it',
+    tier: 2,
+    speechNotContains: ['filed', 'created', 'logged', 'tickets-'],
+  },
 ]

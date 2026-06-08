@@ -6,7 +6,7 @@ import path from 'path'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_VOICE, ORB_ATTRIBUTION, ORB_FEEDBACK_TONE, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_PROACTIVE_TONE, ORB_SELF_DIAGNOSTICS, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, computeObservations, ORB_PREFERENCE_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
+import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_VOICE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_FEEDBACK_TONE, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_PROACTIVE_TONE, ORB_SELF_DIAGNOSTICS, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, computeObservations, ORB_PREFERENCE_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { DB_SCHEMA } from '@/lib/db-schema'
@@ -213,6 +213,7 @@ export async function POST(request: NextRequest) {
     ORB_PROACTIVE_TONE,
     buildObservationsPrompt(observations, guidanceLevel),
     ORB_ATTRIBUTION,
+    ORB_MUTATION_VERIFICATION,
     ORB_FEEDBACK_TONE,
     ORB_DEV_CHANNEL_PROMPT,
   ].filter(Boolean).join('\n\n')
