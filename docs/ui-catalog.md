@@ -226,13 +226,28 @@ Responsive task list table. iPhone-first: actions collapse below title on mobile
 Simplified table — done-circle + title only. No bulk edits. Same `tv-` prefix.
 
 ### Audit Table (`audit-table`)
-**File:** `app/settings/audit/page.tsx`, `components/settings/SettingsCrudList.tsx`  
+**File:** `components/settings/SettingsCrudList.tsx`, `components/settings/SettingsAudit.tsx`  
 Standard bordered table for settings/admin pages. Simpler than `tv-table` — no responsive collapsing.
+- **Header style:** Green background (`--btn-primary-bg`), white text, centered. Matches primary button styling.
 - **Sheets-style Column Resizing:** Clicking a column header activates resizing for that column, rendering a resize icon (`.col-resize-handle-sheets` double-arrow) at the bottom-right and highlighting the active column with a `border-right: 2px solid var(--accent)`. Dragging the handle resizes the column to the right, pushing all columns to its right without modifying their widths. Clicking outside the headers deselects the active column.
+- **Touch stability:** `touch-action: pan-x pan-y` on table, `touch-action: none` on resize handles, `overscroll-behavior-x: contain` on scroll container.
 
-### CRUD List (`settings-crud-list`)
-**File:** `components/ui/` (inline in settings pages)  
-Reusable pattern for settings lists with count badges, reorder arrows, and add/edit/delete actions.
+### CRUD List (`SettingsCrudList`)
+**File:** `components/settings/SettingsCrudList.tsx`  
+Reusable pattern for settings lists with add/edit/delete actions, column resize, search, scope filters, bulk delete, and server-side pagination.
+- **Pagination:** `config.pagination = { pageSize: N }`. When set, `load()` receives `{ page, pageSize }` and must return `totalCount`. Renders Previous/Next pager in a footer bar inside the card.
+- **Header extras:** `config.headerExtra` — ReactNode rendered in the header beside the Add button (e.g. dev-only Diagnose button on Audit Log).
+- **Custom row click:** `config.onRowClick` — replaces edit-on-click behavior (e.g. opens a detail modal instead of edit form).
+
+### Action Cell Pattern (`action-cell`, `action-link`)
+**File:** `app/globals.css`  
+Standardized action column for all settings tables.
+- **2 actions:** Both rendered as `.action-link` side by side (e.g. Edit + Delete).
+- **3+ actions:** Primary action as `.action-link` + `.btn-overflow` kebab with `.dropdown-menu`.
+- **`.action-link`:** Link-styled button, 12px font, min-height 36px, `--accent` color, hover bounding rectangle on platforms that support hover.
+- **`.btn-overflow`:** 44px × 44px hit target, 28px vertical kebab (&#x22EE;), hover bounding rectangle.
+- **Action td:** Uses `e.stopPropagation()` — clicking empty space in the action cell does NOT trigger row edit.
+- **Do not** use `align: 'right'` on action columns. Actions start on the left.
 
 ---
 
@@ -388,5 +403,5 @@ This catalog must stay in sync with `globals.css` and `components/`. Never leave
 
 ---
 
-*Last updated: 2026-06-08 — Session 71 (Antigravity) - Google Sheets-Style Column Resizing Clamps and Ellipsis (ORB-233)
+*Last updated: 2026-06-08 — Session 72 (Claude Code) - Table improvements: headings, actions, pagination, iPad touch (ORB-233)
 

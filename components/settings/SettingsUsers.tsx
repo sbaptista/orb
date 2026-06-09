@@ -57,7 +57,7 @@ export default function SettingsUsers() {
             const role = extra.roles?.find((r: RoleRow) => r.id === u.role_id)
             return role?.name ?? ''
           }},
-          { label: 'Actions', width: '20%', align: 'right' as const },
+          { label: 'Actions', width: '20%' },
         ],
 
         load: async () => {
@@ -226,13 +226,13 @@ export default function SettingsUsers() {
                   <span style={{ fontSize: '12px', color: 'var(--text2)' }}>{roleName}</span>
                 )}
               </td>
-              <td className="audit-td" style={{ textAlign: 'right' }}>
-                <div className="flex-row gap-xs" style={{ justifyContent: 'flex-end' }}>
+              <td className="audit-td" onClick={e => e.stopPropagation()} style={{ overflow: 'visible' }}>
+                <div className="action-cell">
                   {!isSuperAdmin && (
                     <>
-                      <button className="text-btn" onClick={onEdit} style={{ fontSize: '12px', padding: '4px' }}>Edit</button>
+                      <button className="action-link" onClick={() => onEdit()}>Edit</button>
                       {!isSelf && (
-                        <button className="text-btn" onClick={onDelete} style={{ fontSize: '12px', padding: '4px', color: 'var(--error)' }}>Delete</button>
+                        <button className="action-link" onClick={onDelete} style={{ color: 'var(--error)' }}>Delete</button>
                       )}
                     </>
                   )}

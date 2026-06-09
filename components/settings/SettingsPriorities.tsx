@@ -23,7 +23,7 @@ export default function SettingsPriorities() {
           { label: '#', width: '10%', align: 'center' },
           { label: 'Label', width: '40%' },
           { label: 'Tasks', width: '20%' },
-          { label: 'Actions', width: '30%', align: 'right' },
+          { label: 'Actions', width: '30%' },
         ],
 
         load: async (supabase) => {
@@ -105,10 +105,10 @@ export default function SettingsPriorities() {
             <td className="audit-td" style={{ color: 'var(--muted)', fontSize: '12px' }}>
               {extra.todoCounts?.[item.value] ?? 0} tasks
             </td>
-            <td className="audit-td" style={{ textAlign: 'right' }}>
-              <div className="flex-row gap-xs" style={{ justifyContent: 'flex-end' }}>
-                <button className="text-btn" onClick={onEdit} style={{ fontSize: '12px', padding: '4px' }}>Edit</button>
-                <button className="text-btn" onClick={onDelete} style={{ fontSize: '12px', padding: '4px', color: 'var(--error)' }}>Delete</button>
+            <td className="audit-td" onClick={e => e.stopPropagation()} style={{ overflow: 'visible' }}>
+              <div className="action-cell">
+                <button className="action-link" onClick={() => onEdit()}>Edit</button>
+                <button className="action-link" onClick={onDelete} style={{ color: 'var(--error)' }}>Delete</button>
               </div>
             </td>
           </tr>

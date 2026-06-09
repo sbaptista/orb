@@ -59,7 +59,7 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
             }},
           ] : []),
           { label: 'Status',      width: '12%', align: 'center' as const },
-          { label: 'Actions',     width: '18%', align: 'right' as const },
+          { label: 'Actions',     width: '18%' },
         ],
 
         load: async (_supabase) => {
@@ -240,10 +240,10 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
                 <span style={{ fontSize: '12px', color: 'var(--muted)' }}>—</span>
               )}
             </td>
-            <td className="audit-td" style={{ textAlign: 'right' }}>
-              <div className="flex-row gap-xs" style={{ justifyContent: 'flex-end' }}>
-                <button className="text-btn" onClick={onEdit} style={{ fontSize: '12px', padding: '4px' }}>Edit</button>
-                <button className="text-btn" onClick={onDelete} style={{ fontSize: '12px', padding: '4px', color: 'var(--error)' }}>Delete</button>
+            <td className="audit-td" onClick={e => e.stopPropagation()} style={{ overflow: 'visible' }}>
+              <div className="action-cell">
+                <button className="action-link" onClick={() => onEdit()}>Edit</button>
+                <button className="action-link" onClick={onDelete} style={{ color: 'var(--error)' }}>Delete</button>
               </div>
             </td>
           </tr>

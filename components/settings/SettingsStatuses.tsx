@@ -7,18 +7,6 @@ type StatusForm = { name: string }
 
 const EMPTY_FORM: StatusForm = { name: '' }
 
-const ArrowUp = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="m18 15-6-6-6 6"/>
-  </svg>
-)
-
-const ArrowDown = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="m6 9 6 6 6-6"/>
-  </svg>
-)
-
 export default function SettingsStatuses() {
   return (
     <SettingsCrudList<Status, StatusForm>
@@ -32,10 +20,9 @@ export default function SettingsStatuses() {
         subtitle: items => `${items.length} statuses`,
         tableColumns: [
           { label: 'Name', width: '30%' },
-          { label: 'Type', width: '15%' },
-          { label: 'Todos', width: '15%' },
-          { label: 'Order', width: '15%', align: 'center' },
-          { label: 'Actions', width: '25%', align: 'right' },
+          { label: 'Type', width: '20%' },
+          { label: 'Todos', width: '20%' },
+          { label: 'Actions', width: '30%' },
         ],
 
         load: async (supabase) => {
@@ -107,23 +94,6 @@ export default function SettingsStatuses() {
           return (extra.todoCounts?.[item.id] ?? 0) === 0
         },
 
-        onMove: async (supabase, item, items, direction) => {
-          const idx = items.findIndex(s => s.id === item.id)
-          if (direction === 'up' && idx === 0) return
-          if (direction === 'down' && idx === items.length - 1) return
-          const other = items[direction === 'up' ? idx - 1 : idx + 1]
-          const tempOrder = -999
-          const { error: err1 } = await supabase.from('statuses').update({ sort_order: tempOrder }).eq('id', item.id)
-          if (err1) throw err1
-          const { error: err2 } = await supabase.from('statuses').update({ sort_order: item.sort_order }).eq('id', other.id)
-          if (err2) {
-            await supabase.from('statuses').update({ sort_order: item.sort_order }).eq('id', item.id)
-            throw err2
-          }
-          const { error: err3 } = await supabase.from('statuses').update({ sort_order: other.sort_order }).eq('id', item.id)
-          if (err3) throw err3
-        },
-
         renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving }) => (
           <>
             <div className="mb-md">
@@ -145,61 +115,38 @@ export default function SettingsStatuses() {
           </>
         ),
 
-        renderRow: ({ item, index, items, onEdit, onDelete, onMove, saving, extra }) => {
-          const pinned = item.is_open || item.is_closed
-          const isFirst = index === 0
-          const isSecond = index === 1
-          const isSecondLast = index === items.length - 2
-          const isLast = index === items.length - 1
-          return (
-            <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
-              <td className="audit-td" style={{ fontWeight: 500 }}>
-                {item.name}
-              </td>
-              <td className="audit-td">
-                {(item.is_open || item.is_closed) ? (
-                  <span style={{
-                    padding: '2px 8px',
-                    borderRadius: '10px',
-                    fontSize: '11px',
-                    textTransform: 'uppercase',
-                    background: 'var(--bg3)',
-                    color: 'var(--text2)',
-                  }}>
-                    {item.is_open ? 'Open' : 'Closed'}
-                  </span>
-                ) : (
-                  <span style={{ fontSize: '12px', color: 'var(--muted)' }}>—</span>
-                )}
-              </td>
-              <td className="audit-td" style={{ color: 'var(--muted)', fontSize: '12px' }}>
-                {extra.todoCounts?.[item.id] ?? 0} todos
-              </td>
-              <td className="audit-td" style={{ textAlign: 'center' }}>
-                {!pinned && (
-                  <div className="flex-center" style={{ gap: '2px', justifyContent: 'center' }}>
-                    {!isSecond && (
-                      <button className="btn-move" onClick={() => onMove?.('up')} disabled={saving} title="Move Up">
-                        <ArrowUp />
-                      </button>
-                    )}
-                    {!isSecondLast && (
-                      <button className="btn-move" onClick={() => onMove?.('down')} disabled={saving} title="Move Down">
-                        <ArrowDown />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </td>
-              <td className="audit-td" style={{ textAlign: 'right' }}>
-                <div className="flex-row gap-xs" style={{ justifyContent: 'flex-end' }}>
-                  <button className="text-btn" onClick={onEdit} style={{ fontSize: '12px', padding: '4px' }}>Edit</button>
-                  <button className="text-btn" onClick={onDelete} style={{ fontSize: '12px', padding: '4px', color: 'var(--error)' }}>Delete</button>
-                </div>
-              </td>
-            </tr>
-          )
-        },
+        renderRow: ({ item, onEdit, onDelete, extra }) => (
+          <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+            <td className="audit-td" style={{ fontWeight: 500 }}>
+              {item.name}
+            </td>
+            <td className="audit-td">
+              {(item.is_open || item.is_closed) ? (
+                <span style={{
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  fontSize: '11px',
+                  textTransform: 'uppercase',
+                  background: 'var(--bg3)',
+                  color: 'var(--text2)',
+                }}>
+                  {item.is_open ? 'Open' : 'Closed'}
+                </span>
+              ) : (
+                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>—</span>
+              )}
+            </td>
+            <td className="audit-td" style={{ color: 'var(--muted)', fontSize: '12px' }}>
+              {extra.todoCounts?.[item.id] ?? 0} todos
+            </td>
+            <td className="audit-td" onClick={e => e.stopPropagation()} style={{ overflow: 'visible' }}>
+              <div className="action-cell">
+                <button className="action-link" onClick={() => onEdit()}>Edit</button>
+                <button className="action-link" onClick={onDelete} style={{ color: 'var(--error)' }}>Delete</button>
+              </div>
+            </td>
+          </tr>
+        ),
       }}
     />
   )

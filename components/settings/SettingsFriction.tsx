@@ -122,12 +122,12 @@ export default function SettingsFriction() {
           <div style={{ overflowX: 'auto' }}>
             <table className="audit-table">
               <thead>
-                <tr style={{ background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   <th className="audit-th" style={{ width: '15%' }}>Date</th>
                   <th className="audit-th" style={{ width: '15%' }}>Category</th>
                   <th className="audit-th" style={{ width: '35%' }}>Summary</th>
                   <th className="audit-th" style={{ width: '20%' }}>Context Snippet</th>
-                  <th className="audit-th" style={{ textAlign: 'right', width: '15%' }}>Actions</th>
+                  <th className="audit-th" style={{ width: '15%' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -163,22 +163,21 @@ export default function SettingsFriction() {
                            </div>
                         ) : '—'}
                     </td>
-                    <td className="audit-td" style={{ textAlign: 'right' }}>
-                        <div className="flex-row gap-xs" style={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                            <button 
-                                className="btn-primary" 
-                                onClick={() => handleGenerateTodo(log)} 
-                                disabled={saving} 
-                                style={{ padding: '4px 8px', fontSize: '12px' }}
+                    <td className="audit-td" style={{ overflow: 'visible' }}>
+                        <div className="action-cell">
+                            <button
+                                className="action-link"
+                                onClick={() => handleGenerateTodo(log)}
+                                disabled={saving}
                                 title="Convert to an urgent Todo and clear log"
                             >
                               Create Todo
                             </button>
-                            <button 
-                                className="text-btn" 
-                                onClick={() => handleDelete(log.id)} 
-                                disabled={saving} 
-                                style={{ color: 'var(--error)', padding: '4px' }}
+                            <button
+                                className="action-link"
+                                onClick={() => handleDelete(log.id)}
+                                disabled={saving}
+                                style={{ color: 'var(--error)' }}
                             >
                               Delete
                             </button>

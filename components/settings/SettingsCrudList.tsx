@@ -30,7 +30,13 @@ type CrudConfig<T, F> = {
   layout?: 'list' | 'table'
   tableColumns?: TableColumn<T>[]
 
-  load?: (supabase: any) => Promise<{ items: T[]; extra?: any }>
+  load?: (supabase: any, pagination?: { page: number; pageSize: number }) => Promise<{ items: T[]; extra?: any; totalCount?: number }>
+  /** Server-side pagination. When set, load() receives { page, pageSize } and must return totalCount. */
+  pagination?: { pageSize: number }
+  /** Extra ReactNode rendered in the header area (right side, before the Add button). */
+  headerExtra?: ReactNode
+  /** Custom handler when a row is clicked. When provided, replaces the default edit-on-click behavior. */
+  onRowClick?: (item: T) => void
   validate?: (form: F, items: T[], editingId: string | null) => string | null
   toRecord?: (form: F, items: T[]) => Record<string, any>
   toForm?: (item: T) => F
@@ -130,6 +136,8 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [search, setSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [page, setPage] = useState(0)
+  const [totalCount, setTotalCount] = useState(0)
 
   // Column width resizing state/refs (declared at top level to obey hook rules)
   const colStorageKey = `orb-col-widths-v2-${config.title}`
@@ -197,15 +205,17 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
 
   const load = useCallback(async () => {
     if (config.load) {
-      const result = await config.load(supabase)
+      const paginationArg = config.pagination ? { page, pageSize: config.pagination.pageSize } : undefined
+      const result = await config.load(supabase, paginationArg)
       setItems(result.items)
       if (result.extra) setExtra(result.extra)
+      if (result.totalCount !== undefined) setTotalCount(result.totalCount)
     } else {
       const { data } = await supabase.from(config.table).select('*').order(config.orderBy ?? 'sort_order')
       setItems(data ?? [])
     }
     setLoading(false)
-  }, [supabase, config])
+  }, [supabase, config, page])
 
   useVisibilityRefetch(load)
   useEffect(() => { load() }, [load])
@@ -511,6 +521,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           if (['BUTTON', 'A', 'INPUT', 'SELECT', 'SVG', 'PATH'].includes(tag)) return
           if ((e.target as HTMLElement).closest('button, a, input, select')) return
         }
+        if (config.onRowClick) { config.onRowClick(item); return }
         openEditModal(item)
       },
       onDelete: () => { setConfirmDeleteId(config.getId(item)); setModalMode(null); setEditingId(null) },
@@ -581,11 +592,14 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
             )}
           </div>
         </div>
-        {hasForm && (
-          <button className="btn-outline" onClick={openAddModal}>
-            + {config.addButtonLabel ?? `Add ${config.itemLabel}`}
-          </button>
-        )}
+        <div className="flex-row gap-sm">
+          {config.headerExtra}
+          {hasForm && (
+            <button className="btn-outline" onClick={openAddModal}>
+              + {config.addButtonLabel ?? `Add ${config.itemLabel}`}
+            </button>
+          )}
+        </div>
       </div>
 
       {config.scopeFilter && usePills && (
@@ -670,7 +684,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                   padding: 0, overflow: 'hidden',
                   ...(totalColWidth ? { width: 'fit-content', maxWidth: '100%', flex: 'none' } : {}),
                 }}>
-                  <div ref={tableScrollRef} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                  <div ref={tableScrollRef} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' as any }}>
                     {activeResizeColIdx !== null && (
                       <style>{`
                         .audit-table tr th:nth-child(${activeResizeColIdx + (hasBulk ? 2 : 1)}) {
@@ -683,7 +697,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                     )}
                     <table className="audit-table" style={{ width: totalColWidth ? `${totalColWidth}px` : '100%' }}>
                       <thead>
-                        <tr style={{ background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
+                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
                           {hasBulk && (
                             <th className="audit-th" style={{ width: '36px', textAlign: 'center' }}>
                               <input
@@ -766,7 +780,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                                   }
                                 }}
                               >
-                                <div style={{ display: 'flex', alignItems: 'center', width: '100%', paddingRight: '12px', minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', paddingRight: '12px', minWidth: 0 }}>
                                   <span style={{
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
@@ -806,6 +820,25 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                       </tbody>
                     </table>
                   </div>
+                  {config.pagination && totalCount > 0 && (
+                    <div className="flex-between" style={{ padding: 'var(--sp-sm) var(--sp-lg)', borderTop: '1px solid var(--border)' }}>
+                      <button
+                        className="btn-pager"
+                        onClick={() => { setPage(p => Math.max(0, p - 1)); setSelectedIds([]) }}
+                        disabled={page === 0}
+                      >
+                        ← Previous
+                      </button>
+                      <span className="text-xs text-muted">Page {page + 1}</span>
+                      <button
+                        className="btn-pager"
+                        onClick={() => { setPage(p => p + 1); setSelectedIds([]) }}
+                        disabled={displayed.length < config.pagination.pageSize}
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  )}
                 </div>
               </HScrollNav>
             </div>

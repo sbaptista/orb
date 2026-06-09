@@ -954,14 +954,16 @@ a, button, [role="button"], input, select, textarea {
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
+  touch-action: pan-x pan-y;
 }
 
 .audit-th {
-  text-align: left;
+  text-align: center;
   padding: 8px var(--sp-md);
   font-weight: var(--fw-medium);
-  color: var(--text3);
-  border-right: 1px solid var(--border);
+  background: var(--btn-primary-bg);
+  color: #fff;
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .audit-th:last-child {
@@ -1013,6 +1015,7 @@ a, button, [role="button"], input, select, textarea {
   box-shadow: var(--shadow-sm);
   color: var(--accent, #5a3090);
   transition: background 0.15s, color 0.15s;
+  touch-action: none;
 }
 
 .col-resize-handle-sheets:hover {
@@ -1360,6 +1363,37 @@ a, button, [role="button"], input, select, textarea {
 .btn-overflow:hover {
   background: var(--pill-active-bg);
   color: var(--text);
+}
+
+/* Action cell: primary link + kebab side by side */
+.action-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+}
+
+.action-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  min-height: 36px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent, #5a3090);
+  background: none;
+  border: none;
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .action-link:hover {
+    background: var(--pill-active-bg);
+    color: var(--accent-hover, #7c3aed);
+  }
 }
 
 /* ── Dashboard layout ── */

@@ -49,7 +49,7 @@ export default function SettingsKnowledge() {
           { label: 'Title',   width: '30%', sortKey: 'title',   sortValue: (e: KnowledgeEntry) => e.title },
           { label: 'Content', width: '35%' },
           { label: 'Tags',    width: '10%' },
-          { label: 'Actions', width: '15%', align: 'right' as const },
+          { label: 'Actions', width: '15%' },
         ],
 
         load: async (supabase) => {
@@ -193,10 +193,10 @@ export default function SettingsKnowledge() {
                 <span style={{ opacity: 0.4 }}>—</span>
               )}
             </td>
-            <td className="audit-td" style={{ textAlign: 'right' }}>
-              <div className="flex-row gap-xs" style={{ justifyContent: 'flex-end' }}>
-                <button className="text-btn" onClick={onEdit} style={{ fontSize: '12px', padding: '4px' }}>Edit</button>
-                <button className="text-btn" onClick={onDelete} style={{ fontSize: '12px', padding: '4px', color: 'var(--error)' }}>Delete</button>
+            <td className="audit-td" onClick={e => e.stopPropagation()} style={{ overflow: 'visible' }}>
+              <div className="action-cell">
+                <button className="action-link" onClick={() => onEdit()}>Edit</button>
+                <button className="action-link" onClick={onDelete} style={{ color: 'var(--error)' }}>Delete</button>
               </div>
             </td>
           </tr>

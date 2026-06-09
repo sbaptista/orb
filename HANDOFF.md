@@ -23,9 +23,15 @@
 - **Stale localStorage fix**: Changed key prefix to `v2` to invalidate widths from buggy multi-column resize. Added "Reset columns" button.
 - **Priorities simplification**: Removed Order column and up/down arrows. Renumbered priority values sequentially via two-pass SQL (+10000 shift then sequential). `ON UPDATE CASCADE` on `todos.priority_value` handles automatic todo updates.
 - **Tickets overflow menu**: New `.btn-overflow` CSS class (44px hit target, 28px vertical kebab). Edit stays visible, Create todo/Dismiss/Delete in kebab dropdown. Fixed click propagation bugs (Edit button bypasses button-tag guard, backdrop `stopPropagation`).
+- **Table headings**: Green background (`--btn-primary-bg`) with white centered text across all tables. Removed inline `background: var(--bg3)` overrides.
+- **Standardized action columns**: New `.action-cell` and `.action-link` CSS classes. 2 actions = both links, 3+ = primary link + kebab. Action td uses `stopPropagation` so empty space doesn't trigger row edit. Applied to all 9 settings tables.
+- **Removed Order columns**: Platforms and Statuses — deleted arrows, `onMove` handlers, and Order column definitions.
+- **Invitations kebab**: Extracted `InvitationActions` component with self-contained menu state to avoid parent re-render triggering data reload.
+- **Audit Log on SettingsCrudList**: Rewritten with typed columns, server-side pagination, bulk delete, detail modal via `onRowClick`. SettingsCrudList gained `pagination`, `headerExtra`, and `onRowClick` config options.
+- **iPad touch stability**: `touch-action` on table/resize handles, `overscroll-behavior-x: contain` on scroll container.
 - **Closed ORB-233 todo** with resolution notes. Created knowledge repo entry.
 - **Verification**: Tier 1 eval suite 7/7 passed.
-- **Release Documentation & Bump**: v0.5.177 through v0.5.183 (`package.json` + `version.ts` + `lib/changelog.ts`).
+- **Release Documentation & Bump**: v0.5.177 through v0.5.184 (`package.json` + `version.ts` + `lib/changelog.ts`).
 
 ---
 
@@ -159,7 +165,7 @@
 
 ### Uncommitted Changes
 
-- `HANDOFF.md` (this update)
+None — all committed and pushed.
 
 ---
 

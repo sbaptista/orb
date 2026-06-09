@@ -639,11 +639,10 @@ export default function SettingsTickets() {
                 {relativeDate(item.created_at)}
               </td>
               {/* Actions */}
-              <td className="audit-td" style={{ overflow: 'visible', position: 'relative' }}>
-                <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <td className="audit-td" onClick={e => e.stopPropagation()} style={{ overflow: 'visible', position: 'relative' }}>
+                <div className="action-cell">
                   <button
-                    className="text-btn"
-                    style={{ fontSize: '12px', padding: '4px' }}
+                    className="action-link"
                     onClick={() => {
                       setEditingTicket(item)
                       onEdit()

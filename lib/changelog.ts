@@ -6,6 +6,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.184',
+    date: '2026-06-08',
+    changes: [
+      'Table headings: Green background (--btn-primary-bg) with white text, centered. Matches dashboard button styling. Applied to all tables including Audit Log and Friction.',
+      'Standardized action columns: New .action-cell and .action-link CSS classes. 2 actions = both as links, 3+ = primary link + kebab. Action td uses stopPropagation so clicking empty space does not trigger row edit. Applied to Priorities, Platforms, Statuses, Projects, Users, Knowledge, Tickets, Invitations, Friction.',
+      'Removed Order column and reordering arrows from Platforms and Statuses tables.',
+      'Invitations: Replaced btn-primary/oc-tool-btn action buttons with action-link + kebab pattern (Resend link, Decline Link + Delete in kebab).',
+      'Audit Log: Rewritten to use SettingsCrudList with server-side pagination, column resize, bulk delete, and detail modal. No longer a standalone component.',
+      'SettingsCrudList: Added pagination support (config.pagination), headerExtra slot, and onRowClick override.',
+      'iPad touch stability: touch-action on table and resize handles, overscroll-behavior-x: contain on scroll container.',
+    ]
+  },
+  {
     version: 'v0.5.183',
     date: '2026-06-08',
     changes: [

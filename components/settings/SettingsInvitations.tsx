@@ -11,6 +11,55 @@ const STAGE_LABELS: Record<string, string> = {
   beta: 'Beta',
 }
 
+/** Self-contained kebab action cell — owns its own menu state to avoid parent re-render triggering data reload. */
+function InvitationActions({ item, canAct, onDelete, onResend, onCopyDecline }: {
+  item: Invitation
+  canAct: boolean
+  onDelete: () => void
+  onResend: () => void
+  onCopyDecline: () => void
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  if (!canAct) {
+    return (
+      <div className="action-cell">
+        <button className="action-link" onClick={onDelete} style={{ color: 'var(--error)' }}>Delete</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="action-cell">
+      <button className="action-link" onClick={onResend}>
+        Resend
+      </button>
+      <button
+        className="btn-overflow"
+        onClick={(e) => {
+          e.stopPropagation()
+          setMenuOpen(!menuOpen)
+        }}
+      >
+        &#x22EE;
+      </button>
+      {menuOpen && (
+        <>
+          <div className="dropdown-backdrop" onClick={(e) => { e.stopPropagation(); setMenuOpen(false) }} />
+          <div className="dropdown-menu" style={{ top: '100%', bottom: 'auto', marginTop: '2px' }}>
+            <button className="dropdown-item" onClick={() => { onCopyDecline(); setMenuOpen(false) }}>
+              Decline Link
+            </button>
+            <button className="dropdown-item" style={{ color: 'var(--error)' }} onClick={() => { setMenuOpen(false); onDelete() }}>
+              Delete
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // Wrapper to inject toast for row actions
 export default function SettingsInvitations() {
   const toast = useToast()
@@ -50,7 +99,7 @@ export default function SettingsInvitations() {
           { label: 'Stage',     width: '10%', sortKey: 'release_stage', sortValue: (i: Invitation) => i.release_stage },
           { label: 'Status',    width: '10%', sortKey: 'status',        sortValue: (i: Invitation) => i.status },
           { label: 'Responded', width: '12%', sortKey: 'responded_at',  sortValue: (i: Invitation) => i.responded_at ? new Date(i.responded_at).getTime() : 0 },
-          { label: 'Actions',   width: '22%', align: 'right' as const },
+          { label: 'Actions',   width: '22%' },
         ],
 
         scopeFilter: {
@@ -143,36 +192,14 @@ export default function SettingsInvitations() {
                   </div>
                 )}
               </td>
-              <td className="audit-td" style={{ textAlign: 'right' }}>
-                <div className="flex-row gap-xs" style={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                  {canAct && (
-                    <>
-                      <button
-                        className="btn-primary"
-                        onClick={() => handleResend(item)}
-                        disabled={actionSaving}
-                        style={{ padding: '4px 8px', fontSize: '12px' }}
-                      >
-                        Resend
-                      </button>
-                      <button
-                        className="oc-tool-btn"
-                        onClick={() => copyDeclineLink(item)}
-                        style={{ padding: '4px 8px', fontSize: '12px' }}
-                      >
-                        Decline Link
-                      </button>
-                    </>
-                  )}
-                  <button
-                    className="text-btn"
-                    onClick={onDelete}
-                    title="Permanently delete"
-                    style={{ color: 'var(--error)', padding: '4px', fontSize: '12px' }}
-                  >
-                    Delete
-                  </button>
-                </div>
+              <td className="audit-td" onClick={e => e.stopPropagation()} style={{ overflow: 'visible', position: 'relative' }}>
+                <InvitationActions
+                  item={item}
+                  canAct={canAct}
+                  onDelete={onDelete}
+                  onResend={() => handleResend(item)}
+                  onCopyDecline={() => copyDeclineLink(item)}
+                />
               </td>
             </tr>
           )
