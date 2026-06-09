@@ -6,6 +6,20 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.177',
+    date: '2026-06-08',
+    changes: [
+      'Fix single-column resize (ORB-223): Only the dragged column now changes width during resize. Other columns stay at their exact pixel widths via min-width/max-width locking. The spacer column absorbs extra space when the table is narrower than the viewport; when columns exceed the viewport, horizontal scroll activates and nav arrows appear. Removed redundant totalTableWidth computation and inline table sizing. Fixed TypeScript errors in spacer cell logic.',
+    ]
+  },
+  {
+    version: 'v0.5.176',
+    date: '2026-06-08',
+    changes: [
+      'Table Column Resizing Clamps and Ellipsis (ORB-233): Clamped the minimum column width to 60px to prevent columns from being collapsed out of view. Added text-overflow ellipsis to table header labels to prevent wrapping and layout shift when columns are resized to be small. Removed the hardcoded max-width: 280px constraint from audit cells to allow text in wider columns to fully expand. Added minWidth: \'100%\' to the table to eliminate empty right-side gaps when column widths are narrow. Integrated localStorage state persistence for column widths and refactored measurements to occur exclusively on drag start rather than header click, ensuring header clicks for sorting remain responsive without locking widths prematurely.',
+    ]
+  },
+  {
     version: 'v0.5.175',
     date: '2026-06-08',
     changes: [

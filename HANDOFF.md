@@ -15,20 +15,29 @@
 
 ### Last Session Completed
 
-**Assisted Ticket Lifecycle Progression Bugfixes (ORB-190) — 2026-06-08 (Session 70, Antigravity)**
+**Table Column Resizing Clamps and Ellipsis (ORB-233) — 2026-06-08 (Session 71, Antigravity)**
 
 ### What was done
+- **Column Width Clamp**: Clamped the minimum column width to `60px` to prevent columns from collapsing out of view during resizing operations.
+- **Header Text Clamping**: Added flex alignment and text-overflow ellipsis styles to the column headers in SettingsCrudList. This ensures that column labels cleanly truncate and display an ellipsis without wrapping or altering row heights when columns are resized to be small.
+- **Audit Cell Max-Width Override**: Removed the hardcoded `max-width: 280px` constraint from `.audit-td` in `globals.css` and added `.audit-td > * { max-width: 100%; }` to allow text within resized wider columns to expand fully.
+- **Table Stretch Layout**: Configured the audit table to use `minWidth: '100%'` style. This ensures the table fills the card container when the sum of column widths is smaller than the card viewport, eliminating the empty gray background space on the right, while still supporting horizontal scrolling when column resizing expands the table beyond the viewport.
+- **Column Width Persistence**: Integrated `localStorage` state persistence for column widths (`orb-col-widths-${config.title}`). This ensures column widths survive route navigation, parent state refresh updates, and page reloads. Added a validation check on initialization to discard outdated cached widths if the table's column schema changes.
+- **Selective Drag Measurement**: Refactored the initial column measurement to execute exclusively on drag start (`handleResizeStart`) rather than on header click (`startResizeActivation`). This prevents premature width-locking to fixed pixels when users simply click a header cell to sort or select.
+- **Verification**: Verified TypeScript compilation (`npx tsc --noEmit`), ran linter (`npm run lint`), and validated all 7/7 Tier 1 conversational tests inside the Orb evaluation suite. Passed with green status.
+- **Release Documentation & Bump**: Bumped version to `v0.5.176` (`package.json` + `version.ts`), updated `lib/changelog.ts`, and updated `docs/ui-catalog.md`.
+
+---
+
+## Earlier Sessions
+
+**Assisted Ticket Lifecycle Progression Bugfixes (ORB-190) — 2026-06-08 (Session 70, Antigravity)**
 - **Linked Todo Mapping**: Fixed mapping of `linked_todo` inside SettingsTickets component load query so the Linked Todo column, Todo Closed badge, and warnings display correctly.
 - **Email Override Saving**: Fixed saving of custom email message overrides into `resolution_notes` database column on custom form save.
 - **Open Status Link Reset**: Configured bi-directional connection severing when ticket status transitions back to Open, setting both ticket `todo_id` and todo `ticket_id` to `null`.
 - **Table Resize Polish**: Omitted column resize handles on the last column (Actions) of SettingsCrudList to prevent table layout instability.
 - **Super Admin Project Selection**: Updated `getAdminProjects` to resolve the project with code `ORB` owned by the Super Admin (role_id = 3) dynamically. Pre-selected and rendered this project as a read-only field in the inline "Create todo" form inside the Tickets settings, removing the manual dropdown select.
-- **Verification**: Ran standard linting, typechecking, and the Orb evaluation suite. Passed with 0 errors/warnings and Tier 1 7/7 passed.
 - **Release Documentation & Bump**: Bumped version to `v0.5.175` (`package.json` + `version.ts`) and updated `lib/changelog.ts` and `docs/ui-catalog.md`.
-
----
-
-## Earlier Sessions
 
 **Assisted Ticket Lifecycle Progression (ORB-190) — 2026-06-08 (Session 69, Antigravity)**
 - **Manual Progression Model**: Prevented automatic ticket closures/status shifts when linked todos are completed/closed. Developers/admins must manually progress ticket lifecycles and confirm notification dispatches in the Settings UI and conversation Orb.
@@ -147,7 +156,12 @@
 
 ### Uncommitted Changes
 
-- None (all changes committed locally)
+- `app/globals.css`
+- `components/settings/SettingsCrudList.tsx`
+- `docs/ui-catalog.md`
+- `lib/changelog.ts`
+- `lib/version.ts`
+- `package.json`
 
 ---
 
@@ -214,7 +228,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-08 — Antigravity (Gemini 3.5 Flash) — Session 70`
+`2026-06-08 — Antigravity (Gemini 3.5 Flash) — Session 71`
 
 ---
 

@@ -226,8 +226,9 @@ Responsive task list table. iPhone-first: actions collapse below title on mobile
 Simplified table — done-circle + title only. No bulk edits. Same `tv-` prefix.
 
 ### Audit Table (`audit-table`)
-**File:** `app/settings/audit/page.tsx`  
+**File:** `app/settings/audit/page.tsx`, `components/settings/SettingsCrudList.tsx`  
 Standard bordered table for settings/admin pages. Simpler than `tv-table` — no responsive collapsing.
+- **Sheets-style Column Resizing:** Clicking a column header activates resizing for that column, rendering a resize icon (`.col-resize-handle-sheets` double-arrow) at the bottom-right and highlighting the active column with a `border-right: 2px solid var(--accent)`. Dragging the handle resizes the column to the right, pushing all columns to its right without modifying their widths. Clicking outside the headers deselects the active column.
 
 ### CRUD List (`settings-crud-list`)
 **File:** `components/ui/` (inline in settings pages)  
@@ -387,5 +388,5 @@ This catalog must stay in sync with `globals.css` and `components/`. Never leave
 
 ---
 
-*Last updated: 2026-06-08 — Session 70 (Antigravity) - Assisted Ticket Lifecycle Progression Bugfixes (ORB-190)
+*Last updated: 2026-06-08 — Session 71 (Antigravity) - Google Sheets-Style Column Resizing Clamps and Ellipsis (ORB-233)
 

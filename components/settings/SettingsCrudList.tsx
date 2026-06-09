@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback, useRef, type ReactNode } from 'react'
+import React, { useEffect, useState, useMemo, useCallback, useRef, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import { useToast } from '@/components/ui/Toast'
@@ -132,10 +132,50 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   // Column width resizing state/refs (declared at top level to obey hook rules)
-  const [colWidths, setColWidths] = useState<Record<number, number>>({})
+  const [colWidths, setColWidths] = useState<Record<number, number>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`orb-col-widths-${config.title}`)
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved)
+          const expectedLen = config.tableColumns?.length ?? 0
+          if (Object.keys(parsed).length === expectedLen) {
+            return parsed
+          }
+        } catch {
+          return {}
+        }
+      }
+    }
+    return {}
+  })
+  const [activeResizeColIdx, setActiveResizeColIdx] = useState<number | null>(null)
   const startX = useRef(0)
   const startWidth = useRef(0)
   const resizingIdx = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (Object.keys(colWidths).length > 0) {
+      localStorage.setItem(`orb-col-widths-${config.title}`, JSON.stringify(colWidths))
+    }
+  }, [colWidths, config.title])
+
+  const startResizeActivation = (index: number) => {
+    setActiveResizeColIdx(index)
+  }
+
+  useEffect(() => {
+    if (activeResizeColIdx === null) return
+    const handleOutsideClick = (e: MouseEvent) => {
+      const th = (e.target as HTMLElement).closest('th.audit-th')
+      if (th) return
+      setActiveResizeColIdx(null)
+    }
+    window.addEventListener('mousedown', handleOutsideClick)
+    return () => {
+      window.removeEventListener('mousedown', handleOutsideClick)
+    }
+  }, [activeResizeColIdx])
 
   const canSelect = config.bulkDelete?.canSelect ?? (() => true)
 
@@ -371,7 +411,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     if (isTable) {
       return (
         <tr key={config.getId(item)}>
-          <td colSpan={colCount} className="audit-td">
+          <td colSpan={colCount + 1} className="audit-td">
             <div className="s-row-delete" style={{ border: 'none', padding: 0 }}>{content}</div>
           </td>
         </tr>
@@ -463,6 +503,25 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       extra,
       checkbox,
     })
+    if (isTable && React.isValidElement(rowNode) && (rowNode as React.ReactElement<any>).type === 'tr') {
+      const trNode = rowNode as React.ReactElement<any>
+      const children = React.Children.toArray(trNode.props.children) as React.ReactElement<any>[]
+      const hasFullWidthCell = children.some(child => child?.props?.colSpan != null)
+      if (hasFullWidthCell) {
+        const newChildren = children.map(child => {
+          if (child?.props?.colSpan != null) {
+            return React.cloneElement(child, { colSpan: child.props.colSpan + 1 })
+          }
+          return child
+        })
+        return React.cloneElement(trNode, {}, ...newChildren)
+      } else {
+        children.push(
+          <td key="spacer-cell" className="audit-td" style={{ width: 'auto', borderRight: 'none' }} />
+        )
+        return React.cloneElement(trNode, {}, ...children)
+      }
+    }
     if (isTable) return rowNode
     return <div key={config.getId(item)}>{rowNode}</div>
   }
@@ -586,6 +645,16 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
               <HScrollNav scrollRef={tableScrollRef as React.RefObject<HTMLElement>} className="crud-table-scroll">
                 <div className="s-card" style={{ padding: 0, overflow: 'hidden' }}>
                   <div ref={tableScrollRef} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    {activeResizeColIdx !== null && (
+                      <style>{`
+                        .audit-table tr th:nth-child(${activeResizeColIdx + (hasBulk ? 2 : 1)}) {
+                          border-right: 2px solid var(--accent, #5a3090) !important;
+                        }
+                        .audit-table tr td:nth-child(${activeResizeColIdx + (hasBulk ? 2 : 1)}) {
+                          border-right: 2px solid var(--accent, #5a3090) !important;
+                        }
+                      `}</style>
+                    )}
                     <table className="audit-table">
                       <thead>
                         <tr style={{ background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
@@ -606,17 +675,36 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                             const widthStyle = dynamicWidth ? `${dynamicWidth}px` : col.width
 
                             const handleResizeStart = (e: React.PointerEvent) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              resizingIdx.current = i
-                              startX.current = e.clientX
-                              const thEl = (e.target as HTMLElement).closest('th')
-                              startWidth.current = thEl ? thEl.getBoundingClientRect().width : 100
+                               e.preventDefault()
+                               e.stopPropagation()
+                               resizingIdx.current = i
+                               startX.current = e.clientX
+
+                               const thEl = (e.target as HTMLElement).closest('th')
+                               let currentWidth = colWidths[i]
+
+                               if (Object.keys(colWidths).length === 0 && tableScrollRef.current) {
+                                 const ths = tableScrollRef.current.querySelectorAll('th.audit-th')
+                                 const initialWidths: Record<number, number> = {}
+                                 const offset = !!config.bulkDelete ? 1 : 0
+                                 config.tableColumns?.forEach((col, idx) => {
+                                   const el = ths[idx + offset]
+                                   if (el) {
+                                     initialWidths[idx] = el.getBoundingClientRect().width
+                                   } else {
+                                     initialWidths[idx] = 100
+                                   }
+                                 })
+                                 setColWidths(initialWidths)
+                                 currentWidth = initialWidths[i]
+                               }
+
+                               startWidth.current = currentWidth || (thEl ? thEl.getBoundingClientRect().width : 100)
 
                               const onPointerMove = (moveEvent: PointerEvent) => {
                                 if (resizingIdx.current === null) return
                                 const delta = moveEvent.clientX - startX.current
-                                const newWidth = Math.max(50, startWidth.current + delta)
+                                const newWidth = Math.max(60, startWidth.current + delta)
                                 setColWidths(prev => ({ ...prev, [i]: newWidth }))
                               }
 
@@ -634,19 +722,31 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                               <th key={i} className="audit-th"
                                 style={{
                                   width: widthStyle,
+                                  ...(dynamicWidth ? { minWidth: widthStyle, maxWidth: widthStyle } : {}),
                                   textAlign: col.align ?? 'left',
                                   cursor: isSortable ? 'pointer' : undefined,
                                   userSelect: 'none',
                                   position: 'relative',
                                 }}
-                                onClick={isSortable ? (e) => {
-                                  if ((e.target as HTMLElement).classList.contains('col-resize-handle')) return
-                                  if (isActive) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-                                  else { setSortKey(col.sortKey!); setSortDir('asc') }
-                                } : undefined}
+                                onClick={(e) => {
+                                  if ((e.target as HTMLElement).closest('.col-resize-handle-sheets')) {
+                                    e.stopPropagation()
+                                    return
+                                  }
+                                  startResizeActivation(i)
+                                  if (isSortable) {
+                                    if (isActive) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+                                    else { setSortKey(col.sortKey!); setSortDir('asc') }
+                                  }
+                                }}
                               >
-                                <div style={{ display: 'flex', alignItems: 'center', width: '100%', paddingRight: '8px' }}>
-                                  <span>
+                                <div style={{ display: 'flex', alignItems: 'center', width: '100%', paddingRight: '12px', minWidth: 0 }}>
+                                  <span style={{
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    flexShrink: 1,
+                                  }}>
                                     {col.label}
                                   </span>
                                   {isSortable && (
@@ -656,15 +756,23 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                                   )}
                                 </div>
 
-                                {i < (config.tableColumns?.length ?? 0) - 1 && (
+                                {activeResizeColIdx === i && (
                                   <div
-                                    className="col-resize-handle"
+                                    className="col-resize-handle-sheets"
                                     onPointerDown={handleResizeStart}
-                                  />
+                                    onClick={e => e.stopPropagation()}
+                                  >
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <polyline points="17 8 21 12 17 16"></polyline>
+                                      <polyline points="7 8 3 12 7 16"></polyline>
+                                      <line x1="3" y1="12" x2="21" y2="12"></line>
+                                    </svg>
+                                  </div>
                                 )}
                               </th>
                             )
                           })}
+                          <th className="audit-th" style={{ width: 'auto', borderRight: 'none' }} />
                         </tr>
                       </thead>
                       <tbody>
