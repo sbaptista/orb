@@ -6,10 +6,10 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
-    version: 'v0.5.177',
+    version: 'v0.5.178',
     date: '2026-06-08',
     changes: [
-      'Fix single-column resize (ORB-223): Only the dragged column now changes width during resize. Other columns stay at their exact pixel widths via min-width/max-width locking. The spacer column absorbs extra space when the table is narrower than the viewport; when columns exceed the viewport, horizontal scroll activates and nav arrows appear. Removed redundant totalTableWidth computation and inline table sizing. Fixed TypeScript errors in spacer cell logic.',
+      'Fix single-column resize (ORB-223): Only the dragged column now changes width during resize. Other columns stay at their exact pixel widths via min-width/max-width locking. Table width tracks the actual sum of column widths — shrinks when columns are narrower, grows when wider. When columns exceed the viewport, horizontal scroll activates and nav arrows appear. Fixed TypeScript errors in spacer cell logic.',
     ]
   },
   {

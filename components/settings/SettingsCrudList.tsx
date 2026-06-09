@@ -177,6 +177,15 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     }
   }, [activeResizeColIdx])
 
+  const totalColWidth = useMemo(() => {
+    if (Object.keys(colWidths).length === 0) return undefined
+    let sum = !!config.bulkDelete ? 36 : 0
+    config.tableColumns?.forEach((_col, idx) => {
+      sum += colWidths[idx] || 100
+    })
+    return sum
+  }, [colWidths, config.bulkDelete, config.tableColumns])
+
   const canSelect = config.bulkDelete?.canSelect ?? (() => true)
 
   const load = useCallback(async () => {
@@ -655,7 +664,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                         }
                       `}</style>
                     )}
-                    <table className="audit-table">
+                    <table className="audit-table" style={totalColWidth ? { width: `${totalColWidth}px` } : undefined}>
                       <thead>
                         <tr style={{ background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
                           {hasBulk && (
