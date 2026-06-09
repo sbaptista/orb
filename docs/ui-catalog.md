@@ -31,15 +31,21 @@ The main app layout. Two equal-citizen panes (Orb + List) with a draggable divid
 | `ud-divider` / `ud-divider--vertical` / `ud-divider--horizontal` | Drag handle between panes |
 | `ud-divider-handle` | The visible pill inside the divider |
 
+Inside the `ud-command-bar`, the controls are laid out as follows:
+- **Orb toggle** (left)
+- **Project search** (flex: 0 1 320px) — search-based dropdown for selecting projects
+- **+ Project button** — immediately right of search, opens AddProductModal
+- **Spacer** (flex: 1)
+- **List toggle** (right)
+
 Inside the `ud-list-toolbar`, the controls are laid out as follows:
 - **Project Title:** The active project's name is on the left.
-- **Views Button:** A button labeled "Views" (layout icon). Clicking it opens a dropdown to switch between:
-  - **List:** Labeled "List" (list table icon).
-  - **Checklist:** Labeled "Checklist" (check circles icon).
-  - **Kanban:** Labeled "Kanban" (column board icon).
-- **Sort Dropdown:** A button labeled "Sort" (arrows icon) that opens a dropdown to sort tasks.
-- **Filter Dropdown:** A button labeled "Filter" (funnel icon) that opens filter options (active, completed, priority).
-- **New Task Button:** A primary accent button labeled "+ New" (plus icon) to create a new task.
+- **Kebab (⋮):** Immediately right of the project title. Opens dropdown: Edit Project, divider, Delete Project (danger color, two-step confirm).
+- **Spacer** (flex: 1)
+- **Sort Button:** A button labeled "Sort" (arrows icon).
+- **Filter Button:** A button labeled "Filter" that opens filter options (active, completed, priority).
+- **Views Button:** A button labeled "Views" that opens a dropdown to switch between List, Checklist, and Kanban.
+- **New Task Button:** A primary accent button labeled "+ New" to create a new task.
 
 ### Settings Page (`s-page`, `s-*`)
 **Files:** `app/settings/page.tsx` and sub-pages  
@@ -248,6 +254,14 @@ Standardized action column for all settings tables.
 - **`.btn-overflow`:** 44px × 44px hit target, 28px vertical kebab (&#x22EE;), hover bounding rectangle.
 - **Action td:** Uses `e.stopPropagation()` — clicking empty space in the action cell does NOT trigger row edit.
 - **Do not** use `align: 'right'` on action columns. Actions start on the left.
+
+### Kebab vs Gear Icon Rule
+| Icon | When to use |
+|---|---|
+| **Kebab** (&#x22EE;) `.btn-overflow` | Action overflow on an item — edit, delete, archive, etc. |
+| **Gear** (&#x2699;) | Navigation to a settings/configuration page |
+
+Do not use a gear icon for item-level actions. Do not use a kebab for page navigation.
 
 ---
 

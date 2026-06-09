@@ -55,6 +55,7 @@ export default function SettingsAudit() {
           pageClass: 'settings-page s-page-wide',
           layout: 'table',
           pagination: { pageSize: PAGE_SIZE },
+          subtitle: (items, total) => total ? `${items.length} of ${total} entr${total !== 1 ? 'ies' : 'y'}` : `${items.length} entr${items.length !== 1 ? 'ies' : 'y'}`,
           onRowClick: (item) => setViewingRow(item),
           headerExtra: isDev ? (
             <div className="flex-row gap-sm">

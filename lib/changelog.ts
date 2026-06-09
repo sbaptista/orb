@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.185',
+    date: '2026-06-09',
+    changes: [
+      'Zero-project empty state: List pane shows "No projects yet." with a Create Project button instead of stuck "Loading..." spinner.',
+      'Project CRUD from list pane: "+ Project" button in command bar (right of search). Kebab menu next to project title with Edit Project and Delete Project (two-step confirm, danger color).',
+      'Project search dropdown scoped by role: non-admins use server-provided projects (no cross-user query), eliminating false-positive error logging for users with zero projects.',
+      'New projects immediately appear in both the list pane and the project search dropdown.',
+      'UI catalog rule: Kebab = action overflow on an item. Gear = navigation to a settings page.',
+    ]
+  },
+  {
     version: 'v0.5.184',
     date: '2026-06-08',
     changes: [

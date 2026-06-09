@@ -22,6 +22,7 @@ type KnowledgeForm = {
 }
 
 const EMPTY_FORM: KnowledgeForm = { title: '', content: '', tags: '', product_id: '' }
+const PAGE_SIZE = 25
 
 export default function SettingsKnowledge() {
   return (
@@ -33,7 +34,8 @@ export default function SettingsKnowledge() {
         emptyForm: EMPTY_FORM,
         pageClass: 'settings-page s-page-wide',
         layout: 'table',
-        subtitle: items => `${items.length} entr${items.length !== 1 ? 'ies' : 'y'}`,
+        pagination: { pageSize: PAGE_SIZE },
+        subtitle: (items, total) => total ? `${items.length} of ${total} entr${total !== 1 ? 'ies' : 'y'}` : `${items.length} entr${items.length !== 1 ? 'ies' : 'y'}`,
         searchPlaceholder: 'Filter by title, content, project, or tag…',
         searchFilter: (item: KnowledgeEntry, query: string) => {
           const q = query.toLowerCase()
@@ -52,12 +54,18 @@ export default function SettingsKnowledge() {
           { label: 'Actions', width: '15%' },
         ],
 
-        load: async (supabase) => {
-          const [{ data: entries }, { data: projects }] = await Promise.all([
+        load: async (supabase, pagination) => {
+          const p = pagination?.page ?? 0
+          const ps = pagination?.pageSize ?? PAGE_SIZE
+          const from = p * ps
+          const to = from + ps - 1
+
+          const [{ data: entries, count }, { data: projects }] = await Promise.all([
             supabase
               .from('knowledge_repo')
-              .select('*, projects(name, code)')
-              .order('created_at', { ascending: false }),
+              .select('*, projects(name, code)', { count: 'exact' })
+              .order('created_at', { ascending: false })
+              .range(from, to),
             supabase
               .from('projects')
               .select('id, name, code')
@@ -67,6 +75,7 @@ export default function SettingsKnowledge() {
           return {
             items: (entries ?? []) as KnowledgeEntry[],
             extra: { projects: projects ?? [] },
+            totalCount: count ?? 0,
           }
         },
 

@@ -29,6 +29,7 @@ import { computeUrgency, isDueWithinWarning, type Urgency } from '@/lib/orb-stat
 import TodoPanel from './TodoPanel'
 import TodoForm from './TodoForm'
 import { logAudit } from '@/app/actions/log-audit'
+import { deleteProject } from '@/app/actions/manage-project'
 import DragDivider from './DragDivider'
 import TaskListView from './views/TaskListView'
 import TaskChecklistView from './views/TaskChecklistView'
@@ -187,6 +188,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [projectSearchQuery, setProjectSearchQuery] = useState('')
   const [adminProjects, setAdminProjects] = useState<AdminProject[]>([])
   const [projectsLoadError, setProjectsLoadError] = useState(false)
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false)
+  const [confirmProjectDelete, setConfirmProjectDelete] = useState(false)
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   // commandsModalOpen removed — AppNav handles global commands modal
 
@@ -238,6 +241,14 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     )
   }, [adminProjects, projectSearchQuery])
 
+  function addProjectEverywhere(project: Product) {
+    setProducts(prev => prev.some(p => p.id === project.id) ? prev : [...prev, project])
+    setAdminProjects(prev => prev.some(p => p.id === project.id) ? prev : [...prev, {
+      id: project.id, name: project.name, code: project.code ?? null,
+      owner_name: userFullName || userName || '',
+    }])
+  }
+
   const handleSearchFocus = useCallback(() => {
     if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current)
     setProjectSearchOpen(true)
@@ -274,8 +285,17 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     } catch { /* ignore */ }
   }, [isMobile])
 
-  // Fetch all projects with owner names for search dropdown (retry up to 2×, fallback to props)
+  // Fetch all projects with owner names for search dropdown
+  // Admins: cross-user query with retry. Non-admins: use server-provided initialProducts.
   useEffect(() => {
+    if (!isAdmin) {
+      const fallback: AdminProject[] = (initialProducts ?? []).map(p => ({
+        id: p.id, name: p.name, code: p.code ?? null, owner_name: '',
+      }))
+      setAdminProjects(fallback)
+      return
+    }
+
     async function loadAllProjects(attempt = 0): Promise<void> {
       try {
         const { data, error } = await supabase
@@ -296,18 +316,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           setAdminProjects(list)
           setProjectsLoadError(false)
         } else {
-          // All retries exhausted — fallback to server-provided products
           const fallback: AdminProject[] = (initialProducts ?? []).map(p => ({
             id: p.id, name: p.name, code: p.code ?? null, owner_name: '',
           }))
           setAdminProjects(fallback)
           setProjectsLoadError(true)
           console.error('[UnifiedDashboard] Project search returned 0 results after retries')
-          // Log a ticket
           supabase.from('todos').insert({
             title: '[Auto] Project search returned empty results',
             description: `UnifiedDashboard loadAllProjects returned 0 rows after 3 attempts. User agent: ${navigator.userAgent}. Time: ${new Date().toISOString()}.`,
-            product_id: 'f643f732-73b5-4bee-96be-da36197fb41c', // TICKETS project
+            product_id: 'f643f732-73b5-4bee-96be-da36197fb41c',
             status: 'open',
           }).then(({ error: ticketErr }) => {
             if (ticketErr) console.error('[UnifiedDashboard] Failed to create ticket:', ticketErr)
@@ -319,13 +337,11 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           await new Promise(r => setTimeout(r, 1500))
           return loadAllProjects(attempt + 1)
         }
-        // Fallback to server-provided products
         const fallback: AdminProject[] = (initialProducts ?? []).map(p => ({
           id: p.id, name: p.name, code: p.code ?? null, owner_name: '',
         }))
         setAdminProjects(fallback)
         setProjectsLoadError(true)
-        // Log a ticket
         supabase.from('todos').insert({
           title: '[Auto] Project search query failed',
           description: `UnifiedDashboard loadAllProjects threw after 3 attempts. Error: ${err}. User agent: ${navigator.userAgent}. Time: ${new Date().toISOString()}.`,
@@ -337,7 +353,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       }
     }
     loadAllProjects()
-  }, [supabase, initialProducts])
+  }, [supabase, initialProducts, isAdmin])
 
   // ══════════════════════════════════════════════════════════
   // EFFECTS — Orb / Conversation
@@ -410,6 +426,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   useEffect(() => {
     if (prevSelectedId.current !== null && prevSelectedId.current !== selectedId) {
       projectSwitchingRef.current = true
+      setProjectMenuOpen(false)
+      setConfirmProjectDelete(false)
       if (!orbSwitchingRef.current) {
         setMessages([])
         setConversationActive(false)
@@ -899,7 +917,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             setProducts(list)
             if (list.length > 0 && !list.find(p => p.id === selectedId)) setSelectedId(list[0].id)
           } else if (chunk.mutationType === 'project_create' && chunk.newProject) {
-            setProducts(prev => [...prev, chunk.newProject!])
+            addProjectEverywhere(chunk.newProject)
             orbSwitchingRef.current = true
             setSelectedId(chunk.newProject.id)
             toast.success('Project created.')
@@ -1281,7 +1299,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           </button>
 
           {/* Project selector — search-based dropdown */}
-          <div className="tv-admin-search" style={{ position: 'relative', flex: '0 1 auto', minWidth: 0 }}>
+          <div className="tv-admin-search" style={{ position: 'relative', flex: '0 1 320px', minWidth: 0 }}>
             <div className="admin-search-wrap">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="admin-search-icon">
                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -1330,9 +1348,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             )}
           </div>
 
-          <div className="ud-spacer" style={{ flex: 1 }} />
+          <button
+            className="tv-toolbar-btn"
+            onClick={() => setShowAddProduct(true)}
+            data-tooltip="Create a new project"
+            style={{ flexShrink: 0 }}
+          >
+            + Project
+          </button>
 
-          {/* Global nav (Print, Help, Settings, Account) moved to AppNav above */}
+          <div className="ud-spacer" style={{ flex: 1 }} />
 
           {/* Panel toggle — List (far right) */}
           <button className="nav-btn ud-panel-toggle" onClick={isMobile ? () => setActiveMobileTab('list') : () => setListPaneVisible(v => !v)} data-tooltip={isMobile ? 'Show List' : (listPaneVisible ? 'Hide List' : 'Show List')} aria-label={isMobile ? 'Show List' : (listPaneVisible ? 'Hide List' : 'Show List')} aria-pressed={isMobile ? activeMobileTab === 'list' : undefined} disabled={isMobile && activeMobileTab === 'list'}>
@@ -1392,6 +1417,51 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             {/* List toolbar */}
             <div className="ud-list-toolbar">
               {selected && <h2 className="ud-list-title">{selected.name}</h2>}
+              {selected && (
+                <div style={{ position: 'relative' }}>
+                  <button
+                    className="btn-overflow"
+                    aria-label="Project actions"
+                    data-tooltip="Project actions"
+                    onClick={() => { setProjectMenuOpen(v => !v); setConfirmProjectDelete(false) }}
+                  >
+                    &#x22EE;
+                  </button>
+                  {projectMenuOpen && (
+                    <>
+                      <div className="dropdown-backdrop" onClick={e => { e.stopPropagation(); setProjectMenuOpen(false); setConfirmProjectDelete(false) }} />
+                      <div className="dropdown-menu" style={{ top: '100%', bottom: 'auto', marginTop: '2px', left: 0, right: 'auto' }}>
+                        <button className="dropdown-item" onClick={() => { setProjectMenuOpen(false); setShowEditProduct(true) }}>
+                          Edit Project
+                        </button>
+                        <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+                        {confirmProjectDelete ? (
+                          <button
+                            className="dropdown-item"
+                            style={{ color: 'var(--error)', fontWeight: 'var(--fw-medium)' } as React.CSSProperties}
+                            onClick={async () => {
+                              const result = await deleteProject(selected.id)
+                              if (result.error) { toast.error('Failed to delete project.'); return }
+                              toast.success('Project deleted.')
+                              setProducts(prev => prev.filter(p => p.id !== selected.id))
+                              setAdminProjects(prev => prev.filter(p => p.id !== selected.id))
+                              setSelectedId(products.find(p => p.id !== selected.id)?.id ?? null)
+                              setProjectMenuOpen(false)
+                              setConfirmProjectDelete(false)
+                            }}
+                          >
+                            Confirm Delete
+                          </button>
+                        ) : (
+                          <button className="dropdown-item" style={{ color: 'var(--error)' }} onClick={() => setConfirmProjectDelete(true)}>
+                            Delete Project
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
               <div style={{ flex: 1 }} />
               <div className="tv-toolbar">
                 <button className="tv-toolbar-btn" onClick={() => setSortAsc(v => !v)} aria-label={sortAsc ? 'Sort newest first' : 'Sort oldest first'} data-tooltip={sortAsc ? 'Oldest first' : 'Newest first'}>
@@ -1472,7 +1542,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
             {/* Todo list */}
             <div className="ud-list-content">
-              {listLoading ? (
+              {products.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 'var(--sp-3xl) var(--sp-lg)' }}>
+                  <p className="text-sm text-muted" style={{ marginBottom: 'var(--sp-md)' }}>No projects yet.</p>
+                  <button className="tv-toolbar-primary" onClick={() => setShowAddProduct(true)}>+ Create Project</button>
+                </div>
+              ) : listLoading ? (
                 <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>Loading…</p>
               ) : viewMode === 'checklist' ? (
                 <TaskChecklistView
@@ -1563,7 +1638,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
       {showAddProduct && (
         <AddProductModal ownerId={null} onClose={() => setShowAddProduct(false)}
-          onCreated={project => { setProducts(prev => [...prev, project]); setSelectedId(project.id); setShowAddProduct(false) }}
+          onCreated={project => { addProjectEverywhere(project); setSelectedId(project.id); setShowAddProduct(false) }}
         />
       )}
 

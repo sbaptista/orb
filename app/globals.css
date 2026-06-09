@@ -896,12 +896,18 @@ a, button, [role="button"], input, select, textarea {
 }
 
 .btn-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   background: none;
   border: none;
   font-size: var(--fs-xs);
   color: var(--text3);
   cursor: pointer;
   transition: color var(--transition);
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: center;
 }
 
 .btn-pager:disabled {

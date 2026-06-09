@@ -25,7 +25,7 @@ type CrudConfig<T, F> = {
   orderBy?: string
   pageClass?: string
   idColumn?: string
-  subtitle?: (items: T[]) => string
+  subtitle?: (items: T[], totalCount?: number) => string
 
   layout?: 'list' | 'table'
   tableColumns?: TableColumn<T>[]
@@ -583,7 +583,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           <h2 className="s-title">{config.title}</h2>
           <div className="flex-row gap-sm" style={{ alignItems: 'baseline' }}>
             {config.subtitle && (
-              <p className="text-sm text-muted">{config.subtitle(displayed)}</p>
+              <p className="text-sm text-muted">{config.subtitle(displayed, totalCount || undefined)}</p>
             )}
             {isTable && hasCustomWidths && (
               <button className="text-btn text-sm" style={{ color: 'var(--muted)', fontSize: '11px' }} onClick={resetColWidths}>
@@ -820,25 +820,62 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                       </tbody>
                     </table>
                   </div>
-                  {config.pagination && totalCount > 0 && (
-                    <div className="flex-between" style={{ padding: 'var(--sp-sm) var(--sp-lg)', borderTop: '1px solid var(--border)' }}>
-                      <button
-                        className="btn-pager"
-                        onClick={() => { setPage(p => Math.max(0, p - 1)); setSelectedIds([]) }}
-                        disabled={page === 0}
-                      >
-                        ← Previous
-                      </button>
-                      <span className="text-xs text-muted">Page {page + 1}</span>
-                      <button
-                        className="btn-pager"
-                        onClick={() => { setPage(p => p + 1); setSelectedIds([]) }}
-                        disabled={displayed.length < config.pagination.pageSize}
-                      >
-                        Next →
-                      </button>
-                    </div>
-                  )}
+                  {config.pagination && totalCount > 0 && (() => {
+                    const lastPage = Math.max(0, Math.ceil(totalCount / config.pagination.pageSize) - 1)
+                    return (
+                      <div className="flex-between" style={{ padding: 'var(--sp-sm) var(--sp-lg)', borderTop: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', gap: 'var(--sp-sm)' }}>
+                          <button
+                            className="nav-btn"
+                            onClick={() => { setPage(0); setSelectedIds([]) }}
+                            disabled={page === 0}
+                            data-tooltip="First page"
+                          >
+                            <span className="nav-btn-icon">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+                            </span>
+                            <span className="nav-btn-label">First</span>
+                          </button>
+                          <button
+                            className="nav-btn"
+                            onClick={() => { setPage(p => Math.max(0, p - 1)); setSelectedIds([]) }}
+                            disabled={page === 0}
+                            data-tooltip="Previous page"
+                          >
+                            <span className="nav-btn-icon">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                            </span>
+                            <span className="nav-btn-label">Previous</span>
+                          </button>
+                        </div>
+                        <span className="text-xs text-muted">Page {page + 1} of {lastPage + 1}</span>
+                        <div style={{ display: 'flex', gap: 'var(--sp-sm)' }}>
+                          <button
+                            className="nav-btn"
+                            onClick={() => { setPage(p => p + 1); setSelectedIds([]) }}
+                            disabled={page >= lastPage}
+                            data-tooltip="Next page"
+                          >
+                            <span className="nav-btn-icon">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </span>
+                            <span className="nav-btn-label">Next</span>
+                          </button>
+                          <button
+                            className="nav-btn"
+                            onClick={() => { setPage(lastPage); setSelectedIds([]) }}
+                            disabled={page >= lastPage}
+                            data-tooltip="Last page"
+                          >
+                            <span className="nav-btn-icon">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+                            </span>
+                            <span className="nav-btn-label">Last</span>
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               </HScrollNav>
             </div>
