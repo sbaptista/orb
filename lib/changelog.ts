@@ -6,10 +6,11 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
-    version: 'v0.5.180',
+    version: 'v0.5.181',
     date: '2026-06-08',
     changes: [
-      'Tickets overflow menu: Replaced the inline text action buttons (Create todo, Dismiss, Delete) with a three-dot dropdown menu. Edit remains visible as a primary action. Actions column shrunk from 18% to 10%, giving more space to Summary. Uses existing dropdown-menu/dropdown-item CSS pattern.',
+      'Tickets overflow menu: Replaced the inline text action buttons (Create todo, Dismiss, Delete) with a three-dot dropdown menu. Edit remains visible as a primary action. Actions column shrunk from 18% to 10% and left-aligned.',
+      'New .btn-overflow CSS class: 44px min hit target, 20px bold ellipsis, hover state. Reusable for any future overflow menus.',
     ]
   },
   {

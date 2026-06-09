@@ -1340,6 +1340,29 @@ a, button, [role="button"], input, select, textarea {
   background: var(--pill-active-bg);
 }
 
+.btn-overflow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--muted);
+  border-radius: var(--r);
+  transition: background 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-overflow:hover {
+  background: var(--pill-active-bg);
+  color: var(--text);
+}
+
 /* ── Dashboard layout ── */
 
 .dash-loading {

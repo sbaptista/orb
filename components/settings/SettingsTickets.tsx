@@ -136,7 +136,7 @@ export default function SettingsTickets() {
           { label: 'Status', width: '11%' },
           { label: 'Linked todo', width: '9%' },
           { label: 'Created', width: '9%' },
-          { label: 'Actions', width: '10%', align: 'right' },
+          { label: 'Actions', width: '10%' },
         ],
         load: async () => {
           const [ticketsRes, projectsRes] = await Promise.all([
@@ -639,8 +639,8 @@ export default function SettingsTickets() {
                 {relativeDate(item.created_at)}
               </td>
               {/* Actions */}
-              <td className="audit-td" style={{ textAlign: 'right', overflow: 'visible', position: 'relative' }}>
-                <div className="flex-row gap-xs" style={{ justifyContent: 'flex-end' }}>
+              <td className="audit-td" style={{ overflow: 'visible', position: 'relative' }}>
+                <div className="flex-row gap-xs">
                   <button
                     className="text-btn"
                     style={{ fontSize: '12px', padding: '4px' }}
@@ -652,8 +652,7 @@ export default function SettingsTickets() {
                     Edit
                   </button>
                   <button
-                    className="text-btn"
-                    style={{ fontSize: '12px', padding: '4px 6px', lineHeight: 1 }}
+                    className="btn-overflow"
                     onClick={(e) => {
                       e.stopPropagation()
                       setMenuOpenId(menuOpenId === item.id ? null : item.id)
