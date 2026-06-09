@@ -6,7 +6,7 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
-    version: 'v0.5.182',
+    version: 'v0.5.183',
     date: '2026-06-08',
     changes: [
       'Tickets overflow menu: Replaced inline action buttons with vertical kebab dropdown. Edit stays visible, Create todo/Dismiss/Delete in overflow menu. Actions column shrunk from 18% to 10%, left-aligned, Edit and kebab spaced apart.',

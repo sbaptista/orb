@@ -644,9 +644,9 @@ export default function SettingsTickets() {
                   <button
                     className="text-btn"
                     style={{ fontSize: '12px', padding: '4px' }}
-                    onClick={(e) => {
+                    onClick={() => {
                       setEditingTicket(item)
-                      onEdit(e)
+                      onEdit()
                     }}
                   >
                     Edit
@@ -663,7 +663,7 @@ export default function SettingsTickets() {
                 </div>
                 {menuOpenId === item.id && (
                   <>
-                    <div className="dropdown-backdrop" onClick={() => setMenuOpenId(null)} />
+                    <div className="dropdown-backdrop" onClick={(e) => { e.stopPropagation(); setMenuOpenId(null) }} />
                     <div className="dropdown-menu" style={{ top: '100%', bottom: 'auto', marginTop: '2px' }}>
                       {canAct && !ref && (
                         <button className="dropdown-item" onClick={() => {
