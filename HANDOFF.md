@@ -15,21 +15,24 @@
 
 ### Last Session Completed
 
-**Table Column Resizing Clamps and Ellipsis (ORB-233) — 2026-06-08 (Session 71, Antigravity)**
+**Table Improvements completion (ORB-233) — 2026-06-08 (Session 72, Claude Code)**
 
 ### What was done
-- **Column Width Clamp**: Clamped the minimum column width to `60px` to prevent columns from collapsing out of view during resizing operations.
-- **Header Text Clamping**: Added flex alignment and text-overflow ellipsis styles to the column headers in SettingsCrudList. This ensures that column labels cleanly truncate and display an ellipsis without wrapping or altering row heights when columns are resized to be small.
-- **Audit Cell Max-Width Override**: Removed the hardcoded `max-width: 280px` constraint from `.audit-td` in `globals.css` and added `.audit-td > * { max-width: 100%; }` to allow text within resized wider columns to expand fully.
-- **Table Stretch Layout**: Configured the audit table to use `minWidth: '100%'` style. This ensures the table fills the card container when the sum of column widths is smaller than the card viewport, eliminating the empty gray background space on the right, while still supporting horizontal scrolling when column resizing expands the table beyond the viewport.
-- **Column Width Persistence**: Integrated `localStorage` state persistence for column widths (`orb-col-widths-${config.title}`). This ensures column widths survive route navigation, parent state refresh updates, and page reloads. Added a validation check on initialization to discard outdated cached widths if the table's column schema changes.
-- **Selective Drag Measurement**: Refactored the initial column measurement to execute exclusively on drag start (`handleResizeStart`) rather than on header click (`startResizeActivation`). This prevents premature width-locking to fixed pixels when users simply click a header cell to sort or select.
-- **Verification**: Verified TypeScript compilation (`npx tsc --noEmit`), ran linter (`npm run lint`), and validated all 7/7 Tier 1 conversational tests inside the Orb evaluation suite. Passed with green status.
-- **Release Documentation & Bump**: Bumped version to `v0.5.176` (`package.json` + `version.ts`), updated `lib/changelog.ts`, and updated `docs/ui-catalog.md`.
+- **Single-column resize fix**: Locked each `<th>` with `min-width` + `max-width` to prevent `table-layout: fixed` from redistributing extra space across all columns when only one is dragged.
+- **Table card shrink-wrap**: Card container gets `width: fit-content` + `flex: none` when pixel widths are active, so table visually shrinks when columns are narrowed. Spacer column only renders before first resize.
+- **Stale localStorage fix**: Changed key prefix to `v2` to invalidate widths from buggy multi-column resize. Added "Reset columns" button.
+- **Priorities simplification**: Removed Order column and up/down arrows. Renumbered priority values sequentially via two-pass SQL (+10000 shift then sequential). `ON UPDATE CASCADE` on `todos.priority_value` handles automatic todo updates.
+- **Tickets overflow menu**: New `.btn-overflow` CSS class (44px hit target, 28px vertical kebab). Edit stays visible, Create todo/Dismiss/Delete in kebab dropdown. Fixed click propagation bugs (Edit button bypasses button-tag guard, backdrop `stopPropagation`).
+- **Closed ORB-233 todo** with resolution notes. Created knowledge repo entry.
+- **Verification**: Tier 1 eval suite 7/7 passed.
+- **Release Documentation & Bump**: v0.5.177 through v0.5.183 (`package.json` + `version.ts` + `lib/changelog.ts`).
 
 ---
 
 ## Earlier Sessions
+
+**Table Column Resizing Clamps and Ellipsis (ORB-233) — 2026-06-08 (Session 71, Antigravity)**
+- Column width clamp (60px min), header text ellipsis, audit cell max-width override, table stretch layout, localStorage persistence, selective drag measurement.
 
 **Assisted Ticket Lifecycle Progression Bugfixes (ORB-190) — 2026-06-08 (Session 70, Antigravity)**
 - **Linked Todo Mapping**: Fixed mapping of `linked_todo` inside SettingsTickets component load query so the Linked Todo column, Todo Closed badge, and warnings display correctly.
@@ -156,12 +159,7 @@
 
 ### Uncommitted Changes
 
-- `app/globals.css`
-- `components/settings/SettingsCrudList.tsx`
-- `docs/ui-catalog.md`
-- `lib/changelog.ts`
-- `lib/version.ts`
-- `package.json`
+- `HANDOFF.md` (this update)
 
 ---
 
@@ -228,7 +226,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-06-08 — Antigravity (Gemini 3.5 Flash) — Session 71`
+`2026-06-08 — Claude Code (Opus 4.6) — Session 72`
 
 ---
 
