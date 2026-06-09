@@ -640,7 +640,7 @@ export default function SettingsTickets() {
               </td>
               {/* Actions */}
               <td className="audit-td" style={{ overflow: 'visible', position: 'relative' }}>
-                <div className="flex-row gap-xs">
+                <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
                   <button
                     className="text-btn"
                     style={{ fontSize: '12px', padding: '4px' }}
@@ -658,7 +658,7 @@ export default function SettingsTickets() {
                       setMenuOpenId(menuOpenId === item.id ? null : item.id)
                     }}
                   >
-                    &hellip;
+                    &#x22EE;
                   </button>
                 </div>
                 {menuOpenId === item.id && (

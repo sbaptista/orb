@@ -1350,10 +1350,9 @@ a, button, [role="button"], input, select, textarea {
   border: none;
   background: none;
   cursor: pointer;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  color: var(--muted);
+  font-size: 28px;
+  line-height: 1;
+  color: var(--text2);
   border-radius: var(--r);
   transition: background 0.15s, color 0.15s;
   -webkit-tap-highlight-color: transparent;

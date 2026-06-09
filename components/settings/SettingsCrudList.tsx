@@ -132,9 +132,10 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   // Column width resizing state/refs (declared at top level to obey hook rules)
+  const colStorageKey = `orb-col-widths-v2-${config.title}`
   const [colWidths, setColWidths] = useState<Record<number, number>>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(`orb-col-widths-${config.title}`)
+      const saved = localStorage.getItem(colStorageKey)
       if (saved) {
         try {
           const parsed = JSON.parse(saved)
@@ -153,12 +154,18 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const startX = useRef(0)
   const startWidth = useRef(0)
   const resizingIdx = useRef<number | null>(null)
+  const hasCustomWidths = Object.keys(colWidths).length > 0
+
+  const resetColWidths = useCallback(() => {
+    setColWidths({})
+    localStorage.removeItem(colStorageKey)
+  }, [colStorageKey])
 
   useEffect(() => {
-    if (Object.keys(colWidths).length > 0) {
-      localStorage.setItem(`orb-col-widths-${config.title}`, JSON.stringify(colWidths))
+    if (hasCustomWidths) {
+      localStorage.setItem(colStorageKey, JSON.stringify(colWidths))
     }
-  }, [colWidths, config.title])
+  }, [colWidths, colStorageKey, hasCustomWidths])
 
   const startResizeActivation = (index: number) => {
     setActiveResizeColIdx(index)
@@ -563,9 +570,16 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       <div className="s-header">
         <div>
           <h2 className="s-title">{config.title}</h2>
-          {config.subtitle && (
-            <p className="text-sm text-muted">{config.subtitle(displayed)}</p>
-          )}
+          <div className="flex-row gap-sm" style={{ alignItems: 'baseline' }}>
+            {config.subtitle && (
+              <p className="text-sm text-muted">{config.subtitle(displayed)}</p>
+            )}
+            {isTable && hasCustomWidths && (
+              <button className="text-btn text-sm" style={{ color: 'var(--muted)', fontSize: '11px' }} onClick={resetColWidths}>
+                Reset columns
+              </button>
+            )}
+          </div>
         </div>
         {hasForm && (
           <button className="btn-outline" onClick={openAddModal}>
