@@ -115,6 +115,7 @@ export default function SettingsTickets() {
   const [createForm, setCreateForm] = useState({ projectId: '', title: '' })
   const [creating, setCreating] = useState(false)
   const [refresher, setRefresher] = useState(0) // increment to trigger reload inside child
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
 
   return (
     <SettingsCrudList<Ticket, TicketForm>
@@ -135,7 +136,7 @@ export default function SettingsTickets() {
           { label: 'Status', width: '11%' },
           { label: 'Linked todo', width: '9%' },
           { label: 'Created', width: '9%' },
-          { label: 'Actions', width: '18%', align: 'right' },
+          { label: 'Actions', width: '10%', align: 'right' },
         ],
         load: async () => {
           const [ticketsRes, projectsRes] = await Promise.all([
@@ -638,7 +639,7 @@ export default function SettingsTickets() {
                 {relativeDate(item.created_at)}
               </td>
               {/* Actions */}
-              <td className="audit-td" style={{ textAlign: 'right' }}>
+              <td className="audit-td" style={{ textAlign: 'right', overflow: 'visible', position: 'relative' }}>
                 <div className="flex-row gap-xs" style={{ justifyContent: 'flex-end' }}>
                   <button
                     className="text-btn"
@@ -650,39 +651,49 @@ export default function SettingsTickets() {
                   >
                     Edit
                   </button>
-                  {canAct && !ref && (
-                    <button
-                      className="text-btn"
-                      style={{ fontSize: '12px', padding: '4px' }}
-                      onClick={() => {
-                        setCreateForm({ projectId: superAdminProjectId || '', title: item.summary })
-                        setCreateTodoFor(item.id)
-                      }}
-                    >
-                      Create todo
-                    </button>
-                  )}
-                  {canAct && (
-                    <button
-                      className="text-btn"
-                      style={{ fontSize: '12px', padding: '4px', color: 'var(--error)' }}
-                      onClick={async () => {
-                        const res = await dismissTicket(item.id)
-                        if (res.error) { toast.error(res.error) }
-                        else { toast.success('Ticket dismissed.'); setRefresher(r => r + 1) }
-                      }}
-                    >
-                      Dismiss
-                    </button>
-                  )}
                   <button
                     className="text-btn"
-                    style={{ fontSize: '12px', padding: '4px', color: 'var(--error)' }}
-                    onClick={onDelete}
+                    style={{ fontSize: '12px', padding: '4px 6px', lineHeight: 1 }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setMenuOpenId(menuOpenId === item.id ? null : item.id)
+                    }}
                   >
-                    Delete
+                    &hellip;
                   </button>
                 </div>
+                {menuOpenId === item.id && (
+                  <>
+                    <div className="dropdown-backdrop" onClick={() => setMenuOpenId(null)} />
+                    <div className="dropdown-menu" style={{ top: '100%', bottom: 'auto', marginTop: '2px' }}>
+                      {canAct && !ref && (
+                        <button className="dropdown-item" onClick={() => {
+                          setCreateForm({ projectId: superAdminProjectId || '', title: item.summary })
+                          setCreateTodoFor(item.id)
+                          setMenuOpenId(null)
+                        }}>
+                          Create todo
+                        </button>
+                      )}
+                      {canAct && (
+                        <button className="dropdown-item" style={{ color: 'var(--error)' }} onClick={async () => {
+                          setMenuOpenId(null)
+                          const res = await dismissTicket(item.id)
+                          if (res.error) { toast.error(res.error) }
+                          else { toast.success('Ticket dismissed.'); setRefresher(r => r + 1) }
+                        }}>
+                          Dismiss
+                        </button>
+                      )}
+                      <button className="dropdown-item" style={{ color: 'var(--error)' }} onClick={() => {
+                        setMenuOpenId(null)
+                        onDelete()
+                      }}>
+                        Delete
+                      </button>
+                    </div>
+                  </>
+                )}
               </td>
             </tr>
           )
