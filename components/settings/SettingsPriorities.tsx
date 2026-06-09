@@ -7,18 +7,6 @@ type PrioForm = { label: string }
 
 const EMPTY_FORM: PrioForm = { label: '' }
 
-const ArrowUp = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="m18 15-6-6-6 6"/>
-  </svg>
-)
-
-const ArrowDown = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="m6 9 6 6 6-6"/>
-  </svg>
-)
-
 export default function SettingsPriorities() {
   return (
     <SettingsCrudList<Priority, PrioForm>
@@ -32,11 +20,10 @@ export default function SettingsPriorities() {
         layout: 'table',
         subtitle: items => `${items.length} priorities`,
         tableColumns: [
-          { label: '#', width: '8%', align: 'center' },
-          { label: 'Label', width: '35%' },
-          { label: 'Tasks', width: '15%' },
-          { label: 'Order', width: '15%', align: 'center' },
-          { label: 'Actions', width: '27%', align: 'right' },
+          { label: '#', width: '10%', align: 'center' },
+          { label: 'Label', width: '40%' },
+          { label: 'Tasks', width: '20%' },
+          { label: 'Actions', width: '30%', align: 'right' },
         ],
 
         load: async (supabase) => {
@@ -86,18 +73,6 @@ export default function SettingsPriorities() {
         },
         canDelete: (item, extra) => (extra.todoCounts?.[item.value] ?? 0) === 0,
 
-        onMove: async (supabase, item, _items, direction) => {
-          const idx = _items.findIndex(p => p.value === item.value)
-          if (direction === 'up' && idx === 0) return
-          if (direction === 'down' && idx === _items.length - 1) return
-          const newValue = direction === 'up' ? _items[idx - 1].value : _items[idx + 1].value
-          const { error } = await supabase.rpc('smart_reorder_priorities', {
-            p_label: item.label,
-            p_new_value: newValue,
-          })
-          if (error) throw error
-        },
-
         renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving }) => (
           <>
             <div className="mb-md">
@@ -119,7 +94,7 @@ export default function SettingsPriorities() {
           </>
         ),
 
-        renderRow: ({ item, index, items, onEdit, onDelete, onMove, saving, extra }) => (
+        renderRow: ({ item, onEdit, onDelete, extra }) => (
           <tr key={String(item.value)} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
             <td className="audit-td" style={{ textAlign: 'center', color: 'var(--muted)', fontWeight: 600 }}>
               {item.value}
@@ -129,16 +104,6 @@ export default function SettingsPriorities() {
             </td>
             <td className="audit-td" style={{ color: 'var(--muted)', fontSize: '12px' }}>
               {extra.todoCounts?.[item.value] ?? 0} tasks
-            </td>
-            <td className="audit-td" style={{ textAlign: 'center' }}>
-              <div className="flex-center" style={{ gap: '2px', justifyContent: 'center' }}>
-                <button className="btn-move" onClick={() => onMove?.('up')} disabled={index === 0 || saving} title="Move Up">
-                  <ArrowUp />
-                </button>
-                <button className="btn-move" onClick={() => onMove?.('down')} disabled={index === items.length - 1 || saving} title="Move Down">
-                  <ArrowDown />
-                </button>
-              </div>
             </td>
             <td className="audit-td" style={{ textAlign: 'right' }}>
               <div className="flex-row gap-xs" style={{ justifyContent: 'flex-end' }}>

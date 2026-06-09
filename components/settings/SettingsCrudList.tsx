@@ -512,7 +512,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       extra,
       checkbox,
     })
-    if (isTable && React.isValidElement(rowNode) && (rowNode as React.ReactElement<any>).type === 'tr') {
+    if (isTable && !totalColWidth && React.isValidElement(rowNode) && (rowNode as React.ReactElement<any>).type === 'tr') {
       const trNode = rowNode as React.ReactElement<any>
       const children = React.Children.toArray(trNode.props.children) as React.ReactElement<any>[]
       const hasFullWidthCell = children.some(child => child?.props?.colSpan != null)
@@ -652,7 +652,10 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
             {/* Desktop table */}
             <div className={hasMobileCards ? 'crud-desktop-table' : undefined}>
               <HScrollNav scrollRef={tableScrollRef as React.RefObject<HTMLElement>} className="crud-table-scroll">
-                <div className="s-card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div className="s-card" style={{
+                  padding: 0, overflow: 'hidden',
+                  ...(totalColWidth ? { width: 'fit-content', maxWidth: '100%', flex: 'none' } : {}),
+                }}>
                   <div ref={tableScrollRef} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     {activeResizeColIdx !== null && (
                       <style>{`
@@ -664,7 +667,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                         }
                       `}</style>
                     )}
-                    <table className="audit-table" style={totalColWidth ? { width: `${totalColWidth}px` } : undefined}>
+                    <table className="audit-table" style={{ width: totalColWidth ? `${totalColWidth}px` : '100%' }}>
                       <thead>
                         <tr style={{ background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
                           {hasBulk && (
@@ -781,7 +784,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                               </th>
                             )
                           })}
-                          <th className="audit-th" style={{ width: 'auto', borderRight: 'none' }} />
+                          {!totalColWidth && <th className="audit-th" style={{ width: 'auto', borderRight: 'none' }} />}
                         </tr>
                       </thead>
                       <tbody>

@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.179',
+    date: '2026-06-08',
+    changes: [
+      'Simplify Priorities settings: Removed the Order column and reordering arrows. Priorities are now a fixed sequential list (1-4). Renumbered existing priorities to close the gap from a deleted entry (1,2,4,5 → 1,2,3,4). The ON UPDATE CASCADE FK ensures all todos were updated automatically. Redistrubuted column widths across the remaining 4 columns.',
+    ]
+  },
+  {
     version: 'v0.5.178',
     date: '2026-06-08',
     changes: [

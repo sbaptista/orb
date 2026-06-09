@@ -950,7 +950,6 @@ a, button, [role="button"], input, select, textarea {
 }
 
 .audit-table {
-  width: 100%;
   font-size: var(--fs-xs);
   table-layout: fixed;
   border-collapse: separate;
