@@ -128,13 +128,13 @@ function InlineProductForm({
         <button
           onClick={onSubmit}
           disabled={saving}
-          className="text-sm bg-zinc-900 text-white px-3 py-1.5 rounded hover:bg-zinc-700 disabled:opacity-50"
+          className="btn-primary btn-sm"
         >
           {saving ? 'Saving…' : submitLabel}
         </button>
         <button
           onClick={onCancel}
-          className="text-sm text-zinc-500 hover:text-zinc-800 px-3 py-1.5"
+          className="btn-cancel btn-sm"
         >
           Cancel
         </button>
@@ -262,7 +262,7 @@ export default function DashboardProducts() {
                 setAddForm(EMPTY_FORM)
                 setError('')
               }}
-              className="text-sm border border-zinc-200 px-3 py-1.5 rounded text-zinc-600 hover:border-zinc-400 hover:text-zinc-900 transition-colors"
+              className="btn-outline btn-sm"
             >
               + Add Product
             </button>
@@ -332,13 +332,13 @@ export default function DashboardProducts() {
                   <button
                     onClick={() => handleDelete(p.id)}
                     disabled={saving}
-                    className="text-sm text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
+                    className="btn-danger-confirm btn-sm"
                   >
                     Confirm
                   </button>
                   <button
                     onClick={() => setConfirmDeleteId(null)}
-                    className="text-sm text-zinc-500 hover:text-zinc-800"
+                    className="btn-cancel btn-sm"
                   >
                     Cancel
                   </button>
@@ -373,13 +373,13 @@ export default function DashboardProducts() {
                 </span>
                 <button
                   onClick={() => startEdit(p)}
-                  className="text-xs text-zinc-400 hover:text-zinc-700 transition-colors"
+                  className="btn-row-action btn-row-edit"
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => { setConfirmDeleteId(p.id); setEditingId(null) }}
-                  className="text-xs text-zinc-400 hover:text-red-600 transition-colors"
+                  className="btn-row-action btn-row-delete"
                 >
                   Delete
                 </button>

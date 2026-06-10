@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import OrbHelp from './OrbHelp'
 import PrintModal from './PrintModal'
 
 type Props = {
@@ -46,7 +45,6 @@ const IconCommands = (
 export default function AppNav({ printContext, userInitial = '?', userName }: Props) {
   const pathname = usePathname()
   const onDashboard = pathname === '/dashboard' || pathname === '/'
-  const [showHelp, setShowHelp] = useState(false)
   const [showPrint, setShowPrint] = useState(false)
   const [commandsOpen, setCommandsOpen] = useState(false)
 
@@ -72,10 +70,10 @@ export default function AppNav({ printContext, userInitial = '?', userName }: Pr
               <span className="nav-btn-label">Print</span>
             </button>
           )}
-          <button className="nav-btn" data-tour="help" onClick={() => setShowHelp(true)} data-tooltip="Help" aria-label="Help">
+          <Link href="/help" className="nav-btn" data-tour="help" data-tooltip="Help" aria-label="Help">
             <span className="nav-btn-icon">{IconHelp}</span>
             <span className="nav-btn-label">Help</span>
-          </button>
+          </Link>
           <Link href="/settings" className="nav-btn" data-tooltip="Settings" aria-label="Settings">
             <span className="nav-btn-icon">{IconSettings}</span>
             <span className="nav-btn-label">Settings</span>
@@ -96,7 +94,6 @@ export default function AppNav({ printContext, userInitial = '?', userName }: Pr
       </nav>
 
       {/* ── Modals ── */}
-      {showHelp && <OrbHelp onClose={() => setShowHelp(false)} />}
       {showPrint && printContext && (
         <PrintModal
           onClose={() => setShowPrint(false)}
@@ -126,10 +123,10 @@ export default function AppNav({ printContext, userInitial = '?', userName }: Pr
                   Print
                 </button>
               )}
-              <button className="ud-commands-item" onClick={() => { setShowHelp(true); setCommandsOpen(false) }}>
+              <Link href="/help" className="ud-commands-item" onClick={() => setCommandsOpen(false)}>
                 {IconHelp}
                 Help
-              </button>
+              </Link>
               <Link href="/settings" className="ud-commands-item" onClick={() => setCommandsOpen(false)}>
                 {IconSettings}
                 Settings

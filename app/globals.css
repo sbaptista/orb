@@ -187,7 +187,9 @@ body {
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  min-height: 100%;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Scrollable containers on mobile */
@@ -448,6 +450,37 @@ a, button, [role="button"], input, select, textarea {
 .btn-move:disabled {
   color: var(--border);
   cursor: default;
+}
+
+.btn-sm {
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+.btn-banner {
+  background: var(--success);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 4px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  box-shadow: 0 2px 6px rgba(45, 90, 45, 0.15);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+.btn-banner:hover {
+  transform: scale(1.04);
+  background: var(--btn-primary-hover-bg);
+}
+.btn-banner--warning {
+  background: var(--warning);
+  box-shadow: 0 2px 6px rgba(122, 80, 16, 0.15);
+}
+.btn-banner--warning:hover {
+  background: #5c3c0c;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1415,7 +1448,8 @@ a, button, [role="button"], input, select, textarea {
 .dash-main {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   position: relative;
 }
@@ -2513,16 +2547,15 @@ a, button, [role="button"], input, select, textarea {
 }
 
 .oc-input-border {
-  border: 1.5px solid rgba(60, 110, 60, 0.28);
+  border: 1.5px solid rgba(60, 110, 60, 0.55);
   border-radius: var(--r-xl);
   background: #fff;
-  overflow: hidden;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   box-shadow: var(--shadow-sm);
 }
 
 .oc-input-border:hover {
-  border-color: rgba(60, 110, 60, 0.45);
+  border-color: rgba(60, 110, 60, 0.65);
 }
 
 .oc-input-border:focus-within {
@@ -2596,6 +2629,7 @@ a, button, [role="button"], input, select, textarea {
   box-sizing: border-box;
   min-height: 44px;
   max-height: 120px;
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
 }
 
 .oc-toolbar {
@@ -2607,6 +2641,7 @@ a, button, [role="button"], input, select, textarea {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  border-radius: 0 0 var(--r-xl) var(--r-xl);
 }
 .oc-toolbar::-webkit-scrollbar {
   display: none;
@@ -2663,25 +2698,62 @@ a, button, [role="button"], input, select, textarea {
   line-height: 1;
 }
 
-.oc-send-btn {
+.oc-toolbar-desktop {
+  display: flex;
+  gap: 8px;
+}
+.oc-toolbar-mobile {
+  display: none;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .oc-toolbar-desktop { display: none; }
+  .oc-toolbar-mobile  { display: flex; }
+}
+
+.oc-action-circle {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 28px;
-  border-radius: 8px;
+  width: 32px;
+  min-width: 32px;
+  max-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  border-radius: 50%;
   border: none;
-  background: var(--pill-active-bg);
-  color: var(--pill-active-color);
   cursor: pointer;
   transition: all var(--transition);
+  flex-shrink: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.oc-send-btn {
+  background: var(--btn-primary-bg);
+  color: #fff;
 }
 .oc-send-btn:hover:not(:disabled) {
-  background: var(--pill-active-border);
+  background: var(--btn-primary-hover-bg);
 }
 .oc-send-btn:disabled {
-  opacity: 0.25;
-  cursor: default;
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.oc-stop-btn {
+  background: rgba(200, 0, 0, 0.08);
+  color: #c00;
+}
+.oc-stop-btn:hover {
+  background: rgba(200, 0, 0, 0.15);
+}
+.oc-stop-btn span {
+  width: 8px;
+  height: 8px;
+  background: #c00;
+  border-radius: 1px;
 }
 
 /* ── Full-screen panel (help, todo detail, product config) ── */
@@ -2692,6 +2764,17 @@ a, button, [role="button"], input, select, textarea {
   z-index: 60;
   background: var(--bg);
   display: flex;
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+.help-page {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
   font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
 }
@@ -3686,7 +3769,8 @@ a, button, [role="button"], input, select, textarea {
 /* ── Settings layout (`.sl-*`) ── */
 
 .sl-page {
-  height: 100dvh;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   background: var(--bg);
   display: flex;

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import CollapsibleSidebar from '@/components/CollapsibleSidebar'
 import { launchOrbTour } from './OrbTour'
 
@@ -270,7 +271,8 @@ const TOPICS: Topic[] = [
   },
 ]
 
-export default function OrbHelp({ onClose }: { onClose: () => void }) {
+export default function OrbHelp() {
+  const router = useRouter()
   const [selectedId, setSelectedId] = useState('ask')
   const [isMobile, setIsMobile] = useState(false)
 
@@ -279,26 +281,19 @@ export default function OrbHelp({ onClose }: { onClose: () => void }) {
     Promise.resolve().then(() => setIsMobile(matches))
   }, [])
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  const goBack = () => router.back()
 
   const selected = TOPICS.find(t => t.id === selectedId)
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Help" className="panel-overlay">
-      {/* Full-width top bar */}
-      <div className="panel-topbar">
-        <button onClick={onClose} autoFocus className="panel-back" aria-label="Close help">
+    <div className="help-page">
+      <div className="panel-topbar" style={{ position: 'relative' }}>
+        <button onClick={goBack} autoFocus className="panel-back" aria-label="Back">
           ← back
         </button>
         <span className="panel-title">Help</span>
         <button
-          onClick={() => { onClose(); setTimeout(() => launchOrbTour(), 120) }}
+          onClick={() => { router.push('/dashboard'); setTimeout(() => launchOrbTour(), 200) }}
           className="help-tour-btn"
           aria-label="Take the guided tour"
           style={{ marginLeft: 'auto' }}
@@ -307,8 +302,7 @@ export default function OrbHelp({ onClose }: { onClose: () => void }) {
         </button>
       </div>
 
-      {/* Sidebar + content below the top bar */}
-      <div className="panel-body" style={{ flexDirection: isMobile ? 'column' : 'row' }}>
+      <div className="panel-body" style={{ flexDirection: isMobile ? 'column' : 'row', marginTop: 0 }}>
 
         {isMobile ? (
           <nav className="help-mobile-nav">
@@ -340,7 +334,7 @@ export default function OrbHelp({ onClose }: { onClose: () => void }) {
         )}
       </div>
 
-      </div> {/* end sidebar+content row */}
+      </div>
     </div>
   )
 }

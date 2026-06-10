@@ -199,10 +199,10 @@ export default function SettingsPasskeys() {
                         style={{ fontSize: 'var(--fs-sm)', padding: '4px 8px' }}
                         placeholder="Passkey name"
                       />
-                      <button className="btn-primary" onClick={() => handleRename(passkey.id)} disabled={renameSaving} style={{ fontSize: '12px', padding: '4px 10px' }}>
+                      <button className="btn-primary btn-sm" onClick={() => handleRename(passkey.id)} disabled={renameSaving}>
                         {renameSaving ? '…' : 'Save'}
                       </button>
-                      <button className="btn-cancel" onClick={() => { setRenamingId(null); setRenameValue('') }} style={{ fontSize: '12px', padding: '4px 10px' }}>
+                      <button className="btn-cancel btn-sm" onClick={() => { setRenamingId(null); setRenameValue('') }}>
                         Cancel
                       </button>
                     </div>
@@ -220,20 +220,20 @@ export default function SettingsPasskeys() {
 
                 {renamingId !== passkey.id && (
                   <div style={{ display: 'flex', gap: 'var(--sp-sm)', flexShrink: 0 }}>
-                    <button className="btn-cancel" onClick={() => startRename(passkey)} style={{ fontSize: '12px', padding: '4px 10px' }}>
+                    <button className="btn-cancel btn-sm" onClick={() => startRename(passkey)}>
                       Rename
                     </button>
                     {deletingId === passkey.id ? (
                       <div style={{ display: 'flex', gap: 'var(--sp-xs)', alignItems: 'center' }}>
-                        <button className="btn-sign-out" onClick={() => handleDelete(passkey.id)} disabled={deleteLoading} style={{ fontSize: '12px', padding: '4px 10px' }}>
+                        <button className="btn-sign-out btn-sm" onClick={() => handleDelete(passkey.id)} disabled={deleteLoading}>
                           {deleteLoading ? '…' : 'Confirm'}
                         </button>
-                        <button className="btn-cancel" onClick={() => setDeletingId(null)} style={{ fontSize: '12px', padding: '4px 10px' }}>
+                        <button className="btn-cancel btn-sm" onClick={() => setDeletingId(null)}>
                           No
                         </button>
                       </div>
                     ) : (
-                      <button className="btn-cancel" onClick={() => startDelete(passkey.id)} style={{ fontSize: '12px', padding: '4px 10px', color: 'var(--error)' }}>
+                      <button className="btn-danger-confirm btn-sm" onClick={() => startDelete(passkey.id)}>
                         Delete
                       </button>
                     )}

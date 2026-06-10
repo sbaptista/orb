@@ -121,42 +121,11 @@ export default function PrintModal({ onClose, selectedProductId, selectedProduct
           </fieldset>
         </div>
 
-        <div style={{
-          padding: 'var(--sp-lg) var(--sp-xl)',
-          borderTop: '1px solid var(--border)',
-          display: 'flex',
-          justifyContent: 'flex-end',
-          gap: '12px',
-        }}>
-          <button
-            onClick={onClose}
-            className="pf-btn-secondary"
-            style={{
-              padding: '10px 20px',
-              borderRadius: 'var(--r)',
-              border: '1px solid var(--border)',
-              background: 'transparent',
-              color: 'var(--text2)',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
+        <div className="modal-footer">
+          <button onClick={onClose} className="btn-cancel">
             Cancel
           </button>
-          <button
-            onClick={handlePrint}
-            style={{
-              padding: '10px 24px',
-              borderRadius: 'var(--r)',
-              border: 'none',
-              background: '#2d5a2d',
-              color: 'white',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
+          <button onClick={handlePrint} className="btn-primary">
             Open Print Page
           </button>
         </div>

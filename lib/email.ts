@@ -1,7 +1,7 @@
 import { Resend } from 'resend'
 
 let _resend: Resend | null = null
-function getResend() {
+export function getResend() {
   if (!_resend) {
     if (!process.env.RESEND_API_KEY) throw new Error('RESEND_API_KEY is not set')
     _resend = new Resend(process.env.RESEND_API_KEY)
@@ -11,7 +11,7 @@ function getResend() {
 
 export const FROM_EMAIL = 'Stan Baptista <noreply@stanbaptista.me>'
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://orb-eight-lake.vercel.app'
-const ICON_URL = `${SITE_URL}/apple-icon`
+export const ICON_URL = `${SITE_URL}/apple-icon`
 
 export async function sendInviteEmail({
   to,

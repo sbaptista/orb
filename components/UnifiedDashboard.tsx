@@ -8,7 +8,6 @@ import { createClient } from '@/lib/supabase/client'
 import { visibleProjectsQuery, clampProjectName } from '@/lib/projects'
 import AddProductModal from './AddProductModal'
 import AppNav from './AppNav'
-import OrbHelp from './OrbHelp'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { registerOrbTour, unregisterOrbTour, runOrbTour } from './OrbTour'
 import { OrbDevPanel, DevTestError, type MoodOverride, type SimulateError } from './OrbDevPanel'
@@ -175,7 +174,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [hoveredId, setHoveredId]       = useState<string | null>(null)
 
   // ── Modal state ──
-  const [showHelp, setShowHelp]             = useState(false)
+  const openHelp = () => router.push('/help')
   const [showAddProduct, setShowAddProduct] = useState(false)
   const [showEditProduct, setShowEditProduct] = useState(false)
   const [distillTodo, setDistillTodo]       = useState<any>(null)
@@ -816,14 +815,14 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     const text = (value ?? input).trim()
     if (!text || submitting) return
 
-    if (text === '?' || text === '/?') { setShowHelp(true); setInput(''); return }
+    if (text === '?' || text === '/?') { openHelp(); setInput(''); return }
 
     if (text.startsWith('/')) {
       setInput('')
       sessionStorage.removeItem(SS_INPUT)
       const [cmd, ...args] = text.split(' ')
       if (cmd === '/settings') router.push('/settings')
-      else if (cmd === '/help' || cmd === '/?') setShowHelp(true)
+      else if (cmd === '/help' || cmd === '/?') openHelp()
       else if (cmd === '/clear') { setMessages([]); setConversationActive(false); sessionStorage.removeItem(SS_CONVERSATION); greetingFiredRef.current = false }
       else if (cmd === '/add') {
         const task = args.join(' ').trim()
@@ -935,7 +934,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             const t = products.find(p => p.code?.toUpperCase() === action.target?.toUpperCase() || p.name.toUpperCase() === action.target?.toUpperCase())
             if (t) { orbSwitchingRef.current = true; setSelectedId(t.id) }
           } else if (action.action === 'open_settings') router.push('/settings')
-          else if (action.action === 'open_help') setShowHelp(true)
+          else if (action.action === 'open_help') openHelp()
           else if (action.action === 'check_update') {
             try {
               const res = await fetch('/api/version')
@@ -1325,7 +1324,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                 {projectsLoadError && (
                   <div className="admin-search-empty" style={{ color: 'var(--error)', fontSize: '12px' }}>
                     Projects failed to load.{' '}
-                    <button type="button" style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600, fontSize: '12px', padding: 0, textDecoration: 'underline' }}
+                    <button type="button" className="text-btn" style={{ color: 'var(--accent)', textDecoration: 'underline', padding: 0 }}
                       onClick={() => window.location.reload()}>
                       Refresh
                     </button>
@@ -1602,7 +1601,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
               {hasMore && (
                 <div style={{ display: 'flex', justifyContent: 'center', margin: 'var(--sp-xl) 0' }}>
-                  <button onClick={() => fetchTodos(page + 1, true)} className="tv-toolbar-btn" style={{ padding: '8px 24px', fontSize: 'var(--fs-sm)', borderRadius: 'var(--r-lg)' }}>
+                  <button onClick={() => fetchTodos(page + 1, true)} className="tv-toolbar-btn">
                     Load more tasks
                   </button>
                 </div>
@@ -1634,7 +1633,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         />
       )}
 
-      {showHelp && <OrbHelp onClose={() => setShowHelp(false)} />}
 
       {showAddProduct && (
         <AddProductModal ownerId={null} onClose={() => setShowAddProduct(false)}

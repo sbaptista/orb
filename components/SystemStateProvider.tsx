@@ -2,11 +2,20 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 
+type BroadcastType = 'info' | 'warning' | 'urgent'
+
+interface Broadcast {
+  message: string
+  id: string
+  type: BroadcastType
+}
+
 interface SystemState {
   isOnline: boolean
   version: string
   maintenance: boolean
   lockedOut: boolean
+  broadcast: Broadcast | null
   refresh: () => void
 }
 
@@ -17,6 +26,7 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
   const [version, setVersion] = useState<string>('')
   const [maintenance, setMaintenance] = useState<boolean>(false)
   const [lockedOut, setLockedOut] = useState<boolean>(false)
+  const [broadcast, setBroadcast] = useState<Broadcast | null>(null)
 
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -48,6 +58,7 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
       setVersion(data.version || '')
       setMaintenance(!!data.maintenance)
       setLockedOut(!!data.lockedOut)
+      setBroadcast(data.broadcast ?? null)
     } catch (err) {
       console.error('[SystemStateProvider] Failed to fetch server version/maintenance status:', err)
     }
@@ -150,11 +161,12 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
     version,
     maintenance,
     lockedOut,
+    broadcast,
     refresh: () => {
       checkHealth()
       checkMaintenance()
     }
-  }), [isOnline, version, maintenance, lockedOut, checkHealth, checkMaintenance])
+  }), [isOnline, version, maintenance, lockedOut, broadcast, checkHealth, checkMaintenance])
 
   return (
     <SystemStateContext.Provider value={value}>

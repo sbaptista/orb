@@ -59,29 +59,7 @@ export default function UpdateBanner() {
       <button
         onClick={handleUpdate}
         title="New version of Orb available"
-        style={{
-          background: 'var(--success)',
-          color: '#ffffff',
-          border: 'none',
-          borderRadius: '12px',
-          padding: '4px 14px',
-          fontSize: '11px',
-          fontWeight: 600,
-          cursor: 'pointer',
-          letterSpacing: '0.05em',
-          textTransform: 'uppercase',
-          boxShadow: '0 2px 6px rgba(45, 90, 45, 0.15)',
-          transition: 'transform 0.2s ease, background 0.2s ease',
-          flexShrink: 0,
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.04)'
-          e.currentTarget.style.background = '#224422'
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1)'
-          e.currentTarget.style.background = 'var(--success)'
-        }}
+        className="btn-banner"
       >
         Update
       </button>

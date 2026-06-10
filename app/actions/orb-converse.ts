@@ -14,7 +14,7 @@ import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { computeUrgency, type Urgency } from '@/lib/orb-state'
 import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
 import { createTicket } from '@/app/actions/ticket-actions'
-import { sendTicketNotificationEmail } from '@/lib/email'
+import { sendTicketNotificationEmail, getResend, FROM_EMAIL, ICON_URL } from '@/lib/email'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 import { VERSION } from '@/lib/version'
@@ -1155,9 +1155,9 @@ export async function orbConverse(req: OrbRequest) {
         userMessage = 'The AI service is momentarily overloaded. Try again in a few seconds.'
       } else if (errType === 'rate_limit_error' || errMsg.includes('rate_limit')) {
         userMessage = 'Rate limit reached. Give it a moment and try again.'
-      } else if (errMsg.includes('credit balance') || errMsg.includes('billing')) {
+      } else if (errMsg.includes('credit balance') || errMsg.includes('billing') || errMsg.includes('usage limits')) {
         isBillingError = true
-        userMessage = 'The AI service has run out of credits and is temporarily unavailable. Stan has been notified and will restore service as soon as possible.'
+        userMessage = 'The AI service is temporarily unavailable. Stan has been notified and will restore service as soon as possible.'
       } else if (errMsg.includes('ECONNREFUSED') || errMsg.includes('ETIMEDOUT') || errMsg.includes('fetch failed')) {
         userMessage = 'Could not reach the AI service. Check your connection and try again.'
       } else {
@@ -1167,7 +1167,7 @@ export async function orbConverse(req: OrbRequest) {
       // Auto-file a ticket AND email admins on billing errors
       if (isBillingError) {
         const ticketDetail = { error: errMsg, type: errType, timestamp: new Date().toISOString() }
-        const ticketSummary = 'Anthropic API credit balance exhausted — Orb conversations unavailable'
+        const ticketSummary = 'Anthropic API credits exhausted — Orb conversations unavailable'
         // File ticket (fire-and-forget)
         createTicket({
           source: 'orb-auto',
@@ -1175,16 +1175,38 @@ export async function orbConverse(req: OrbRequest) {
           summary: ticketSummary,
           detail: ticketDetail,
         }).catch(ticketErr => console.error('[orbConverse] Failed to auto-file billing ticket:', ticketErr))
-        // Email all admins immediately (fire-and-forget)
+        // Email all admins immediately (fire-and-forget) — urgent, includes specific reason
         try {
           const adminClient = createAdminClient()
           const { data: admins } = await adminClient.from('users').select('email').in('role_id', [1, 3])
           if (admins && admins.length > 0) {
+            const resend = getResend()
             for (const adm of admins) {
               if (adm.email) {
-                sendTicketNotificationEmail({
+                resend.emails.send({
+                  from: FROM_EMAIL,
                   to: adm.email,
-                  ticket: { source: 'orb-auto', type: 'bug', summary: ticketSummary, detail: ticketDetail },
+                  subject: `[URGENT] Orb AI service down — API credits exhausted`,
+                  html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; color: #2d3748; line-height: 1.6; background-color: #f7fafc;">
+  <div style="background-color: #ffffff; border: 2px solid #e53e3e; border-radius: 12px; padding: 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <img src="${ICON_URL}" alt="Orb" width="48" height="48" style="border-radius: 50%;" />
+      <h2 style="margin-top: 12px; margin-bottom: 4px; color: #e53e3e; font-size: 20px; font-weight: 700;">URGENT: AI Service Unavailable</h2>
+    </div>
+    <div style="border-top: 1px solid #edf2f7; padding: 20px 0; margin: 20px 0;">
+      <p style="margin: 0 0 12px 0; font-size: 15px;"><strong>Reason:</strong> The Anthropic API has reached its spend cap. All Orb conversations are returning errors until the limit is raised.</p>
+      <p style="margin: 0 0 12px 0; font-size: 15px;"><strong>Error:</strong> ${errMsg}</p>
+      <p style="margin: 0 0 12px 0; font-size: 15px;"><strong>Time:</strong> ${new Date().toLocaleString('en-US', { timeZone: 'Pacific/Honolulu', dateStyle: 'medium', timeStyle: 'short' })} HST</p>
+      <p style="margin: 0; font-size: 15px;"><strong>Action required:</strong> Raise the spend cap in the <a href="https://console.anthropic.com" style="color: #3182ce;">Anthropic console</a>.</p>
+    </div>
+  </div>
+  <p style="text-align: center; font-size: 12px; color: #a0aec0; margin-top: 20px;">Sent automatically by Orb.</p>
+</body>
+</html>`,
                 }).catch(emailErr => console.error('[orbConverse] Admin billing email failed:', emailErr))
               }
             }

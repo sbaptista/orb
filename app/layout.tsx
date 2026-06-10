@@ -5,6 +5,7 @@ import OfflinePage from '@/components/ui/OfflinePage'
 import MaintenanceOverlay from '@/components/MaintenanceOverlay'
 import MaintenanceBanner from '@/components/MaintenanceBanner'
 import UpdateBanner from '@/components/UpdateBanner'
+import BroadcastBanner from '@/components/BroadcastBanner'
 import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar'
 import './globals.css'
 
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <MaintenanceOverlay />
           <UpdateBanner />
           <MaintenanceBanner />
+          <BroadcastBanner />
           {children}
         </Providers>
       </body>

@@ -7,7 +7,6 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { visibleProjectsQuery, clampProjectName } from '@/lib/projects'
 import AddProductModal from './AddProductModal'
-import OrbHelp from './OrbHelp'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { OrbDevPanel, DevTestError, type MoodOverride, type SimulateError } from './OrbDevPanel'
 import { orbConverse, orbGreeting, type OrbResponse } from '@/app/actions/orb-converse'
@@ -111,7 +110,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const [roleOverride, setRoleOverride]       = useState<'Super Admin' | 'Admin' | 'Owner' | null>(null)
     const [dryRun, setDryRun]                   = useState(false)
     const [simulateError, setSimulateError]     = useState<SimulateError>(null)
-    const [showHelp, setShowHelp]               = useState(false)
+    const openHelp = () => router.push('/help')
     const [messages, setMessages]               = useState<ConversationMessage[]>([])
     const [conversationActive, setConversationActive] = useState(false)
     const [isRestored, setIsRestored]           = useState(false)
@@ -514,11 +513,7 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
 
             if (e.key === '?' && !inInput) {
                 e.preventDefault()
-                setShowHelp(s => !s)
-                return
-            }
-            if (e.key === 'Escape') {
-                setShowHelp(false)
+                openHelp()
                 return
             }
             if (e.key === 'Tab' && !hintShown) {
@@ -590,7 +585,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
         }
 
         if (text === '?' || text === '/?') {
-            setShowHelp(true)
+            openHelp()
             setInput('')
             return
         }
@@ -603,7 +598,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
             if (cmd === '/settings') {
                 router.push('/settings')
             } else if (cmd === '/help' || cmd === '/?') {
-                setShowHelp(true)
+                openHelp()
             } else if (cmd === '/clear') {
                 setMessages([])
                 setConversationActive(false)
@@ -778,7 +773,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     } else if (action.action === 'open_settings') {
                         router.push('/settings')
                     } else if (action.action === 'open_help') {
-                        setShowHelp(true)
+                        openHelp()
                     } else if (action.action === 'check_update') {
                         try {
                             const res = await fetch('/api/version')
@@ -1174,7 +1169,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                 </button>
                 <button
                     className="nav-btn"
-                    onClick={() => setShowHelp(true)}
+                    onClick={() => openHelp()}
                     title="Help"
                     aria-label="Help"
                 >
@@ -1216,7 +1211,6 @@ Type /? anytime for a full command list. What would you like to work on?` },
             <OrbVersionLabel as="div" className="dash-version" />
 
             {/* ── Modals ── */}
-            {showHelp && <OrbHelp onClose={() => setShowHelp(false)} />}
 
             {showPrint && (
                 <PrintModal

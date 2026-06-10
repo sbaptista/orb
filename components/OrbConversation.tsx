@@ -177,12 +177,14 @@ export default function OrbConversation({
     const [copiedTranscript, setCopiedTranscript] = useState(false)
     const [isListening, setIsListening] = useState(false)
     const [supportsVoice, setSupportsVoice] = useState(false)
+    const [moreMenuOpen, setMoreMenuOpen] = useState(false)
     const recognitionRef = useRef<any>(null)
 
     useEffect(() => {
         const api = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         setSupportsVoice(!!api)
     }, [])
+
 
     function startListening() {
         const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -428,7 +430,7 @@ export default function OrbConversation({
                     <form onSubmit={handleFormSubmit}>
                         {!input && !submitting && (
                             <div className="oc-placeholder">
-                                Ask the Orb...
+                                Type / or ask the Orb anything...
                             </div>
                         )}
 
@@ -476,6 +478,7 @@ export default function OrbConversation({
                         />
 
                         <div className="oc-toolbar">
+                            {/* Cmds — always visible */}
                             <button
                                 type="button"
                                 className="oc-tool-btn"
@@ -496,107 +499,7 @@ export default function OrbConversation({
                                 <span className="oc-tool-btn-label">Cmds</span>
                             </button>
 
-                            <button
-                                type="button"
-                                className="oc-tool-btn"
-                                onClick={handleHistoryUp}
-                                onMouseDown={(e) => e.preventDefault()}
-                                disabled={history.length === 0}
-                                data-tooltip="Previous command"
-                                aria-label="Previous command"
-                            >
-                                <span className="oc-tool-btn-icon">&uarr;</span>
-                                <span className="oc-tool-btn-label">Prev</span>
-                            </button>
-                            <button
-                                type="button"
-                                className="oc-tool-btn"
-                                onClick={handleHistoryDown}
-                                onMouseDown={(e) => e.preventDefault()}
-                                disabled={historyIndex === -1}
-                                data-tooltip="Next command"
-                                aria-label="Next command"
-                            >
-                                <span className="oc-tool-btn-icon">&darr;</span>
-                                <span className="oc-tool-btn-label">Next</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                className="oc-tool-btn"
-                                aria-pressed={copiedInput}
-                                onClick={() => input.trim() && navigator.clipboard.writeText(input).then(() => {
-                                    setCopiedInput(true)
-                                    setTimeout(() => setCopiedInput(false), 1500)
-                                }).catch(() => {})}
-                                onMouseDown={(e) => e.preventDefault()}
-                                disabled={!input.trim()}
-                                data-tooltip="Copy input"
-                                aria-label="Copy input"
-                            >
-                                <span className="oc-tool-btn-icon">
-                                    {copiedInput ? (
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <polyline points="20 6 9 17 4 12"/>
-                                        </svg>
-                                    ) : (
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                                        </svg>
-                                    )}
-                                </span>
-                                <span className="oc-tool-btn-label">Copy</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                className="oc-tool-btn"
-                                aria-pressed={copiedTranscript}
-                                onClick={copyTranscript}
-                                onMouseDown={(e) => e.preventDefault()}
-                                disabled={messages.length === 0}
-                                data-tooltip="Copy transcript"
-                                aria-label="Copy transcript"
-                            >
-                                <span className="oc-tool-btn-icon">
-                                    {copiedTranscript ? (
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <polyline points="20 6 9 17 4 12"/>
-                                        </svg>
-                                    ) : (
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                            <polyline points="14 2 14 8 20 8"/>
-                                            <line x1="8" y1="13" x2="16" y2="13"/>
-                                            <line x1="8" y1="17" x2="16" y2="17"/>
-                                        </svg>
-                                    )}
-                                </span>
-                                <span className="oc-tool-btn-label">Log</span>
-                            </button>
-
-                            {onClearTranscript && (
-                                <button
-                                    type="button"
-                                    className="oc-tool-btn"
-                                    onClick={onClearTranscript}
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    disabled={messages.length === 0 || submitting}
-                                    data-tooltip="Clear transcript"
-                                    aria-label="Clear transcript"
-                                >
-                                    <span className="oc-tool-btn-icon">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M3 6h18"/>
-                                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                                        </svg>
-                                    </span>
-                                    <span className="oc-tool-btn-label">Clear</span>
-                                </button>
-                            )}
-
+                            {/* Voice — always visible */}
                             <button
                                 type="button"
                                 className="oc-tool-btn"
@@ -622,40 +525,188 @@ export default function OrbConversation({
                                 <span className="oc-tool-btn-label">Voice</span>
                             </button>
 
+                            {/* Desktop-only: Prev, Next, Copy, Log, Clear */}
+                            <div className="oc-toolbar-desktop">
+                                <button
+                                    type="button"
+                                    className="oc-tool-btn"
+                                    onClick={handleHistoryUp}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    disabled={history.length === 0}
+                                    data-tooltip="Previous command"
+                                    aria-label="Previous command"
+                                >
+                                    <span className="oc-tool-btn-icon">&uarr;</span>
+                                    <span className="oc-tool-btn-label">Prev</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    className="oc-tool-btn"
+                                    onClick={handleHistoryDown}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    disabled={historyIndex === -1}
+                                    data-tooltip="Next command"
+                                    aria-label="Next command"
+                                >
+                                    <span className="oc-tool-btn-icon">&darr;</span>
+                                    <span className="oc-tool-btn-label">Next</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    className="oc-tool-btn"
+                                    aria-pressed={copiedInput}
+                                    onClick={() => input.trim() && navigator.clipboard.writeText(input).then(() => {
+                                        setCopiedInput(true)
+                                        setTimeout(() => setCopiedInput(false), 1500)
+                                    }).catch(() => {})}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    disabled={!input.trim()}
+                                    data-tooltip="Copy input"
+                                    aria-label="Copy input"
+                                >
+                                    <span className="oc-tool-btn-icon">
+                                        {copiedInput ? (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="20 6 9 17 4 12"/>
+                                            </svg>
+                                        ) : (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                            </svg>
+                                        )}
+                                    </span>
+                                    <span className="oc-tool-btn-label">Copy</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    className="oc-tool-btn"
+                                    aria-pressed={copiedTranscript}
+                                    onClick={copyTranscript}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    disabled={messages.length === 0}
+                                    data-tooltip="Copy transcript"
+                                    aria-label="Copy transcript"
+                                >
+                                    <span className="oc-tool-btn-icon">
+                                        {copiedTranscript ? (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="20 6 9 17 4 12"/>
+                                            </svg>
+                                        ) : (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                                <polyline points="14 2 14 8 20 8"/>
+                                                <line x1="8" y1="13" x2="16" y2="13"/>
+                                                <line x1="8" y1="17" x2="16" y2="17"/>
+                                            </svg>
+                                        )}
+                                    </span>
+                                    <span className="oc-tool-btn-label">Log</span>
+                                </button>
+                                {onClearTranscript && (
+                                    <button
+                                        type="button"
+                                        className="oc-tool-btn"
+                                        onClick={onClearTranscript}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        disabled={messages.length === 0 || submitting}
+                                        data-tooltip="Clear transcript"
+                                        aria-label="Clear transcript"
+                                    >
+                                        <span className="oc-tool-btn-icon">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M3 6h18"/>
+                                                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                                            </svg>
+                                        </span>
+                                        <span className="oc-tool-btn-label">Clear</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Touch-only: kebab overflow for secondary actions */}
+                            <div className="oc-toolbar-mobile" style={{ position: 'relative' }}>
+                                <button
+                                    type="button"
+                                    className="oc-tool-btn"
+                                    onClick={() => setMoreMenuOpen(o => !o)}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    aria-label="More actions"
+                                    aria-expanded={moreMenuOpen}
+                                >
+                                    <span className="oc-tool-btn-icon">⋮</span>
+                                    <span className="oc-tool-btn-label">More</span>
+                                </button>
+                                {moreMenuOpen && (
+                                    <>
+                                        <div className="dropdown-backdrop" onClick={e => { e.stopPropagation(); setMoreMenuOpen(false) }} />
+                                        <div className="dropdown-menu" style={{ bottom: '100%', left: 0, right: 'auto', marginBottom: '4px' }}>
+                                            <button
+                                                className="dropdown-item"
+                                                onClick={() => { handleHistoryUp(); setMoreMenuOpen(false) }}
+                                                disabled={history.length === 0}
+                                            >
+                                                ↑ Previous
+                                            </button>
+                                            <button
+                                                className="dropdown-item"
+                                                onClick={() => { handleHistoryDown(); setMoreMenuOpen(false) }}
+                                                disabled={historyIndex === -1}
+                                            >
+                                                ↓ Next
+                                            </button>
+                                            <button
+                                                className="dropdown-item"
+                                                onClick={() => {
+                                                    input.trim() && navigator.clipboard.writeText(input).then(() => {
+                                                        setCopiedInput(true)
+                                                        setTimeout(() => setCopiedInput(false), 1500)
+                                                    }).catch(() => {})
+                                                    setMoreMenuOpen(false)
+                                                }}
+                                                disabled={!input.trim()}
+                                            >
+                                                {copiedInput ? '✓ Copied' : 'Copy input'}
+                                            </button>
+                                            <button
+                                                className="dropdown-item"
+                                                onClick={() => { copyTranscript(); setMoreMenuOpen(false) }}
+                                                disabled={messages.length === 0}
+                                            >
+                                                {copiedTranscript ? '✓ Copied' : 'Copy log'}
+                                            </button>
+                                            {onClearTranscript && (
+                                                <button
+                                                    className="dropdown-item"
+                                                    onClick={() => { onClearTranscript(); setMoreMenuOpen(false) }}
+                                                    disabled={messages.length === 0 || submitting}
+                                                >
+                                                    Clear
+                                                </button>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
                             <div className="flex-1" />
 
                             {submitting ? (
                                 <button
                                     type="button"
-                                    className="oc-stop-btn"
+                                    className="oc-action-circle oc-stop-btn"
                                     onClick={onStop}
                                     data-tooltip="Stop processing"
                                     aria-label="Stop processing"
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        width: '28px',
-                                        height: '28px',
-                                        borderRadius: '50%',
-                                        border: 'none',
-                                        background: 'rgba(200, 0, 0, 0.08)',
-                                        color: '#c00',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
-                                    }}
                                 >
-                                    <span style={{
-                                        width: '8px',
-                                        height: '8px',
-                                        background: '#c00',
-                                        borderRadius: '1px',
-                                    }} />
+                                    <span />
                                 </button>
                             ) : (
                                 <button
                                     type="submit"
-                                    className="oc-send-btn"
+                                    className="oc-action-circle oc-send-btn"
                                     disabled={!input.trim()}
                                     data-tooltip="Send (Shift+Enter)"
                                     aria-label="Send"

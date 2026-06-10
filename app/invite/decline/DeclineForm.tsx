@@ -105,18 +105,7 @@ export default function DeclineForm() {
                 <button
                     onClick={handleDecline}
                     disabled={submitting || !invitationId}
-                    style={{
-                        width: '100%',
-                        padding: '12px',
-                        borderRadius: '8px',
-                        border: 'none',
-                        background: 'var(--text)',
-                        color: 'var(--bg)',
-                        fontSize: '15px',
-                        fontWeight: 600,
-                        cursor: submitting ? 'wait' : 'pointer',
-                        opacity: submitting ? 0.6 : 1,
-                    }}
+                    className="auth-submit"
                 >
                     {submitting ? 'Declining…' : 'Decline invitation'}
                 </button>

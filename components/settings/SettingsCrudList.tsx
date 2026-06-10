@@ -586,7 +586,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
               <p className="text-sm text-muted">{config.subtitle(displayed, totalCount || undefined)}</p>
             )}
             {isTable && hasCustomWidths && (
-              <button className="text-btn text-sm" style={{ color: 'var(--muted)', fontSize: '11px' }} onClick={resetColWidths}>
+              <button className="text-btn btn-sm" onClick={resetColWidths}>
                 Reset columns
               </button>
             )}

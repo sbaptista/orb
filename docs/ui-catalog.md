@@ -203,6 +203,17 @@ Pagination arrow button.
 ### Orb Conversation Tool Button (`oc-tool-btn`)
 Used for buttons below the input field in the Orb conversation view. Styled with standard primary button background (`var(--btn-primary-bg)`).
 
+### Orb Action Circle (`oc-action-circle`)
+32×32px circular button base for the Orb input bar. Flex-centered, no border, smooth transition. Used as a base class by:
+- **Send Button (`oc-send-btn`)** — green accent (`--pill-active-bg`), white icon. Submit button for Orb input.
+- **Stop Button (`oc-stop-btn`)** — red tint background (`rgba(200,0,0,0.08)`), red square stop icon. Visible while Orb is processing.
+
+### Banner Button (`btn-banner`)
+Small uppercase pill button for floating banners (update available, maintenance mode). 12px border-radius, uppercase text, subtle box-shadow, hover scale effect. Variant: `btn-banner--warning` for amber/warning-colored banners.
+
+### Small Modifier (`btn-sm`)
+Size modifier class. Combine with any button class (e.g., `btn-primary btn-sm`, `text-btn btn-sm`) for compact contexts. Sets `font-size: 12px; padding: 4px 10px`.
+
 ---
 
 ## Tables
@@ -417,5 +428,5 @@ This catalog must stay in sync with `globals.css` and `components/`. Never leave
 
 ---
 
-*Last updated: 2026-06-08 — Session 72 (Claude Code) - Table improvements: headings, actions, pagination, iPad touch (ORB-233)
+*Last updated: 2026-06-09 — Session 73 (Claude Code) - Button-paloza: conformity audit, new classes btn-banner/btn-sm/oc-action-circle (ORB-235)
 

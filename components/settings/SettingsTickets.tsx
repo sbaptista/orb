@@ -773,12 +773,12 @@ export default function SettingsTickets() {
                 )}
               </div>
               <div className="crud-card-actions">
-                <button className="text-btn" style={{ fontSize: '12px', padding: '6px 8px' }}
+                <button className="text-btn btn-sm"
                   onClick={e => { setEditingTicket(item); onEdit(e) }}>
                   Edit
                 </button>
                 {canAct && (
-                  <button className="text-btn" style={{ fontSize: '12px', padding: '6px 8px', color: 'var(--error)' }}
+                  <button className="btn-danger-confirm btn-sm"
                     onClick={async () => {
                       const res = await dismissTicket(item.id)
                       if (res.error) { toast.error(res.error) }
@@ -787,7 +787,7 @@ export default function SettingsTickets() {
                     Dismiss
                   </button>
                 )}
-                <button className="text-btn" style={{ fontSize: '12px', padding: '6px 8px', color: 'var(--error)' }}
+                <button className="btn-danger-confirm btn-sm"
                   onClick={onDelete}>
                   Delete
                 </button>

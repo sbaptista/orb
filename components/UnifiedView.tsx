@@ -2,13 +2,12 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import OrbPanel from './OrbPanel'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import PrintModal from '@/components/PrintModal'
-import OrbHelp from '@/components/OrbHelp'
 import Breadcrumbs from '@/components/ui/Breadcrumbs'
 import { ACTIVE_STATUSES } from '@/lib/status-groups'
 
@@ -54,7 +53,7 @@ export default function UnifiedView({
   const [isMobile, setIsMobile] = useState(false)
   const [orbOpen, setOrbOpen] = useState(false)
   const [showPrint, setShowPrint] = useState(false)
-  const [showHelp, setShowHelp] = useState(false)
+  const router = useRouter()
   const [projectSearchOpen, setProjectSearchOpen] = useState(false)
   const [projectSearchQuery, setProjectSearchQuery] = useState('')
   const initialLoadDone = useRef(false)
@@ -274,7 +273,7 @@ export default function UnifiedView({
             </button>
             <button
               className="nav-btn"
-              onClick={() => setShowHelp(true)}
+              onClick={() => router.push('/help')}
               title="Help"
               aria-label="Help"
             >
@@ -400,7 +399,6 @@ export default function UnifiedView({
 
       <OrbVersionLabel className="up-version" />
 
-      {showHelp && <OrbHelp onClose={() => setShowHelp(false)} />}
       {showPrint && (
         <PrintModal
           onClose={() => setShowPrint(false)}

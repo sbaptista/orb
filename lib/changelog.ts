@@ -6,6 +6,47 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.188',
+    date: '2026-06-09',
+    changes: [
+      'Broadcast message types: info (green), warning (amber), urgent (red). Full-color solid banners with white text, replacing translucent style.',
+      'Broadcast admin UI: Styled toggle buttons for type selection, Enter-to-send, delete-based clear (fixes previous upsert-null failure).',
+      'Help converted from modal overlay to /help route. Inherits root layout banners automatically. Back button uses router.back().',
+      'Mobile toolbar declutter (ORB-235): Cmds + Voice + Send/Stop always visible. Secondary actions (Prev, Next, Copy, Log, Clear) in a More kebab overflow menu on touch devices.',
+      'Orb input border permanently visible (opacity 0.28 → 0.55). Placeholder changed to "Type / or ask the Orb anything...".',
+      'Body flex column layout: banners stack above pages naturally. dash-main and sl-page use flex:1 instead of height:100dvh.',
+      'Broadcast banner font size corrected to var(--fs-sm). Word wrap enabled (removed nowrap/overflow clipping).',
+      'Known issue: More kebab button does not activate on iPhone/iPad — handed off to Antigravity (WIP.md).',
+    ]
+  },
+  {
+    version: 'v0.5.187',
+    date: '2026-06-09',
+    changes: [
+      'Broadcast messages: Admin can send a banner message visible to all users from Settings > Maintenance. Users can dismiss individually; new broadcasts reset dismissal.',
+      'BroadcastBanner component: Blue-tinted strip below maintenance banner, dismiss persisted in localStorage keyed by broadcast ID.',
+      'API billing error handling: Added "usage limits" detection to Orb error handler. Friendly user message + urgent admin email with specific reason and Anthropic console link.',
+      'Send/stop button restyle: oc-action-circle base class (32×32 circular), oc-send-btn (green), oc-stop-btn (red). iOS Safari deformation fix with explicit dimension constraints.',
+      'Exported getResend and ICON_URL from lib/email.ts for reuse in orb-converse.ts urgent email.',
+    ]
+  },
+  {
+    version: 'v0.5.186',
+    date: '2026-06-09',
+    changes: [
+      'Button-paloza (ORB-235): Audited all buttons across the app and brought non-conforming ones into conformity with established CSS classes.',
+      'DashboardProducts: Replaced all Tailwind utility button classes (bg-zinc, text-red, hover:text-zinc) with standard btn-primary, btn-cancel, btn-outline, btn-danger-confirm, btn-row-action classes.',
+      'PrintModal: Replaced inline-styled buttons and phantom pf-btn-secondary class with btn-cancel and btn-primary. Footer uses modal-footer pattern.',
+      'DeclineForm: Replaced fully inline-styled decline button with auth-submit class.',
+      'MaintenanceBanner & UpdateBanner: Replaced inline-styled banner buttons (with JS hover handlers) with new btn-banner CSS class. Warning variant: btn-banner--warning.',
+      'SettingsPasskeys: Removed inline fontSize/padding overrides, using btn-sm modifier. Delete button now uses btn-danger-confirm instead of btn-cancel with inline color override.',
+      'SettingsTickets: Removed inline size overrides on mobile card action buttons, using btn-sm modifier.',
+      'New CSS: oc-action-circle (32×32px circular button base), oc-stop-btn (red stop icon — was inline-only), oc-send-btn restyled as circle. Send and stop buttons now share consistent circular shape.',
+      'New CSS: btn-banner (small uppercase pill for floating banners), btn-banner--warning (amber variant), btn-sm (compact size modifier for any button class).',
+      'UnifiedDashboard: Cleaned up inline style overrides on retry link and Load More button.',
+    ]
+  },
+  {
     version: 'v0.5.185',
     date: '2026-06-09',
     changes: [
