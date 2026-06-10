@@ -55,7 +55,7 @@ export default function DistillModal({
       <div className="modal-center" style={{ zIndex: 101 }}>
         <div className="modal-header" style={{ justifyContent: 'space-between' }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 600, color: 'var(--text)' }}>Distill Knowledge</h3>
+            <h3 style={{ margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 'var(--fw-semibold)', color: 'var(--text)' }}>Distill Knowledge</h3>
             <p style={{ margin: 0, marginTop: 'var(--sp-xs)', fontSize: 'var(--fs-sm)', color: 'var(--muted)' }}>
               {note ?? 'Extract a lesson or decision from this task to preserve it in the Knowledge Repository.'}
             </p>

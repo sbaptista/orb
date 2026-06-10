@@ -306,7 +306,7 @@ export default function UnifiedView({
               title="Account"
               aria-label="Account"
             >
-              <span className="nav-btn-icon" style={{ fontWeight: 600, fontSize: '14px' }}>
+              <span className="nav-btn-icon" style={{ fontWeight: 'var(--fw-semibold)', fontSize: 'var(--fs-sm)' }}>
                 {userName.charAt(0).toUpperCase()}
               </span>
               <span className="nav-btn-label">Account</span>
@@ -368,7 +368,7 @@ export default function UnifiedView({
                             <span className="text-xs text-muted">{ref}</span>
                           )}
                         </td>
-                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap', fontSize: '12px', color: 'var(--muted)' }}>
+                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap', fontSize: 'var(--fs-xs)', color: 'var(--muted)' }}>
                           {todo.due_at && (
                             <span style={{
                               color: !isDone && parseLocalDatetime(todo.due_at) < new Date() ? 'var(--error)' : undefined,

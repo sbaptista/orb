@@ -505,7 +505,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
               <line x1="9" y1="3" x2="9" y2="21"/>
             </svg>
-            <span className="tv-toolbar-btn-label" style={{ fontSize: '10px', marginTop: '2px', display: 'block' }}>
+            <span className="tv-toolbar-btn-label" style={{ fontSize: 'var(--fs-version)', marginTop: '2px', display: 'block' }}>
               List Views
             </span>
           </button>
@@ -654,12 +654,12 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
 
       {showListViews && !isAll && (
         <div className="tv-filterbar" style={{ borderTop: 'none', display: 'flex', alignItems: 'center', gap: 'var(--sp-md)' }}>
-          <span className="text-xs text-muted" style={{ fontWeight: 600 }}>AVAILABLE VIEWS:</span>
+          <span className="text-xs text-muted" style={{ fontWeight: 'var(--fw-semibold)' }}>AVAILABLE VIEWS:</span>
           <button
             className="tv-toolbar-btn"
             aria-pressed={!checklistMode}
             onClick={() => handleSetViewMode('list')}
-            style={{ fontSize: '12px', padding: '4px 8px' }}
+            style={{ fontSize: 'var(--fs-xs)', padding: '4px 8px' }}
           >
             List
           </button>
@@ -667,7 +667,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
             className="tv-toolbar-btn"
             aria-pressed={checklistMode}
             onClick={() => handleSetViewMode('checklist')}
-            style={{ fontSize: '12px', padding: '4px 8px' }}
+            style={{ fontSize: 'var(--fs-xs)', padding: '4px 8px' }}
           >
             Checklist
           </button>
@@ -687,7 +687,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
           <div className="tv-bulk-bar-top">
             {confirmBulkDelete ? (
               <>
-                <span className="text-error" style={{ fontSize: '13px', fontWeight: 500 }}>
+                <span className="text-error" style={{ fontSize: 'var(--fs-sm)', fontWeight: 'var(--fw-medium)' }}>
                   Delete {selectedIds.length} todo{selectedIds.length !== 1 ? 's' : ''}?
                 </span>
                 <button className="tv-bulk-confirm" onClick={handleBulkDelete}>
@@ -699,7 +699,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
               </>
             ) : (
               <>
-                <span style={{ color: 'var(--text2)', fontWeight: 500, fontSize: '13px' }}>
+                <span style={{ color: 'var(--text2)', fontWeight: 'var(--fw-medium)', fontSize: 'var(--fs-sm)' }}>
                   {selectedIds.length} selected
                 </span>
                 <button className="tv-bulk-btn text-muted" onClick={toggleSelectAll}>
@@ -923,7 +923,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '4px',
-                                fontSize: '11px',
+                                fontSize: 'var(--fs-version)',
                                 padding: '1px 6px',
                                 borderRadius: '4px',
                                 background: isOverdue

@@ -28,13 +28,13 @@ export function FormField({ label, error, hint, required, children, htmlFor }: F
       </div>
 
       {error && (
-        <p role="alert" className="text-sm text-error" style={{ margin: 0, lineHeight: 1.4 }}>
+        <p role="alert" className="text-sm text-error" style={{ margin: 0, lineHeight: 'var(--lh-snug)' }}>
           {error}
         </p>
       )}
 
       {hint && !error && (
-        <p className="text-sm text-muted" style={{ margin: 0, lineHeight: 1.4 }}>
+        <p className="text-sm text-muted" style={{ margin: 0, lineHeight: 'var(--lh-snug)' }}>
           {hint}
         </p>
       )}

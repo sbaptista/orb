@@ -26,9 +26,14 @@ export default function BroadcastBanner() {
   const [dismissed, setDismissed] = useState(true)
 
   useEffect(() => {
+    const PREFIX = 'broadcast_dismissed_'
     if (!broadcast) { setDismissed(true); return }
-    const key = `broadcast_dismissed_${broadcast.id}`
-    setDismissed(localStorage.getItem(key) === 'true')
+    const currentKey = `${PREFIX}${broadcast.id}`
+    setDismissed(localStorage.getItem(currentKey) === 'true')
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith(PREFIX) && k !== currentKey) localStorage.removeItem(k)
+    }
   }, [broadcast])
 
   if (!broadcast || dismissed) return null
@@ -60,7 +65,7 @@ export default function BroadcastBanner() {
         fontSize: 'var(--fs-sm)',
         color: style.color,
         fontWeight: 'var(--fw-medium)' as any,
-        lineHeight: 1.4,
+        lineHeight: 'var(--lh-snug)',
         textAlign: 'center',
       }}>
         {broadcast.message}

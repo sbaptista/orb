@@ -43,10 +43,10 @@ export default function SettingsWhatsNew() {
         <h2 className="s-title">What&apos;s New</h2>
         <div className="flex-row gap-sm" style={{ alignItems: 'center' }}>
           {result === 'up-to-date' && (
-            <span className="text-sm" style={{ color: 'var(--success)', fontWeight: 500 }}>Up to date</span>
+            <span className="text-sm" style={{ color: 'var(--success)', fontWeight: 'var(--fw-medium)' }}>Up to date</span>
           )}
           {result === 'update-available' && (
-            <button className="btn-primary" onClick={handleApplyUpdate} style={{ fontSize: '12px', padding: '6px 14px' }}>
+            <button className="btn-primary" onClick={handleApplyUpdate} style={{ fontSize: 'var(--fs-xs)', padding: '6px 14px' }}>
               Update to {serverVersion}
             </button>
           )}
@@ -113,11 +113,11 @@ export default function SettingsWhatsNew() {
                         display: 'inline-block',
                         padding: '4px 12px',
                         borderRadius: '12px',
-                        fontSize: '12px',
-                        fontWeight: 600,
+                        fontSize: 'var(--fs-xs)',
+                        fontWeight: 'var(--fw-semibold)',
                         background: index === 0 ? 'rgba(45, 90, 45, 0.08)' : 'var(--bg3)',
                         color: index === 0 ? 'var(--success)' : 'var(--text2)',
-                        letterSpacing: '0.04em',
+                        letterSpacing: 'var(--ls-body)',
                       }}
                     >
                       {release.version}
@@ -125,13 +125,13 @@ export default function SettingsWhatsNew() {
                     {index === 0 && (
                       <span
                         style={{
-                          fontSize: '10px',
+                          fontSize: 'var(--fs-version)',
                           color: 'var(--success)',
                           background: 'rgba(45, 90, 45, 0.05)',
                           border: '1px solid rgba(45, 90, 45, 0.15)',
                           borderRadius: '4px',
                           padding: '1px 5px',
-                          fontWeight: 500,
+                          fontWeight: 'var(--fw-medium)',
                           textTransform: 'uppercase',
                         }}
                       >
@@ -143,7 +143,7 @@ export default function SettingsWhatsNew() {
                     style={{
                       fontSize: 'var(--fs-xs)',
                       color: 'var(--muted)',
-                      fontWeight: 500,
+                      fontWeight: 'var(--fw-medium)',
                     }}
                   >
                     {new Date(release.date).toLocaleDateString('en-US', {
@@ -160,7 +160,7 @@ export default function SettingsWhatsNew() {
                     paddingLeft: 'var(--sp-lg)',
                     fontSize: 'var(--fs-sm)',
                     color: 'var(--text2)',
-                    lineHeight: '1.7',
+                    lineHeight: 'var(--lh-relaxed)',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '8px',

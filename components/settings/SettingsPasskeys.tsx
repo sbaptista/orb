@@ -125,10 +125,10 @@ export default function SettingsPasskeys() {
 
       {/* Main card */}
       <div className="s-card" style={{ padding: 'var(--sp-xl)' }}>
-        <h3 style={{ margin: '0 0 var(--sp-sm)', fontSize: 'var(--fs-base)', fontWeight: 500 }}>
+        <h3 style={{ margin: '0 0 var(--sp-sm)', fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-medium)' }}>
           Your Passkeys
         </h3>
-        <p className="text-sm text-muted" style={{ margin: '0 0 var(--sp-lg)', lineHeight: 1.5 }}>
+        <p className="text-sm text-muted" style={{ margin: '0 0 var(--sp-lg)', lineHeight: 'var(--lh-normal)' }}>
           Use Face ID, Touch ID, or your device&apos;s biometric to sign in instantly. Each device needs its own passkey.
         </p>
 
@@ -208,7 +208,7 @@ export default function SettingsPasskeys() {
                     </div>
                   ) : (
                     <>
-                      <p style={{ margin: 0, fontSize: 'var(--fs-sm)', fontWeight: 500, color: 'var(--text)' }}>
+                      <p style={{ margin: 0, fontSize: 'var(--fs-sm)', fontWeight: 'var(--fw-medium)', color: 'var(--text)' }}>
                         {passkey.friendly_name || 'Unnamed passkey'}
                       </p>
                       <p className="text-xs text-muted" style={{ margin: '2px 0 0' }}>
@@ -284,10 +284,10 @@ export default function SettingsPasskeys() {
 
       {/* Info card */}
       <div className="s-card" style={{ padding: 'var(--sp-xl)', marginTop: 'var(--sp-xl)' }}>
-        <h3 style={{ margin: '0 0 var(--sp-sm)', fontSize: 'var(--fs-base)', fontWeight: 500 }}>
+        <h3 style={{ margin: '0 0 var(--sp-sm)', fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-medium)' }}>
           How passkeys work
         </h3>
-        <ul style={{ margin: 0, paddingLeft: 'var(--sp-xl)', fontSize: 'var(--fs-sm)', color: 'var(--text2)', lineHeight: 1.8 }}>
+        <ul style={{ margin: 0, paddingLeft: 'var(--sp-xl)', fontSize: 'var(--fs-sm)', color: 'var(--text2)', lineHeight: 'var(--lh-loose)' }}>
           <li>Passkeys use your device&apos;s biometric (Face ID, Touch ID, Windows Hello) instead of a password</li>
           <li>They&apos;re stored securely on your device and synced via iCloud Keychain or your platform&apos;s credential manager</li>
           <li>Each device needs its own passkey, or use a synced keychain across Apple devices</li>

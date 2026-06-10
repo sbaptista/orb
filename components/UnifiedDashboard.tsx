@@ -1246,10 +1246,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               </textPath>
             </text>
           </svg>
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-orb)', fontWeight: 300, color: noProject ? NO_PROJECT_STYLE.countColor : style.countColor, letterSpacing: '-1px', lineHeight: 1, transition: 'color 0.8s' }}>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-orb)', fontWeight: 'var(--fw-light)', color: noProject ? NO_PROJECT_STYLE.countColor : style.countColor, letterSpacing: 'var(--ls-tight)', lineHeight: 'var(--lh-none)', transition: 'color 0.8s' }}>
             {noProject ? '—' : activeTodos.length}
           </span>
-          <span style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-xs)', fontWeight: 400, letterSpacing: '0.14em', textTransform: 'uppercase', color: noProject ? NO_PROJECT_STYLE.labelColor : style.labelColor, transition: 'color 0.8s' }}>
+          <span style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-xs)', fontWeight: 'var(--fw-normal)', letterSpacing: 'var(--ls-widest)', textTransform: 'uppercase', color: noProject ? NO_PROJECT_STYLE.labelColor : style.labelColor, transition: 'color 0.8s' }}>
             {noProject ? 'no project' : 'active'}
           </span>
         </div>
@@ -1322,7 +1322,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             {projectSearchOpen && (
               <div className="admin-search-dropdown">
                 {projectsLoadError && (
-                  <div className="admin-search-empty" style={{ color: 'var(--error)', fontSize: '12px' }}>
+                  <div className="admin-search-empty" style={{ color: 'var(--error)', fontSize: 'var(--fs-xs)' }}>
                     Projects failed to load.{' '}
                     <button type="button" className="text-btn" style={{ color: 'var(--accent)', textDecoration: 'underline', padding: 0 }}
                       onClick={() => window.location.reload()}>
@@ -1484,7 +1484,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                       setShowNewTodo(true)
                     }
                   }}
-                  style={products.length === 0 ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                  style={products.length === 0 ? { opacity: 'var(--opacity-disabled)', cursor: 'not-allowed' } : undefined}
                   data-tooltip="Create a new task"
                 >
                   + New
@@ -1523,13 +1523,13 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               <div className="tv-bulk-bar-top">
                 {confirmBulkDelete ? (
                   <>
-                    <span className="text-error" style={{ fontSize: '13px', fontWeight: 500 }}>Delete {selectedIds.length} todo{selectedIds.length !== 1 ? 's' : ''}?</span>
+                    <span className="text-error" style={{ fontSize: 'var(--fs-sm)', fontWeight: 'var(--fw-medium)' }}>Delete {selectedIds.length} todo{selectedIds.length !== 1 ? 's' : ''}?</span>
                     <button className="tv-bulk-confirm" onClick={handleBulkDelete}>Confirm</button>
                     <button className="tv-bulk-btn text-muted" onClick={() => setConfirmBulkDelete(false)}>Cancel</button>
                   </>
                 ) : (
                   <>
-                    <span style={{ color: 'var(--text2)', fontWeight: 500, fontSize: '13px' }}>{selectedIds.length} selected</span>
+                    <span style={{ color: 'var(--text2)', fontWeight: 'var(--fw-medium)', fontSize: 'var(--fs-sm)' }}>{selectedIds.length} selected</span>
                     <button className="tv-bulk-btn text-muted" onClick={toggleSelectAll}>{todos.every(t => selectedIds.includes(t.id)) ? 'Deselect all' : 'Select all'}</button>
                     <button className="tv-toolbar-btn" onClick={handleBulkMarkDone}>Mark done</button>
                     <button className="tv-bulk-btn" onClick={() => setConfirmBulkDelete(true)} style={{ color: 'var(--error)' }}>Delete</button>

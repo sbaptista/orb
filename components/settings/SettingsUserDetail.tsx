@@ -77,7 +77,7 @@ function ProductForm({
         <label className="label">Code *</label>
         <input
           className="input"
-          style={{ fontFamily: 'monospace', width: '120px' }}
+          style={{ fontFamily: 'var(--font-mono)', width: '120px' }}
           value={form.code}
           onChange={e => handleCodeChange(e.target.value)}
           placeholder="PROJ"
@@ -260,8 +260,8 @@ export default function SettingsUserDetail({ userId }: { userId: string }) {
   if (accessDenied) return (
       <div className="settings-page s-page" style={{ alignItems: 'center', justifyContent: 'center', paddingTop: '10vh' }}>
           <div className="s-card" style={{ maxWidth: '500px', textAlign: 'center', padding: 'var(--sp-2xl)' }}>
-              <h3 style={{ fontSize: 'var(--fs-lg)', marginBottom: 'var(--sp-sm)', fontWeight: 600 }}>Access Denied</h3>
-              <p style={{ color: 'var(--text2)', marginBottom: 'var(--sp-xl)', lineHeight: 1.6 }}>
+              <h3 style={{ fontSize: 'var(--fs-lg)', marginBottom: 'var(--sp-sm)', fontWeight: 'var(--fw-semibold)' }}>Access Denied</h3>
+              <p style={{ color: 'var(--text2)', marginBottom: 'var(--sp-xl)', lineHeight: 'var(--lh-relaxed)' }}>
                   You do not have permission to view this user&apos;s details.
               </p>
               <Link href="/settings/users" className="btn-primary" style={{ display: 'inline-block', textDecoration: 'none' }}>
@@ -273,8 +273,8 @@ export default function SettingsUserDetail({ userId }: { userId: string }) {
   if (!userProfile) return (
       <div className="settings-page s-page" style={{ alignItems: 'center', justifyContent: 'center', paddingTop: '10vh' }}>
           <div className="s-card" style={{ maxWidth: '500px', textAlign: 'center', padding: 'var(--sp-2xl)' }}>
-              <h3 style={{ fontSize: 'var(--fs-lg)', marginBottom: 'var(--sp-sm)', fontWeight: 600 }}>User not found</h3>
-              <p style={{ color: 'var(--text2)', marginBottom: 'var(--sp-xl)', lineHeight: 1.6 }}>
+              <h3 style={{ fontSize: 'var(--fs-lg)', marginBottom: 'var(--sp-sm)', fontWeight: 'var(--fw-semibold)' }}>User not found</h3>
+              <p style={{ color: 'var(--text2)', marginBottom: 'var(--sp-xl)', lineHeight: 'var(--lh-relaxed)' }}>
                   This user could not be loaded.
               </p>
               <Link href="/settings/users" className="btn-primary" style={{ display: 'inline-block', textDecoration: 'none' }}>
@@ -348,7 +348,7 @@ export default function SettingsUserDetail({ userId }: { userId: string }) {
 
       <div className="s-list">
         {products.length > 0 && !showAdd && (
-          <div className="s-row" style={{ fontWeight: 600, fontSize: 'var(--fs-xs)', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)', paddingBottom: 'var(--sp-xs)' }}>
+          <div className="s-row" style={{ fontWeight: 'var(--fw-semibold)', fontSize: 'var(--fs-xs)', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 'var(--ls-caps)', borderBottom: '1px solid var(--border)', paddingBottom: 'var(--sp-xs)' }}>
             <span style={{ width: '16px', flexShrink: 0 }} />
             <div className="s-row-info" style={{ flex: 1 }}>Project</div>
             <span className="s-row-meta">Todos</span>
@@ -396,7 +396,7 @@ export default function SettingsUserDetail({ userId }: { userId: string }) {
                       className="btn-danger-confirm"
                       onClick={() => handleDelete(p.id)}
                       disabled={saving}
-                      style={{ opacity: saving ? 0.6 : 1 }}
+                      style={{ opacity: saving ? 'var(--opacity-disabled)' : 1 }}
                     >
                       Confirm
                     </button>
@@ -423,7 +423,7 @@ export default function SettingsUserDetail({ userId }: { userId: string }) {
                   }}
                 />
                 <div className="s-row-info" style={{ flex: 1 }}>
-                  <Link href={`/settings/projects/${p.id}`} className="text-sm" style={{ fontWeight: 500, color: 'var(--text)', textDecoration: 'none' }}>
+                  <Link href={`/settings/projects/${p.id}`} className="text-sm" style={{ fontWeight: 'var(--fw-medium)', color: 'var(--text)', textDecoration: 'none' }}>
                     {p.name}
                   </Link>
                   {p.description && (

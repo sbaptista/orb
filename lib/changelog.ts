@@ -6,6 +6,21 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.192',
+    date: '2026-06-10',
+    changes: [
+      'Text-a-Palooza (ORB-237): Complete CSS variable uniformity sweep across 40 files.',
+      'Font sizes: All 51 hardcoded pixel sizes in globals.css + ~80 inline component sizes replaced with --fs-* variables. Three-tier responsive scaling: desktop, tablet (touch), phone.',
+      'Font weights: Added --fw-light (300), --fw-semibold (600). Replaced ~115 hardcoded weights across CSS and components with --fw-* variables.',
+      'Font families: Defined --font-mono variable. Replaced all bare "monospace" references (7 CSS + 13 components) with var(--font-mono).',
+      'Line height: Added --lh-none (1) through --lh-loose (1.8). Replaced ~48 hardcoded values across CSS and components.',
+      'Letter spacing: Added --ls-tight (-0.02em) through --ls-widest (0.12em). Replaced ~40 hardcoded values across CSS and components.',
+      'Opacity: Added --opacity-disabled (0.7) and --opacity-muted (0.55). Normalized all 11 disabled states (previously ranging 0.3–0.7) to a uniform 0.7. Replaced ~27 hardcoded values.',
+      'Tablet touch tier: iPad now gets intermediate font bumps via @media (hover: none) and (pointer: coarse) — was previously getting desktop-only sizes.',
+      'Broadcast localStorage cleanup: Stale broadcast_dismissed_* keys purged when broadcast changes.',
+    ]
+  },
+  {
     version: 'v0.5.191',
     date: '2026-06-10',
     changes: [

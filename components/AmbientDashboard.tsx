@@ -1002,10 +1002,10 @@ Type /? anytime for a full command list. What would you like to work on?` },
                         <span style={{
                             fontFamily: 'var(--font-display)',
                             fontSize: 'var(--fs-orb)',
-                            fontWeight: 300,
+                            fontWeight: 'var(--fw-light)',
                             color: noProject ? NO_PROJECT_STYLE.countColor : style.countColor,
-                            letterSpacing: '-1px',
-                            lineHeight: 1,
+                            letterSpacing: 'var(--ls-tight)',
+                            lineHeight: 'var(--lh-none)',
                             transition: 'color 0.8s',
                         }}>
                             {noProject ? '—' : activeTodos.length}
@@ -1013,8 +1013,8 @@ Type /? anytime for a full command list. What would you like to work on?` },
                         <span style={{
                             fontFamily: 'var(--font-ui)',
                             fontSize: 'var(--fs-xs)',
-                            fontWeight: 400,
-                            letterSpacing: '0.14em',
+                            fontWeight: 'var(--fw-normal)',
+                            letterSpacing: 'var(--ls-widest)',
                             textTransform: 'uppercase',
                             color: noProject ? NO_PROJECT_STYLE.labelColor : style.labelColor,
                             transition: 'color 0.8s',
@@ -1202,7 +1202,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
                     title="Account"
                     aria-label="Account"
                 >
-                    <span className="nav-btn-icon" style={{ fontWeight: 600, fontSize: '14px' }}>{userName.charAt(0).toUpperCase()}</span>
+                    <span className="nav-btn-icon" style={{ fontWeight: 'var(--fw-semibold)', fontSize: 'var(--fs-sm)' }}>{userName.charAt(0).toUpperCase()}</span>
                     <span className="nav-btn-label">Account</span>
                 </button>
             </div>

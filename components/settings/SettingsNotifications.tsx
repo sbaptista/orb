@@ -67,10 +67,10 @@ export default function SettingsNotifications() {
       <h2 className="s-title mb-2xl">Notifications</h2>
 
       <div className="s-card" style={{ padding: 'var(--sp-xl)' }}>
-        <h3 style={{ margin: '0 0 var(--sp-sm)', fontSize: 'var(--fs-base)', fontWeight: 500 }}>
+        <h3 style={{ margin: '0 0 var(--sp-sm)', fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-medium)' }}>
           Push Notifications
         </h3>
-        <p className="text-sm text-muted" style={{ margin: '0 0 var(--sp-lg)', lineHeight: 1.5 }}>
+        <p className="text-sm text-muted" style={{ margin: '0 0 var(--sp-lg)', lineHeight: 'var(--lh-normal)' }}>
           Get notified when your orb state changes — calm to busy, busy to urgent — or when a due date is approaching. Works on Mac, iPad, and iPhone.
         </p>
 
@@ -118,12 +118,12 @@ export default function SettingsNotifications() {
               display: 'inline-block',
               padding: '4px 12px',
               borderRadius: '12px',
-              fontSize: '12px',
-              fontWeight: 600,
+              fontSize: 'var(--fs-xs)',
+              fontWeight: 'var(--fw-semibold)',
               background: '#e8f0e8',
               color: '#2d5a2d',
               textTransform: 'uppercase',
-              letterSpacing: '0.04em',
+              letterSpacing: 'var(--ls-body)',
             }}>
               Active
             </span>
@@ -146,10 +146,10 @@ export default function SettingsNotifications() {
       </div>
 
       <div className="s-card" style={{ padding: 'var(--sp-xl)', marginTop: 'var(--sp-xl)' }}>
-        <h3 style={{ margin: '0 0 var(--sp-sm)', fontSize: 'var(--fs-base)', fontWeight: 500 }}>
+        <h3 style={{ margin: '0 0 var(--sp-sm)', fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-medium)' }}>
           What triggers a notification
         </h3>
-        <ul style={{ margin: 0, paddingLeft: 'var(--sp-xl)', fontSize: 'var(--fs-sm)', color: 'var(--text2)', lineHeight: 1.8 }}>
+        <ul style={{ margin: 0, paddingLeft: 'var(--sp-xl)', fontSize: 'var(--fs-sm)', color: 'var(--text2)', lineHeight: 'var(--lh-loose)' }}>
           <li>Orb state changes to <strong>urgent</strong> (new urgent-priority task or approaching due date)</li>
           <li>A due date is approaching (within your urgency threshold)</li>
           <li>A task becomes overdue</li>

@@ -103,10 +103,35 @@
   --fs-xl:      22px;
   --fs-orb:     42px;
 
+  /* ── Font families (ui + display set by Next.js in layout.tsx) ── */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
   /* ── Font weights ── */
-  --fw-normal: 400;
-  --fw-medium: 500;
-  --fw-bold:   700;
+  --fw-light:    300;
+  --fw-normal:   400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+
+  /* ── Line height ── */
+  --lh-none:    1;
+  --lh-tight:   1.2;
+  --lh-snug:    1.4;
+  --lh-normal:  1.5;
+  --lh-relaxed: 1.6;
+  --lh-loose:   1.8;
+
+  /* ── Letter spacing ── */
+  --ls-tight:   -0.02em;
+  --ls-subtle:   0.01em;
+  --ls-body:     0.04em;
+  --ls-caps:     0.05em;
+  --ls-wide:     0.08em;
+  --ls-widest:   0.12em;
+
+  /* ── Opacity ── */
+  --opacity-disabled: 0.7;
+  --opacity-muted:    0.55;
 
   /* ── Spacing ── */
   --sp-xs:  4px;
@@ -135,19 +160,26 @@
    Within touch: min-width 768px = tablet, max-width 767px = phone
    ══════════════════════════════════════════════════════════ */
 
-/* ── Touch tier (phone + tablet share these rules; split if they diverge) ── */
+/* ── Touch tier — all touch devices (tablet + phone) ── */
 @media (hover: none) and (pointer: coarse) {
+  :root {
+    --fs-version: 12px;
+    --fs-xs:      13px;
+    --fs-sm:      14px;
+    --fs-lg:      19px;
+    --fs-xl:      23px;
+  }
   label { font-size: var(--fs-base); }
   input, select, textarea { font-size: var(--fs-input); }
   button { min-height: var(--touch); }
   .admin-search-input { font-size: var(--fs-input) !important; }
 }
 
-/* ── Phone font bump — legibility on small screens ── */
+/* ── Phone — extra legibility boost on small screens ── */
 @media (hover: none) and (pointer: coarse) and (max-width: 767px) {
   :root {
-    --fs-version: 12px;
-    --fs-xs:      13px;
+    --fs-version: 13px;
+    --fs-xs:      14px;
     --fs-sm:      17px;
     --fs-base:    16px;
     --fs-input:   17px;
@@ -182,7 +214,7 @@ html {
 body {
   font-family: var(--font-ui);
   font-size: var(--fs-base);
-  line-height: 1.6;
+  line-height: var(--lh-relaxed);
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
@@ -358,7 +390,7 @@ a, button, [role="button"], input, select, textarea {
 
 .btn-primary:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: var(--opacity-disabled);
 }
 
 .btn-primary:not(:disabled):hover {
@@ -453,7 +485,7 @@ a, button, [role="button"], input, select, textarea {
 }
 
 .btn-sm {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   padding: 4px 10px;
 }
 
@@ -463,10 +495,10 @@ a, button, [role="button"], input, select, textarea {
   border: none;
   border-radius: 12px;
   padding: 4px 14px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-version);
+  font-weight: var(--fw-semibold);
   cursor: pointer;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--ls-caps);
   text-transform: uppercase;
   box-shadow: 0 2px 6px rgba(45, 90, 45, 0.15);
   transition: transform 0.2s ease, background 0.2s ease;
@@ -540,10 +572,10 @@ a, button, [role="button"], input, select, textarea {
 
 .s-section-title {
   font-size: var(--fs-sm);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--ls-caps);
   margin-bottom: var(--sp-md);
 }
 
@@ -667,7 +699,7 @@ a, button, [role="button"], input, select, textarea {
   width: 100%;
   max-width: 280px;
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   border: 1px solid var(--border);
   border-radius: var(--r);
   background: var(--bg);
@@ -695,11 +727,11 @@ a, button, [role="button"], input, select, textarea {
   border: none;
   cursor: pointer;
   font-size: 28px;
-  font-weight: 300;
+  font-weight: var(--fw-light);
   color: var(--text2);
   background: none;
   padding: 0;
-  line-height: 1;
+  line-height: var(--lh-none);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition: opacity 0.15s;
@@ -745,7 +777,7 @@ a, button, [role="button"], input, select, textarea {
     order: 1;
     width: 44px;
     height: 44px;
-    font-size: 24px;
+    font-size: var(--fs-xl);
   }
   .crud-table-scroll .cs-scroll-arrow-left {
     margin-right: auto;
@@ -760,7 +792,7 @@ a, button, [role="button"], input, select, textarea {
   width: 100%;
   max-width: 280px;
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   border: 1px solid var(--border);
   border-radius: var(--r);
   background: var(--bg);
@@ -796,21 +828,21 @@ a, button, [role="button"], input, select, textarea {
   margin-bottom: 4px;
 }
 .crud-card-code {
-  font-family: monospace;
-  font-size: 12px;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
   color: var(--text2);
 }
 .crud-card-date {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--muted);
 }
 .crud-card-title {
   font-size: var(--fs-sm);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--text);
   margin-bottom: 6px;
-  line-height: 1.4;
+  line-height: var(--lh-snug);
 }
 .crud-card-pills {
   display: flex;
@@ -821,7 +853,7 @@ a, button, [role="button"], input, select, textarea {
 .crud-card-meta {
   display: flex;
   gap: var(--sp-md);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--muted);
   margin-bottom: 8px;
 }
@@ -853,20 +885,20 @@ a, button, [role="button"], input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
   color: var(--success);
   flex-shrink: 0;
 }
 
 .badge {
-  font-size: 10px;
+  font-size: var(--fs-version);
   background: var(--bg3);
   color: var(--text3);
   padding: 1px 6px;
   border-radius: 4px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--ls-caps);
 }
 
 .checkbox {
@@ -891,7 +923,7 @@ a, button, [role="button"], input, select, textarea {
 
 .s-card-title {
   font-size: var(--fs-base);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--text);
   margin: 0 0 var(--sp-xs);
 }
@@ -904,7 +936,7 @@ a, button, [role="button"], input, select, textarea {
 
 .btn-outline:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: var(--opacity-disabled);
 }
 
 .btn-sign-out {
@@ -925,7 +957,7 @@ a, button, [role="button"], input, select, textarea {
 
 .btn-sign-out:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: var(--opacity-disabled);
 }
 
 .btn-pager {
@@ -945,7 +977,7 @@ a, button, [role="button"], input, select, textarea {
 
 .btn-pager:disabled {
   cursor: not-allowed;
-  opacity: 0.3;
+  opacity: var(--opacity-disabled);
 }
 
 .btn-dev {
@@ -985,7 +1017,7 @@ a, button, [role="button"], input, select, textarea {
   word-break: break-word;
   user-select: text;
   -webkit-user-select: text;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
 }
 
 .audit-table {
@@ -1064,7 +1096,7 @@ a, button, [role="button"], input, select, textarea {
 
 
 .knowledge-tag {
-  font-size: 10px;
+  font-size: var(--fs-version);
   background: var(--bg2);
   color: var(--text3);
   padding: 2px 8px;
@@ -1086,7 +1118,7 @@ a, button, [role="button"], input, select, textarea {
   align-items: center;
   justify-content: flex-start;
   gap: 2px;
-  line-height: 1;
+  line-height: var(--lh-none);
   transition: color 0.15s;
   padding: 4px 6px;
   flex-shrink: 0;
@@ -1105,8 +1137,8 @@ a, button, [role="button"], input, select, textarea {
 }
 .nav-btn-label {
   font-size: var(--fs-sm);
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-subtle);
 }
 
 .nav-btn:hover {
@@ -1115,7 +1147,7 @@ a, button, [role="button"], input, select, textarea {
 
 .nav-btn:disabled,
 .nav-btn-disabled {
-  opacity: 0.35;
+  opacity: var(--opacity-disabled);
   cursor: not-allowed;
   pointer-events: none;
 }
@@ -1130,11 +1162,11 @@ a, button, [role="button"], input, select, textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  font-size: 12px;
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-xs);
   color: var(--text);
   font-family: var(--font-ui);
-  line-height: 1;
+  line-height: var(--lh-none);
   flex-shrink: 0;
   box-sizing: border-box;
 }
@@ -1203,9 +1235,9 @@ a, button, [role="button"], input, select, textarea {
 }
 .appnav-desktop .nav-btn .nav-btn-label {
   display: block !important;
-  font-size: 10px !important;
-  font-weight: 500 !important;
-  line-height: 1.2 !important;
+  font-size: var(--fs-version) !important;
+  font-weight: var(--fw-medium) !important;
+  line-height: var(--lh-tight) !important;
   text-align: center !important;
   color: var(--muted) !important;
 }
@@ -1328,8 +1360,8 @@ a, button, [role="button"], input, select, textarea {
 
 .strip-link {
   font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 500;
+  font-size: var(--fs-version);
+  font-weight: var(--fw-medium);
   border: none;
   background: none;
   cursor: pointer;
@@ -1393,7 +1425,7 @@ a, button, [role="button"], input, select, textarea {
   background: none;
   cursor: pointer;
   font-size: 28px;
-  line-height: 1;
+  line-height: var(--lh-none);
   color: var(--text2);
   border-radius: var(--r);
   transition: background 0.15s, color 0.15s;
@@ -1416,8 +1448,8 @@ a, button, [role="button"], input, select, textarea {
   align-items: center;
   padding: 4px 8px;
   min-height: 36px;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
   color: var(--accent, #5a3090);
   background: none;
   border: none;
@@ -1559,9 +1591,9 @@ a, button, [role="button"], input, select, textarea {
 
 .dash-strip-pill {
   font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  font-size: var(--fs-version);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-body);
   padding: 5px 14px;
   border-radius: 7px;
   border: 1.5px solid var(--pill-active-border);
@@ -1621,7 +1653,7 @@ a, button, [role="button"], input, select, textarea {
 
 .dash-separator {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-version);
   line-height: 28px;
 }
 
@@ -1658,9 +1690,9 @@ a, button, [role="button"], input, select, textarea {
 
 .tv-topbar-title {
   font-size: var(--fs-lg);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   color: var(--text);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--ls-tight);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1698,7 +1730,7 @@ a, button, [role="button"], input, select, textarea {
 
 .tv-title {
   font-size: var(--fs-sm);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--text2);
   flex: 1;
   text-align: center;
@@ -1774,7 +1806,7 @@ a, button, [role="button"], input, select, textarea {
 .admin-search-empty {
   padding: 16px;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--muted);
 }
 .admin-search-result {
@@ -1799,8 +1831,8 @@ a, button, [role="button"], input, select, textarea {
 }
 .admin-search-result-name {
   font-family: var(--font-ui);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1808,7 +1840,7 @@ a, button, [role="button"], input, select, textarea {
 }
 .admin-search-result-owner {
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--muted);
   white-space: nowrap;
   flex-shrink: 0;
@@ -1867,7 +1899,7 @@ a, button, [role="button"], input, select, textarea {
   border-radius: var(--r);
   padding: 5px 14px;
   font-size: var(--fs-sm);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: #fff;
   cursor: pointer;
   font-family: var(--font-ui);
@@ -1888,10 +1920,10 @@ a, button, [role="button"], input, select, textarea {
   background: #fff;
   color: var(--btn-primary-bg);
   border-radius: 10px;
-  font-size: 10px;
-  font-weight: 700;
+  font-size: var(--fs-version);
+  font-weight: var(--fw-bold);
   padding: 1px 6px;
-  line-height: 1.4;
+  line-height: var(--lh-snug);
   transition: all var(--transition);
 }
 
@@ -1949,9 +1981,9 @@ a, button, [role="button"], input, select, textarea {
 
 .tv-project-name {
   font-size: var(--fs-lg);
-  font-weight: 400;
+  font-weight: var(--fw-normal);
   color: var(--text);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--ls-tight);
   text-align: center;
   margin: 0 0 var(--sp-xl) 0;
 }
@@ -1966,12 +1998,12 @@ a, button, [role="button"], input, select, textarea {
 .tv-table thead th {
   text-align: left;
   padding: 10px var(--sp-md);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--text2);
   white-space: nowrap;
   font-size: var(--fs-xs);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--ls-body);
   background: color-mix(in srgb, var(--bg3) 80%, var(--text) 8%);
   border-bottom: 2px solid var(--border);
 }
@@ -2012,7 +2044,7 @@ a, button, [role="button"], input, select, textarea {
   background: none;
   border: 1px solid var(--border);
   color: var(--text3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   cursor: pointer;
   padding: 5px 10px;
   border-radius: 6px;
@@ -2171,7 +2203,7 @@ a, button, [role="button"], input, select, textarea {
   font-size: var(--fs-sm);
   font-family: var(--font-ui);
   cursor: pointer;
-  font-weight: 500;
+  font-weight: var(--fw-medium);
 }
 
 /* ── Checklist skin ── */
@@ -2196,7 +2228,7 @@ a, button, [role="button"], input, select, textarea {
 }
 
 .tv-cl-row--done {
-  opacity: 0.55;
+  opacity: var(--opacity-muted);
 }
 
 .tv-cl-check {
@@ -2220,7 +2252,7 @@ a, button, [role="button"], input, select, textarea {
   flex: 1;
   font-family: var(--font-ui);
   font-size: var(--fs-base);
-  line-height: 1.4;
+  line-height: var(--lh-snug);
   cursor: pointer;
   user-select: none;
   transition: color var(--transition);
@@ -2260,9 +2292,9 @@ a, button, [role="button"], input, select, textarea {
   border-bottom: 1px solid var(--border);
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--ls-caps);
   color: var(--muted);
   flex-shrink: 0;
 }
@@ -2280,7 +2312,7 @@ a, button, [role="button"], input, select, textarea {
 
 .tv-kanban-column-count {
   font-variant-numeric: tabular-nums;
-  opacity: 0.6;
+  opacity: var(--opacity-muted);
 }
 
 .tv-kanban-column-body {
@@ -2350,7 +2382,7 @@ a, button, [role="button"], input, select, textarea {
 .tv-kanban-card-title {
   margin: 0;
   font-size: var(--fs-sm);
-  line-height: 1.4;
+  line-height: var(--lh-snug);
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -2361,7 +2393,7 @@ a, button, [role="button"], input, select, textarea {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--fs-version);
   margin-top: 2px;
 }
 
@@ -2392,7 +2424,7 @@ a, button, [role="button"], input, select, textarea {
 .tv-version-text {
   font-size: var(--fs-version);
   color: var(--muted);
-  letter-spacing: 0.05em;
+  letter-spacing: var(--ls-caps);
 }
 
 /* ── Orb Conversation ── */
@@ -2450,7 +2482,7 @@ a, button, [role="button"], input, select, textarea {
   border: 1px solid var(--border);
   color: var(--text);
   font-size: var(--fs-sm);
-  line-height: 1.5;
+  line-height: var(--lh-normal);
   text-align: left;
   border-radius: var(--r-xl);
 }
@@ -2471,7 +2503,7 @@ a, button, [role="button"], input, select, textarea {
   border-left: 4px solid rgba(70, 100, 180, 0.7);
   color: var(--text);
   font-size: var(--fs-sm);
-  line-height: 1.5;
+  line-height: var(--lh-normal);
   text-align: left;
   border-radius: var(--r-xl);
 }
@@ -2479,11 +2511,11 @@ a, button, [role="button"], input, select, textarea {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 10px;
-  font-weight: 700;
+  font-size: var(--fs-version);
+  font-weight: var(--fw-bold);
   color: rgba(50, 70, 140, 0.9);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--ls-wide);
   margin-bottom: 6px;
 }
 
@@ -2491,21 +2523,21 @@ a, button, [role="button"], input, select, textarea {
 .oc-orb-md {
   font-size: var(--fs-sm);
   color: var(--text);
-  line-height: 1.6;
+  line-height: var(--lh-relaxed);
 }
 .oc-orb-md > *:first-child { margin-top: 0; }
 .oc-orb-md > *:last-child { margin-bottom: 0; }
-.oc-orb-md h2 { font-size: 14px; font-weight: 700; margin: 12px 0 4px; }
-.oc-orb-md h3 { font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+.oc-orb-md h2 { font-size: var(--fs-sm); font-weight: var(--fw-bold); margin: 12px 0 4px; }
+.oc-orb-md h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); margin: 10px 0 4px; }
 .oc-orb-md p { margin: 4px 0; }
 .oc-orb-md ul, .oc-orb-md ol { margin: 4px 0; padding-left: 18px; }
 .oc-orb-md li { margin: 2px 0; }
-.oc-orb-md strong { font-weight: 600; }
+.oc-orb-md strong { font-weight: var(--fw-semibold); }
 .oc-orb-md em { font-style: italic; }
 .oc-orb-md hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
 .oc-orb-md code {
-  font-family: monospace;
-  font-size: 12px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
   background: var(--bg-hover);
   padding: 1px 4px;
   border-radius: 3px;
@@ -2524,7 +2556,7 @@ a, button, [role="button"], input, select, textarea {
   background: #dae5da;
   color: var(--text);
   font-size: var(--fs-sm);
-  line-height: 1.5;
+  line-height: var(--lh-normal);
   text-align: left;
   word-break: break-word;
 }
@@ -2538,7 +2570,7 @@ a, button, [role="button"], input, select, textarea {
   display: flex;
   align-items: center;
   transition: color 0.2s;
-  opacity: 0.5;
+  opacity: var(--opacity-muted);
 }
 
 .oc-input-wrap {
@@ -2583,8 +2615,8 @@ a, button, [role="button"], input, select, textarea {
   padding: 6px 10px 2px;
   font-family: var(--font-ui);
   font-size: var(--fs-version);
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-wide);
   text-transform: uppercase;
   color: var(--muted);
   user-select: none;
@@ -2608,7 +2640,7 @@ a, button, [role="button"], input, select, textarea {
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
   color: var(--muted);
-  line-height: 1.5;
+  line-height: var(--lh-normal);
   z-index: 1;
   user-select: none;
   white-space: nowrap;
@@ -2624,7 +2656,7 @@ a, button, [role="button"], input, select, textarea {
   color: var(--text);
   outline: none;
   resize: none;
-  line-height: 1.5;
+  line-height: var(--lh-normal);
   overflow-y: hidden;
   box-sizing: border-box;
   min-height: 44px;
@@ -2667,7 +2699,7 @@ a, button, [role="button"], input, select, textarea {
 
 .oc-tool-btn:disabled {
   cursor: not-allowed;
-  opacity: 0.35;
+  opacity: var(--opacity-disabled);
 }
 
 .oc-tool-btn[aria-pressed="true"] {
@@ -2681,15 +2713,15 @@ a, button, [role="button"], input, select, textarea {
   align-items: center;
   justify-content: center;
   height: 16px;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-none);
 }
 
 .oc-tool-btn-label {
   font-size: var(--fs-version);
-  font-weight: 500;
-  line-height: 1;
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-none);
 }
 
 .oc-toolbar-desktop {
@@ -2723,8 +2755,8 @@ a, button, [role="button"], input, select, textarea {
   padding: 6px 10px 2px;
   font-family: var(--font-ui);
   font-size: var(--fs-version);
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-wide);
   text-transform: uppercase;
   color: var(--muted);
   user-select: none;
@@ -2748,14 +2780,14 @@ a, button, [role="button"], input, select, textarea {
   background: var(--bg2);
 }
 .oc-more-item:disabled {
-  opacity: 0.7;
+  opacity: var(--opacity-disabled);
   cursor: not-allowed;
 }
 
 .oc-more-label {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--text);
   white-space: nowrap;
 }
@@ -2864,7 +2896,7 @@ a, button, [role="button"], input, select, textarea {
   flex: 1;
   text-align: center;
   font-size: var(--fs-sm);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--text2);
 }
 
@@ -2879,28 +2911,28 @@ a, button, [role="button"], input, select, textarea {
 
 .help-h2 {
   font-size: var(--fs-base);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--text2);
   margin: 0 0 10px;
-  letter-spacing: 0.03em;
+  letter-spacing: var(--ls-body);
 }
 
 .help-p {
   font-size: var(--fs-base);
   color: var(--text2);
-  line-height: 1.6;
+  line-height: var(--lh-relaxed);
   margin: 0 0 16px;
 }
 
 .help-li {
   font-size: var(--fs-sm);
   color: var(--text2);
-  line-height: 1.6;
+  line-height: var(--lh-relaxed);
   margin-bottom: 6px;
 }
 
 .help-mono {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: var(--fs-xs);
   background: var(--bg3);
   padding: 1px 6px;
@@ -2919,7 +2951,7 @@ a, button, [role="button"], input, select, textarea {
 }
 
 .help-key-cell {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: var(--fs-xs);
   background: var(--bg3);
   border: 1px solid var(--border);
@@ -2940,10 +2972,10 @@ a, button, [role="button"], input, select, textarea {
 
 .help-h1 {
   font-size: var(--fs-xl);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--text);
   margin: 0 0 var(--sp-2xl);
-  line-height: 1.2;
+  line-height: var(--lh-tight);
 }
 
 .help-mobile-nav {
@@ -3099,9 +3131,9 @@ a, button, [role="button"], input, select, textarea {
 
 .pf-label {
   font-size: var(--fs-xs);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--text3);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--ls-body);
   text-transform: uppercase;
 }
 
@@ -3149,7 +3181,7 @@ a, button, [role="button"], input, select, textarea {
   outline: none;
   width: 100%;
   resize: vertical;
-  line-height: 1.5;
+  line-height: var(--lh-normal);
   min-height: 80px;
 }
 
@@ -3193,7 +3225,7 @@ a, button, [role="button"], input, select, textarea {
 .save-btn {
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   background: var(--pill-active-bg);
   border: 1px solid var(--pill-active-border);
   border-radius: var(--r);
@@ -3202,7 +3234,7 @@ a, button, [role="button"], input, select, textarea {
   cursor: pointer;
 }
 
-.save-btn:disabled { cursor: default; opacity: 0.6; }
+.save-btn:disabled { cursor: default; opacity: var(--opacity-disabled); }
 
 /* ── Inline edit popover (`.ie-*`) ── */
 
@@ -3253,11 +3285,11 @@ a, button, [role="button"], input, select, textarea {
   border-color: var(--chip-color, var(--pill-active-border));
   background: var(--pill-active-bg);
   color: var(--pill-active-color);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
 }
 
 .ie-chip:disabled {
-  opacity: 0.6;
+  opacity: var(--opacity-disabled);
   cursor: default;
 }
 
@@ -3278,7 +3310,7 @@ a, button, [role="button"], input, select, textarea {
   font-size: var(--fs-xs);
   color: var(--muted);
   margin: 0;
-  line-height: 1.4;
+  line-height: var(--lh-snug);
 }
 
 .ie-status-bar-saving {
@@ -3330,7 +3362,7 @@ a, button, [role="button"], input, select, textarea {
   color: var(--muted);
   cursor: pointer;
   padding: 4px;
-  line-height: 1;
+  line-height: var(--lh-none);
   flex-shrink: 0;
   transition: color var(--transition);
 }
@@ -3340,7 +3372,7 @@ a, button, [role="button"], input, select, textarea {
   font-size: var(--fs-base);
   color: var(--text2);
   font-family: var(--font-ui);
-  line-height: 1.6;
+  line-height: var(--lh-relaxed);
   white-space: pre-wrap;
 }
 
@@ -3368,7 +3400,7 @@ a, button, [role="button"], input, select, textarea {
 .qr-row[aria-expanded="true"] { background: var(--bg3); }
 
 .qr-code {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: var(--fs-xs);
   color: var(--muted);
   flex-shrink: 0;
@@ -3442,7 +3474,7 @@ a, button, [role="button"], input, select, textarea {
 
 .tf-header-title {
   font-size: var(--fs-sm);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--text2);
 }
 
@@ -3482,10 +3514,10 @@ a, button, [role="button"], input, select, textarea {
   border: none;
   border-radius: 4px;
   font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--fs-version);
+  font-weight: var(--fw-bold);
   cursor: pointer;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--ls-caps);
 }
 
 .dev-menu {
@@ -3504,9 +3536,9 @@ a, button, [role="button"], input, select, textarea {
 }
 
 .dev-section {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-size: var(--fs-version);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-widest);
   text-transform: uppercase;
   color: var(--muted);
   padding: 0 2px 2px;
@@ -3522,12 +3554,12 @@ a, button, [role="button"], input, select, textarea {
   border: 1px solid var(--border2, var(--border));
   border-radius: 4px;
   font-family: var(--font-ui);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
   color: var(--text);
   cursor: pointer;
   text-align: left;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--ls-body);
 }
 .dev-btn[aria-pressed="true"] {
   background: var(--pill-active-bg);
@@ -3569,14 +3601,14 @@ a, button, [role="button"], input, select, textarea {
   padding: 4px;
   display: flex;
   align-items: center;
-  line-height: 1;
+  line-height: var(--lh-none);
   flex-shrink: 0;
 }
 
 .cs-version {
   font-size: var(--fs-version);
   color: var(--muted);
-  letter-spacing: 0.05em;
+  letter-spacing: var(--ls-caps);
   white-space: nowrap;
 }
 
@@ -3646,9 +3678,9 @@ a, button, [role="button"], input, select, textarea {
 }
 
 .cs-icon {
-  font-size: 15px;
+  font-size: var(--fs-base);
   flex-shrink: 0;
-  opacity: 0.7;
+  opacity: var(--opacity-muted);
 }
 
 /* ── Auth pages (`.auth-*`) ── */
@@ -3691,7 +3723,7 @@ a, button, [role="button"], input, select, textarea {
   margin-top: var(--sp-sm);
   font-size: var(--fs-sm);
   color: var(--text3);
-  line-height: 1.5;
+  line-height: var(--lh-normal);
 }
 
 .auth-form {
@@ -3733,7 +3765,7 @@ a, button, [role="button"], input, select, textarea {
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text);
-  font-size: 24px;
+  font-size: var(--fs-xl);
   font-weight: var(--fw-medium);
   text-align: center;
   letter-spacing: 0.3em;
@@ -3755,7 +3787,7 @@ a, button, [role="button"], input, select, textarea {
   cursor: pointer;
   transition: opacity var(--transition);
 }
-.auth-submit:disabled { cursor: not-allowed; opacity: 0.6; }
+.auth-submit:disabled { cursor: not-allowed; opacity: var(--opacity-disabled); }
 
 .auth-error {
   margin-top: var(--sp-lg);
@@ -3795,7 +3827,7 @@ a, button, [role="button"], input, select, textarea {
 .auth-version-text {
   font-size: var(--fs-xs);
   color: var(--muted);
-  letter-spacing: 0.05em;
+  letter-spacing: var(--ls-caps);
 }
 
 .auth-dev-banner {
@@ -3811,7 +3843,7 @@ a, button, [role="button"], input, select, textarea {
   background: rgba(122, 80, 16, 0.1);
   padding: 1px 6px;
   border-radius: 4px;
-  font-family: monospace;
+  font-family: var(--font-mono);
   cursor: pointer;
   outline: 1px dashed rgba(122, 80, 16, 0.3);
   transition: background 0.15s, outline-color 0.15s;
@@ -3867,7 +3899,7 @@ a, button, [role="button"], input, select, textarea {
   font-size: var(--fs-xl);
   font-weight: 800;
   color: var(--text);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--ls-tight);
 }
 
 .sl-body {
@@ -3933,10 +3965,10 @@ a, button, [role="button"], input, select, textarea {
     border: none;
     cursor: pointer;
     font-size: 26px;
-    font-weight: 300;
+    font-weight: var(--fw-light);
     color: var(--text2);
     padding: 0;
-    line-height: 1;
+    line-height: var(--lh-none);
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     transition: opacity 0.15s;
@@ -4033,7 +4065,7 @@ a, button, [role="button"], input, select, textarea {
 
   .tv-topbar-title {
     font-size: var(--fs-md) !important;
-    font-weight: 600 !important;
+    font-weight: var(--fw-semibold) !important;
   }
 
   .tv-topbar-nav {
@@ -4134,10 +4166,10 @@ a, button, [role="button"], input, select, textarea {
 }
 
 .up-proto-badge {
-  font-size: 10px;
-  font-weight: 600;
+  font-size: var(--fs-version);
+  font-weight: var(--fw-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--ls-caps);
   color: var(--muted);
   background: var(--bg3);
   padding: 2px 8px;
@@ -4171,7 +4203,7 @@ a, button, [role="button"], input, select, textarea {
   background: var(--pill-active-bg);
   color: var(--pill-active-color);
   border-color: var(--pill-active-color);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 .up-project-pill:hover:not(.up-project-pill--active) {
@@ -4258,11 +4290,11 @@ a, button, [role="button"], input, select, textarea {
 
 .up-mini-orb-count {
   font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 300;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-light);
   color: rgba(255, 255, 255, 0.9);
-  line-height: 1;
-  letter-spacing: -0.5px;
+  line-height: var(--lh-none);
+  letter-spacing: var(--ls-tight);
 }
 
 @keyframes up-orb-breathe {
@@ -4274,7 +4306,7 @@ a, button, [role="button"], input, select, textarea {
   position: absolute;
   top: var(--sp-md);
   right: var(--sp-md);
-  font-size: 11px;
+  font-size: var(--fs-version);
   color: var(--muted);
   background: none;
   border: none;
@@ -4313,7 +4345,7 @@ a, button, [role="button"], input, select, textarea {
 .up-msg {
   max-width: 90%;
   font-size: var(--fs-sm);
-  line-height: 1.5;
+  line-height: var(--lh-normal);
 }
 
 .up-msg--user {
@@ -4398,7 +4430,7 @@ a, button, [role="button"], input, select, textarea {
 }
 
 .up-send:disabled {
-  opacity: 0.4;
+  opacity: var(--opacity-disabled);
   cursor: default;
 }
 
@@ -4419,8 +4451,8 @@ a, button, [role="button"], input, select, textarea {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
   color: var(--text3);
   background: var(--bg3);
   border: 1px solid var(--border);
@@ -4441,8 +4473,8 @@ a, button, [role="button"], input, select, textarea {
   position: fixed;
   bottom: var(--sp-md);
   left: var(--sp-md);
-  opacity: 0.5;
-  font-size: 11px;
+  opacity: var(--opacity-muted);
+  font-size: var(--fs-version);
 }
 
 /* ── Mobile: Orb as bottom panel ── */
@@ -4491,8 +4523,8 @@ a, button, [role="button"], input, select, textarea {
   align-items: center;
   gap: 6px;
   font-family: var(--font-ui);
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--fs-input);
+  font-weight: var(--fw-semibold);
   color: var(--text);
   background: none;
   border: none;
@@ -4588,7 +4620,7 @@ a, button, [role="button"], input, select, textarea {
 
 .up-switcher-drawer-title {
   font-family: var(--font-display);
-  font-size: 20px;
+  font-size: var(--fs-lg);
   margin: 0;
   color: var(--text);
 }
@@ -4657,7 +4689,7 @@ a, button, [role="button"], input, select, textarea {
   border: none;
   border-radius: var(--r-md);
   color: var(--text2);
-  font-size: 14px;
+  font-size: var(--fs-sm);
   text-align: left;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
@@ -4671,17 +4703,17 @@ a, button, [role="button"], input, select, textarea {
 .up-switcher-item[data-active="true"] {
   background: var(--pill-active-bg);
   color: var(--pill-active-color);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
 }
 
 .up-switcher-item-code {
-  font-size: 10px;
-  font-weight: 600;
+  font-size: var(--fs-version);
+  font-weight: var(--fw-semibold);
   padding: 2px 6px;
   border-radius: 4px;
   background: var(--bg3);
   color: var(--muted);
-  letter-spacing: 0.05em;
+  letter-spacing: var(--ls-caps);
 }
 
 .up-switcher-item[data-active="true"] .up-switcher-item-code {
@@ -4692,7 +4724,7 @@ a, button, [role="button"], input, select, textarea {
 .up-switcher-empty {
   padding: 16px;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--muted);
 }
 
@@ -4803,7 +4835,7 @@ a, button, [role="button"], input, select, textarea {
 .ud-list-title {
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -4903,7 +4935,7 @@ a, button, [role="button"], input, select, textarea {
   color: var(--text);
   font-family: var(--font-ui);
   font-size: var(--fs-base);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   text-decoration: none;
   cursor: pointer;
   transition: background 0.15s;
@@ -4979,11 +5011,11 @@ a, button, [role="button"], input, select, textarea {
   }
   .ud-cmd-btn-label {
     font-family: var(--font-ui);
-    font-size: 10px;
-    font-weight: 500;
+    font-size: var(--fs-version);
+    font-weight: var(--fw-medium);
     color: var(--muted);
     white-space: nowrap;
-    line-height: 1;
+    line-height: var(--lh-none);
   }
 
   /* Safe area bottom padding for iPhone conversation input */
@@ -5004,7 +5036,7 @@ a, button, [role="button"], input, select, textarea {
     color: var(--text) !important;
   }
   .ud-command-bar .ud-panel-toggle[aria-pressed="true"] .nav-btn-label {
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
   }
 }
 
@@ -5026,18 +5058,18 @@ a, button, [role="button"], input, select, textarea {
 }
 .driver-popover.orb-tour-popover .driver-popover-title {
   font-family: var(--font-ui);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
   color: var(--text);
 }
 .driver-popover.orb-tour-popover .driver-popover-description {
-  font-size: 13.5px;
-  line-height: 1.5;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
   color: var(--text2);
 }
 .driver-popover.orb-tour-popover .driver-popover-progress-text {
-  font-size: 11px;
-  letter-spacing: 0.04em;
+  font-size: var(--fs-version);
+  letter-spacing: var(--ls-body);
   color: var(--muted);
 }
 .driver-popover.orb-tour-popover .driver-popover-footer button {
@@ -5047,8 +5079,8 @@ a, button, [role="button"], input, select, textarea {
   border-radius: var(--r-lg);
   padding: 5px 14px;
   font-family: var(--font-ui);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
   text-shadow: none;
   transition: background 0.15s, border-color 0.15s;
 }
@@ -5081,8 +5113,8 @@ a, button, [role="button"], input, select, textarea {
   border-radius: var(--r-lg);
   padding: 6px 16px;
   font-family: var(--font-ui);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
@@ -5097,8 +5129,8 @@ a, button, [role="button"], input, select, textarea {
   border-radius: var(--r-lg);
   padding: 6px 14px;
   font-family: var(--font-ui);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
 }
@@ -5113,8 +5145,8 @@ a, button, [role="button"], input, select, textarea {
   border-radius: var(--r-lg);
   padding: 6px 14px;
   font-family: var(--font-ui);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
@@ -5133,7 +5165,7 @@ a, button, [role="button"], input, select, textarea {
   color: #f2f5f2;
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   padding: 4px 8px;
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);

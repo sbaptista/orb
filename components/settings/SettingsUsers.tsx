@@ -211,19 +211,19 @@ export default function SettingsUsers() {
           return (
             <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
               {checkbox}
-              <td className="audit-td" style={{ fontWeight: 500, fontSize: '13px' }}>
+              <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)', fontSize: 'var(--fs-sm)' }}>
                 {displayName(item)}
               </td>
-              <td className="audit-td" style={{ color: 'var(--muted)', fontSize: '13px' }}>
+              <td className="audit-td" style={{ color: 'var(--muted)', fontSize: 'var(--fs-sm)' }}>
                 <span style={{ display: 'block', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {item.email}
                 </span>
               </td>
               <td className="audit-td">
                 {isSuperAdmin ? (
-                  <span style={{ fontSize: '12px', color: 'var(--success)', fontWeight: 500 }}>{roleName}</span>
+                  <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--success)', fontWeight: 'var(--fw-medium)' }}>{roleName}</span>
                 ) : (
-                  <span style={{ fontSize: '12px', color: 'var(--text2)' }}>{roleName}</span>
+                  <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text2)' }}>{roleName}</span>
                 )}
               </td>
               <td className="audit-td" onClick={e => e.stopPropagation()} style={{ overflow: 'visible' }}>

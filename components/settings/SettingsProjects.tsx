@@ -152,7 +152,7 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
                   onChange={e => onChange({ ...form, code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })}
                   placeholder="Auto-generated"
                   maxLength={10}
-                  style={{ fontFamily: 'monospace' }}
+                  style={{ fontFamily: 'var(--font-mono)' }}
                 />
               </div>
             </div>
@@ -205,22 +205,22 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
         ),
 
         renderRow: ({ item, onEdit, onDelete, extra, checkbox }) => (
-          <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', opacity: item.is_dormant ? 0.5 : 1, cursor: 'pointer' }}>
+          <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', opacity: item.is_dormant ? 'var(--opacity-muted)' : 1, cursor: 'pointer' }}>
             {checkbox}
-            <td className="audit-td" style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text2)', fontSize: '12px' }}>
+            <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', fontWeight: 'var(--fw-semibold)', color: 'var(--text2)', fontSize: 'var(--fs-xs)' }}>
               {item.code}
             </td>
-            <td className="audit-td" style={{ fontWeight: 500 }}>
+            <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }}>
               {item.name}
             </td>
-            <td className="audit-td" style={{ color: 'var(--muted)', fontSize: '12px' }}>
-              {item.description ?? <span style={{ opacity: 0.4 }}>—</span>}
+            <td className="audit-td" style={{ color: 'var(--muted)', fontSize: 'var(--fs-xs)' }}>
+              {item.description ?? <span style={{ opacity: 'var(--opacity-muted)' }}>—</span>}
             </td>
             {isAdmin && (
-              <td className="audit-td" style={{ color: 'var(--text)', fontSize: '12px' }}>
+              <td className="audit-td" style={{ color: 'var(--text)', fontSize: 'var(--fs-xs)' }}>
                 {(() => {
                   const owner = extra.users?.find((u: any) => u.id === item.created_by)
-                  if (!owner) return <span style={{ opacity: 0.4 }}>—</span>
+                  if (!owner) return <span style={{ opacity: 'var(--opacity-muted)' }}>—</span>
                   return [owner.first_name, owner.last_name].filter(Boolean).join(' ') || owner.email
                 })()}
               </td>
@@ -230,14 +230,14 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
                 <span style={{
                   padding: '2px 8px',
                   borderRadius: '10px',
-                  fontSize: '11px',
+                  fontSize: 'var(--fs-version)',
                   background: 'var(--bg-hover)',
                   color: 'var(--muted)',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
+                  letterSpacing: 'var(--ls-body)',
                 }}>Dormant</span>
               ) : (
-                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>—</span>
+                <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)' }}>—</span>
               )}
             </td>
             <td className="audit-td" onClick={e => e.stopPropagation()} style={{ overflow: 'visible' }}>

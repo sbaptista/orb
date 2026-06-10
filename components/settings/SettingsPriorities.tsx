@@ -96,13 +96,13 @@ export default function SettingsPriorities() {
 
         renderRow: ({ item, onEdit, onDelete, extra }) => (
           <tr key={String(item.value)} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
-            <td className="audit-td" style={{ textAlign: 'center', color: 'var(--muted)', fontWeight: 600 }}>
+            <td className="audit-td" style={{ textAlign: 'center', color: 'var(--muted)', fontWeight: 'var(--fw-semibold)' }}>
               {item.value}
             </td>
-            <td className="audit-td" style={{ fontWeight: 500 }}>
+            <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }}>
               {item.label}
             </td>
-            <td className="audit-td" style={{ color: 'var(--muted)', fontSize: '12px' }}>
+            <td className="audit-td" style={{ color: 'var(--muted)', fontSize: 'var(--fs-xs)' }}>
               {extra.todoCounts?.[item.value] ?? 0} tasks
             </td>
             <td className="audit-td" onClick={e => e.stopPropagation()} style={{ overflow: 'visible' }}>

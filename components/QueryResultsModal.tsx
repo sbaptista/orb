@@ -116,7 +116,7 @@ function InlineTodoEditor({
 
       <div className="pf-field">
         <label className="pf-label">URLs (one per line)</label>
-        <textarea className="pf-textarea" style={{ fontFamily: 'monospace', fontSize: 'var(--fs-sm)', minHeight: '60px' }} value={urlInput} onChange={e => setUrlInput(e.target.value)} />
+        <textarea className="pf-textarea" style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-sm)', minHeight: '60px' }} value={urlInput} onChange={e => setUrlInput(e.target.value)} />
       </div>
 
       <div className="qr-editor-footer">

@@ -31,7 +31,7 @@ export default function PrintModal({ onClose, selectedProductId, selectedProduct
 
       <div role="dialog" aria-modal="true" aria-labelledby="print-title" className="modal-center">
         <div className="modal-header">
-          <h2 id="print-title" style={{ fontSize: '15px', fontWeight: 700, margin: 0, flex: 1 }}>
+          <h2 id="print-title" style={{ fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-bold)', margin: 0, flex: 1 }}>
             Print / Export PDF
           </h2>
           <button onClick={onClose} className="close-btn" aria-label="Close">
@@ -40,17 +40,17 @@ export default function PrintModal({ onClose, selectedProductId, selectedProduct
         </div>
 
         <div className="modal-body" style={{ padding: 'var(--sp-xl)' }}>
-          <p style={{ fontSize: '13px', color: 'var(--text3)', margin: '0 0 20px 0', lineHeight: 1.5 }}>
+          <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text3)', margin: '0 0 20px 0', lineHeight: 'var(--lh-normal)' }}>
             Generate a printable backlog export. All todos are included — active (open + in progress), parked (deferred + on hold), and closed — with full details, descriptions, and resolution notes.
           </p>
 
           <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
             <legend style={{
-              fontSize: '12px',
-              fontWeight: 700,
+              fontSize: 'var(--fs-xs)',
+              fontWeight: 'var(--fw-bold)',
               color: 'var(--text3)',
               textTransform: 'uppercase',
-              letterSpacing: '0.05em',
+              letterSpacing: 'var(--ls-caps)',
               marginBottom: '12px',
             }}>
               Scope
@@ -77,10 +77,10 @@ export default function PrintModal({ onClose, selectedProductId, selectedProduct
                 style={{ width: '18px', height: '18px', accentColor: '#2d5a2d' }}
               />
               <div>
-                <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
+                <div style={{ fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)', color: 'var(--text)' }}>
                   All Projects
                 </div>
-                <div style={{ fontSize: '13px', color: 'var(--text3)', marginTop: '2px' }}>
+                <div style={{ fontSize: 'var(--fs-sm)', color: 'var(--text3)', marginTop: '2px' }}>
                   Every project and all their todos
                 </div>
               </div>
@@ -93,7 +93,7 @@ export default function PrintModal({ onClose, selectedProductId, selectedProduct
               padding: '12px 16px',
               borderRadius: 'var(--r)',
               cursor: selectedProductId ? 'pointer' : 'not-allowed',
-              opacity: selectedProductId ? 1 : 0.5,
+              opacity: selectedProductId ? 1 : 'var(--opacity-disabled)',
               background: scope === 'project' ? 'rgba(60, 110, 60, 0.06)' : 'transparent',
               border: `1px solid ${scope === 'project' ? 'rgba(60, 110, 60, 0.25)' : 'var(--border)'}`,
               transition: 'background 0.15s, border-color 0.15s',
@@ -108,10 +108,10 @@ export default function PrintModal({ onClose, selectedProductId, selectedProduct
                 style={{ width: '18px', height: '18px', accentColor: '#2d5a2d' }}
               />
               <div>
-                <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
+                <div style={{ fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)', color: 'var(--text)' }}>
                   Current Project
                 </div>
-                <div style={{ fontSize: '13px', color: 'var(--text3)', marginTop: '2px' }}>
+                <div style={{ fontSize: 'var(--fs-sm)', color: 'var(--text3)', marginTop: '2px' }}>
                   {selectedProductName
                     ? `${selectedProductName} only`
                     : 'Select a project first'}

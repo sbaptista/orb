@@ -101,10 +101,10 @@ export default function SettingsPlatforms() {
 
         renderRow: ({ item, onEdit, onDelete, extra }) => (
           <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
-            <td className="audit-td" style={{ fontWeight: 500 }}>
+            <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }}>
               {item.name}
             </td>
-            <td className="audit-td" style={{ color: 'var(--muted)', fontSize: '12px' }}>
+            <td className="audit-td" style={{ color: 'var(--muted)', fontSize: 'var(--fs-xs)' }}>
               {extra.todoCounts?.[item.id] ?? 0} todos
             </td>
             <td className="audit-td" onClick={e => e.stopPropagation()} style={{ overflow: 'visible' }}>

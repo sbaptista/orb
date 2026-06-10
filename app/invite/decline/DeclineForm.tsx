@@ -43,10 +43,10 @@ export default function DeclineForm() {
                     maxWidth: '420px',
                     textAlign: 'center',
                 }}>
-                    <h1 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '12px' }}>
+                    <h1 style={{ fontSize: '20px', fontWeight: 'var(--fw-semibold)', marginBottom: '12px' }}>
                         Got it — invitation declined
                     </h1>
-                    <p style={{ color: 'var(--text2)', fontSize: '15px', lineHeight: 1.5 }}>
+                    <p style={{ color: 'var(--text2)', fontSize: '15px', lineHeight: 'var(--lh-normal)' }}>
                         Thanks for letting us know. No action needed on your end.
                     </p>
                 </div>
@@ -67,14 +67,14 @@ export default function DeclineForm() {
                 maxWidth: '420px',
                 width: '100%',
             }}>
-                <h1 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>
+                <h1 style={{ fontSize: '20px', fontWeight: 'var(--fw-semibold)', marginBottom: '8px' }}>
                     Decline invitation
                 </h1>
-                <p style={{ color: 'var(--text2)', fontSize: '15px', lineHeight: 1.5, marginBottom: '24px' }}>
+                <p style={{ color: 'var(--text2)', fontSize: '15px', lineHeight: 'var(--lh-normal)', marginBottom: '24px' }}>
                     {"No worries — if you'd rather not participate, just let us know below."}
                 </p>
 
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: 'var(--fw-medium)', marginBottom: '6px' }}>
                     Reason (optional)
                 </label>
                 <textarea

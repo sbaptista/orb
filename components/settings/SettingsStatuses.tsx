@@ -117,7 +117,7 @@ export default function SettingsStatuses() {
 
         renderRow: ({ item, onEdit, onDelete, extra }) => (
           <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
-            <td className="audit-td" style={{ fontWeight: 500 }}>
+            <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }}>
               {item.name}
             </td>
             <td className="audit-td">
@@ -125,7 +125,7 @@ export default function SettingsStatuses() {
                 <span style={{
                   padding: '2px 8px',
                   borderRadius: '10px',
-                  fontSize: '11px',
+                  fontSize: 'var(--fs-version)',
                   textTransform: 'uppercase',
                   background: 'var(--bg3)',
                   color: 'var(--text2)',
@@ -133,10 +133,10 @@ export default function SettingsStatuses() {
                   {item.is_open ? 'Open' : 'Closed'}
                 </span>
               ) : (
-                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>—</span>
+                <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)' }}>—</span>
               )}
             </td>
-            <td className="audit-td" style={{ color: 'var(--muted)', fontSize: '12px' }}>
+            <td className="audit-td" style={{ color: 'var(--muted)', fontSize: 'var(--fs-xs)' }}>
               {extra.todoCounts?.[item.id] ?? 0} todos
             </td>
             <td className="audit-td" onClick={e => e.stopPropagation()} style={{ overflow: 'visible' }}>

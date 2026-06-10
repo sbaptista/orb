@@ -115,14 +115,14 @@ export default function SettingsAudit() {
               style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
             >
               {checkbox}
-              <td className="audit-td" style={{ fontWeight: 500 }}>
+              <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }}>
                 {item.table_name ?? '—'}
               </td>
               <td className="audit-td">
                 <span style={{
                   padding: '2px 8px',
                   borderRadius: '10px',
-                  fontSize: '11px',
+                  fontSize: 'var(--fs-version)',
                   textTransform: 'uppercase',
                   background: item.action === 'DELETE' ? 'var(--bg-hover)' : item.action === 'INSERT' ? 'rgba(45, 90, 45, 0.1)' : 'rgba(49, 130, 206, 0.1)',
                   color: item.action === 'DELETE' ? 'var(--error)' : item.action === 'INSERT' ? 'var(--success)' : '#3182ce',
@@ -130,19 +130,19 @@ export default function SettingsAudit() {
                   {item.action ?? '—'}
                 </span>
               </td>
-              <td className="audit-td" style={{ fontSize: '12px', color: 'var(--text2)' }}>
+              <td className="audit-td" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text2)' }}>
                 {item.actor ?? '—'}
               </td>
-              <td className="audit-td" style={{ fontFamily: 'monospace', fontSize: '11px', color: 'var(--muted)' }}>
+              <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-version)', color: 'var(--muted)' }}>
                 {item.record_id ? item.record_id.slice(0, 8) + '…' : '—'}
               </td>
-              <td className="audit-td" style={{ fontSize: '11px', color: 'var(--muted)' }} title={formatCell(item.before)}>
+              <td className="audit-td" style={{ fontSize: 'var(--fs-version)', color: 'var(--muted)' }} title={formatCell(item.before)}>
                 {formatCell(item.before)}
               </td>
-              <td className="audit-td" style={{ fontSize: '11px', color: 'var(--muted)' }} title={formatCell(item.after)}>
+              <td className="audit-td" style={{ fontSize: 'var(--fs-version)', color: 'var(--muted)' }} title={formatCell(item.after)}>
                 {formatCell(item.after)}
               </td>
-              <td className="audit-td" style={{ fontSize: '12px', color: 'var(--muted)' }}>
+              <td className="audit-td" style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)' }}>
                 {new Date(item.created_at).toLocaleString()}
               </td>
             </tr>
@@ -162,7 +162,7 @@ export default function SettingsAudit() {
           <div className="modal-backdrop" onClick={() => setViewingRow(null)} />
           <div className="modal-center" style={{ maxWidth: '560px' }}>
             <div className="modal-header">
-              <h3 style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 600 }}>
+              <h3 style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
                 Audit Entry
               </h3>
               <button className="close-btn" onClick={() => setViewingRow(null)} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -177,7 +177,7 @@ export default function SettingsAudit() {
                     background: 'var(--bg)',
                     borderRadius: 'var(--r)',
                     border: '1px solid var(--border)',
-                    fontSize: '12px',
+                    fontSize: 'var(--fs-xs)',
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-word',
                     maxHeight: '200px',

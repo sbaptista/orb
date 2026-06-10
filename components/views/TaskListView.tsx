@@ -83,7 +83,7 @@ export default function TaskListView({
                           const isDueToday = !isDone && parseLocalDatetime(todo.due_at).toDateString() === new Date().toDateString()
                           return (
                             <div style={{
-                              display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '1px 6px', borderRadius: '4px',
+                              display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: 'var(--fs-version)', padding: '1px 6px', borderRadius: '4px',
                               background: isOverdue ? 'rgba(239,68,68,0.1)' : isDueToday ? 'rgba(245,158,11,0.1)' : 'rgba(100,116,139,0.1)',
                               color: isOverdue ? 'var(--error)' : isDueToday ? '#d97706' : 'var(--muted)',
                               border: `1px solid ${isOverdue ? 'rgba(239,68,68,0.2)' : isDueToday ? 'rgba(245,158,11,0.2)' : 'rgba(100,116,139,0.15)'}`,

@@ -182,8 +182,8 @@ export default function TodoForm({
                           background: checked ? 'var(--pill-active-bg)' : 'var(--bg3)',
                           border: `${isAllPill ? '1.5px' : '1px'} ${isAllPill ? 'dashed' : 'solid'} ${checked ? 'var(--pill-active-color)' : 'var(--border)'}`,
                           color: checked ? 'var(--pill-active-color)' : 'var(--text)',
-                          fontWeight: isAllPill ? '600' : 'normal',
-                          fontSize: '12px',
+                          fontWeight: isAllPill ? 'var(--fw-semibold)' : 'var(--fw-normal)',
+                          fontSize: 'var(--fs-xs)',
                           cursor: 'pointer',
                           userSelect: 'none',
                           transition: 'all 0.15s',
@@ -224,7 +224,7 @@ export default function TodoForm({
               value={urlInput}
               onChange={e => setUrlInput(e.target.value)}
               className="pf-textarea"
-              style={{ fontFamily: 'monospace', fontSize: 'var(--fs-sm)', minHeight: '64px' }}
+              style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-sm)', minHeight: '64px' }}
               aria-label="URLs"
             />
           </div>

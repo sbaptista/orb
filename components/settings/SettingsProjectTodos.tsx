@@ -70,8 +70,8 @@ export default function SettingsProjectTodos({ projectId }: { projectId: string 
   if (accessDenied) return (
     <div className="settings-page s-page" style={{ alignItems: 'center', justifyContent: 'center', paddingTop: '10vh' }}>
       <div className="s-card" style={{ maxWidth: '500px', textAlign: 'center', padding: 'var(--sp-2xl)' }}>
-        <h3 style={{ fontSize: 'var(--fs-lg)', marginBottom: 'var(--sp-sm)', fontWeight: 600 }}>Access Denied</h3>
-        <p style={{ color: 'var(--text2)', marginBottom: 'var(--sp-xl)', lineHeight: 1.6 }}>
+        <h3 style={{ fontSize: 'var(--fs-lg)', marginBottom: 'var(--sp-sm)', fontWeight: 'var(--fw-semibold)' }}>Access Denied</h3>
+        <p style={{ color: 'var(--text2)', marginBottom: 'var(--sp-xl)', lineHeight: 'var(--lh-relaxed)' }}>
           You do not have permission to view this project&apos;s todos.
         </p>
         <Link href="/settings/users" className="btn-primary" style={{ display: 'inline-block', textDecoration: 'none' }}>
@@ -108,12 +108,12 @@ export default function SettingsProjectTodos({ projectId }: { projectId: string 
               <tbody>
                 {todos.map(t => (
                   <tr key={t.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td className="audit-td" style={{ fontWeight: 500 }} title={t.title}>{t.title}</td>
+                    <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }} title={t.title}>{t.title}</td>
                     <td className="audit-td">
                       <span style={{
                         padding: '2px 8px',
                         borderRadius: '10px',
-                        fontSize: '11px',
+                        fontSize: 'var(--fs-version)',
                         textTransform: 'uppercase',
                         background: statuses.find(s => s.name === t.status)?.is_closed ? 'var(--success)' : t.status === 'in progress' ? 'var(--pill-active-bg)' : 'var(--bg3)',
                         color: statuses.find(s => s.name === t.status)?.is_closed ? '#fff' : t.status === 'in progress' ? 'var(--pill-active-color)' : 'var(--text2)'

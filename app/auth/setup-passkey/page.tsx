@@ -81,7 +81,7 @@ export default function SetupPasskeyPage() {
                 fontSize: 'var(--fs-sm)',
                 color: '#2d5a2d',
                 textAlign: 'center',
-                fontWeight: 500,
+                fontWeight: 'var(--fw-medium)',
               }}>
                 Passkey registered. Signing you in…
               </div>

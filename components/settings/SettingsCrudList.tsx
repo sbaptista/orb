@@ -424,7 +424,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         {deletable ? (
           <>
             <button className="btn-danger-confirm" onClick={() => handleDelete(item)} disabled={saving}
-              style={{ opacity: saving ? 0.6 : 1 }}>
+              style={{ opacity: saving ? 'var(--opacity-disabled)' : 1 }}>
               {saving ? 'Deleting…' : 'Confirm'}
             </button>
             <button className="btn-cancel" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
@@ -460,7 +460,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           {deletable ? (
             <>
               <button className="btn-danger-confirm" onClick={() => handleDelete(item)} disabled={saving}
-                style={{ opacity: saving ? 0.6 : 1 }}>
+                style={{ opacity: saving ? 'var(--opacity-disabled)' : 1 }}>
                 {saving ? 'Deleting…' : 'Confirm'}
               </button>
               <button className="btn-cancel" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
@@ -649,14 +649,14 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
 
       {hasBulk && someChecked && (
         <div className="crud-bulk-bar">
-          <span className="text-sm" style={{ fontWeight: 500 }}>
+          <span className="text-sm" style={{ fontWeight: 'var(--fw-medium)' }}>
             {selectedIds.length} selected
           </span>
           <button
             className="oc-tool-btn"
             onClick={handleBulkDelete}
             disabled={saving}
-            style={{ fontSize: '12px', color: 'var(--error)', borderColor: 'var(--error)' }}
+            style={{ fontSize: 'var(--fs-xs)', color: 'var(--error)', borderColor: 'var(--error)' }}
           >
             Delete
           </button>
@@ -902,7 +902,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           <div className="modal-backdrop" onClick={closeModal} />
           <div className={`modal-center ${config.modalClass ?? ''}`}>
             <div className="modal-header" style={{ justifyContent: 'space-between' }}>
-              <h3 style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 600 }}>
+              <h3 style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
                 {modalTitle}
               </h3>
               <button className="close-btn" onClick={closeModal} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>

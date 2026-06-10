@@ -234,7 +234,7 @@ export default function SettingsMaintenance() {
               border: `1px solid ${activeBroadcast.type === 'urgent' ? 'rgba(139, 32, 32, 0.18)'
                 : activeBroadcast.type === 'warning' ? 'rgba(122, 80, 16, 0.18)'
                 : 'rgba(45, 90, 135, 0.12)'}`,
-              fontSize: '13px',
+              fontSize: 'var(--fs-sm)',
               color: 'var(--text2)',
               marginBottom: 'var(--sp-sm)',
             }}>
@@ -260,7 +260,7 @@ export default function SettingsMaintenance() {
                     border: `1.5px solid ${selected ? colors.border : 'var(--border)'}`,
                     borderRadius: '6px',
                     padding: '5px 12px',
-                    fontSize: '12px',
+                    fontSize: 'var(--fs-xs)',
                     fontWeight: 'var(--fw-medium)' as any,
                     color: selected ? colors.color : 'var(--text3)',
                     cursor: 'pointer',

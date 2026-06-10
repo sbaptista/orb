@@ -64,7 +64,7 @@ export default function UpdateBanner() {
         Update
       </button>
       <span style={{
-        fontSize: '12px',
+        fontSize: 'var(--fs-xs)',
         color: 'var(--text3)',
         whiteSpace: 'nowrap',
       }}>

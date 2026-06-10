@@ -153,17 +153,17 @@ export default function SettingsInvitations() {
               }}
             >
               {checkbox}
-              <td className="audit-td" style={{ color: 'var(--muted)', fontSize: '12px' }}>
+              <td className="audit-td" style={{ color: 'var(--muted)', fontSize: 'var(--fs-xs)' }}>
                 {new Date(item.invited_at).toLocaleDateString()}
               </td>
-              <td className="audit-td" style={{ fontWeight: 500, fontSize: '13px' }}>
+              <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)', fontSize: 'var(--fs-sm)' }}>
                 {item.email}
               </td>
               <td className="audit-td">
                 <span style={{
                   padding: '2px 8px',
                   borderRadius: '10px',
-                  fontSize: '11px',
+                  fontSize: 'var(--fs-version)',
                   textTransform: 'uppercase',
                   background: 'var(--bg3)',
                   color: 'var(--text2)',
@@ -173,7 +173,7 @@ export default function SettingsInvitations() {
               </td>
               <td className="audit-td">
                 <span style={{
-                  fontSize: '11px',
+                  fontSize: 'var(--fs-version)',
                   textTransform: 'capitalize',
                   color: item.status === 'pending' ? 'var(--status-open)'
                     : item.status === 'accepted' ? 'var(--success)'
@@ -182,12 +182,12 @@ export default function SettingsInvitations() {
                   {item.status}
                 </span>
               </td>
-              <td className="audit-td" style={{ color: 'var(--muted)', fontSize: '12px' }}>
+              <td className="audit-td" style={{ color: 'var(--muted)', fontSize: 'var(--fs-xs)' }}>
                 {item.responded_at
                   ? new Date(item.responded_at).toLocaleDateString()
                   : '—'}
                 {item.decline_reason && (
-                  <div style={{ fontSize: '11px', fontStyle: 'italic', marginTop: '2px' }}>
+                  <div style={{ fontSize: 'var(--fs-version)', fontStyle: 'italic', marginTop: '2px' }}>
                     {item.decline_reason}
                   </div>
                 )}

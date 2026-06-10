@@ -115,7 +115,7 @@ export default function AddProductModal({
             <input
               id="apm-code"
               className="pf-input"
-              style={{ fontFamily: 'monospace' }}
+              style={{ fontFamily: 'var(--font-mono)' }}
               value={code}
               onChange={e => handleCodeChange(e.target.value)}
               placeholder="PROJ"

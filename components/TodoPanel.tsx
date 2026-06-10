@@ -176,7 +176,7 @@ export default function TodoPanel({
                 style={{
                   fontSize: 'var(--fs-xs)',
                   color: idCopied ? 'var(--pill-active-color)' : 'var(--muted)',
-                  letterSpacing: '0.04em',
+                  letterSpacing: 'var(--ls-body)',
                   padding: 0,
                 }}
               >
@@ -276,7 +276,7 @@ export default function TodoPanel({
                   type="button"
                   onClick={() => setForm(f => ({ ...f, due_at: null }))}
                   className="text-btn"
-                  style={{ fontSize: '11px', color: 'var(--error)', padding: 0 }}
+                  style={{ fontSize: 'var(--fs-version)', color: 'var(--error)', padding: 0 }}
                 >
                   Clear
                 </button>
@@ -317,8 +317,8 @@ export default function TodoPanel({
                           background: checked ? 'var(--pill-active-bg)' : 'var(--bg3)',
                           border: `${isAllPill ? '1.5px' : '1px'} ${isAllPill ? 'dashed' : 'solid'} ${checked ? 'var(--pill-active-color)' : 'var(--border)'}`,
                           color: checked ? 'var(--pill-active-color)' : 'var(--text)',
-                          fontWeight: isAllPill ? '600' : 'normal',
-                          fontSize: '12px',
+                          fontWeight: isAllPill ? 'var(--fw-semibold)' : 'var(--fw-normal)',
+                          fontSize: 'var(--fs-xs)',
                           cursor: 'pointer',
                           userSelect: 'none',
                           transition: 'all 0.15s',
@@ -375,7 +375,7 @@ export default function TodoPanel({
             style={{ padding: 0 }}
           >
             <span style={{
-              fontSize: '10px',
+              fontSize: 'var(--fs-version)',
               display: 'inline-block',
               transition: 'transform var(--transition)',
               transform: showDetails ? 'rotate(90deg)' : 'rotate(0deg)',
@@ -391,7 +391,7 @@ export default function TodoPanel({
                 <textarea
                   id="tp-urls"
                   className="pf-textarea"
-                  style={{ fontFamily: 'monospace', fontSize: 'var(--fs-sm)', minHeight: '64px' }}
+                  style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-sm)', minHeight: '64px' }}
                   value={urlInput}
                   onChange={e => setUrlInput(e.target.value)}
                 />
@@ -409,7 +409,7 @@ export default function TodoPanel({
                 className="tv-bulk-confirm"
                 onClick={handleDelete}
                 disabled={deleting}
-                style={{ opacity: deleting ? 0.5 : 1 }}
+                style={{ opacity: deleting ? 'var(--opacity-disabled)' : 1 }}
               >
                 {deleting ? 'Deleting…' : 'Confirm'}
               </button>

@@ -17,14 +17,14 @@ const VIEW_OPTIONS: { mode: ViewMode; label: string }[] = [
 export default function ViewSwitcher({ current, onSwitch, onClose }: ViewSwitcherProps) {
   return (
     <div className="tv-filterbar" style={{ borderTop: 'none', display: 'flex', alignItems: 'center', gap: 'var(--sp-md)' }}>
-      <span className="text-xs text-muted" style={{ fontWeight: 600 }}>VIEWS:</span>
+      <span className="text-xs text-muted" style={{ fontWeight: 'var(--fw-semibold)' }}>VIEWS:</span>
       {VIEW_OPTIONS.map(({ mode, label }) => (
         <button
           key={mode}
           className="tv-toolbar-btn"
           aria-pressed={current === mode}
           onClick={() => onSwitch(mode)}
-          style={{ fontSize: '12px', padding: '4px 8px' }}
+          style={{ fontSize: 'var(--fs-xs)', padding: '4px 8px' }}
         >
           {label}
         </button>

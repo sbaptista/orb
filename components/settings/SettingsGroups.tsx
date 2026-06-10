@@ -194,7 +194,7 @@ export default function SettingsGroups() {
                       className="btn-danger-confirm"
                       onClick={() => handleDelete(g.id)}
                       disabled={saving}
-                      style={{ opacity: saving ? 0.6 : 1 }}
+                      style={{ opacity: saving ? 'var(--opacity-disabled)' : 1 }}
                     >
                       Confirm
                     </button>

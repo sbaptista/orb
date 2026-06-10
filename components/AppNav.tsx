@@ -132,7 +132,7 @@ export default function AppNav({ printContext, userInitial = '?', userName }: Pr
                 Settings
               </Link>
               <Link href="/account" className="ud-commands-item" onClick={() => setCommandsOpen(false)}>
-                <span className="nav-avatar" style={{ width: 20, height: 20, fontSize: '11px' }}>{userInitial}</span>
+                <span className="nav-avatar" style={{ width: 20, height: 20, fontSize: 'var(--fs-version)' }}>{userInitial}</span>
                 Account
               </Link>
             </div>

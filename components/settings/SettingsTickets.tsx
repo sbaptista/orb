@@ -273,7 +273,7 @@ export default function SettingsTickets() {
                     border: '1px solid rgba(217, 119, 6, 0.2)',
                     borderRadius: 'var(--r)',
                     fontSize: 'var(--fs-sm)',
-                    fontWeight: 500,
+                    fontWeight: 'var(--fw-medium)',
                   }}>
                     ⚠️ The linked todo <strong>{ref}</strong> has been completed. Please update the ticket status and notify the reporter.
                   </div>
@@ -384,7 +384,7 @@ export default function SettingsTickets() {
                       onChange={e => onChange({ ...form, sendEmail: e.target.checked })}
                       style={{ cursor: 'pointer', width: '20px', height: '20px' }}
                     />
-                    <label htmlFor="send-email-checkbox" style={{ fontWeight: 500, cursor: 'pointer' }}>
+                    <label htmlFor="send-email-checkbox" style={{ fontWeight: 'var(--fw-medium)', cursor: 'pointer' }}>
                       Send email notification to reporter
                     </label>
                   </div>
@@ -432,11 +432,11 @@ export default function SettingsTickets() {
                     background: '#ffffff',
                     border: '1px solid #e2e8f0',
                     borderRadius: 'var(--r)',
-                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    fontFamily: 'var(--font-ui)',
                     color: '#1a1a1a',
                     boxShadow: 'var(--shadow-sm)',
                     fontSize: 'var(--fs-base)',
-                    lineHeight: '1.5',
+                    lineHeight: 'var(--lh-normal)',
                     marginTop: '5px',
                   }}>
                     <div style={{ borderBottom: '1px solid #edf2f7', paddingBottom: '8px', marginBottom: '12px', color: '#718096' }}>
@@ -498,7 +498,7 @@ export default function SettingsTickets() {
                 {checkbox && <td className="audit-td" />}
                 <td colSpan={8} className="audit-td">
                   <div className="s-form" style={{ padding: '12px 16px' }}>
-                    <p className="text-sm" style={{ marginBottom: '12px', fontWeight: 500 }}>
+                    <p className="text-sm" style={{ marginBottom: '12px', fontWeight: 'var(--fw-medium)' }}>
                       Create todo for: <em>{item.summary}</em>
                     </p>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px', marginBottom: '12px' }}>
@@ -515,7 +515,7 @@ export default function SettingsTickets() {
                             borderRadius: 'var(--r)',
                             fontSize: 'var(--fs-base)',
                             color: 'var(--text2)',
-                            fontWeight: 500
+                            fontWeight: 'var(--fw-medium)'
                           }}>
                             {projects.find(p => p.id === superAdminProjectId)?.name || 'Orb'}
                           </div>
@@ -571,7 +571,7 @@ export default function SettingsTickets() {
             >
               {checkbox}
               {/* Code */}
-              <td className="audit-td" style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text2)', fontSize: '12px' }}>
+              <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', fontWeight: 'var(--fw-semibold)', color: 'var(--text2)', fontSize: 'var(--fs-xs)' }}>
                 TICKETS-{item.ticket_number}
               </td>
               {/* Type */}
@@ -580,10 +580,10 @@ export default function SettingsTickets() {
                   display: 'inline-block',
                   padding: '2px 8px',
                   borderRadius: '9999px',
-                  fontSize: '11px',
-                  fontWeight: 700,
+                  fontSize: 'var(--fs-version)',
+                  fontWeight: 'var(--fw-bold)',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
+                  letterSpacing: 'var(--ls-body)',
                   background: typeColor,
                   color: '#fff',
                 }}>
@@ -591,11 +591,11 @@ export default function SettingsTickets() {
                 </span>
               </td>
               {/* Summary */}
-              <td className="audit-td" style={{ fontWeight: 500 }}>
+              <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }}>
                 {item.summary}
               </td>
               {/* Reporter */}
-              <td className="audit-td" style={{ color: 'var(--text)', fontSize: '12px' }}>
+              <td className="audit-td" style={{ color: 'var(--text)', fontSize: 'var(--fs-xs)' }}>
                 {reporterName(item)}
               </td>
               {/* Status */}
@@ -603,28 +603,28 @@ export default function SettingsTickets() {
                 <span style={{
                   padding: '2px 8px',
                   borderRadius: '10px',
-                  fontSize: '11px',
+                  fontSize: 'var(--fs-version)',
                   background: statusStyle.bg,
                   color: statusStyle.color,
                   textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
+                  letterSpacing: 'var(--ls-body)',
                 }}>
                   {item.status.replace('_', ' ')}
                 </span>
               </td>
               {/* Linked todo */}
-              <td className="audit-td" style={{ fontFamily: 'monospace', fontSize: '12px', color: ref ? 'var(--text)' : undefined }}>
+              <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-xs)', color: ref ? 'var(--text)' : undefined }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  {ref ?? <span style={{ opacity: 0.4 }}>—</span>}
+                  {ref ?? <span style={{ opacity: 'var(--opacity-muted)' }}>—</span>}
                   {needsAction && (
                     <span style={{
                       display: 'inline-block',
                       padding: '2px 6px',
                       borderRadius: '4px',
-                      fontSize: '10px',
-                      fontWeight: 600,
+                      fontSize: 'var(--fs-version)',
+                      fontWeight: 'var(--fw-semibold)',
                       textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
+                      letterSpacing: 'var(--ls-body)',
                       background: '#fef3c7',
                       color: '#d97706',
                       width: 'fit-content'
@@ -635,7 +635,7 @@ export default function SettingsTickets() {
                 </div>
               </td>
               {/* Created */}
-              <td className="audit-td" style={{ fontSize: '12px', color: 'var(--muted)' }}>
+              <td className="audit-td" style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)' }}>
                 {relativeDate(item.created_at)}
               </td>
               {/* Actions */}
@@ -727,10 +727,10 @@ export default function SettingsTickets() {
                   display: 'inline-block',
                   padding: '2px 8px',
                   borderRadius: '9999px',
-                  fontSize: '11px',
-                  fontWeight: 700,
+                  fontSize: 'var(--fs-version)',
+                  fontWeight: 'var(--fw-bold)',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
+                  letterSpacing: 'var(--ls-body)',
                   background: typeColor,
                   color: '#fff',
                 }}>
@@ -740,9 +740,9 @@ export default function SettingsTickets() {
                   display: 'inline-block',
                   padding: '2px 8px',
                   borderRadius: '10px',
-                  fontSize: '11px',
+                  fontSize: 'var(--fs-version)',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
+                  letterSpacing: 'var(--ls-body)',
                   background: statusStyle.bg,
                   color: statusStyle.color,
                 }}>
@@ -753,16 +753,16 @@ export default function SettingsTickets() {
                 <span>{reporterName(item)}</span>
                 {ref && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontFamily: 'monospace' }}>{ref}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>{ref}</span>
                     {needsAction && (
                       <span style={{
                         display: 'inline-block',
                         padding: '1px 6px',
                         borderRadius: '4px',
-                        fontSize: '10px',
-                        fontWeight: 600,
+                        fontSize: 'var(--fs-version)',
+                        fontWeight: 'var(--fw-semibold)',
                         textTransform: 'uppercase',
-                        letterSpacing: '0.04em',
+                        letterSpacing: 'var(--ls-body)',
                         background: '#fef3c7',
                         color: '#d97706',
                       }}>

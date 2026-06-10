@@ -417,7 +417,7 @@ export default function OrbConversation({
                                             fillCommand(c.cmd)
                                         }}
                                     >
-                                        <span style={{ fontFamily: 'monospace', fontSize: 'var(--fs-xs)', color: 'var(--text)', fontWeight: slashIndex === i ? 600 : 400 }}>{c.cmd}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-xs)', color: 'var(--text)', fontWeight: slashIndex === i ? 'var(--fw-semibold)' : 'var(--fw-normal)' }}>{c.cmd}</span>
                                         <span style={{ fontSize: 'var(--fs-version)', color: 'var(--muted)' }}>{c.desc}</span>
                                     </div>
                                 </div>
@@ -493,7 +493,7 @@ export default function OrbConversation({
                                 data-tooltip="Show commands (/)"
                                 aria-label="Show commands"
                             >
-                                <span className="oc-tool-btn-icon" style={{ fontWeight: 600 }}>/</span>
+                                <span className="oc-tool-btn-icon" style={{ fontWeight: 'var(--fw-semibold)' }}>/</span>
                                 <span className="oc-tool-btn-label">Cmds</span>
                             </button>
 
@@ -509,7 +509,7 @@ export default function OrbConversation({
                                 style={{
                                     color: isListening ? '#c00' : undefined,
                                     background: isListening ? 'rgba(200,0,0,0.06)' : undefined,
-                                    opacity: !supportsVoice || submitting ? 0.35 : 1,
+                                    opacity: !supportsVoice || submitting ? 'var(--opacity-disabled)' : 1,
                                 }}
                             >
                                 <span className="oc-tool-btn-icon">

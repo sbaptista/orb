@@ -133,14 +133,14 @@ export default function SettingsFriction() {
               <tbody>
                 {logs.map(log => (
                   <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td className="audit-td" style={{ color: 'var(--muted)', fontSize: '12px' }}>
+                    <td className="audit-td" style={{ color: 'var(--muted)', fontSize: 'var(--fs-xs)' }}>
                         {new Date(log.created_at).toLocaleString()}
                     </td>
                     <td className="audit-td">
                         <span style={{ 
                             padding: '2px 8px', 
                             borderRadius: '10px', 
-                            fontSize: '11px', 
+                            fontSize: 'var(--fs-version)', 
                             textTransform: 'uppercase',
                             background: 'var(--bg3)',
                             color: 'var(--text2)'
@@ -148,15 +148,15 @@ export default function SettingsFriction() {
                             {log.category}
                         </span>
                     </td>
-                    <td className="audit-td" title={log.summary} style={{ fontWeight: 500, fontSize: '13px' }}>
+                    <td className="audit-td" title={log.summary} style={{ fontWeight: 'var(--fw-medium)', fontSize: 'var(--fs-sm)' }}>
                         {log.summary}
                         {log.detail && (
-                            <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--muted)', whiteSpace: 'pre-wrap', maxHeight: '60px', overflowY: 'auto', background: 'var(--bg)', padding: '4px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                            <div style={{ marginTop: '4px', fontSize: 'var(--fs-version)', color: 'var(--muted)', whiteSpace: 'pre-wrap', maxHeight: '60px', overflowY: 'auto', background: 'var(--bg)', padding: '4px', borderRadius: '4px', border: '1px solid var(--border)' }}>
                                 {JSON.stringify(log.detail)}
                             </div>
                         )}
                     </td>
-                    <td className="audit-td" style={{ fontSize: '12px', color: 'var(--text2)' }}>
+                    <td className="audit-td" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text2)' }}>
                         {log.conversation_snippet ? (
                            <div style={{ fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                                &ldquo;{log.conversation_snippet}&rdquo;

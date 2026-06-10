@@ -60,7 +60,7 @@ const TOPICS: Topic[] = [
         <div className="help-section">
           <h2 className="help-h2">
             Archive{' '}
-            <span className="text-xs text-muted" style={{ fontWeight: 400, letterSpacing: '0.04em' }}>coming soon</span>
+            <span className="text-xs text-muted" style={{ fontWeight: 'var(--fw-normal)', letterSpacing: 'var(--ls-body)' }}>coming soon</span>
           </h2>
           <ul className="help-ul">
             <li className="help-li text-muted">&quot;Archive everything closed in [project]&quot;</li>
@@ -154,7 +154,7 @@ const TOPICS: Topic[] = [
               ['URGENT', 'One or more P1 (urgent priority) items are active'],
             ] as [string, string][]).map(([state, desc]) => (
               <div key={state} className="help-key-row">
-                <span className="help-key-cell" style={{ fontFamily: 'var(--font-ui)', letterSpacing: '0.06em' }}>{state}</span>
+                <span className="help-key-cell" style={{ fontFamily: 'var(--font-ui)', letterSpacing: 'var(--ls-caps)' }}>{state}</span>
                 <span className="help-desc-cell">{desc}</span>
               </div>
             ))}
@@ -170,7 +170,7 @@ const TOPICS: Topic[] = [
               ['CLOSED', 'Done — hidden by default'],
             ] as [string, string][]).map(([group, desc]) => (
               <div key={group} className="help-key-row">
-                <span className="help-key-cell" style={{ fontFamily: 'var(--font-ui)', letterSpacing: '0.06em' }}>{group}</span>
+                <span className="help-key-cell" style={{ fontFamily: 'var(--font-ui)', letterSpacing: 'var(--ls-caps)' }}>{group}</span>
                 <span className="help-desc-cell">{desc}</span>
               </div>
             ))}
@@ -313,7 +313,7 @@ export default function OrbHelp() {
                 aria-current={selectedId === t.id ? 'page' : undefined}
                 className="help-mobile-pill"
               >
-                <span style={{ fontSize: '13px', opacity: 0.7 }}>{t.icon}</span>
+                <span style={{ fontSize: 'var(--fs-sm)', opacity: 'var(--opacity-muted)' as any }}>{t.icon}</span>
                 {t.label}
               </button>
             ))}

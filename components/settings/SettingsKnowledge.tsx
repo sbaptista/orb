@@ -152,7 +152,7 @@ export default function SettingsKnowledge() {
                 onChange={e => onChange({ ...form, content: e.target.value })}
                 placeholder="The knowledge or lesson learned"
                 rows={4}
-                style={{ resize: 'vertical', lineHeight: 1.5 }}
+                style={{ resize: 'vertical', lineHeight: 'var(--lh-normal)' }}
               />
             </div>
             <div className="mb-lg">
@@ -176,16 +176,16 @@ export default function SettingsKnowledge() {
         renderRow: ({ item, onEdit, onDelete, checkbox }) => (
           <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
             {checkbox}
-            <td className="audit-td" style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text2)', fontSize: '12px' }}>
-              {item.projects?.code ?? <span style={{ opacity: 0.4 }}>—</span>}
+            <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', fontWeight: 'var(--fw-semibold)', color: 'var(--text2)', fontSize: 'var(--fs-xs)' }}>
+              {item.projects?.code ?? <span style={{ opacity: 'var(--opacity-muted)' }}>—</span>}
             </td>
-            <td className="audit-td" style={{ fontWeight: 500 }}>
+            <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }}>
               {item.title}
             </td>
-            <td className="audit-td" style={{ color: 'var(--muted)', fontSize: '12px', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <td className="audit-td" style={{ color: 'var(--muted)', fontSize: 'var(--fs-xs)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {item.content}
             </td>
-            <td className="audit-td" style={{ fontSize: '11px' }}>
+            <td className="audit-td" style={{ fontSize: 'var(--fs-version)' }}>
               {item.tags?.length > 0 ? (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                   {item.tags.map(tag => (
@@ -194,12 +194,12 @@ export default function SettingsKnowledge() {
                       borderRadius: '8px',
                       background: 'var(--bg-hover)',
                       color: 'var(--muted)',
-                      fontSize: '10px',
+                      fontSize: 'var(--fs-version)',
                     }}>{tag}</span>
                   ))}
                 </div>
               ) : (
-                <span style={{ opacity: 0.4 }}>—</span>
+                <span style={{ opacity: 'var(--opacity-muted)' }}>—</span>
               )}
             </td>
             <td className="audit-td" onClick={e => e.stopPropagation()} style={{ overflow: 'visible' }}>
