@@ -2638,13 +2638,7 @@ a, button, [role="button"], input, select, textarea {
   gap: 8px;
   padding: 6px 10px;
   border-top: 1px solid var(--border);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
   border-radius: 0 0 var(--r-xl) var(--r-xl);
-}
-.oc-toolbar::-webkit-scrollbar {
-  display: none;
 }
 
 .oc-tool-btn {
@@ -2709,6 +2703,67 @@ a, button, [role="button"], input, select, textarea {
 @media (hover: none), (pointer: coarse) {
   .oc-toolbar-desktop { display: none; }
   .oc-toolbar-mobile  { display: flex; }
+}
+
+.oc-more-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 6px;
+  background: var(--bg);
+  border: 1.5px solid rgba(60, 110, 60, 0.35);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  padding: 4px;
+  z-index: 30;
+  min-width: 220px;
+}
+
+.oc-more-group-header {
+  padding: 6px 10px 2px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-version);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  user-select: none;
+}
+
+.oc-more-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  transition: background var(--transition);
+}
+.oc-more-item:not(:disabled):hover {
+  background: var(--bg2);
+}
+.oc-more-item:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.oc-more-label {
+  font-family: monospace;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.oc-more-desc {
+  font-size: var(--fs-version);
+  color: var(--text3);
+  white-space: nowrap;
 }
 
 .oc-action-circle {

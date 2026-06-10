@@ -15,27 +15,35 @@
 
 ### Last Session Completed
 
-**Table Improvements completion (ORB-233) — 2026-06-08 (Session 72, Claude Code)**
+**Mobile "More" Kebab Touch Fix (ORB-235) — 2026-06-09 (Session 74, Antigravity)**
 
 ### What was done
-- **Single-column resize fix**: Locked each `<th>` with `min-width` + `max-width` to prevent `table-layout: fixed` from redistributing extra space across all columns when only one is dragged.
-- **Table card shrink-wrap**: Card container gets `width: fit-content` + `flex: none` when pixel widths are active, so table visually shrinks when columns are narrowed. Spacer column only renders before first resize.
-- **Stale localStorage fix**: Changed key prefix to `v2` to invalidate widths from buggy multi-column resize. Added "Reset columns" button.
-- **Priorities simplification**: Removed Order column and up/down arrows. Renumbered priority values sequentially via two-pass SQL (+10000 shift then sequential). `ON UPDATE CASCADE` on `todos.priority_value` handles automatic todo updates.
-- **Tickets overflow menu**: New `.btn-overflow` CSS class (44px hit target, 28px vertical kebab). Edit stays visible, Create todo/Dismiss/Delete in kebab dropdown. Fixed click propagation bugs (Edit button bypasses button-tag guard, backdrop `stopPropagation`).
-- **Table headings**: Green background (`--btn-primary-bg`) with white centered text across all tables. Removed inline `background: var(--bg3)` overrides.
-- **Standardized action columns**: New `.action-cell` and `.action-link` CSS classes. 2 actions = both links, 3+ = primary link + kebab. Action td uses `stopPropagation` so empty space doesn't trigger row edit. Applied to all 9 settings tables.
-- **Removed Order columns**: Platforms and Statuses — deleted arrows, `onMove` handlers, and Order column definitions.
-- **Invitations kebab**: Extracted `InvitationActions` component with self-contained menu state to avoid parent re-render triggering data reload.
-- **Audit Log on SettingsCrudList**: Rewritten with typed columns, server-side pagination, bulk delete, detail modal via `onRowClick`. SettingsCrudList gained `pagination`, `headerExtra`, and `onRowClick` config options.
-- **iPad touch stability**: `touch-action` on table/resize handles, `overscroll-behavior-x: contain` on scroll container.
-- **Closed ORB-233 todo** with resolution notes. Created knowledge repo entry.
-- **Verification**: Tier 1 eval suite 7/7 passed.
-- **Release Documentation & Bump**: v0.5.177 through v0.5.184 (`package.json` + `version.ts` + `lib/changelog.ts`).
+- **Delayed blur state update**: Wrapped the textarea's `onBlur` callback in a 150ms timeout. This prevents immediate focus-blur layout/viewport updates (such as keyboard dismissing or Orb scaling) from executing before the browser dispatches click events to the buttons.
+- **Touch/Click helper (`handleTouchOrClick`)**: Introduced a utility inside `OrbConversation.tsx` to handle buttons on both touch and mouse interfaces. Calling `preventDefault()` on `onTouchStart` prevents iOS focus shifts/keyboard dismissal and cancels emulated mouse/click double-triggers, while `onMouseDown` prevents focus shifts on desktop.
+- **Button conversion**: Wrapped the More button, dropdown actions (Previous, Next, Copy input, Copy log, Clear), Cmds button, and Voice button in the helper to prevent focus loss.
+- **UI Catalog conformity**: Updated the last updated line in `docs/ui-catalog.md` to pass the verify-ui-catalog lint gate.
+- **Verification**: Verified clean build (`npx tsc --noEmit && npm run lint`) and confirmed Tier 1 of the Orb eval suite passed cleanly (7/7 passed).
+- **Release Documentation & Bump**: Bumped version to `v0.5.189` in `package.json`, `lib/version.ts`, and `lib/changelog.ts`.
 
 ---
 
 ## Earlier Sessions
+
+**Table Improvements completion (ORB-233) — 2026-06-08 (Session 72, Claude Code)**
+- Single-column resize fix: Locked each `<th>` with `min-width` + `max-width` to prevent `table-layout: fixed` from redistributing extra space across all columns when only one is dragged.
+- Table card shrink-wrap: Card container gets `width: fit-content` + `flex: none` when pixel widths are active, so table visually shrinks when columns are narrowed. Spacer column only renders before first resize.
+- Stale localStorage fix: Changed key prefix to `v2` to invalidate widths from buggy multi-column resize. Added "Reset columns" button.
+- Priorities simplification: Removed Order column and up/down arrows. Renumbered priority values sequentially via two-pass SQL (+10000 shift then sequential). `ON UPDATE CASCADE` on `todos.priority_value` handles automatic todo updates.
+- Tickets overflow menu: New `.btn-overflow` CSS class (44px hit target, 28px vertical kebab). Edit stays visible, Create todo/Dismiss/Delete in kebab dropdown. Fixed click propagation bugs (Edit button bypasses button-tag guard, backdrop `stopPropagation`).
+- Table headings: Green background (`--btn-primary-bg`) with white centered text across all tables. Removed inline `background: var(--bg3)` overrides.
+- Standardized action columns: New `.action-cell` and `.action-link` CSS classes. 2 actions = both links, 3+ = primary link + kebab. Action td uses `stopPropagation` so empty space doesn't trigger row edit. Applied to all 9 settings tables.
+- Removed Order columns: Platforms and Statuses — deleted arrows, `onMove` handlers, and Order column definitions.
+- Invitations kebab: Extracted `InvitationActions` component with self-contained menu state to avoid parent re-render triggering data reload.
+- Audit Log on SettingsCrudList: Rewritten with typed columns, server-side pagination, bulk delete, detail modal via `onRowClick`. SettingsCrudList gained `pagination`, `headerExtra`, and `onRowClick` config options.
+- iPad touch stability: `touch-action` on table/resize handles, `overscroll-behavior-x: contain` on scroll container.
+- Closed ORB-233 todo with resolution notes. Created knowledge repo entry.
+- Verification: Tier 1 eval suite 7/7 passed.
+- Release Documentation & Bump: v0.5.177 through v0.5.184 (`package.json` + `version.ts` + `lib/changelog.ts`).
 
 **Table Column Resizing Clamps and Ellipsis (ORB-233) — 2026-06-08 (Session 71, Antigravity)**
 - Column width clamp (60px min), header text ellipsis, audit cell max-width override, table stretch layout, localStorage persistence, selective drag measurement.
@@ -165,7 +173,13 @@
 
 ### Uncommitted Changes
 
-None — all committed and pushed.
+- [components/OrbConversation.tsx](file:///Users/stanleybaptista/Projects/orb/components/OrbConversation.tsx) — Touch/click handlers, blur delay, and dev logs
+- [app/globals.css](file:///Users/stanleybaptista/Projects/orb/app/globals.css) — Removed overflow boundary constraint from toolbar
+- [app/actions/dev-log.ts](file:///Users/stanleybaptista/Projects/orb/app/actions/dev-log.ts) — New dev logging server action
+- [docs/ui-catalog.md](file:///Users/stanleybaptista/Projects/orb/docs/ui-catalog.md) — Updated last updated session
+- [package.json](file:///Users/stanleybaptista/Projects/orb/package.json) — Bumped to v0.5.189
+- [lib/version.ts](file:///Users/stanleybaptista/Projects/orb/lib/version.ts) — Bumped to v0.5.189
+- [lib/changelog.ts](file:///Users/stanleybaptista/Projects/orb/lib/changelog.ts) — Release notes for v0.5.189
 
 ---
 
@@ -232,7 +246,7 @@ None — all committed and pushed.
 
 ## AI Tool Used Last Session
 
-`2026-06-08 — Claude Code (Opus 4.6) — Session 72`
+`2026-06-09 — Antigravity (Gemini 3.5 Flash) — Session 74`
 
 ---
 

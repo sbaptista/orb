@@ -428,5 +428,5 @@ This catalog must stay in sync with `globals.css` and `components/`. Never leave
 
 ---
 
-*Last updated: 2026-06-09 — Session 73 (Claude Code) - Button-paloza: conformity audit, new classes btn-banner/btn-sm/oc-action-circle (ORB-235)
+*Last updated: 2026-06-10 — Session 75 (Antigravity) - Fix mobile More button dropdown backdrop stacking and touch interception
 

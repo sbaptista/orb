@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type ComponentPropsWithoutRef } from 'react'
+import { useEffect, useRef, useState, type ComponentPropsWithoutRef } from 'react'
 import Markdown from 'react-markdown'
 import { launchOrbTour } from './OrbTour'
 export type ConversationMessage = {
@@ -470,9 +470,7 @@ export default function OrbConversation({
                                 }
                             }}
                             onFocus={() => setInputFocused(true)}
-                            onBlur={() => {
-                                setInputFocused(false)
-                            }}
+                            onBlur={() => setInputFocused(false)}
                             disabled={submitting}
                             placeholder=""
                         />
@@ -631,7 +629,10 @@ export default function OrbConversation({
                                 <button
                                     type="button"
                                     className="oc-tool-btn"
-                                    onClick={() => setMoreMenuOpen(o => !o)}
+                                    onClick={() => {
+                                        setMoreMenuOpen(o => !o)
+                                        textareaRef.current?.focus()
+                                    }}
                                     onMouseDown={(e) => e.preventDefault()}
                                     aria-label="More actions"
                                     aria-expanded={moreMenuOpen}
@@ -641,24 +642,27 @@ export default function OrbConversation({
                                 </button>
                                 {moreMenuOpen && (
                                     <>
-                                        <div className="dropdown-backdrop" onClick={e => { e.stopPropagation(); setMoreMenuOpen(false) }} />
-                                        <div className="dropdown-menu" style={{ bottom: '100%', left: 0, right: 'auto', marginBottom: '4px' }}>
+                                        <div className="dropdown-backdrop" onClick={() => setMoreMenuOpen(false)} />
+                                        <div className="oc-more-menu">
+                                            <div className="oc-more-group-header">Input</div>
                                             <button
-                                                className="dropdown-item"
+                                                className="oc-more-item"
                                                 onClick={() => { handleHistoryUp(); setMoreMenuOpen(false) }}
                                                 disabled={history.length === 0}
                                             >
-                                                ↑ Previous
+                                                <span className="oc-more-label">↑ Previous</span>
+                                                <span className="oc-more-desc">Recall last command</span>
                                             </button>
                                             <button
-                                                className="dropdown-item"
+                                                className="oc-more-item"
                                                 onClick={() => { handleHistoryDown(); setMoreMenuOpen(false) }}
                                                 disabled={historyIndex === -1}
                                             >
-                                                ↓ Next
+                                                <span className="oc-more-label">↓ Next</span>
+                                                <span className="oc-more-desc">Forward in history</span>
                                             </button>
                                             <button
-                                                className="dropdown-item"
+                                                className="oc-more-item"
                                                 onClick={() => {
                                                     input.trim() && navigator.clipboard.writeText(input).then(() => {
                                                         setCopiedInput(true)
@@ -668,22 +672,26 @@ export default function OrbConversation({
                                                 }}
                                                 disabled={!input.trim()}
                                             >
-                                                {copiedInput ? '✓ Copied' : 'Copy input'}
+                                                <span className="oc-more-label">{copiedInput ? '✓ Copied' : 'Copy'}</span>
+                                                <span className="oc-more-desc">Copy input text</span>
                                             </button>
+                                            <div className="oc-more-group-header">Transcript</div>
                                             <button
-                                                className="dropdown-item"
+                                                className="oc-more-item"
                                                 onClick={() => { copyTranscript(); setMoreMenuOpen(false) }}
                                                 disabled={messages.length === 0}
                                             >
-                                                {copiedTranscript ? '✓ Copied' : 'Copy log'}
+                                                <span className="oc-more-label">{copiedTranscript ? '✓ Copied' : 'Export'}</span>
+                                                <span className="oc-more-desc">Copy full conversation</span>
                                             </button>
                                             {onClearTranscript && (
                                                 <button
-                                                    className="dropdown-item"
+                                                    className="oc-more-item"
                                                     onClick={() => { onClearTranscript(); setMoreMenuOpen(false) }}
                                                     disabled={messages.length === 0 || submitting}
                                                 >
-                                                    Clear
+                                                    <span className="oc-more-label">Clear</span>
+                                                    <span className="oc-more-desc">Reset conversation</span>
                                                 </button>
                                             )}
                                         </div>

@@ -6,6 +6,28 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.191',
+    date: '2026-06-10',
+    changes: [
+      'Fix mobile More kebab dropdown (ORB-236): matched Cmds button pattern — onMouseDown preventDefault + onClick with textarea refocus. Stripped failed workarounds (handleTouchOrClick, onTouchStart, document listeners, delayed blur).',
+      'More menu beautified: green-bordered box matching slash menu style, group headers (Input/Transcript), label + description per item, monospace labels, 0.7 disabled opacity.',
+    ]
+  },
+  {
+    version: 'v0.5.190',
+    date: '2026-06-10',
+    changes: [
+      'Attempted fix for mobile More kebab: replaced backdrop with document-level click-outside hook. Did not resolve the issue.',
+    ]
+  },
+  {
+    version: 'v0.5.189',
+    date: '2026-06-09',
+    changes: [
+      'Attempted fix for mobile More kebab: delayed blur handling and handleTouchOrClick utility. Did not resolve the issue.',
+    ]
+  },
+  {
     version: 'v0.5.188',
     date: '2026-06-09',
     changes: [
