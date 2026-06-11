@@ -21,7 +21,6 @@ The main app layout. Two equal-citizen panes (Orb + List) with a draggable divid
 
 | Class | Purpose |
 |---|---|
-| `ud-command-bar` | Top bar — project search, nav buttons, panel toggles. Frosted glass, `z-index: 20` |
 | `ud-split` | Flex container for both panes + divider. `flex-direction: column` on mobile, `row` on desktop |
 | `ud-orb-pane` | Left/top pane — transparent background, houses `OrbConversation` |
 | `ud-list-pane` | Right/bottom pane — frosted glass background, houses list toolbar + table |
@@ -31,12 +30,13 @@ The main app layout. Two equal-citizen panes (Orb + List) with a draggable divid
 | `ud-divider` / `ud-divider--vertical` / `ud-divider--horizontal` | Drag handle between panes |
 | `ud-divider-handle` | The visible pill inside the divider |
 
-Inside the `ud-command-bar`, the controls are laid out as follows:
+On the dashboard, AppNav renders dashboard-specific controls as children (merged bar):
 - **Orb toggle** (left)
 - **Project search** (flex: 0 1 320px) — search-based dropdown for selecting projects
-- **+ Project button** — immediately right of search, opens AddProductModal
+- **+ Project button** — immediately right of search, opens AddProductModal (hidden on mobile, available via Commands modal)
 - **Spacer** (flex: 1)
-- **List toggle** (right)
+- **List toggle** — before the global nav buttons
+- **Global nav** (Print, Help, Settings, Account) — right side
 
 Inside the `ud-list-toolbar`, the controls are laid out as follows:
 - **Project Title:** The active project's name is on the left.
@@ -87,20 +87,21 @@ Standard settings layout with centered content card.
 
 ## Command Bar & Navigation
 
-### App-Wide Command Bar (`ud-command-bar`)
-**Location:** Top of Unified Dashboard  
-**Pattern:** `flex` row — project search (left), spacer, nav buttons (right), panel toggles (edges)
+### Unified Navigation Bar (`appnav`)
+**Location:** Top of every page  
+**Component:** `components/AppNav.tsx`  
+**Pattern:** Single `flex` row bar. On the dashboard, accepts children for dashboard-specific controls (orb toggle, project search, list toggle). On other pages, shows back link + global actions.
 
-This is the canonical top bar for all future pages. Contains:
-- **Left Panel Toggle:** Icon button on the far left. Tapping it collapses/expands the left (Orb conversation) pane.
-- **Project Search (Left/Center):** Labeled with the search icon (magnifying glass) and placeholder text "Type to select project or user...". Used to search and switch between active projects.
-- **Nav Buttons (Right):** Labeled buttons with icons that are hidden on mobile:
-  - **Print:** Labeled "Print" (printer icon) - opens the print/export view.
-  - **Help:** Labeled "Help" (question mark icon) - opens the Pre-Alpha Testing help documentation modal.
-  - **Settings:** Labeled "Settings" (gear icon) - opens the Settings page layout.
-  - **Account:** Labeled "Account" (user icon) - opens the user profile settings page.
-- **Right Panel Toggle:** Icon button on the far right. Tapping it collapses/expands the right (Task List) pane.
+**Dashboard layout (merged bar):**
+- **Orb toggle** — left edge, collapses/expands Orb pane (desktop) or switches to Orb tab (mobile)
+- **Project search** — flex: 0 1 320px, search-based dropdown for selecting projects
+- **+ Project** — opens AddProductModal (hidden on mobile, available via Commands modal)
+- **Spacer** (flex: 1)
+- **List toggle** — collapses/expands list pane (desktop) or switches to list tab (mobile)
+- **Print, Help, Settings, Account** — global nav, desktop only (mobile: Commands modal)
 - **Developer Panel Toggle:** Dev-only toggle button at the bottom-right corner of the viewport (visible in dev mode only).
+
+**Non-dashboard layout:** Back link (left) → spacer → global nav (right).
 
 ### Mobile Command Menu
 On narrow viewports (iPhone, mobile screens), the individual top nav buttons (Print, Help, Settings, Account) collapse into a single button in the top bar:
@@ -388,7 +389,7 @@ Global custom tooltip component triggered by `data-tooltip` attribute. Configure
 | Fractal background | 0 | `MuralCanvas` (fixed, 22% opacity) |
 | Split panes | 10 | `ud-split` |
 | Divider | 12 | `ud-divider` |
-| Command bar | 20 | `ud-command-bar` |
+| Navigation bar | 50 | `appnav` |
 | Modal backdrop | 40 | `modal-backdrop` |
 | Modals | 50 | `modal-center` |
 | Toast | 60 | Toast notifications |

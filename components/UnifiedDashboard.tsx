@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { visibleProjectsQuery, clampProjectName } from '@/lib/projects'
 import AddProductModal from './AddProductModal'
 import AppNav from './AppNav'
+import SearchModal from './ui/SearchModal'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { registerOrbTour, unregisterOrbTour, runOrbTour } from './OrbTour'
 import { OrbDevPanel, DevTestError, type MoodOverride, type SimulateError } from './OrbDevPanel'
@@ -184,12 +185,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   // ── Project switcher state ──
   const [projectSearchOpen, setProjectSearchOpen] = useState(false)
-  const [projectSearchQuery, setProjectSearchQuery] = useState('')
+  // projectSearchQuery removed — SearchModal handles its own query state
   const [adminProjects, setAdminProjects] = useState<AdminProject[]>([])
   const [projectsLoadError, setProjectsLoadError] = useState(false)
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
   const [confirmProjectDelete, setConfirmProjectDelete] = useState(false)
-  const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  // blurTimeoutRef removed — inline search replaced by SearchModal
   // commandsModalOpen removed — AppNav handles global commands modal
 
   // ── Panel visibility ──
@@ -232,13 +233,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const statusColor  = useCallback((status: string) => `var(--status-${status.replace(/\s+/g, '-')})`, [])
   const productCodeMap = useMemo(() => new Map(products.map(p => [p.id, p.code])), [products])
 
-  const adminSearchResults = useMemo(() => {
-    if (!projectSearchQuery.trim()) return adminProjects
-    const q = projectSearchQuery.trim().toLowerCase()
-    return adminProjects.filter(p =>
-      p.name.toLowerCase().includes(q) || (p.code?.toLowerCase().includes(q)) || p.owner_name.toLowerCase().includes(q)
-    )
-  }, [adminProjects, projectSearchQuery])
+  // adminSearchResults removed — SearchModal handles its own filtering
 
   function addProjectEverywhere(project: Product) {
     setProducts(prev => prev.some(p => p.id === project.id) ? prev : [...prev, project])
@@ -248,14 +243,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     }])
   }
 
-  const handleSearchFocus = useCallback(() => {
-    if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current)
-    setProjectSearchOpen(true)
-  }, [])
-
-  const handleSearchBlur = useCallback(() => {
-    blurTimeoutRef.current = setTimeout(() => setProjectSearchOpen(false), 200)
-  }, [])
+  // handleSearchFocus/Blur removed — SearchModal handles open/close
 
   const displayUserName = user?.first_name || user?.email || userName || '?'
 
@@ -1276,102 +1264,51 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
       <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
 
-        {/* ── Global Nav ── */}
+        {/* ── Unified Nav ── */}
         <AppNav
           printContext={{ productId: selectedId, productName: selected?.name ?? null }}
           userInitial={(user?.first_name || user?.email || '?').charAt(0).toUpperCase()}
           userName={[user?.first_name, user?.last_name].filter(Boolean).join(' ') || undefined}
+          onSearchProjects={() => setProjectSearchOpen(true)}
+          onAddProject={() => setShowAddProduct(true)}
+          orbToggle={
+            <button
+              className="appnav-btn appnav-edge"
+              onClick={isMobile ? () => setActiveMobileTab('orb') : () => setOrbPaneVisible(v => !v)}
+              data-tooltip={isMobile ? (activeMobileTab === 'orb' ? 'Viewing Orb' : 'Show Orb') : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')}
+              aria-label={isMobile ? (activeMobileTab === 'orb' ? 'Viewing Orb' : 'Show Orb') : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')}
+              aria-pressed={isMobile ? activeMobileTab === 'orb' : orbPaneVisible}
+              disabled={isMobile && activeMobileTab === 'orb'}
+            >
+              <span className="appnav-btn-icon">
+                <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
+                  <circle cx="16" cy="16" r="14.5" fill="url(#orbFavGrad)" />
+                  <ellipse cx="12" cy="11" rx="5.5" ry="4" fill="rgba(255,255,255,0.55)" />
+                  <defs><radialGradient id="orbFavGrad" cx="36%" cy="30%" r="60%"><stop offset="0%" stopColor="#ffffff"/><stop offset="45%" stopColor="#d4e4d4"/><stop offset="100%" stopColor="#6a9a7a"/></radialGradient></defs>
+                </svg>
+              </span>
+              <span className="appnav-btn-label">{isMobile ? 'Orb' : (orbPaneVisible ? 'Hide' : 'Show')}</span>
+            </button>
+          }
+          listToggle={
+            <button
+              className="appnav-btn appnav-edge"
+              onClick={isMobile ? () => setActiveMobileTab('list') : () => setListPaneVisible(v => !v)}
+              data-tooltip={isMobile ? (activeMobileTab === 'list' ? 'Viewing List' : 'Show List') : (listPaneVisible ? 'Hide List' : 'Show List')}
+              aria-label={isMobile ? (activeMobileTab === 'list' ? 'Viewing List' : 'Show List') : (listPaneVisible ? 'Hide List' : 'Show List')}
+              aria-pressed={isMobile ? activeMobileTab === 'list' : listPaneVisible}
+              disabled={isMobile && activeMobileTab === 'list'}
+            >
+              <span className="appnav-btn-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                  <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+              </span>
+              <span className="appnav-btn-label">{isMobile ? 'List' : (listPaneVisible ? 'Hide' : 'Show')}</span>
+            </button>
+          }
         />
-
-        {/* ── Command Bar (page-specific: panel toggles + project search) ── */}
-        <div className="ud-command-bar">
-          {/* Panel toggle — Orb */}
-          <button className="nav-btn ud-panel-toggle" onClick={isMobile ? () => setActiveMobileTab('orb') : () => setOrbPaneVisible(v => !v)} data-tooltip={isMobile ? 'Show Orb' : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')} aria-label={isMobile ? 'Show Orb' : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')} aria-pressed={isMobile ? activeMobileTab === 'orb' : undefined} disabled={isMobile && activeMobileTab === 'orb'}>
-            <span className="nav-btn-icon">
-              <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
-                <circle cx="16" cy="16" r="14.5" fill="url(#orbFavGrad)" />
-                <ellipse cx="12" cy="11" rx="5.5" ry="4" fill="rgba(255,255,255,0.55)" />
-                <defs><radialGradient id="orbFavGrad" cx="36%" cy="30%" r="60%"><stop offset="0%" stopColor="#ffffff"/><stop offset="45%" stopColor="#d4e4d4"/><stop offset="100%" stopColor="#6a9a7a"/></radialGradient></defs>
-              </svg>
-            </span>
-            <span className="nav-btn-label">{isMobile ? 'Orb' : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')}</span>
-          </button>
-
-          {/* Project selector — search-based dropdown */}
-          <div className="tv-admin-search" style={{ position: 'relative', flex: '0 1 320px', minWidth: 0 }}>
-            <div className="admin-search-wrap">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="admin-search-icon">
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
-              <input
-                type="text"
-                className="admin-search-input"
-                placeholder="Type to select project or user..."
-                value={projectSearchQuery}
-                onChange={e => { setProjectSearchQuery(e.target.value); setProjectSearchOpen(true) }}
-                onFocus={handleSearchFocus}
-                onBlur={handleSearchBlur}
-                aria-label="Search projects"
-              />
-              {projectSearchQuery && (
-                <button type="button" className="admin-search-clear" onClick={() => { setProjectSearchQuery(''); setProjectSearchOpen(false) }} aria-label="Clear search">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-              )}
-            </div>
-            {projectSearchOpen && (
-              <div className="admin-search-dropdown">
-                {projectsLoadError && (
-                  <div className="admin-search-empty" style={{ color: 'var(--error)', fontSize: 'var(--fs-xs)' }}>
-                    Projects failed to load.{' '}
-                    <button type="button" className="text-btn" style={{ color: 'var(--accent)', textDecoration: 'underline', padding: 0 }}
-                      onClick={() => window.location.reload()}>
-                      Refresh
-                    </button>
-                  </div>
-                )}
-                {adminSearchResults.length === 0 && !projectsLoadError ? (
-                  <div className="admin-search-empty">No matching projects</div>
-                ) : (
-                  adminSearchResults.map(p => (
-                    <button key={p.id} type="button" className="admin-search-result" data-active={p.id === selectedId ? '' : undefined}
-                      onClick={() => { setSelectedId(p.id); listInitialLoadDone.current = false; setProjectSearchOpen(false); setProjectSearchQuery('') }}>
-                      <span className="admin-search-result-name">{p.code ? `${p.code} — ${p.name}` : p.name}</span>
-                      {isAdmin && p.owner_name && p.owner_name !== 'Unknown' && (
-                        <span className="admin-search-result-owner">{p.owner_name}</span>
-                      )}
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-
-          <button
-            className="tv-toolbar-btn"
-            onClick={() => setShowAddProduct(true)}
-            data-tooltip="Create a new project"
-            style={{ flexShrink: 0 }}
-          >
-            + Project
-          </button>
-
-          <div className="ud-spacer" style={{ flex: 1 }} />
-
-          {/* Panel toggle — List (far right) */}
-          <button className="nav-btn ud-panel-toggle" onClick={isMobile ? () => setActiveMobileTab('list') : () => setListPaneVisible(v => !v)} data-tooltip={isMobile ? 'Show List' : (listPaneVisible ? 'Hide List' : 'Show List')} aria-label={isMobile ? 'Show List' : (listPaneVisible ? 'Hide List' : 'Show List')} aria-pressed={isMobile ? activeMobileTab === 'list' : undefined} disabled={isMobile && activeMobileTab === 'list'}>
-            <span className="nav-btn-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <line x1="9" y1="3" x2="9" y2="21" />
-                <line x1="15" y1="3" x2="15" y2="21" />
-                <line x1="3" y1="9" x2="21" y2="9" />
-                <line x1="3" y1="15" x2="21" y2="15" />
-              </svg>
-            </span>
-            <span className="nav-btn-label">{isMobile ? 'List' : (listPaneVisible ? 'Hide List' : 'Show List')}</span>
-          </button>
-        </div>
 
         {/* ── Split Container ── */}
         <div ref={splitRef} className="ud-split" data-active-tab={activeMobileTab}>
@@ -1655,6 +1592,22 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           initialContent={distillTodo.suggestion?.content ?? distillTodo.resolution_notes ?? distillTodo.description ?? ''}
           onClose={() => setDistillTodo(null)}
           onSaved={() => { setDistillTodo(null); setPulse(true); setTimeout(() => setPulse(false), 500) }}
+        />
+      )}
+
+      {projectSearchOpen && (
+        <SearchModal
+          placeholder="Search projects…"
+          items={adminProjects.map(p => ({
+            id: p.id,
+            label: p.code ? `${p.code} — ${p.name}` : p.name,
+            detail: isAdmin && p.owner_name && p.owner_name !== 'Unknown' ? p.owner_name : undefined,
+            active: p.id === selectedId,
+          }))}
+          onSelect={id => { setSelectedId(id); listInitialLoadDone.current = false }}
+          onClose={() => setProjectSearchOpen(false)}
+          emptyMessage="No matching projects"
+          errorMessage={projectsLoadError ? 'Projects failed to load.' : undefined}
         />
       )}
 

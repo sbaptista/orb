@@ -6,6 +6,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.193',
+    date: '2026-06-10',
+    changes: [
+      'Unified toolbar (ORB-196): Merged AppNav + CommandBar two-bar chrome (~92px) into a single unified toolbar (~48px). Same layout on all screens — no desktop/mobile split.',
+      'Toolbar layout: [Orb] ··· [Search][+Project] | [More][Account] ··· [List]. Spacers maintain balanced positioning at all viewport widths.',
+      'Search modal: New reusable SearchModal component — auto-focus, keyboard navigation (↑↓ Enter Esc), filtered results, frosted overlay with slide-in animation.',
+      'Orb/List edge buttons: Accent-colored paired toggles. Desktop labels show "Show"/"Hide" based on pane state. Mobile: grayed when current tab, active when tappable.',
+      'Commands modal: Print, Help, and Settings grouped under More button. Account is standalone.',
+      'Modal footer fix: Added gap between Cancel and Create buttons to prevent overlap on narrow viewports.',
+    ]
+  },
+  {
     version: 'v0.5.192',
     date: '2026-06-10',
     changes: [

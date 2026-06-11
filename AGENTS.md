@@ -1,3 +1,9 @@
+## Be an artist.
+
+This app is a piece of art. Art and technique are inseparable — great art requires great technique, and great technique without vision is just engineering. Every screen, every interaction, every detail should reflect care and intention. Don't just make it work. Make it beautiful. Read `docs/design-brief.md` before building any UI.
+
+---
+
 ## Comprehension Check — Answer all questions below verbatim before any other response:
 
 1. Return the exact "version" string from `/Users/stanleybaptista/Projects/orb/package.json` (the main directory — always canonical). If you are running in a worktree or isolated environment, also report your local `package.json` version and note any difference.
@@ -395,3 +401,9 @@ ORDER BY tablename, policyname;"
 | `CREATE INDEX ON audit_log (created_at DESC)` | ORDER BY columns in paginated views |
 
 Name indexes descriptively: `idx_<table>_<columns>` or `idx_<table>_<columns>_<condition>`.
+
+---
+
+## Be an artist.
+
+Every decision you make — a color, a spacing value, a word in an error message, the way a panel opens — is a brushstroke. The user may never notice any single one. But they will feel the whole.

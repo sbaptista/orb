@@ -1173,15 +1173,18 @@ a, button, [role="button"], input, select, textarea {
 
 /* ── Global App Nav (`.appnav`) ── */
 
+/* ── Unified Navigation Bar ──
+   Same layout on all screens: [Orb] ··· [Search][+Project] [More][Account] ··· [List]
+   On non-dashboard pages: [Back] ··· [More][Account]
+*/
 .appnav {
-  display: flex !important;
-  flex-direction: row !important;
+  display: flex;
+  flex-direction: row;
   align-items: center;
-  justify-content: space-between;
-  padding: 4px 12px;
-  height: 48px;
-  min-height: 48px;
-  max-height: 48px;
+  gap: 2px;
+  padding: 4px 8px;
+  padding-top: calc(var(--sat) + 4px);
+  min-height: 44px;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -1191,79 +1194,241 @@ a, button, [role="button"], input, select, textarea {
   flex-shrink: 0;
   width: 100%;
 }
-.appnav-left {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-}
-.appnav-right {
+
+/* Flexible spacers push groups toward center — min-width keeps balance at narrow desktop */
+.appnav-spacer { flex: 1; min-width: var(--sp-lg); }
+
+/* Button group — visually pairs related buttons */
+.appnav-group {
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 2px;
 }
-.appnav .nav-btn {
+
+/* ── Universal button: vertical icon + label ── */
+.appnav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 4px 8px;
+  min-width: 44px;
+  min-height: 44px;
+  background: transparent;
+  border: none;
+  border-radius: var(--r);
+  color: var(--text2);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--transition), color var(--transition);
+  -webkit-tap-highlight-color: transparent;
+}
+.appnav-btn:hover { background: var(--bg3); }
+.appnav-btn:active { background: color-mix(in srgb, var(--bg3) 80%, var(--text) 6%); }
+.appnav-btn:disabled { opacity: var(--opacity-disabled); pointer-events: none; }
+.appnav-btn[aria-pressed="true"] { color: var(--text); }
+
+.appnav-btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+.appnav-btn-label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-version);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-none);
+  color: var(--muted);
+  white-space: nowrap;
+  text-align: center;
+}
+.appnav-btn:hover .appnav-btn-label { color: var(--text2); }
+.appnav-btn[aria-pressed="true"] .appnav-btn-label {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+
+/* Edge buttons (Orb + List) — accent pair, grayed when disabled (current tab on mobile) */
+.appnav-edge { color: var(--text3); }
+.appnav-edge .appnav-btn-label { color: var(--text3); }
+.appnav-edge:hover .appnav-btn-label { color: var(--text); }
+.appnav-edge[aria-pressed="true"] .appnav-btn-label { font-weight: var(--fw-semibold); }
+.appnav-edge:disabled {
+  opacity: var(--opacity-muted);
+  pointer-events: none;
+}
+
+/* Back button (non-dashboard pages) — horizontal icon + label */
+.appnav-back {
   flex-direction: row;
   gap: 4px;
-  padding: 4px 8px;
-  min-width: unset;
 }
-.appnav .nav-btn-icon {
-  width: 18px;
-  height: 18px;
+
+/* Avatar inside appnav button */
+.appnav-btn .nav-avatar {
+  width: 20px;
+  height: 20px;
+  font-size: var(--fs-version);
 }
-.appnav .nav-btn-label {
-  display: none;
-}
-.appnav-back .nav-btn-label {
-  display: inline;
-}
-/* Desktop: show full bar, hide mobile commands button */
-.appnav-desktop {
-  display: flex !important;
-  gap: 8px;
-}
-.appnav-desktop .nav-btn {
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 2px !important;
-  padding: 2px 8px !important;
-  min-width: 50px !important;
-  height: 100% !important;
-}
-.appnav-desktop .nav-btn .nav-btn-label {
-  display: block !important;
-  font-size: var(--fs-version) !important;
-  font-weight: var(--fw-medium) !important;
-  line-height: var(--lh-tight) !important;
-  text-align: center !important;
-  color: var(--muted) !important;
-}
-.appnav-desktop .nav-btn:hover .nav-btn-label {
-  color: var(--text2) !important;
-}
-.appnav-mobile { display: none !important; }
 
 @media (max-width: 767px) {
-  .appnav-desktop { display: none !important; }
-  .appnav-mobile { display: flex !important; }
   .appnav {
-    padding: 2px 8px;
-    height: 44px;
-    min-height: 44px;
-    max-height: 44px;
+    padding: 2px 4px;
+    padding-top: calc(var(--sat) + 2px);
+    gap: 0;
   }
-  .appnav-commands-btn {
-    flex-direction: column !important;
-    justify-content: center !important;
-    gap: 2px !important;
-    padding: 2px 6px !important;
+  .appnav-btn {
+    padding: 4px 6px;
+    min-width: 40px;
   }
-  .appnav-commands-btn .nav-btn-label {
-    display: inline !important;
-  }
+  /* Spacers shrink on mobile but keep minimal balance */
+  .appnav-spacer { flex: 1; min-width: var(--sp-xs); }
+}
+
+/* ── Search Modal ── */
+.search-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: min(20vh, 120px);
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: search-modal-fade-in 0.15s ease;
+}
+@keyframes search-modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.search-modal {
+  width: min(480px, calc(100vw - 32px));
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: search-modal-slide-in 0.15s ease;
+}
+@keyframes search-modal-slide-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.search-modal-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: var(--sp-md) var(--sp-lg);
+  border-bottom: 1px solid var(--border);
+}
+.search-modal-icon {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.search-modal-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  color: var(--text);
+  outline: none;
+}
+.search-modal-input::placeholder { color: var(--muted); }
+.search-modal-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background var(--transition);
+}
+.search-modal-clear:hover { background: var(--bg3); }
+
+.search-modal-list {
+  max-height: min(320px, 50vh);
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.search-modal-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-sm);
+  width: 100%;
+  padding: 10px var(--sp-md);
+  background: transparent;
+  border: none;
+  border-radius: var(--r);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.search-modal-item[data-highlighted] {
+  background: var(--bg3);
+}
+.search-modal-item[data-active] .search-modal-item-label {
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.search-modal-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-modal-item-detail {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.search-modal-empty {
+  padding: var(--sp-xl) var(--sp-lg);
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+
+.search-modal-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-lg);
+  padding: var(--sp-xs) var(--sp-lg);
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg3) 50%, transparent);
+}
+.search-modal-hint {
+  font-family: var(--font-ui);
+  font-size: var(--fs-version);
+  color: var(--muted);
+}
+.search-modal-hint kbd {
+  display: inline-block;
+  padding: 1px 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-version);
+  line-height: var(--lh-tight);
 }
 
 .scroll-arrow {
@@ -3103,6 +3268,7 @@ a, button, [role="button"], input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--sp-md);
   flex-shrink: 0;
 }
 
@@ -4732,20 +4898,6 @@ a, button, [role="button"], input, select, textarea {
    Unified Dashboard (ud-*)
    ══════════════════════════════════════════════════════════════ */
 
-.ud-command-bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: var(--sp-md);
-  padding: var(--sp-sm) var(--sp-lg);
-  padding-top: calc(var(--sat) + var(--sp-sm));
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border);
-  z-index: 20;
-  flex-shrink: 0;
-}
 
 .ud-split {
   display: flex;
@@ -4963,60 +5115,6 @@ a, button, [role="button"], input, select, textarea {
     height: 60px;
   }
 
-  /* Compact command bar padding and spacing on mobile */
-  .ud-command-bar {
-    padding: var(--sp-xs) var(--sp-md);
-    padding-top: calc(var(--sat) + var(--sp-xs));
-    gap: var(--sp-xs);
-  }
-
-  /* Panel toggles visible on mobile with labels below icon */
-  .ud-command-bar .ud-panel-toggle {
-    display: flex;
-    flex-shrink: 0;
-  }
-
-  /* Hide spacer on mobile — search flex:1 handles spacing */
-  .ud-command-bar .ud-spacer { display: none; }
-
-  /* Nav buttons hidden on mobile — accessed via Commands modal */
-  .ud-command-bar .ud-nav-desktop { display: none; }
-
-  /* Search input centered and wider on mobile */
-  .ud-command-bar .tv-admin-search { flex: 1; min-width: 0; }
-  .ud-command-bar .admin-search-input { width: 100%; }
-
-  /* Desktop nav labels hidden on mobile, except panel toggles */
-  .ud-command-bar .ud-nav-desktop .nav-btn-label { display: none; }
-
-  /* Commands button — icon above label, visible on mobile */
-  .ud-cmd-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    padding: 6px 8px;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    flex-shrink: 0;
-    color: var(--text);
-  }
-  .ud-cmd-btn-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-  }
-  .ud-cmd-btn-label {
-    font-family: var(--font-ui);
-    font-size: var(--fs-version);
-    font-weight: var(--fw-medium);
-    color: var(--muted);
-    white-space: nowrap;
-    line-height: var(--lh-none);
-  }
 
   /* Safe area bottom padding for iPhone conversation input */
   .oc-wrap {
@@ -5030,15 +5128,6 @@ a, button, [role="button"], input, select, textarea {
 }
 
 
-/* Mobile command bar active toggles */
-@media (max-width: 767px) {
-  .ud-command-bar .ud-panel-toggle[aria-pressed="true"] {
-    color: var(--text) !important;
-  }
-  .ud-command-bar .ud-panel-toggle[aria-pressed="true"] .nav-btn-label {
-    font-weight: var(--fw-semibold);
-  }
-}
 
 
 

@@ -6,16 +6,31 @@ import { usePathname } from 'next/navigation'
 import PrintModal from './PrintModal'
 
 type Props = {
-  /** When provided, Print button appears and scopes to this project */
   printContext?: { productId: string | null; productName: string | null }
-  /** User initial for Account button */
   userInitial?: string
-  /** Full user name for Account tooltip */
   userName?: string
+  /** Dashboard-only: Orb toggle button element */
+  orbToggle?: React.ReactNode
+  /** Dashboard-only: List toggle button element */
+  listToggle?: React.ReactNode
+  /** Dashboard-only: callback to open project search modal */
+  onSearchProjects?: () => void
+  /** Dashboard-only: callback to open add project modal */
+  onAddProject?: () => void
 }
 
-// ── SVG Icons (shared across desktop bar + mobile modal) ──
+// ── SVG Icons ──
 
+const IconSearch = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  </svg>
+)
+const IconPlus = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+  </svg>
+)
 const IconPrint = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
@@ -37,12 +52,12 @@ const IconBack = (
   </svg>
 )
 const IconCommands = (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
   </svg>
 )
 
-export default function AppNav({ printContext, userInitial = '?', userName }: Props) {
+export default function AppNav({ printContext, userInitial = '?', userName, orbToggle, listToggle, onSearchProjects, onAddProject }: Props) {
   const pathname = usePathname()
   const onDashboard = pathname === '/dashboard' || pathname === '/'
   const [showPrint, setShowPrint] = useState(false)
@@ -50,50 +65,54 @@ export default function AppNav({ printContext, userInitial = '?', userName }: Pr
 
   return (
     <>
-      {/* ── Desktop bar ── */}
       <nav className="appnav" aria-label="Global navigation">
-        {/* Left: back to dashboard (when not on dashboard) */}
-        <div className="appnav-left">
-          {!onDashboard && (
-            <Link href="/dashboard" className="nav-btn appnav-back" data-tooltip="Dashboard" aria-label="Back to Dashboard">
-              <span className="nav-btn-icon">{IconBack}</span>
-              <span className="nav-btn-label">Dashboard</span>
-            </Link>
-          )}
-        </div>
+        {/* ── Left edge: Orb toggle (dashboard) or Back (other pages) ── */}
+        {onDashboard && orbToggle ? (
+          orbToggle
+        ) : !onDashboard ? (
+          <Link href="/dashboard" className="appnav-btn appnav-back" data-tooltip="Dashboard" aria-label="Back to Dashboard">
+            <span className="appnav-btn-icon">{IconBack}</span>
+            <span className="appnav-btn-label">Back</span>
+          </Link>
+        ) : null}
 
-        {/* Right: global actions — desktop only */}
-        <div className="appnav-right appnav-desktop">
-          {printContext && (
-            <button className="nav-btn" onClick={() => setShowPrint(true)} data-tooltip="Print" aria-label="Print">
-              <span className="nav-btn-icon">{IconPrint}</span>
-              <span className="nav-btn-label">Print</span>
+        {/* ── Spacer (left) ── */}
+        <div className="appnav-spacer" />
+
+        {/* ── Center-left group: Search + Project ── */}
+        {onDashboard && (
+          <div className="appnav-group">
+            <button className="appnav-btn" onClick={onSearchProjects} data-tooltip="Search projects" aria-label="Search projects">
+              <span className="appnav-btn-icon">{IconSearch}</span>
+              <span className="appnav-btn-label">Search</span>
             </button>
-          )}
-          <Link href="/help" className="nav-btn" data-tour="help" data-tooltip="Help" aria-label="Help">
-            <span className="nav-btn-icon">{IconHelp}</span>
-            <span className="nav-btn-label">Help</span>
-          </Link>
-          <Link href="/settings" className="nav-btn" data-tooltip="Settings" aria-label="Settings">
-            <span className="nav-btn-icon">{IconSettings}</span>
-            <span className="nav-btn-label">Settings</span>
-          </Link>
-          <Link href="/account" className="nav-btn" data-tooltip={userName || 'Account'} aria-label="Account">
-            <span className="nav-avatar">{userInitial}</span>
-            <span className="nav-btn-label">Account</span>
+            <button className="appnav-btn" onClick={onAddProject} data-tooltip="Create a new project" aria-label="New project">
+              <span className="appnav-btn-icon">{IconPlus}</span>
+              <span className="appnav-btn-label">Project</span>
+            </button>
+          </div>
+        )}
+
+        {/* ── Center-right group: Commands + Account ── */}
+        <div className="appnav-group">
+          <button className="appnav-btn" onClick={() => setCommandsOpen(true)} data-tooltip="Commands" aria-label="Commands">
+            <span className="appnav-btn-icon">{IconCommands}</span>
+            <span className="appnav-btn-label">More</span>
+          </button>
+          <Link href="/account" className="appnav-btn" data-tooltip={userName || 'Account'} aria-label="Account">
+            <span className="appnav-btn-icon"><span className="nav-avatar">{userInitial}</span></span>
+            <span className="appnav-btn-label">Account</span>
           </Link>
         </div>
 
-        {/* Mobile: commands button */}
-        <div className="appnav-right appnav-mobile">
-          <button className="nav-btn appnav-commands-btn" onClick={() => setCommandsOpen(true)} data-tooltip="Commands" aria-label="Commands">
-            <span className="nav-btn-icon">{IconCommands}</span>
-            <span className="nav-btn-label">Commands</span>
-          </button>
-        </div>
+        {/* ── Spacer (right) ── */}
+        <div className="appnav-spacer" />
+
+        {/* ── Right edge: List toggle (dashboard) ── */}
+        {onDashboard && listToggle ? listToggle : null}
       </nav>
 
-      {/* ── Modals ── */}
+      {/* ── Print modal ── */}
       {showPrint && printContext && (
         <PrintModal
           onClose={() => setShowPrint(false)}
@@ -102,7 +121,7 @@ export default function AppNav({ printContext, userInitial = '?', userName }: Pr
         />
       )}
 
-      {/* ── Mobile commands modal ── */}
+      {/* ── Commands modal ── */}
       {commandsOpen && (
         <div className="modal-overlay" onClick={() => setCommandsOpen(false)}>
           <div className="modal-center" onClick={e => e.stopPropagation()} style={{ maxWidth: '320px' }}>
@@ -130,10 +149,6 @@ export default function AppNav({ printContext, userInitial = '?', userName }: Pr
               <Link href="/settings" className="ud-commands-item" onClick={() => setCommandsOpen(false)}>
                 {IconSettings}
                 Settings
-              </Link>
-              <Link href="/account" className="ud-commands-item" onClick={() => setCommandsOpen(false)}>
-                <span className="nav-avatar" style={{ width: 20, height: 20, fontSize: 'var(--fs-version)' }}>{userInitial}</span>
-                Account
               </Link>
             </div>
           </div>
