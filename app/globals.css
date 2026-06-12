@@ -2861,6 +2861,24 @@ a, button, [role="button"], input, select, textarea {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+.oc-orb-md table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: var(--fs-xs);
+}
+.oc-orb-md th, .oc-orb-md td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+}
+.oc-orb-md th {
+  font-weight: var(--fw-semibold);
+  background: var(--bg3);
+}
+.oc-orb-md tr:nth-child(even) {
+  background: var(--bg2);
+}
 
 .oc-user-bubble {
   max-width: 75%;

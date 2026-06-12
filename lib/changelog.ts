@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.208',
+    date: '2026-06-12',
+    changes: [
+      'ORB-246: Fixed markdown tables not rendering in Orb conversation view — added remark-gfm plugin to react-markdown.',
+      'Added table styles for Orb messages: collapsed borders, header background, alternating row stripes.',
+      'GFM extensions now active: tables, strikethrough, autolinks, and task list checkboxes.',
+    ]
+  },
+  {
     version: 'v0.5.207',
     date: '2026-06-12',
     changes: [

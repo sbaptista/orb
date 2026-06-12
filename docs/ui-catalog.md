@@ -215,6 +215,9 @@ Used for buttons below the input field in the Orb conversation view. Styled with
 ### Orb Conversation Overflow (`oc-toolbar-overflow`, `oc-more-*`)
 The Orb command toolbar uses the same compact command model on Mac, iPad, and iPhone: primary actions stay visible (`Cmds`, `Voice`, Send/Stop) and secondary actions (`Prev`, `Next`, `Copy`, `Export`, `Clear`) live behind the `More` overflow button. This avoids viewport-specific command layouts and keeps the small-pane/iPhone interaction model consistent everywhere.
 
+### Orb Markdown (`oc-orb-md`)
+Prose container for Orb and dev-channel messages. Uses `remark-gfm` for GitHub-Flavored Markdown (tables, strikethrough, autolinks). Table styles: collapsed borders, `--fs-xs` font, `--bg3` header background, alternating `--bg2` row stripes.
+
 ### Orb Action Circle (`oc-action-circle`)
 32×32px circular button base for the Orb input bar. Flex-centered, no border, smooth transition. Used as a base class by:
 - **Send Button (`oc-send-btn`)** — green accent (`--pill-active-bg`), white icon. Submit button for Orb input.

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ComponentPropsWithoutRef } from 'react'
 import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { launchOrbTour } from './OrbTour'
 export type ConversationMessage = {
     id: string
@@ -65,7 +66,7 @@ function OrbCard({ msg, onDismissNudge }: { msg: ConversationMessage; onDismissN
                     opacity: msg.isStreaming ? 0.8 : 1,
                     transition: 'opacity 0.2s',
                 }}>
-                    <Markdown components={{
+                    <Markdown remarkPlugins={[remarkGfm]} components={{
                         a: ({ href, children, ...rest }: ComponentPropsWithoutRef<'a'>) => (
                             <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>{children}</a>
                         ),
