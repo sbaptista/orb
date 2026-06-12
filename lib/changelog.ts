@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.204',
+    date: '2026-06-12',
+    changes: [
+      'ORB-238: Simplified the Orb conversation command toolbar so Mac, iPad, and iPhone all use the same compact More overflow model for secondary actions.',
+      'Removed the viewport-specific desktop inline command group from the Orb input toolbar, leaving Cmds, Voice, Send/Stop, and More as the consistent command surface.',
+    ]
+  },
+  {
     version: 'v0.5.203',
     date: '2026-06-11',
     changes: [

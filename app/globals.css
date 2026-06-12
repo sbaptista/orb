@@ -3036,17 +3036,8 @@ a, button, [role="button"], input, select, textarea {
   line-height: var(--lh-none);
 }
 
-.oc-toolbar-desktop {
+.oc-toolbar-overflow {
   display: flex;
-  gap: 8px;
-}
-.oc-toolbar-mobile {
-  display: none;
-}
-
-@media (hover: none), (pointer: coarse) {
-  .oc-toolbar-desktop { display: none; }
-  .oc-toolbar-mobile  { display: flex; }
 }
 
 .oc-more-menu {

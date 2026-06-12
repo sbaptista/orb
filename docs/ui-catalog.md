@@ -212,6 +212,9 @@ Pagination arrow button.
 ### Orb Conversation Tool Button (`oc-tool-btn`)
 Used for buttons below the input field in the Orb conversation view. Styled with standard primary button background (`var(--btn-primary-bg)`).
 
+### Orb Conversation Overflow (`oc-toolbar-overflow`, `oc-more-*`)
+The Orb command toolbar uses the same compact command model on Mac, iPad, and iPhone: primary actions stay visible (`Cmds`, `Voice`, Send/Stop) and secondary actions (`Prev`, `Next`, `Copy`, `Export`, `Clear`) live behind the `More` overflow button. This avoids viewport-specific command layouts and keeps the small-pane/iPhone interaction model consistent everywhere.
+
 ### Orb Action Circle (`oc-action-circle`)
 32×32px circular button base for the Orb input bar. Flex-centered, no border, smooth transition. Used as a base class by:
 - **Send Button (`oc-send-btn`)** — green accent (`--pill-active-bg`), white icon. Submit button for Orb input.
