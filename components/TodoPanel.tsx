@@ -41,25 +41,12 @@ export default function TodoPanel({
   const [showDetails, setShowDetails] = useState(false)
   const [idCopied, setIdCopied] = useState(false)
   const [showDistill, setShowDistill] = useState(false)
-  const [platforms, setPlatforms] = useState<any[]>([])
-  const [selectedPlatformIds, setSelectedPlatformIds] = useState<string[]>([])
-
   useEffect(() => {
     setForm({ ...todo })
     setUrlInput((todo.urls ?? []).join('\n'))
     setConfirmDelete(false)
     setShowDetails(false)
-
-    async function loadPlatforms() {
-      const [allRes, assocRes] = await Promise.all([
-        supabase.from('platforms').select('*').order('sort_order'),
-        supabase.from('todo_platforms').select('platform_id').eq('todo_id', todo.id)
-      ])
-      setPlatforms(allRes.data ?? [])
-      setSelectedPlatformIds((assocRes.data ?? []).map((x: any) => x.platform_id))
-    }
-    loadPlatforms()
-  }, [todo.id, supabase])
+  }, [todo.id])
 
   const isDone             = statuses.find(s => s.name === form.status)?.is_closed ?? false
 
@@ -103,12 +90,6 @@ export default function TodoPanel({
       return
     }
     if (data) {
-      await supabase.from('todo_platforms').delete().eq('todo_id', todo.id)
-      if (selectedPlatformIds.length > 0) {
-        const inserts = selectedPlatformIds.map(pid => ({ todo_id: todo.id, platform_id: pid }))
-        await supabase.from('todo_platforms').insert(inserts)
-      }
-
       const justClosed = isDone && !(statuses.find(s => s.name === todo.status)?.is_closed ?? false)
       toast.success(justClosed ? 'Todo closed.' : 'Todo saved.')
       onSave(data as Todo)
@@ -292,67 +273,6 @@ export default function TodoPanel({
             />
           </div>
 
-          {(() => {
-            const sortedPlatforms = [
-              ...platforms.filter(p => p.name === 'All'),
-              ...platforms.filter(p => p.name !== 'All')
-            ]
-            if (sortedPlatforms.length === 0) return null
-
-            return (
-              <div className="pf-field">
-                <label className="pf-label">Platforms</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
-                  {sortedPlatforms.map(p => {
-                    const checked = selectedPlatformIds.includes(p.id)
-                    const isAllPill = p.name === 'All'
-                    return (
-                      <label
-                        key={p.id}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '4px 10px',
-                          borderRadius: '12px',
-                          background: checked ? 'var(--pill-active-bg)' : 'var(--bg3)',
-                          border: `${isAllPill ? '1.5px' : '1px'} ${isAllPill ? 'dashed' : 'solid'} ${checked ? 'var(--pill-active-color)' : 'var(--border)'}`,
-                          color: checked ? 'var(--pill-active-color)' : 'var(--text)',
-                          fontWeight: isAllPill ? 'var(--fw-semibold)' : 'var(--fw-normal)',
-                          fontSize: 'var(--fs-xs)',
-                          cursor: 'pointer',
-                          userSelect: 'none',
-                          transition: 'all 0.15s',
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            setSelectedPlatformIds(prev => {
-                              const exists = prev.includes(p.id)
-                              if (isAllPill) {
-                                return exists ? [] : [p.id]
-                              } else {
-                                const allItem = platforms.find(x => x.name === 'All')
-                                let next = exists ? prev.filter(x => x !== p.id) : [...prev, p.id]
-                                if (allItem) {
-                                  next = next.filter(id => id !== allItem.id)
-                                }
-                                return next
-                              }
-                            })
-                          }}
-                          style={{ display: 'none' }}
-                        />
-                        <span>{isAllPill ? '✦ All' : p.name}</span>
-                      </label>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })()}
 
           {/* Resolution Notes — only when done */}
           {isDone && (

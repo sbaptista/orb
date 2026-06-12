@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.207',
+    date: '2026-06-12',
+    changes: [
+      'ORB-244: Removed Priorities, Statuses, and Platforms from the settings menu — these are not user-changeable.',
+      'Removed the Platforms pill selector from the todo edit panel and new todo form.',
+      'Deleted SettingsPriorities, SettingsStatuses, SettingsPlatforms components and their page routes.',
+    ]
+  },
+  {
     version: 'v0.5.206',
     date: '2026-06-12',
     changes: [

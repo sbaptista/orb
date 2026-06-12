@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { useToast } from '@/components/ui/Toast'
@@ -34,17 +34,6 @@ export default function TodoForm({
   const [urlInput,        setUrlInput]        = useState('')
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState('')
-
-  const [platforms, setPlatforms] = useState<any[]>([])
-  const [selectedPlatformIds, setSelectedPlatformIds] = useState<string[]>([])
-
-  useEffect(() => {
-    async function loadPlatforms() {
-      const { data } = await supabase.from('platforms').select('*').order('sort_order')
-      setPlatforms(data ?? [])
-    }
-    loadPlatforms()
-  }, [supabase])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -82,10 +71,6 @@ export default function TodoForm({
       toast.error('Failed to create todo. Try again.'); return
     }
     if (data) {
-      if (selectedPlatformIds.length > 0) {
-        const inserts = selectedPlatformIds.map(pid => ({ todo_id: data.id, platform_id: pid }))
-        await supabase.from('todo_platforms').insert(inserts)
-      }
       toast.success('Todo created')
       if (beforeUrgency) notifyIfEscalated(beforeUrgency)
       onCreate(data as Todo)
@@ -155,68 +140,6 @@ export default function TodoForm({
               aria-label="Due Date"
             />
           </div>
-
-          {(() => {
-            const sortedPlatforms = [
-              ...platforms.filter(p => p.name === 'All'),
-              ...platforms.filter(p => p.name !== 'All')
-            ]
-            if (sortedPlatforms.length === 0) return null
-
-            return (
-              <div style={{ marginTop: 'var(--sp-xs)' }}>
-                <label className="label text-xs text-muted" style={{ display: 'block', marginBottom: '4px' }}>Platforms</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {sortedPlatforms.map(p => {
-                    const checked = selectedPlatformIds.includes(p.id)
-                    const isAllPill = p.name === 'All'
-                    return (
-                      <label
-                        key={p.id}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '4px 10px',
-                          borderRadius: '12px',
-                          background: checked ? 'var(--pill-active-bg)' : 'var(--bg3)',
-                          border: `${isAllPill ? '1.5px' : '1px'} ${isAllPill ? 'dashed' : 'solid'} ${checked ? 'var(--pill-active-color)' : 'var(--border)'}`,
-                          color: checked ? 'var(--pill-active-color)' : 'var(--text)',
-                          fontWeight: isAllPill ? 'var(--fw-semibold)' : 'var(--fw-normal)',
-                          fontSize: 'var(--fs-xs)',
-                          cursor: 'pointer',
-                          userSelect: 'none',
-                          transition: 'all 0.15s',
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            setSelectedPlatformIds(prev => {
-                              const exists = prev.includes(p.id)
-                              if (isAllPill) {
-                                return exists ? [] : [p.id]
-                              } else {
-                                const allItem = platforms.find(x => x.name === 'All')
-                                let next = exists ? prev.filter(x => x !== p.id) : [...prev, p.id]
-                                if (allItem) {
-                                  next = next.filter(id => id !== allItem.id)
-                                }
-                                return next
-                              }
-                            })
-                          }}
-                          style={{ display: 'none' }}
-                        />
-                        <span>{isAllPill ? '✦ All' : p.name}</span>
-                      </label>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })()}
 
           <div style={{ marginTop: 'var(--sp-xs)' }}>
             <label className="label text-xs text-muted" style={{ display: 'block', marginBottom: '4px' }}>URLs (one per line)</label>

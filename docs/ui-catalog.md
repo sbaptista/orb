@@ -67,7 +67,7 @@ Standard settings layout with centered content card.
 | `s-form` | Form input styling context |
 
 ### Settings Navigation & Updates
-- **Settings Sidebar:** Houses navigation for general configuration.
+- **Settings Sidebar:** Houses navigation for general configuration. Priorities, Statuses, and Platforms pages removed in v0.5.207 (not user-changeable). Platform pill UI also removed from TodoPanel and TodoForm.
 - **Version Badge:** Located in the bottom corner of the Settings page sidebar (e.g. displaying `v0.5.127`). Non-clickable.
 - **What's New Screen:** Located under Settings. Displays recent release notes and contains:
   - **Check for Update Button:** A button labeled "Check for Update" that allows users to manually fetch and apply newer app versions.

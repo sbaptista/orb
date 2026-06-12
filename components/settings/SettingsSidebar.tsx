@@ -5,9 +5,6 @@ import CollapsibleSidebar, { type SidebarItem } from '@/components/CollapsibleSi
 import { isPasskeyAvailable } from '@/lib/passkey'
 
 const NAV: SidebarItem[] = [
-  { id: 'priorities', href: '/settings/priorities', label: 'Priorities', icon: '▴', active: false },
-  { id: 'statuses',   href: '/settings/statuses',   label: 'Statuses',   icon: '◪', active: false },
-  { id: 'platforms',  href: '/settings/platforms',  label: 'Platforms',  icon: '💻', active: false },
   { id: 'urgency',    href: '/settings/urgency',    label: 'Urgency Threshold', icon: '⚡', active: false },
   { id: 'notifications', href: '/settings/notifications', label: 'Notifications', icon: '🔔', active: false },
   { id: 'passkeys', href: '/settings/passkeys', label: 'Passkeys', icon: '🔑', active: false },
