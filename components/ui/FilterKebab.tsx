@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 
 type Option = { value: string; label: string }
 
@@ -44,7 +44,7 @@ export default function FilterKebab({ value, options, onChange, ariaLabel }: Pro
     requestAnimationFrame(() => focusItem(index))
   }
 
-  function handleTriggerKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
+  function handleTriggerKeyDown(e: ReactKeyboardEvent<HTMLButtonElement>) {
     if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       openAndFocus(selectedIndex)
@@ -54,7 +54,7 @@ export default function FilterKebab({ value, options, onChange, ariaLabel }: Pro
     }
   }
 
-  function handleMenuKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+  function handleMenuKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
     const activeIndex = itemRefs.current.findIndex(item => item === document.activeElement)
     if (e.key === 'Escape') {
       e.preventDefault()

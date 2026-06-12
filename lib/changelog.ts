@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.203',
+    date: '2026-06-11',
+    changes: [
+      'Build fix: Corrected FilterKebab event typing so React keyboard events and document-level DOM KeyboardEvent handlers no longer conflict during production type checking.',
+    ]
+  },
+  {
     version: 'v0.5.202',
     date: '2026-06-11',
     changes: [

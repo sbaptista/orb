@@ -153,6 +153,10 @@ Accessibility contract: `SearchModal` renders as a named `role="dialog"` with `a
 **File:** `components/ui/HScrollNav.tsx`  
 Adds fade edges and optional scroll arrows to horizontally-scrollable containers (e.g., project pill strips).
 
+### Filter Kebab (`FilterKebab`)
+**File:** `components/ui/FilterKebab.tsx`  
+Used for compact status/priority filters in task list toolbars. The trigger is a button with a text label and chevron; the popover uses a `menu` / `menuitemradio` pattern so the active filter is announced and keyboard users can move with Arrow keys, Home/End, select with Enter/Space, and close with Escape.
+
 ---
 
 ## Buttons
