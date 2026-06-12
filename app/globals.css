@@ -163,11 +163,13 @@
 /* ── Touch tier — all touch devices (tablet + phone) ── */
 @media (hover: none) and (pointer: coarse) {
   :root {
-    --fs-version: 12px;
-    --fs-xs:      13px;
+    --fs-version: 13px;
+    --fs-xs:      14px;
     --fs-sm:      17px;
-    --fs-lg:      19px;
-    --fs-xl:      23px;
+    --fs-base:    16px;
+    --fs-input:   17px;
+    --fs-lg:      20px;
+    --fs-xl:      24px;
   }
   label { font-size: var(--fs-base); }
   input, select, textarea { font-size: var(--fs-input); }

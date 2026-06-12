@@ -6,10 +6,10 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
-    version: 'v0.5.205',
+    version: 'v0.5.206',
     date: '2026-06-12',
     changes: [
-      'ORB-243: Bumped touch-tier --fs-sm from 14px to 17px so iPad text stays legible at wider viewports instead of shrinking below the phone tier.',
+      'ORB-243: Aligned all touch-tier font sizes with the phone tier so iPad and iPhone render identically — --fs-version 13px, --fs-xs 14px, --fs-sm 17px, --fs-base 16px, --fs-input 17px, --fs-lg 20px, --fs-xl 24px.',
     ]
   },
   {
