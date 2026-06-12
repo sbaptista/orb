@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useId } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { visibleProjectsQuery } from '@/lib/projects'
+import EmptyState from '@/components/ui/EmptyState'
 import type { Todo, Product, Priority, StatusDef } from './TodoView'
 
 type ResultItem = { id: string; code: string; title: string; status: string; priority_value: number | null }
@@ -28,6 +29,14 @@ function InlineTodoEditor({
   onDelete: (id: string) => void
   onCancel: () => void
 }) {
+  const titleId = useId()
+  const statusId = useId()
+  const priorityId = useId()
+  const dueDateId = useId()
+  const descriptionId = useId()
+  const resolutionId = useId()
+  const urlsId = useId()
+  const deleteDescriptionId = useId()
   const supabase = useMemo(() => createClient(), [])
   const [form, setForm] = useState({ ...todo })
   const [urlInput, setUrlInput] = useState((todo.urls ?? []).join('\\n'))
@@ -70,22 +79,22 @@ function InlineTodoEditor({
   return (
     <div className="qr-editor">
       <div className="pf-field">
-        <label className="pf-label">Title</label>
-        <input className="pf-input" value={form.title} onChange={e => setForm(f => ({...f, title: e.target.value}))} />
+        <label htmlFor={titleId} className="pf-label">Title</label>
+        <input id={titleId} className="pf-input" value={form.title} onChange={e => setForm(f => ({...f, title: e.target.value}))} />
       </div>
 
       <div className="grid-2col">
         <div className="pf-field">
-          <label className="pf-label">Status</label>
-          <select className="pf-select" value={form.status} onChange={e => setForm(f => ({...f, status: e.target.value}))}>
+          <label htmlFor={statusId} className="pf-label">Status</label>
+          <select id={statusId} className="pf-select" value={form.status} onChange={e => setForm(f => ({...f, status: e.target.value}))}>
             {statuses.map(s => (
               <option key={s.id} value={s.name}>{s.name.charAt(0).toUpperCase() + s.name.slice(1)}</option>
             ))}
           </select>
         </div>
         <div className="pf-field">
-          <label className="pf-label">Priority</label>
-          <select className="pf-select" value={form.priority_value ?? ''} onChange={e => setForm(f => ({...f, priority_value: e.target.value ? Number(e.target.value) : null}))}>
+          <label htmlFor={priorityId} className="pf-label">Priority</label>
+          <select id={priorityId} className="pf-select" value={form.priority_value ?? ''} onChange={e => setForm(f => ({...f, priority_value: e.target.value ? Number(e.target.value) : null}))}>
             <option value="">None</option>
             {priorities.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
@@ -93,8 +102,9 @@ function InlineTodoEditor({
       </div>
 
       <div className="pf-field">
-        <label className="pf-label">Due Date</label>
+        <label htmlFor={dueDateId} className="pf-label">Due Date</label>
         <input
+          id={dueDateId}
           type="datetime-local"
           className="pf-input"
           value={form.due_at ?? ''}
@@ -103,37 +113,39 @@ function InlineTodoEditor({
       </div>
 
       <div className="pf-field">
-        <label className="pf-label">Description</label>
-        <textarea className="pf-textarea" value={form.description ?? ''} onChange={e => setForm(f => ({...f, description: e.target.value}))} />
+        <label htmlFor={descriptionId} className="pf-label">Description</label>
+        <textarea id={descriptionId} className="pf-textarea" value={form.description ?? ''} onChange={e => setForm(f => ({...f, description: e.target.value}))} />
       </div>
 
       {isDone && (
         <div className="pf-field">
-          <label className="pf-label">Resolution Notes</label>
-          <textarea className="pf-textarea" value={form.resolution_notes ?? ''} placeholder="What was done to resolve this…" onChange={e => setForm(f => ({...f, resolution_notes: e.target.value}))} />
+          <label htmlFor={resolutionId} className="pf-label">Resolution Notes</label>
+          <textarea id={resolutionId} className="pf-textarea" value={form.resolution_notes ?? ''} placeholder="What was done to resolve this…" onChange={e => setForm(f => ({...f, resolution_notes: e.target.value}))} />
         </div>
       )}
 
       <div className="pf-field">
-        <label className="pf-label">URLs (one per line)</label>
-        <textarea className="pf-textarea" style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-sm)', minHeight: '60px' }} value={urlInput} onChange={e => setUrlInput(e.target.value)} />
+        <label htmlFor={urlsId} className="pf-label">URLs (one per line)</label>
+        <textarea id={urlsId} className="pf-textarea" style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-sm)', minHeight: '60px' }} value={urlInput} onChange={e => setUrlInput(e.target.value)} />
       </div>
 
-      <div className="qr-editor-footer">
+      <div className="modal-footer">
         {confirmDelete ? (
-          <div className="flex-row flex-center" style={{ gap: 'var(--sp-sm)' }}>
-            <span className="text-xs text-error">Are you sure?</span>
-            <button className="tv-bulk-confirm" onClick={handleDelete} disabled={deleting}>{deleting ? 'Deleting...' : 'Yes, Delete'}</button>
-            <button className="text-btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
-          </div>
+          <>
+            <span id={deleteDescriptionId} className="text-sm text-error" style={{ marginRight: 'auto' }}>Delete this todo? This cannot be undone.</span>
+            <button className="btn-cancel" onClick={() => setConfirmDelete(false)}>Cancel</button>
+            <button className="btn-danger" onClick={handleDelete} disabled={deleting} aria-describedby={deleteDescriptionId}>{deleting ? 'Deleting...' : 'Yes, Delete'}</button>
+          </>
         ) : (
-          <button className="text-btn" onClick={() => setConfirmDelete(true)}>Delete</button>
+          <button className="btn-danger" onClick={() => setConfirmDelete(true)} style={{ marginRight: 'auto' }}>Delete</button>
         )}
 
-        <div className="flex-row" style={{ gap: 'var(--sp-sm)' }}>
-          <button className="text-btn" onClick={onCancel}>Cancel</button>
-          <button className="save-btn" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
-        </div>
+        {!confirmDelete && (
+          <>
+            <button className="btn-cancel" onClick={onCancel}>Cancel</button>
+            <button className="btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+          </>
+        )}
       </div>
     </div>
   )
@@ -185,10 +197,10 @@ export default function QueryResultsModal({
     <>
       <div className="modal-backdrop" onClick={onClose} />
 
-      <div role="dialog" aria-modal="true" aria-label="Query results" className="modal-center">
+      <div role="dialog" aria-modal="true" aria-labelledby="query-results-dialog-title" className="modal-center">
         {/* Header */}
         <div className="modal-header">
-          <p className="qr-label">{queryLabel}</p>
+          <p id="query-results-dialog-title" className="qr-label">{queryLabel}</p>
           <button
             onClick={handleCopy}
             aria-label="Copy list"
@@ -217,7 +229,7 @@ export default function QueryResultsModal({
           {fullText ? (
             <div className="qr-fulltext">{fullText}</div>
           ) : items.length === 0 ? (
-            <p className="qr-empty">No results</p>
+            <EmptyState variant="no-match" message="No results from the Orb's query." />
           ) : (
             items.map((item, i) => (
               <div key={item.id} style={{ display: 'flex', flexDirection: 'column', borderBottom: i < items.length - 1 ? '1px solid var(--border)' : 'none' }}>

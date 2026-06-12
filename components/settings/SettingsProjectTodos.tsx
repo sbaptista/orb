@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import { getProjectTodos } from '@/app/actions/get-user-detail'
+import SkeletonRows from '@/components/ui/SkeletonRows'
+import EmptyState from '@/components/ui/EmptyState'
 import { useBreadcrumbOverrides } from '@/lib/hooks/useBreadcrumbOverrides'
 import Link from 'next/link'
 
@@ -66,7 +68,7 @@ export default function SettingsProjectTodos({ projectId }: { projectId: string 
   useVisibilityRefetch(load)
   useEffect(() => { load() }, [load])
 
-  if (loading) return <div className="s-loading">Loading…</div>
+  if (loading) return <div className="s-loading"><SkeletonRows rows={3} /></div>
   if (accessDenied) return (
     <div className="settings-page s-page" style={{ alignItems: 'center', justifyContent: 'center', paddingTop: '10vh' }}>
       <div className="s-card" style={{ maxWidth: '500px', textAlign: 'center', padding: 'var(--sp-2xl)' }}>
@@ -92,7 +94,7 @@ export default function SettingsProjectTodos({ projectId }: { projectId: string 
       </div>
 
       {todos.length === 0 ? (
-        <div className="s-card s-empty">No todos found for this project.</div>
+        <EmptyState variant="no-tasks" message="No todos in this project yet." />
       ) : (
         <div className="s-card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>

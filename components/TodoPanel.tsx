@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useId } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Todo, Product, Priority, StatusDef } from './TodoView'
 import DistillModal from './DistillModal'
@@ -30,6 +30,7 @@ export default function TodoPanel({
   onSave,
   onDelete,
 }: Props) {
+  const deleteDescriptionId = useId()
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
   const [form, setForm] = useState({ ...todo })
@@ -403,33 +404,35 @@ export default function TodoPanel({
         {/* Footer */}
         <div className="modal-footer">
           {confirmDelete ? (
-            <div className="flex-row flex-center" style={{ gap: 'var(--sp-sm)' }}>
-              <span className="text-sm text-error">Delete this todo?</span>
+            <>
+              <span id={deleteDescriptionId} className="text-sm text-error" style={{ marginRight: 'auto' }}>Delete this todo? This cannot be undone.</span>
+              <button className="btn-cancel" onClick={() => setConfirmDelete(false)}>
+                Cancel
+              </button>
               <button
-                className="tv-bulk-confirm"
+                className="btn-danger"
                 onClick={handleDelete}
                 disabled={deleting}
-                style={{ opacity: deleting ? 'var(--opacity-disabled)' : 1 }}
+                aria-describedby={deleteDescriptionId}
               >
                 {deleting ? 'Deleting…' : 'Confirm'}
               </button>
-              <button className="text-btn" onClick={() => setConfirmDelete(false)}>
-                Cancel
-              </button>
-            </div>
+            </>
           ) : (
-            <button className="text-btn" onClick={() => setConfirmDelete(true)}>
+            <button className="btn-danger" onClick={() => setConfirmDelete(true)} style={{ marginRight: 'auto' }}>
               Delete
             </button>
           )}
 
-          <button
-            className="save-btn"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
+          {!confirmDelete && (
+            <button
+              className="btn-primary"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          )}
         </div>
       </div>
 

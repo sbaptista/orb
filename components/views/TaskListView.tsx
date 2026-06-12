@@ -2,6 +2,7 @@
 
 import type { ViewProps, ViewTodo } from './types'
 import { parseLocalDatetime } from './types'
+import EmptyState from '@/components/ui/EmptyState'
 
 function ActionButtons({
   todo, isClosed, statusColor, onSelectTodo, onToggleDone,
@@ -39,7 +40,7 @@ export default function TaskListView({
   onToggleId, onToggleAll, hoveredId, onHover,
 }: ViewProps) {
   if (todos.length === 0) {
-    return <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>No todos found.</p>
+    return <EmptyState variant="no-tasks" />
   }
 
   return (

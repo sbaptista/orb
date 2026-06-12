@@ -140,27 +140,27 @@ export default function AddProductModal({
 
           <div className="modal-footer">
             {isEdit && !confirmDelete && (
-              <button type="button" onClick={() => setConfirmDelete(true)} className="text-btn text-error">
+              <button type="button" onClick={() => setConfirmDelete(true)} className="btn-danger" style={{ marginRight: 'auto' }}>
                 Delete
               </button>
             )}
             {isEdit && confirmDelete && (
               <>
-                <span className="text-sm" style={{ color: 'var(--text3)', marginRight: 'auto' }}>Sure?</span>
-                <button type="button" onClick={handleDelete} disabled={saving} className="text-btn text-error" style={{ fontWeight: 'var(--fw-medium)' }}>
-                  {saving ? 'Deleting…' : 'Yes, delete'}
-                </button>
-                <button type="button" onClick={() => setConfirmDelete(false)} className="text-btn">
+                <span className="text-sm text-error" style={{ marginRight: 'auto' }}>Sure?</span>
+                <button type="button" onClick={() => setConfirmDelete(false)} className="btn-cancel">
                   Cancel
+                </button>
+                <button type="button" onClick={handleDelete} disabled={saving} className="btn-danger">
+                  {saving ? 'Deleting…' : 'Yes, delete'}
                 </button>
               </>
             )}
             {!confirmDelete && (
               <>
-                <button type="button" onClick={onClose} className="text-btn" style={{ marginLeft: isEdit ? 0 : 'auto' }}>
+                <button type="button" onClick={onClose} className="btn-cancel">
                   Cancel
                 </button>
-                <button type="submit" disabled={saving} className="save-btn">
+                <button type="submit" disabled={saving} className="btn-primary">
                   {saving ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Save' : 'Create')}
                 </button>
               </>

@@ -9,6 +9,7 @@ import { visibleProjectsQuery, clampProjectName } from '@/lib/projects'
 import AddProductModal from './AddProductModal'
 import AppNav from './AppNav'
 import SearchModal from './ui/SearchModal'
+import EmptyState from './ui/EmptyState'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { registerOrbTour, unregisterOrbTour, runOrbTour } from './OrbTour'
 import { OrbDevPanel, DevTestError, type MoodOverride, type SimulateError } from './OrbDevPanel'
@@ -22,6 +23,8 @@ import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import { useToast } from '@/components/ui/Toast'
 import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
 import MuralCanvas from './MuralCanvas'
+import SkeletonRows from './ui/SkeletonRows'
+import FilterKebab from './ui/FilterKebab'
 // HScrollNav removed — project strip eliminated
 import { isActive, ACTIVE_STATUSES, PARKED_STATUSES } from '@/lib/status-groups'
 import { computeUrgency, isDueWithinWarning, type Urgency } from '@/lib/orb-state'
@@ -1123,18 +1126,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const handleDividerResizeEnd = useCallback(() => {
     const container = splitRef.current
     if (!container || orbPaneSize === null) return
-    const total = isMobile ? container.clientHeight : container.clientWidth
-    const ratio = orbPaneSize / total
-    // Snap to nearest: 0.3, 0.5, 0.7
-    let snapped: number
-    if (ratio < 0.35) snapped = 0.3
-    else if (ratio > 0.65) snapped = 0.7
-    else snapped = 0.5
-    const snappedSize = snapped * total
-    setOrbPaneSize(snappedSize)
     try {
       const key = isMobile ? 'orb_split_ratio_mobile' : 'orb_split_ratio'
-      localStorage.setItem(key, String(snappedSize))
+      localStorage.setItem(key, String(orbPaneSize))
     } catch { /* ignore */ }
   }, [orbPaneSize, isMobile])
 
@@ -1432,21 +1426,34 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             {/* Filter bar */}
             {showFilters && (
               <div className="tv-filterbar">
-                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="tv-select" aria-label="Filter by status">
-                  <option value="all">All</option>
-                  <option value="active">Active (Open + In Progress)</option>
-                  <option value="inactive">Parked (Deferred + On Hold)</option>
-                  <option value="open">Open</option>
-                  <option value="in progress">In Progress</option>
-                  <option value="deferred">Deferred</option>
-                  <option value="on hold">On Hold</option>
-                  <option value="closed">Closed</option>
-                </select>
-                <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className="tv-select" aria-label="Filter by priority">
-                  <option value="all">All priorities</option>
-                  {priorities.map(p => <option key={p.value} value={String(p.value)}>{p.label}</option>)}
-                </select>
+                <FilterKebab
+                  value={filterStatus}
+                  onChange={setFilterStatus}
+                  ariaLabel="Filter by status"
+                  options={[
+                    { value: 'all', label: 'All statuses' },
+                    { value: 'active', label: 'Active (Open + In Progress)' },
+                    { value: 'inactive', label: 'Parked (Deferred + On Hold)' },
+                    { value: 'open', label: 'Open' },
+                    { value: 'in progress', label: 'In Progress' },
+                    { value: 'deferred', label: 'Deferred' },
+                    { value: 'on hold', label: 'On Hold' },
+                    { value: 'closed', label: 'Closed' },
+                  ]}
+                />
+                <FilterKebab
+                  value={filterPriority}
+                  onChange={setFilterPriority}
+                  ariaLabel="Filter by priority"
+                  options={[
+                    { value: 'all', label: 'All priorities' },
+                    ...priorities.map(p => ({ value: String(p.value), label: p.label })),
+                  ]}
+                />
                 <span className="text-xs text-muted" style={{ marginLeft: 'auto' }}>{todos.length} todo{todos.length !== 1 ? 's' : ''}</span>
+                <button className="nav-btn" onClick={() => setShowFilters(false)} aria-label="Close filters" title="Close" style={{ padding: '2px 4px', minWidth: 'auto' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
               </div>
             )}
 
@@ -1479,12 +1486,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             {/* Todo list */}
             <div className="ud-list-content">
               {products.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 'var(--sp-3xl) var(--sp-lg)' }}>
-                  <p className="text-sm text-muted" style={{ marginBottom: 'var(--sp-md)' }}>No projects yet.</p>
-                  <button className="tv-toolbar-primary" onClick={() => setShowAddProduct(true)}>+ Create Project</button>
-                </div>
+                <EmptyState variant="no-projects" action={{ label: '+ Create Project', onClick: () => setShowAddProduct(true) }} />
               ) : listLoading ? (
-                <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>Loading…</p>
+                <SkeletonRows />
               ) : viewMode === 'checklist' ? (
                 <TaskChecklistView
                   todos={todos}
@@ -1597,6 +1601,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
       {projectSearchOpen && (
         <SearchModal
+          title="Change Project"
           placeholder="Search projects…"
           items={adminProjects.map(p => ({
             id: p.id,

@@ -20,6 +20,7 @@ import HScrollNav from '@/components/ui/HScrollNav'
 import { isActive } from '@/lib/status-groups'
 import { computeUrgency, isDueWithinWarning, type Urgency } from '@/lib/orb-state'
 import PrintModal from './PrintModal'
+import SkeletonRows from './ui/SkeletonRows'
 
 type Product  = { id: string; name: string; code: string | null; description: string | null; created_by: string }
 type Todo     = { id: string; title: string; status: string; priority_value: number | null; due_at: string | null; product_id: string }
@@ -833,7 +834,7 @@ Type /? anytime for a full command list. What would you like to work on?` },
 
     if (loading) return (
         <div className="dash-loading">
-            <p className="text-sm text-muted">Loading…</p>
+            <SkeletonRows />
         </div>
     )
 

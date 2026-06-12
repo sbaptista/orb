@@ -160,9 +160,15 @@ export default function SettingsAudit() {
       {viewingRow && (
         <>
           <div className="modal-backdrop" onClick={() => setViewingRow(null)} />
-          <div className="modal-center" style={{ maxWidth: '560px' }}>
+          <div
+            className="modal-center"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="audit-entry-dialog-title"
+            style={{ maxWidth: '560px' }}
+          >
             <div className="modal-header">
-              <h3 style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
+              <h3 id="audit-entry-dialog-title" style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
                 Audit Entry
               </h3>
               <button className="close-btn" onClick={() => setViewingRow(null)} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>

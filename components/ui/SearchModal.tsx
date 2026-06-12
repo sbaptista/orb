@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useId } from 'react'
 
 export type SearchItem = {
   id: string
@@ -14,11 +14,13 @@ type Props = {
   onSelect: (id: string) => void
   onClose: () => void
   placeholder?: string
+  title?: string
   emptyMessage?: string
   errorMessage?: string
 }
 
-export default function SearchModal({ items, onSelect, onClose, placeholder = 'Search…', emptyMessage = 'No results', errorMessage }: Props) {
+export default function SearchModal({ items, onSelect, onClose, placeholder = 'Search…', title = 'Search', emptyMessage = 'No results', errorMessage }: Props) {
+  const titleId = useId()
   const [query, setQuery] = useState('')
   const [highlightIndex, setHighlightIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -62,7 +64,20 @@ export default function SearchModal({ items, onSelect, onClose, placeholder = 'S
 
   return (
     <div className="search-modal-overlay" onClick={onClose}>
-      <div className="search-modal" onClick={e => e.stopPropagation()} onKeyDown={handleKeyDown}>
+      <div
+        className="search-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={e => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
+      >
+        <div className="search-modal-header">
+          <span id={titleId} className="search-modal-title">{title}</span>
+          <button type="button" className="close-btn" onClick={onClose} aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
         <div className="search-modal-input-wrap">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="search-modal-icon">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>

@@ -231,9 +231,9 @@ export default function TodoForm({
 
           {error && <p className="text-sm text-error">{error}</p>}
 
-          <div className="tf-footer">
-            <button type="button" onClick={onClose} className="text-btn">Cancel</button>
-            <button type="submit" disabled={saving} className="save-btn">{saving ? 'Adding…' : 'Add'}</button>
+          <div className="modal-footer">
+            <button type="button" onClick={onClose} className="btn-cancel">Cancel</button>
+            <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Adding…' : 'Add'}</button>
           </div>
         </form>
       </div>

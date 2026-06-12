@@ -1,6 +1,7 @@
 'use client'
 
 import type { ViewProps } from './types'
+import EmptyState from '@/components/ui/EmptyState'
 
 export default function TaskChecklistView({ todos, isClosed, onSelectTodo, onToggleDone }: ViewProps) {
   const open = todos.filter(t => !isClosed(t.status))
@@ -8,7 +9,7 @@ export default function TaskChecklistView({ todos, isClosed, onSelectTodo, onTog
   const sorted = [...open, ...closed]
 
   if (sorted.length === 0) {
-    return <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>Nothing here yet.</p>
+    return <EmptyState variant="no-tasks" />
   }
 
   return (

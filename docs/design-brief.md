@@ -146,7 +146,7 @@ Touch feedback on press. Visual change on hover. The user should never wonder "d
 
 ### No dead ends
 
-Every screen answers: what can I do here? Empty states are friendly and actionable ("No tasks yet — ask the Orb to help you plan, or tap + New"). Error states offer recovery. Loading states show progress, not void.
+Every screen answers: what can I do here? Empty states are friendly and actionable ("No tasks yet — ask Orb to help you plan, or tap + New"). Error states offer recovery. Loading states show progress, not void.
 
 ### Speed is a feature
 

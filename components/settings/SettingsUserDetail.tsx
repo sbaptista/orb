@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import { useToast } from '@/components/ui/Toast'
+import SkeletonRows from '@/components/ui/SkeletonRows'
 import { getUserDetail, getUserProjects } from '@/app/actions/get-user-detail'
 import { createProject, updateProject, deleteProject } from '@/app/actions/manage-project'
 import { updateUserStage } from '@/app/actions/manage-user'
@@ -256,7 +257,7 @@ export default function SettingsUserDetail({ userId }: { userId: string }) {
     setConfirmDeleteId(null)
   }
 
-  if (loading) return <div className="s-loading">Loading…</div>
+  if (loading) return <div className="s-loading"><SkeletonRows rows={3} /></div>
   if (accessDenied) return (
       <div className="settings-page s-page" style={{ alignItems: 'center', justifyContent: 'center', paddingTop: '10vh' }}>
           <div className="s-card" style={{ maxWidth: '500px', textAlign: 'center', padding: 'var(--sp-2xl)' }}>

@@ -10,6 +10,7 @@ import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import TodoPanel from './TodoPanel'
 import TodoForm from './TodoForm'
+import EmptyState from '@/components/ui/EmptyState'
 import DistillModal from './DistillModal'
 import { logAudit } from '@/app/actions/log-audit'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
@@ -17,6 +18,8 @@ import { checkReminders } from '@/app/actions/reminder-actions'
 import { ACTIVE_STATUSES, PARKED_STATUSES } from '@/lib/status-groups'
 import { useToast } from '@/components/ui/Toast'
 import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
+import SkeletonRows from '@/components/ui/SkeletonRows'
+import FilterKebab from '@/components/ui/FilterKebab'
 
 export type Todo = {
   id: string
@@ -620,35 +623,37 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
       {/* Filter bar — collapsed by default */}
       {showFilters && (
         <div className="tv-filterbar">
-          <select
+          <FilterKebab
             value={filterStatus}
-            onChange={e => setFilterStatus(e.target.value)}
-            className="tv-select"
-            aria-label="Filter by status"
-          >
-            <option value="all">All</option>
-            <option value="active">Active (Open + In Progress)</option>
-            <option value="inactive">Parked (Deferred + On Hold)</option>
-            <option value="open">Open</option>
-            <option value="in progress">In Progress</option>
-            <option value="deferred">Deferred</option>
-            <option value="on hold">On Hold</option>
-            <option value="closed">Closed</option>
-          </select>
-
-          <select
+            onChange={setFilterStatus}
+            ariaLabel="Filter by status"
+            options={[
+              { value: 'all', label: 'All statuses' },
+              { value: 'active', label: 'Active (Open + In Progress)' },
+              { value: 'inactive', label: 'Parked (Deferred + On Hold)' },
+              { value: 'open', label: 'Open' },
+              { value: 'in progress', label: 'In Progress' },
+              { value: 'deferred', label: 'Deferred' },
+              { value: 'on hold', label: 'On Hold' },
+              { value: 'closed', label: 'Closed' },
+            ]}
+          />
+          <FilterKebab
             value={filterPriority}
-            onChange={e => setFilterPriority(e.target.value)}
-            className="tv-select"
-            aria-label="Filter by priority"
-          >
-            <option value="all">All priorities</option>
-            {priorities.map(p => <option key={p.value} value={String(p.value)}>{p.label}</option>)}
-          </select>
+            onChange={setFilterPriority}
+            ariaLabel="Filter by priority"
+            options={[
+              { value: 'all', label: 'All priorities' },
+              ...priorities.map(p => ({ value: String(p.value), label: p.label })),
+            ]}
+          />
 
           <span className="text-xs text-muted" style={{ marginLeft: 'auto' }}>
             {filtered.length} todo{filtered.length !== 1 ? 's' : ''}
           </span>
+          <button className="nav-btn" onClick={() => setShowFilters(false)} aria-label="Close filters" title="Close" style={{ padding: '2px 4px', minWidth: 'auto' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
       )}
 
@@ -687,10 +692,10 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
           <div className="tv-bulk-bar-top">
             {confirmBulkDelete ? (
               <>
-                <span className="text-error" style={{ fontSize: 'var(--fs-sm)', fontWeight: 'var(--fw-medium)' }}>
-                  Delete {selectedIds.length} todo{selectedIds.length !== 1 ? 's' : ''}?
+                <span id="todo-bulk-delete-description" className="text-error" style={{ fontSize: 'var(--fs-sm)', fontWeight: 'var(--fw-medium)' }}>
+                  Delete {selectedIds.length} todo{selectedIds.length !== 1 ? 's' : ''}? This cannot be undone.
                 </span>
-                <button className="tv-bulk-confirm" onClick={handleBulkDelete}>
+                <button className="tv-bulk-confirm" onClick={handleBulkDelete} aria-describedby="todo-bulk-delete-description">
                   Confirm
                 </button>
                 <button className="tv-bulk-btn text-muted" onClick={() => setConfirmBulkDelete(false)}>
@@ -729,9 +734,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
         )}
 
         {loading ? (
-          <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>
-            Loading…
-          </p>
+          <SkeletonRows />
         ) : checklistMode ? (
           /* ── Checklist skin ── */
           (() => {
@@ -743,9 +746,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
             const closed = allItems.filter(t =>  isClosed(t.status))
             const sorted = [...open, ...closed]
             return sorted.length === 0 ? (
-              <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>
-                Nothing here yet.
-              </p>
+              <EmptyState variant="no-tasks" />
             ) : (
               <div className="tv-list-card" style={{ padding: 0, overflow: 'hidden' }}>
                 <table className="tv-table tv-table--checklist">
@@ -798,9 +799,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
             )
           })()
         ) : filtered.length === 0 ? (
-          <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>
-            {filterStatus === 'active' ? 'Nothing active — you\'re clear.' : 'No todos found.'}
-          </p>
+          <EmptyState variant={filterStatus === 'active' ? 'all-clear' : 'no-results'} />
         ) : (
           <div className="tv-list-card" style={{ padding: 0, overflow: 'hidden' }}>
             <table className="tv-table">

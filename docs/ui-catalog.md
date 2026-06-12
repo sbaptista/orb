@@ -14,8 +14,9 @@
 **CSS prefix:** `ud-`
 
 The main app layout. Two equal-citizen panes (Orb + List) with a draggable divider:
-- **iPhone:** Vertical stack (column), divider drags up/down
-- **Desktop:** Side-by-side (row), divider drags left/right
+- **MacBook:** Side-by-side (row), divider drags left/right
+- **iPad:** Side-by-side in wider layouts, with a 40px touch-friendly divider gutter and visible drag affordance
+- **iPhone:** Orb/List tab switching on narrow screens; divider is hidden
 - **Zero-Project State:** When no projects are loaded, clicking the Orb opens the project creation modal. The "+ New" todo button is disabled and triggers a friendly toast message requesting the user to create a project first.
 - Full-bleed `MuralCanvas` fractal at z:0 behind everything
 
@@ -27,8 +28,8 @@ The main app layout. Two equal-citizen panes (Orb + List) with a draggable divid
 | `ud-list-toolbar` | Toolbar row inside list pane (sort, filter, view toggle, + New) |
 | `ud-list-title` | Project name heading inside list toolbar |
 | `ud-list-content` | Scrollable content area inside list pane |
-| `ud-divider` / `ud-divider--vertical` / `ud-divider--horizontal` | Drag handle between panes |
-| `ud-divider-handle` | The visible pill inside the divider |
+| `ud-divider` / `ud-divider--vertical` / `ud-divider--horizontal` | Drag handle between panes; 40px gutter on coarse pointers |
+| `ud-divider-handle` | The visible pill inside the divider, with hover/drag feedback |
 
 On the dashboard, AppNav renders dashboard-specific controls as children (merged bar):
 - **Orb toggle** (left)
@@ -94,7 +95,7 @@ Standard settings layout with centered content card.
 
 **Dashboard layout (merged bar):**
 - **Orb toggle** — left edge, collapses/expands Orb pane (desktop) or switches to Orb tab (mobile)
-- **Project search** — flex: 0 1 320px, search-based dropdown for selecting projects
+- **Change Project** — opens a search-based modal for selecting projects
 - **+ Project** — opens AddProductModal (hidden on mobile, available via Commands modal)
 - **Spacer** (flex: 1)
 - **List toggle** — collapses/expands list pane (desktop) or switches to list tab (mobile)
@@ -107,6 +108,7 @@ Standard settings layout with centered content card.
 On narrow viewports (iPhone, mobile screens), the individual top nav buttons (Print, Help, Settings, Account) collapse into a single button in the top bar:
 - **Commands Button:** Labeled "Commands" (grid/menu icon).
 - **Behavior:** Tapping it opens a centered modal with links to the full commands: "Print Backlog", "Help & Guidelines", "Settings", and "Account Profile".
+- **Accessibility:** The menu opens as a named modal dialog. Command links remain plain links/buttons inside the dialog.
 
 ### Nav Buttons (`nav-btn`)
 **Used in:** Command bar, AmbientDashboard nav
@@ -128,10 +130,12 @@ On narrow viewports (iPhone, mobile screens), the individual top nav buttons (Pr
 | `tv-topbar-title` | Project name heading |
 | `tv-topbar-nav` | Back button / breadcrumb |
 
-### Project Search Dropdown (`admin-search-*`)
+### Change Project Modal (`SearchModal`)
 **Used in:** Unified Dashboard command bar, TodoView top bar
 
-Searchable dropdown for switching projects. Admins see all projects with owner names; users see only their own.
+Searchable modal for switching projects. The dashboard command bar labels this action "Change Project"; the modal title is also "Change Project". Admins see all projects with owner names; users see only their own.
+
+Accessibility contract: `SearchModal` renders as a named `role="dialog"` with `aria-modal="true"`, focuses the search field on open, and keeps keyboard support for arrow navigation, Enter selection, and Escape close.
 
 | Class | Purpose |
 |---|---|
@@ -430,4 +434,3 @@ This catalog must stay in sync with `globals.css` and `components/`. Never leave
 ---
 
 *Last updated: 2026-06-10 — Session 75 (Antigravity) - Fix mobile More button dropdown backdrop stacking and touch interception
-

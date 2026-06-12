@@ -6,6 +6,29 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.202',
+    date: '2026-06-11',
+    changes: [
+      'Accessibility hardening (ORB-239): Added named dialog semantics to the project switcher, Commands modal, Distill Knowledge modal, Settings CRUD modal, and Audit Entry modal.',
+      'Form accessibility: Associated visible labels with previously weakly-named form controls in query results editing, category settings, and generic settings filters.',
+      'Destructive actions: Added descriptive confirmation text wiring for todo delete, bulk todo delete, query-result delete, and settings delete confirmation flows.',
+      'Filter keyboard behavior: Updated FilterKebab to use a menu/menuitemradio pattern with Arrow, Home, End, Escape, Enter, and Space keyboard support.',
+    ]
+  },
+  {
+    version: 'v0.5.201',
+    date: '2026-06-11',
+    changes: [
+      'Interaction polish pass (ORB-196): Replaced bare loading text with animated SkeletonRows across main dashboard views and settings screens.',
+      'Empty states: Added Orb-illustrated empty states to task views and query results so blank screens feel intentional.',
+      'Filter presentation: Replaced native status/priority filter selects in UnifiedDashboard and TodoView with styled FilterKebab menus and close controls.',
+      'Modal conformity: Standardized modal footers around btn-cancel, btn-primary, and btn-danger patterns.',
+      'Copy cleanup: Standardized user-facing language to "Ask Orb" and added a clearer SearchModal header with close control.',
+      'Resize handle visibility (ORB-241): Made the split-pane divider easier to discover, added active drag feedback, separator semantics, and a 40px coarse-pointer gutter for touch devices.',
+      'Project switcher clarity (ORB-242): Renamed the top command bar "Search" action to "Change Project", updated its icon, and changed the project-switcher dialog title to "Change Project".',
+    ]
+  },
+  {
     version: 'v0.5.193',
     date: '2026-06-10',
     changes: [

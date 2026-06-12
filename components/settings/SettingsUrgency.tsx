@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
+import SkeletonRows from '@/components/ui/SkeletonRows'
 
 export default function SettingsUrgency() {
   const supabase = createClient()
@@ -71,7 +72,7 @@ export default function SettingsUrgency() {
 
   const hasChanges = Number(urgencyThreshold) !== origUrgencyThreshold.current
 
-  if (loading) return <div className="s-loading">Loading…</div>
+  if (loading) return <div className="s-loading"><SkeletonRows rows={3} /></div>
 
   return (
     <div className="s-page">

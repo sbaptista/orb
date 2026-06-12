@@ -430,7 +430,7 @@ export default function OrbConversation({
                     <form onSubmit={handleFormSubmit}>
                         {!input && !submitting && (
                             <div className="oc-placeholder">
-                                Type / or ask the Orb anything...
+                                Type / or ask Orb anything...
                             </div>
                         )}
 

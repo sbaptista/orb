@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
+import SkeletonRows from '@/components/ui/SkeletonRows'
 import { useToast } from '@/components/ui/Toast'
 import { getFrictionLogs, deleteFrictionLog } from '@/app/actions/friction-actions'
 
@@ -104,7 +105,7 @@ export default function SettingsFriction() {
     setLogs(prev => prev.filter(l => l.id !== id))
   }
 
-  if (loading) return <div className="s-loading">Loading…</div>
+  if (loading) return <div className="s-loading"><SkeletonRows rows={3} /></div>
 
   return (
     <div className="settings-page s-page-wide">

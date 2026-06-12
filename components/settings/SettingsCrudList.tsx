@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useEffect, useState, useMemo, useCallback, useRef, type ReactNode } from 'react'
+import React, { useEffect, useState, useMemo, useCallback, useRef, useId, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
+import SkeletonRows from '@/components/ui/SkeletonRows'
 import { useToast } from '@/components/ui/Toast'
 import HScrollNav from '@/components/ui/HScrollNav'
 
@@ -138,6 +139,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [page, setPage] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
+  const scopeFilterId = useId()
 
   // Column width resizing state/refs (declared at top level to obey hook rules)
   const colStorageKey = `orb-col-widths-v2-${config.title}`
@@ -406,16 +408,17 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     load()
   }
 
-  if (loading) return <div className="s-loading">Loading…</div>
+  if (loading) return <div className="s-loading"><SkeletonRows rows={3} /></div>
 
   const hasBulk = !!config.bulkDelete
   const colCount = (config.tableColumns?.length ?? 1) + (hasBulk ? 1 : 0)
 
   function renderDeleteConfirm(item: T) {
     const deletable = config.canDelete ? config.canDelete(item, extra) : true
+    const descriptionId = `delete-confirm-${config.getId(item)}`
     const content = (
       <>
-        <span className="text-sm flex-1">
+        <span id={descriptionId} className="text-sm flex-1">
           {config.deleteWarning
             ? config.deleteWarning(item, extra)
             : <>Delete <strong>{(item as any).name ?? (item as any).label}</strong>?</>
@@ -423,7 +426,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         </span>
         {deletable ? (
           <>
-            <button className="btn-danger-confirm" onClick={() => handleDelete(item)} disabled={saving}
+            <button className="btn-danger-confirm" onClick={() => handleDelete(item)} disabled={saving} aria-describedby={descriptionId}
               style={{ opacity: saving ? 'var(--opacity-disabled)' : 1 }}>
               {saving ? 'Deleting…' : 'Confirm'}
             </button>
@@ -438,19 +441,20 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       return (
         <tr key={config.getId(item)}>
           <td colSpan={colCount + 1} className="audit-td">
-            <div className="s-row-delete" style={{ border: 'none', padding: 0 }}>{content}</div>
+            <div className="s-row-delete" style={{ border: 'none', padding: 0 }} aria-live="polite" aria-atomic="true">{content}</div>
           </td>
         </tr>
       )
     }
-    return <div key={config.getId(item)} className="s-row-delete">{content}</div>
+    return <div key={config.getId(item)} className="s-row-delete" aria-live="polite" aria-atomic="true">{content}</div>
   }
 
   function renderDeleteConfirmCard(item: T) {
     const deletable = config.canDelete ? config.canDelete(item, extra) : true
+    const descriptionId = `delete-confirm-card-${config.getId(item)}`
     return (
-      <div key={config.getId(item)} className="crud-card s-row-delete" style={{ border: '1px solid var(--error)', padding: 'var(--sp-md)' }}>
-        <span className="text-sm flex-1">
+      <div key={config.getId(item)} className="crud-card s-row-delete" aria-live="polite" aria-atomic="true" style={{ border: '1px solid var(--error)', padding: 'var(--sp-md)' }}>
+        <span id={descriptionId} className="text-sm flex-1">
           {config.deleteWarning
             ? config.deleteWarning(item, extra)
             : <>Delete <strong>{(item as any).name ?? (item as any).label}</strong>?</>
@@ -459,7 +463,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         <div className="flex-row gap-sm" style={{ marginTop: 'var(--sp-sm)' }}>
           {deletable ? (
             <>
-              <button className="btn-danger-confirm" onClick={() => handleDelete(item)} disabled={saving}
+              <button className="btn-danger-confirm" onClick={() => handleDelete(item)} disabled={saving} aria-describedby={descriptionId}
                 style={{ opacity: saving ? 'var(--opacity-disabled)' : 1 }}>
                 {saving ? 'Deleting…' : 'Confirm'}
               </button>
@@ -621,8 +625,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
 
       {config.scopeFilter && !usePills && (
         <div style={{ marginBottom: 'var(--sp-xl)' }}>
-          <label className="label">Filters</label>
+          <label htmlFor={scopeFilterId} className="label">Filters</label>
           <select
+            id={scopeFilterId}
             className="crud-scope-select"
             value={scope}
             onChange={e => setScope(e.target.value)}
@@ -900,9 +905,14 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       {modalOpen && (
         <>
           <div className="modal-backdrop" onClick={closeModal} />
-          <div className={`modal-center ${config.modalClass ?? ''}`}>
+          <div
+            className={`modal-center ${config.modalClass ?? ''}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-crud-dialog-title"
+          >
             <div className="modal-header" style={{ justifyContent: 'space-between' }}>
-              <h3 style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
+              <h3 id="settings-crud-dialog-title" style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
                 {modalTitle}
               </h3>
               <button className="close-btn" onClick={closeModal} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>

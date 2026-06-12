@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { visibleProjectsQuery } from '@/lib/projects'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
+import SkeletonRows from '@/components/ui/SkeletonRows'
 
 type Product = {
   id: string
@@ -244,7 +245,7 @@ export default function DashboardProducts() {
 
   if (loading) return (
     <main className="max-w-4xl mx-auto px-6 py-12">
-      <p className="text-sm text-zinc-400">Loading…</p>
+      <SkeletonRows />
     </main>
   )
 

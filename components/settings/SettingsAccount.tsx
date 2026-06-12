@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import SkeletonRows from '@/components/ui/SkeletonRows'
 import { useToast } from '@/components/ui/Toast'
 
 export default function SettingsAccount() {
@@ -102,7 +103,7 @@ export default function SettingsAccount() {
     lastName.trim() !== origLastName.current ||
     newEmail.trim() !== email
 
-  if (loading) return <div className="s-loading">Loading…</div>
+  if (loading) return <div className="s-loading"><SkeletonRows rows={3} /></div>
 
   return (
     <div className="settings-page s-page" style={{ maxWidth: '480px' }}>

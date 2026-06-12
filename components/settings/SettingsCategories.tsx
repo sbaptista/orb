@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import SettingsCrudList from './SettingsCrudList'
 
 type Product = { id: string; name: string }
@@ -9,6 +10,10 @@ type CatForm = { name: string; product_id: string; sort_order: string }
 const EMPTY_FORM: CatForm = { name: '', product_id: '', sort_order: '0' }
 
 export default function SettingsCategories() {
+  const nameId = useId()
+  const sortOrderId = useId()
+  const productId = useId()
+
   return (
     <SettingsCrudList<Category, CatForm>
       config={{
@@ -74,8 +79,9 @@ export default function SettingsCategories() {
           <div className="s-form">
             <div className="grid-2col mb-md">
               <div>
-                <label className="label">Name *</label>
+                <label htmlFor={nameId} className="label">Name *</label>
                 <input
+                  id={nameId}
                   className="input"
                   value={form.name}
                   onChange={e => onChange({ ...form, name: e.target.value })}
@@ -84,8 +90,9 @@ export default function SettingsCategories() {
                 />
               </div>
               <div>
-                <label className="label">Sort Order</label>
+                <label htmlFor={sortOrderId} className="label">Sort Order</label>
                 <input
+                  id={sortOrderId}
                   type="number"
                   className="input"
                   value={form.sort_order}
@@ -94,8 +101,9 @@ export default function SettingsCategories() {
               </div>
             </div>
             <div className="mb-md">
-              <label className="label">Product</label>
+              <label htmlFor={productId} className="label">Product</label>
               <select
+                id={productId}
                 className="select"
                 value={form.product_id}
                 onChange={e => onChange({ ...form, product_id: e.target.value })}

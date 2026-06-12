@@ -10,6 +10,8 @@ import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import PrintModal from '@/components/PrintModal'
 import Breadcrumbs from '@/components/ui/Breadcrumbs'
 import { ACTIVE_STATUSES } from '@/lib/status-groups'
+import EmptyState from '@/components/ui/EmptyState'
+import SkeletonRows from '@/components/ui/SkeletonRows'
 
 type Todo = {
   id: string
@@ -331,13 +333,9 @@ export default function UnifiedView({
           )}
 
           {loading ? (
-            <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>
-              Loading…
-            </p>
+            <SkeletonRows />
           ) : todos.length === 0 ? (
-            <p className="text-sm text-muted" style={{ textAlign: 'center', padding: 'var(--sp-3xl) 0' }}>
-              Nothing active — you&apos;re clear.
-            </p>
+            <EmptyState variant="all-clear" />
           ) : (
             <div className="tv-list-card" style={{ padding: 0, overflow: 'hidden' }}>
               <table className="tv-table">

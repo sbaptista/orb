@@ -151,7 +151,7 @@ export default function OrbPanel({ productId, productCode, todoCount, onMutation
       <div className="up-thread" ref={threadRef}>
         {messages.length === 0 ? (
           <div className="up-empty">
-            <p>Ask the Orb anything about your backlog.</p>
+            <p>Ask Orb anything about your backlog.</p>
             <p className="text-xs text-muted">Summarize, query, create, update, or bulk edit tasks.</p>
           </div>
         ) : (
@@ -182,7 +182,7 @@ export default function OrbPanel({ productId, productCode, todoCount, onMutation
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask the Orb…"
+          placeholder="Ask Orb…"
           rows={1}
           disabled={submitting}
         />

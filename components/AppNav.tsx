@@ -21,9 +21,14 @@ type Props = {
 
 // ── SVG Icons ──
 
-const IconSearch = (
+const IconChangeProject = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    <rect x="3" y="4" width="7" height="7" rx="1.5"/>
+    <rect x="14" y="13" width="7" height="7" rx="1.5"/>
+    <path d="M14 5h3.5A2.5 2.5 0 0 1 20 7.5V10"/>
+    <path d="M10 19H6.5A2.5 2.5 0 0 1 4 16.5V14"/>
+    <path d="M17 7l3 3 3-3"/>
+    <path d="M7 17l-3-3-3 3"/>
   </svg>
 )
 const IconPlus = (
@@ -79,12 +84,12 @@ export default function AppNav({ printContext, userInitial = '?', userName, orbT
         {/* ── Spacer (left) ── */}
         <div className="appnav-spacer" />
 
-        {/* ── Center-left group: Search + Project ── */}
+        {/* ── Center-left group: Change Project + New Project ── */}
         {onDashboard && (
           <div className="appnav-group">
-            <button className="appnav-btn" onClick={onSearchProjects} data-tooltip="Search projects" aria-label="Search projects">
-              <span className="appnav-btn-icon">{IconSearch}</span>
-              <span className="appnav-btn-label">Search</span>
+            <button className="appnav-btn" onClick={onSearchProjects} data-tooltip="Change project" aria-label="Change project">
+              <span className="appnav-btn-icon">{IconChangeProject}</span>
+              <span className="appnav-btn-label">Change Project</span>
             </button>
             <button className="appnav-btn" onClick={onAddProject} data-tooltip="Create a new project" aria-label="New project">
               <span className="appnav-btn-icon">{IconPlus}</span>
@@ -124,9 +129,16 @@ export default function AppNav({ printContext, userInitial = '?', userName, orbT
       {/* ── Commands modal ── */}
       {commandsOpen && (
         <div className="modal-overlay" onClick={() => setCommandsOpen(false)}>
-          <div className="modal-center" onClick={e => e.stopPropagation()} style={{ maxWidth: '320px' }}>
+          <div
+            className="modal-center"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="commands-dialog-title"
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '320px' }}
+          >
             <div className="modal-header">
-              <h2 style={{ flex: 1, margin: 0 }}>Commands</h2>
+              <h2 id="commands-dialog-title" style={{ flex: 1, margin: 0 }}>Commands</h2>
               <button className="close-btn" onClick={() => setCommandsOpen(false)} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div className="ud-commands-list">

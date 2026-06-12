@@ -68,7 +68,7 @@ export function runOrbTour(env: TourEnv) {
     {
       element: q('[data-tour="conversation-input"]'),
       popover: {
-        title: 'Ask the Orb',
+        title: 'Ask Orb',
         description:
           'Orb is also an analyst. Type <em>What should I do next?</em> here and it reasons across your projects.',
         side: 'top',
