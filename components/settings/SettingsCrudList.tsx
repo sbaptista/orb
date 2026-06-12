@@ -18,6 +18,14 @@ type TableColumn<T = any> = {
   hidden?: 'mobile'
 }
 
+type PaginationRequest = {
+  page: number
+  pageSize: number
+  search: string
+  sortKey: string | null
+  sortDir: 'asc' | 'desc'
+}
+
 type CrudConfig<T, F> = {
   title: string
   table: string
@@ -31,9 +39,9 @@ type CrudConfig<T, F> = {
   layout?: 'list' | 'table'
   tableColumns?: TableColumn<T>[]
 
-  load?: (supabase: any, pagination?: { page: number; pageSize: number }) => Promise<{ items: T[]; extra?: any; totalCount?: number }>
-  /** Server-side pagination. When set, load() receives { page, pageSize } and must return totalCount. */
-  pagination?: { pageSize: number }
+  load?: (supabase: any, pagination?: PaginationRequest) => Promise<{ items: T[]; extra?: any; totalCount?: number }>
+  /** Server-side pagination. Search and sorting stay local unless explicitly enabled. */
+  pagination?: { pageSize: number; serverSearch?: boolean; serverSort?: boolean }
   /** Extra ReactNode rendered in the header area (right side, before the Add button). */
   headerExtra?: ReactNode
   /** Custom handler when a row is clicked. When provided, replaces the default edit-on-click behavior. */
@@ -119,6 +127,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
   const tableScrollRef = useRef<HTMLDivElement>(null)
+  const loadRequestId = useRef(0)
 
   const [items, setItems] = useState<T[]>([])
   const [extra, setExtra] = useState<any>({})
@@ -136,6 +145,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [page, setPage] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
@@ -204,20 +214,41 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   }, [colWidths, config.bulkDelete, config.tableColumns])
 
   const canSelect = config.bulkDelete?.canSelect ?? (() => true)
+  const usesServerSearch = !!config.pagination?.serverSearch
+  const usesServerSort = !!config.pagination?.serverSort
+
+  useEffect(() => {
+    if (!usesServerSearch) {
+      setDebouncedSearch(search)
+      return
+    }
+
+    const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => window.clearTimeout(timeout)
+  }, [search, usesServerSearch])
 
   const load = useCallback(async () => {
+    const requestId = ++loadRequestId.current
     if (config.load) {
-      const paginationArg = config.pagination ? { page, pageSize: config.pagination.pageSize } : undefined
+      const paginationArg = config.pagination ? {
+        page,
+        pageSize: config.pagination.pageSize,
+        search: usesServerSearch ? debouncedSearch : '',
+        sortKey: usesServerSort ? sortKey : null,
+        sortDir,
+      } : undefined
       const result = await config.load(supabase, paginationArg)
+      if (requestId !== loadRequestId.current) return
       setItems(result.items)
       if (result.extra) setExtra(result.extra)
       if (result.totalCount !== undefined) setTotalCount(result.totalCount)
     } else {
       const { data } = await supabase.from(config.table).select('*').order(config.orderBy ?? 'sort_order')
+      if (requestId !== loadRequestId.current) return
       setItems(data ?? [])
     }
     setLoading(false)
-  }, [supabase, config, page])
+  }, [supabase, config, page, debouncedSearch, sortKey, sortDir, usesServerSearch, usesServerSort])
 
   useVisibilityRefetch(load)
   useEffect(() => { load() }, [load])
@@ -226,12 +257,12 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     ? items.filter(item => config.scopeFilter!.filterItem(item, scope))
     : items
 
-  const filtered = config.searchFilter && search.trim()
+  const filtered = !usesServerSearch && config.searchFilter && search.trim()
     ? scoped.filter(item => config.searchFilter!(item, search.trim(), extra))
     : scoped
 
   const displayed = (() => {
-    if (!sortKey) return filtered
+    if (!sortKey || usesServerSort) return filtered
     const col = config.tableColumns?.find(c => c.sortKey === sortKey)
     if (!col?.sortValue) return filtered
     return [...filtered].sort((a, b) => {
@@ -639,13 +670,18 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         </div>
       )}
 
-      {config.searchFilter && (
+      {(config.searchFilter || usesServerSearch) && (
         <div style={{ marginBottom: '12px' }}>
           <input
             type="text"
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => {
+              setSearch(e.target.value)
+              setPage(0)
+              setSelectedIds([])
+            }}
             placeholder={config.searchPlaceholder ?? 'Filter…'}
+            aria-label={config.searchPlaceholder ?? `Filter ${config.title}`}
             className="crud-search-input"
             style={config.searchPlaceholder?.includes('summary') ? { maxWidth: '480px' } : undefined}
           />
@@ -679,7 +715,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
 
       {isTable ? (
         displayed.length === 0 ? (
-          <div className="s-card s-empty">No {config.title.toLowerCase()} yet.</div>
+          <div className="s-card s-empty">
+            {search.trim() ? 'No matching entries.' : `No ${config.title.toLowerCase()} yet.`}
+          </div>
         ) : (
           <>
             {/* Desktop table */}
@@ -780,6 +818,8 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                                   }
                                   startResizeActivation(i)
                                   if (isSortable) {
+                                    setPage(0)
+                                    setSelectedIds([])
                                     if (isActive) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
                                     else { setSortKey(col.sortKey!); setSortDir('asc') }
                                   }
@@ -896,7 +936,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       ) : (
         <div className="s-list">
           {displayed.length === 0 ? (
-            <p className="s-empty">No {config.title.toLowerCase()} yet.</p>
+            <p className="s-empty">
+              {search.trim() ? 'No matching entries.' : `No ${config.title.toLowerCase()} yet.`}
+            </p>
           ) : itemRows}
         </div>
       )}

@@ -6,6 +6,45 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.212',
+    date: '2026-06-12',
+    changes: [
+      'Orb now distinguishes unknown facts from ambiguous visual referents instead of searching source code to guess which repeated control a user means.',
+      'Under-specified UI references such as "the kebab", "that button", or "this menu" trigger one concise location-based clarification before repository inspection.',
+      'Added a behavioral eval requiring the ambiguous List-pane kebab question to ask which control the user means without calling a tool.',
+    ]
+  },
+  {
+    version: 'v0.5.211',
+    date: '2026-06-12',
+    changes: [
+      'Fixed intermittent Orb conversations remaining visually stuck on Processing after a stream or tool loop ended.',
+      'The Stop control now remains available whenever any Orb response is still marked as streaming, even if parent submission state has already cleared.',
+      'Stop and final cleanup now settle orphaned streaming messages across both dashboard variants.',
+      'Conversational model turns time out after 60 seconds, repository production requests after 15 seconds, and exhausted tool loops return an explicit retry message instead of ending silently.',
+    ]
+  },
+  {
+    version: 'v0.5.210',
+    date: '2026-06-12',
+    changes: [
+      'ORB-252: Orb can inspect allowlisted source files with list, search, and ranged read operations.',
+      'Localhost Orb can inspect both the live working tree and the source bundled with the current Vercel production deployment; production Orb reads its current deployed bundle.',
+      'Repository inspection is restricted to Admin, Super Admin, and the new Developer role without granting Developer access to admin-only settings or data.',
+      'Repository paths, file types, file sizes, and result sizes are constrained to prevent traversal, configuration/secret reads, and oversized responses.',
+    ]
+  },
+  {
+    version: 'v0.5.209',
+    date: '2026-06-12',
+    changes: [
+      'ORB-255: Knowledge Repository filtering now searches the full dataset before pagination, including title, content, project, and tags.',
+      'Audit Log now has global filtering by table, action, actor, or full record ID.',
+      'Sortable columns on both paginated pages now sort the complete result set instead of only the visible page.',
+      'Search is debounced, filtered counts are accurate, criteria changes return to page one, and stale responses cannot replace newer results.',
+    ]
+  },
+  {
     version: 'v0.5.208',
     date: '2026-06-12',
     changes: [

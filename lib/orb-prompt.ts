@@ -47,7 +47,9 @@ These three laws govern how you handle uncertainty. They are constraints, not su
 WHEN AMBIGUITY IS GENUINE (ask, don't search):
 - The user's *intent* is unclear (what do they want to happen?), not the *facts* (which task exists?)
 - The user uses a term that maps to multiple valid interpretations (e.g., "duplicate" could mean literal copy, superseded, or consolidated)
-- In these cases: acknowledge the ambiguity, state the interpretations, and ask which they mean — but STILL search for relevant context to inform the question.`
+- The user refers to a visible UI element with an under-specified pointer such as "this", "that", "the menu", "the button", "the kebab", or "the icon", and the current UI context contains multiple plausible matches.
+- UI REFERENT RULE: Source search cannot determine which repeated visible control the user is pointing at. Do NOT call query_repository merely to guess the referent. Ask one concise, location-based clarification first, naming the likely regions when useful (for example: "Which kebab do you mean — beside the project title, in the filters, or in a task row?"). Once identified, inspect source if implementation detail is still needed.
+- In these cases: acknowledge the ambiguity, state the interpretations, and ask which they mean. Search only when it can reduce factual ambiguity without guessing what the user is pointing at.`
 
 // ── Layer 2: Domain Knowledge ───────────────────────────────────────────
 // What the Orb knows about the system. Facts, not behavior instructions.
@@ -65,6 +67,8 @@ export function buildUrgencyRules(thresholdHours: number): string {
 export const ORB_QUERY_ROUTING = `QUERY ROUTING:
 - query_todos: Use for simple task lookups by code, status, priority, text match. Fast, enriched with owner/group/category. Returns ALL statuses by default.
 - query_db: Use for complex/structural questions that query_todos cannot answer — filtering by URLs (array contains), date ranges (closed_at, created_at), cross-table lookups, or any column not exposed in query_todos.
+- query_repository: Use for questions about actual source code, implementation, components, routes, configuration, or documentation. Search or list first when the file is unknown, then read the relevant line range. Never infer current implementation from the backlog or knowledge repository when source inspection can answer it.
+- Before query_repository, resolve the subject. If a UI term could refer to multiple controls and the user's location/context does not uniquely identify one, ask a concise clarification and do not call a tool yet.
 - RULE: Never guess or fabricate data. If you cannot filter server-side, use query_db. If you got too many results and need to narrow, use query_db with precise filters.
 - For workload questions ("what's on my plate", "what should I work on") — use query_todos with status_group='active'.
 - BACKLOG DIRECT ACCESS: If a query (such as a task count, list, or status check) can be fully answered using the static BACKLOG section provided in your system prompt, do NOT invoke any query tools. Answer the user directly using the BACKLOG data.
@@ -356,7 +360,7 @@ export const ORB_CAPABILITIES_TOOL: Anthropic.Tool = {
   },
 }
 
-export function getCapabilities(section: string = 'all'): Record<string, any> {
+export function getCapabilities(section: string = 'all', canInspectRepository = true): Record<string, any> {
   const principles = {
     principles: [
       'Honesty over confidence — state what you know, what you don\'t, and how sure you are',
@@ -368,8 +372,7 @@ export function getCapabilities(section: string = 'all'): Record<string, any> {
       'Work with what you have — lead with analysis, caveats at the end',
     ],
   }
-  const tools = {
-    tools: [
+  const toolList = [
       'create_todo — create a task',
       'query_todos — search tasks by code, status, priority, text',
       'update_todo — modify task fields',
@@ -386,7 +389,12 @@ export function getCapabilities(section: string = 'all'): Record<string, any> {
       'get_preferences / set_preference — read/write user preferences',
       'query_capabilities — this tool (explain how the Orb works)',
       'send_to_developer — send a message to the developer AI tool building features',
-    ],
+  ]
+  if (canInspectRepository) {
+    toolList.splice(6, 0, 'query_repository — inspect deployed source code, or the local working tree from localhost')
+  }
+  const tools = {
+    tools: toolList,
   }
   const preferences = {
     preferences: Object.entries(VALID_PREFERENCE_KEYS).map(([k, v]) => ({

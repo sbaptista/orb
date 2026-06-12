@@ -167,18 +167,16 @@ export default function AmbientDashboard({ initialProducts, isAdmin = false }: P
     const handleStop = useCallback(() => {
         abortConverseRef.current = true
         const activeId = activeProcessingIdRef.current
-        if (activeId) {
-            setMessages(prev => prev.map(m => {
-                if (m.id === activeId) {
-                    return {
-                        ...m,
-                        isStreaming: false,
-                        text: m.text === 'Processing…' ? 'Stopped.' : m.text
-                    }
+        setMessages(prev => prev.map(m => {
+            if (m.id === activeId || m.isStreaming) {
+                return {
+                    ...m,
+                    isStreaming: false,
+                    text: m.text === 'Processing…' ? 'Stopped.' : m.text
                 }
-                return m
-            }))
-        }
+            }
+            return m
+        }))
         setSubmitting(false)
     }, [])
 
@@ -815,18 +813,21 @@ Type /? anytime for a full command list. What would you like to work on?` },
         } finally {
             setSubmitting(false)
             activeProcessingIdRef.current = null
-            if (abortConverseRef.current) {
-                setMessages(prev => prev.map(m => {
-                    if (m.id === processingId) {
-                        return {
-                            ...m,
-                            isStreaming: false,
-                            text: m.text === 'Processing…' ? 'Stopped.' : m.text
-                        }
+            setMessages(prev => prev.map(m => {
+                if (m.id !== processingId) return m
+                if (abortConverseRef.current) {
+                    return {
+                        ...m,
+                        isStreaming: false,
+                        text: m.text === 'Processing…' ? 'Stopped.' : m.text
                     }
-                    return m
-                }))
-            }
+                }
+                return {
+                    ...m,
+                    isStreaming: false,
+                    text: m.text === 'Processing…' ? 'Orb could not complete that request. Please try again.' : m.text
+                }
+            }))
         }
     }
 

@@ -19,6 +19,7 @@
 
 # production
 /build
+/.orb-source/
 
 # misc
 .DS_Store

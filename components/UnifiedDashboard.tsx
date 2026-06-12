@@ -368,12 +368,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const handleStop = useCallback(() => {
     abortConverseRef.current = true
     const activeId = activeProcessingIdRef.current
-    if (activeId) {
-      setMessages(prev => prev.map(m => {
-        if (m.id === activeId) return { ...m, isStreaming: false, text: m.text === 'Processing…' ? 'Stopped.' : m.text }
-        return m
-      }))
-    }
+    setMessages(prev => prev.map(m => {
+      if (m.id === activeId || m.isStreaming) {
+        return { ...m, isStreaming: false, text: m.text === 'Processing…' ? 'Stopped.' : m.text }
+      }
+      return m
+    }))
     setSubmitting(false)
   }, [])
 
@@ -957,12 +957,17 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     } finally {
       setSubmitting(false)
       activeProcessingIdRef.current = null
-      if (abortConverseRef.current) {
-        setMessages(prev => prev.map(m => {
-          if (m.id === processingId) return { ...m, isStreaming: false, text: m.text === 'Processing…' ? 'Stopped.' : m.text }
-          return m
-        }))
-      }
+      setMessages(prev => prev.map(m => {
+        if (m.id !== processingId) return m
+        if (abortConverseRef.current) {
+          return { ...m, isStreaming: false, text: m.text === 'Processing…' ? 'Stopped.' : m.text }
+        }
+        return {
+          ...m,
+          isStreaming: false,
+          text: m.text === 'Processing…' ? 'Orb could not complete that request. Please try again.' : m.text,
+        }
+      }))
     }
   }
 

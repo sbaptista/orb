@@ -166,6 +166,12 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   delete_project: 'Deleting project...',
   set_dormancy: 'Updating project...',
   create_ticket: 'Noting observation...',
+  query_db: 'Querying database...',
+  query_repository: 'Inspecting source...',
+  get_preferences: 'Loading preferences...',
+  set_preference: 'Saving preference...',
+  query_capabilities: 'Checking capabilities...',
+  send_to_developer: 'Sending to developer...',
 }
 `
     

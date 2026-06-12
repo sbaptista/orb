@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { canRoleInspectRepository } from '@/lib/repository-access'
 
 const ADMIN_ROLE_IDS = [1, 3] // Admin, Super Admin
 
@@ -10,6 +11,7 @@ export type AuthContext = {
   role: string
   roleId: number
   isAdmin: boolean
+  canInspectRepository: boolean
   supabase: Awaited<ReturnType<typeof createClient>>
   admin: ReturnType<typeof createAdminClient>
 }
@@ -34,6 +36,7 @@ export async function getAuthContext(): Promise<AuthContext> {
     role: roleName,
     roleId,
     isAdmin: ADMIN_ROLE_IDS.includes(roleId),
+    canInspectRepository: canRoleInspectRepository(roleName),
     supabase: supabase as any,
     admin,
   }

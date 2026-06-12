@@ -1,8 +1,9 @@
 {
   "name": "orb",
-  "version": "0.5.208",
+  "version": "0.5.212",
   "private": true,
   "scripts": {
+    "prebuild": "node scripts/generate-repository-bundle.mjs",
     "dev": "rm -rf .next && next dev --experimental-https --experimental-https-cert localhost+1.pem --experimental-https-key localhost+1-key.pem -H 0.0.0.0 -p 3001",
     "build": "next build",
     "start": "next start",

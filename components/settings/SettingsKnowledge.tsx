@@ -1,6 +1,7 @@
 'use client'
 
 import SettingsCrudList from './SettingsCrudList'
+import { getKnowledgeEntries } from '@/app/actions/get-knowledge-entries'
 
 type KnowledgeEntry = {
   id: string
@@ -34,18 +35,9 @@ export default function SettingsKnowledge() {
         emptyForm: EMPTY_FORM,
         pageClass: 'settings-page s-page-wide',
         layout: 'table',
-        pagination: { pageSize: PAGE_SIZE },
+        pagination: { pageSize: PAGE_SIZE, serverSearch: true, serverSort: true },
         subtitle: (items, total) => total ? `${items.length} of ${total} entr${total !== 1 ? 'ies' : 'y'}` : `${items.length} entr${items.length !== 1 ? 'ies' : 'y'}`,
         searchPlaceholder: 'Filter by title, content, project, or tag…',
-        searchFilter: (item: KnowledgeEntry, query: string) => {
-          const q = query.toLowerCase()
-          if (item.title.toLowerCase().includes(q)) return true
-          if (item.content.toLowerCase().includes(q)) return true
-          if (item.projects?.code?.toLowerCase().includes(q)) return true
-          if (item.projects?.name?.toLowerCase().includes(q)) return true
-          if (item.tags?.some(t => t.toLowerCase().includes(q))) return true
-          return false
-        },
         tableColumns: [
           { label: 'Project', width: '10%', sortKey: 'project', sortValue: (e: KnowledgeEntry) => e.projects?.code ?? '' },
           { label: 'Title',   width: '30%', sortKey: 'title',   sortValue: (e: KnowledgeEntry) => e.title },
@@ -54,28 +46,18 @@ export default function SettingsKnowledge() {
           { label: 'Actions', width: '15%' },
         ],
 
-        load: async (supabase, pagination) => {
-          const p = pagination?.page ?? 0
-          const ps = pagination?.pageSize ?? PAGE_SIZE
-          const from = p * ps
-          const to = from + ps - 1
-
-          const [{ data: entries, count }, { data: projects }] = await Promise.all([
-            supabase
-              .from('knowledge_repo')
-              .select('*, projects(name, code)', { count: 'exact' })
-              .order('created_at', { ascending: false })
-              .range(from, to),
-            supabase
-              .from('projects')
-              .select('id, name, code')
-              .eq('is_dormant', false)
-              .order('sort_order'),
-          ])
+        load: async (_supabase, pagination) => {
+          const result = await getKnowledgeEntries({
+            page: pagination?.page,
+            pageSize: pagination?.pageSize,
+            search: pagination?.search,
+            sortKey: pagination?.sortKey,
+            sortDir: pagination?.sortDir,
+          })
           return {
-            items: (entries ?? []) as KnowledgeEntry[],
-            extra: { projects: projects ?? [] },
-            totalCount: count ?? 0,
+            items: (result.data ?? []) as KnowledgeEntry[],
+            extra: { projects: result.projects ?? [] },
+            totalCount: result.count ?? 0,
           }
         },
 

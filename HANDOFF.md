@@ -10,109 +10,69 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** v0.5.202 (production before push: v0.5.193)
+- **Local version:** v0.5.212 (not pushed)
 
 ---
 
 ### Last Session Completed
 
-**ORB-196/239/241/242: World Class App polish and hardening — 2026-06-11 (Codex)**
+**ORB-255 global filtering + ORB-252 repository inspection — 2026-06-12 (Codex)**
 
 ### What was done
 
-Completed the current world-class-app polish batch started by Claude Code, then carried three follow-up tickets through local implementation, closure, and Knowledge Repo entries.
-
-1. **Interaction polish handoff from Claude Code** — Preserved and release-documented the ORB-196 work already in the tree:
-   - `components/ui/SkeletonRows.tsx` with staggered shimmer loading states
-   - Main views: UnifiedDashboard, TodoView, UnifiedView, AmbientDashboard, DashboardProducts
-   - Settings: SettingsAccount, SettingsMaintenance, SettingsUserDetail, SettingsGroups, SettingsProjectTodos, SettingsFriction, SettingsCrudList, SettingsUrgency
-   - `components/ui/EmptyState.tsx` and Orb-illustrated empty states in list/checklist/query-result surfaces
-   - `components/ui/FilterKebab.tsx` for status/priority filters in UnifiedDashboard and TodoView
-   - Modal footer conformity around `btn-cancel`, `btn-primary`, and `btn-danger`
-   - Copy cleanup from "Ask the Orb" to "Ask Orb"
-
-2. **ORB-241: Resize handle visibility** — Made the split-pane divider easier to discover and use:
-   - Added visible divider handle treatment with hover/drag feedback
-   - Added separator semantics to `DragDivider`
-   - Removed 30/50/70 snap-back behavior so the divider stays where released
-   - Tuned iPad/coarse-pointer gutter to 40px after Stan testing
-
-3. **ORB-242: Change Project clarity** — Renamed the dashboard command-bar project switcher:
-   - Button label changed from "Search" to "Change Project"
-   - Icon changed from magnifying glass to project-switch/swap icon
-   - Project switcher modal title changed to "Change Project"
-   - Search placeholder remains unchanged
-
-4. **ORB-239: Accessibility hardening** — Completed as semantics/behavior work with no redesign:
-   - Added named dialog semantics to SearchModal/project switcher, AppNav Commands, Distill Knowledge, SettingsCrudList, and SettingsAudit
-   - Associated visible labels with weakly named controls in QueryResultsModal, SettingsCategories, and generic settings filters
-   - Added descriptive confirmation wiring for todo delete, bulk todo delete, query-result delete, and settings delete confirmations
-   - Updated FilterKebab to use a menu/menuitemradio pattern with Arrow, Home, End, Escape, Enter, and Space keyboard support
-
-5. **Knowledge Repo** — Created linked durable entries:
-   - ORB-196 handoff: `11451249-c43f-4499-a162-e174f452c82c`
-   - ORB-241 resize handle: `343d8441-08a7-40bb-9ea2-c1bb4ecf245b`
-   - ORB-242 Change Project: `96c17356-9c25-4599-85db-ea0650d1594e`
-   - ORB-239 accessibility hardening: `e4d05597-88a9-42e7-bb94-4a139118ea5b`
+1. **ORB-255:** Added full-dataset filtering and sorting to paginated Knowledge Repository and Audit Log settings pages. Stan tested and approved it; the todo was closed and a linked Knowledge Repo entry was created.
+2. **ORB-252:** Added read-only `query_repository` operations for list, search, and ranged file reads.
+3. **Environment behavior:** Localhost Orb reads the live working tree and can query the current production deployment. Production Orb reads a sanitized source bundle regenerated during every Vercel build.
+4. **Authorization:** Added a Developer role without admin privileges. Admin, Super Admin, and Developer receive repository access; Owner does not. The tool list, capability reporting, handler, and production endpoint all enforce the same rule.
+5. **Security:** Hidden paths, traversal, symlinks, disallowed extensions, files over 250 KB, and oversized responses are blocked. The production trace contains only `.orb-source/repository.json`; environment files, certificates, AGENTS/HANDOFF, Git metadata, and worktrees were verified absent.
+6. **Database:** Applied `scripts/migrations/20260612_developer_role.sql`; live role row is ID 4, value 3, name Developer. Pre/post health checks showed no new RLS or query-health regressions.
+7. **ORB processing recovery:** Fixed the intermittent iPad state where an Orb card remained on `Processing…` while the toolbar reverted to Send. Stop now follows either submission state or any streaming message, terminal cleanup always settles the card, model turns time out after 60 seconds, production repository requests after 15 seconds, and exhausted tool loops return an explicit message.
+8. **General UI ambiguity behavior:** Orb now asks one concise location-based clarification when a visible referent such as "the kebab", "that button", or "this menu" has multiple plausible matches. It does not search the repository to guess which control the user is pointing at.
 
 ### Closed Todos This Session
 
-- **ORB-241** — Resize handle visibility
-- **ORB-242** — Rename Search button to Change Project
-- **ORB-239** — Accessibility sweep
+- **ORB-255** — Make filtering global, not page-local
 
 ### Uncommitted Changes
 
-All files below have uncommitted changes in the working tree:
-
-- `app/globals.css` — Skeleton shimmer CSS, filter kebab CSS, table row padding increase, divider visibility/touch gutter polish, Change Project comment update
-- `components/ui/SkeletonRows.tsx` — NEW skeleton loading component
-- `components/ui/FilterKebab.tsx` — NEW filter dropdown kebab component; keyboardable menu/menuitemradio accessibility pattern
-- `components/ui/EmptyState.tsx` — Orb-illustrated empty states (prior session, uncommitted)
-- `components/UnifiedDashboard.tsx` — SkeletonRows, FilterKebab, close button on filter bar, exact divider persistence, Change Project modal title
-- `components/DragDivider.tsx` — Visible active drag state, separator semantics, pointer capture release
-- `components/AppNav.tsx` — Change Project label/icon; Commands modal dialog semantics
-- `components/TodoView.tsx` — SkeletonRows, FilterKebab, close button on filter bar, bulk delete confirmation description
-- `components/UnifiedView.tsx` — SkeletonRows import + usage
-- `components/AmbientDashboard.tsx` — SkeletonRows import + usage
-- `components/DashboardProducts.tsx` — SkeletonRows import + usage
-- `components/AddProductModal.tsx` — Modal footer conformity (btn-cancel/btn-primary/btn-danger)
-- `components/DistillModal.tsx` — Modal footer conformity and named dialog semantics
-- `components/TodoPanel.tsx` — Modal footer conformity and delete confirmation description
-- `components/TodoForm.tsx` — Modal footer conformity
-- `components/QueryResultsModal.tsx` — Modal footer conformity, EmptyState, label associations, delete confirmation description
-- `components/OrbConversation.tsx` — "Ask Orb" text fix
-- `components/OrbTour.tsx` — "Ask Orb" text fix
-- `components/OrbHelp.tsx` — "Ask Orb" text fix
-- `components/OrbPanel.tsx` — "Ask Orb" text fix
-- `components/ui/SearchModal.tsx` — Header with title + X close button, optional title prop, named dialog semantics
-- `components/settings/SettingsAccount.tsx` — SkeletonRows
-- `components/settings/SettingsMaintenance.tsx` — SkeletonRows
-- `components/settings/SettingsUserDetail.tsx` — SkeletonRows
-- `components/settings/SettingsGroups.tsx` — SkeletonRows
-- `components/settings/SettingsProjectTodos.tsx` — SkeletonRows
-- `components/settings/SettingsFriction.tsx` — SkeletonRows
-- `components/settings/SettingsCrudList.tsx` — SkeletonRows, named modal dialog semantics, generic filter label association, delete confirmation announcements/descriptions
-- `components/settings/SettingsAudit.tsx` — Audit Entry modal dialog semantics
-- `components/settings/SettingsCategories.tsx` — Category form label associations
-- `components/settings/SettingsUrgency.tsx` — SkeletonRows
-- `components/views/TaskChecklistView.tsx` — EmptyState
-- `components/views/TaskListView.tsx` — EmptyState
-- `lib/changelog.ts` — v0.5.201 and v0.5.202 release entries
-- `lib/version.ts` — v0.5.202
-- `package.json` — v0.5.202
-- `docs/design-brief.md` — "Ask Orb" text fix
-- `docs/ui-catalog.md` — Divider, Change Project, and accessibility contract updates
-- `docs/orb-241-resize-handle-visibility-plan.md` — Durable plan/status file for ORB-241
-
-Not staged for commit:
-- `app/actions/dev-log.ts` — Antigravity artifact (untracked, can be deleted)
-- `docs/Fix_Mobile_More_Dropdown.md` — Antigravity artifact (untracked, can be deleted)
+- `.gitignore` — ignores generated `.orb-source`
+- `app/actions/get-audit-logs.ts` — server-side global audit filtering/sorting
+- `app/actions/get-knowledge-entries.ts` — new server-side knowledge filtering/sorting
+- `app/actions/orb-converse.ts` — role-aware repository tool exposure and execution
+- `app/api/orb-eval/route.ts` — repository capability in eval context
+- `app/api/repository/route.ts` — role-checked production repository endpoint
+- `components/settings/SettingsAudit.tsx` — global server search/sort wiring
+- `components/settings/SettingsCrudList.tsx` — debounced server search/sort pagination support
+- `components/settings/SettingsKnowledge.tsx` — global server search/sort wiring
+- `components/AmbientDashboard.tsx` — robust Stop and terminal stream cleanup
+- `components/OrbConversation.tsx` — Stop visibility derived from submission or streaming-message state
+- `components/UnifiedDashboard.tsx` — robust Stop and terminal stream cleanup
+- `docs/api-spec.yaml` — canonical `query_repository` tool contract
+- `docs/orb-252-repository-access-plan.md` — ORB-252 architecture/security plan
+- `docs/orb-255-global-filtering-plan.md` — ORB-255 plan
+- `docs/ui-catalog.md` — server-paginated search/sort contract
+- `lib/auth.ts` — repository permission in auth context
+- `lib/changelog.ts` — v0.5.209 through v0.5.212 releases
+- `lib/orb-contract.ts` — regenerated Orb tool contract
+- `lib/orb-prompt.ts` — repository routing and permission-aware capability reporting
+- `lib/repository-access.ts` — repository role predicate
+- `lib/repository-reader.ts` — local/production repository query service
+- `lib/version.ts` — v0.5.212
+- `package.json` — v0.5.212 and production bundle prebuild
+- `scripts/eval-cases.ts` — Tier 1 repository routing case
+- `scripts/generate-orb-contract.ts` — complete generated tool labels
+- `scripts/generate-repository-bundle.mjs` — sanitized per-deployment source bundler
+- `scripts/migrations/20260612_developer_role.sql` — Developer role migration
 
 ### Verification
 
-- `npm run lint` — passes; UI catalog verification passes; remaining 66 warnings are pre-existing baseline
-- `NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts --tier 1` — Tier 1 7/7 passed
+- `npx tsc --noEmit` — passes
+- `npm run lint` — passes; UI catalog verification passes; 66 existing warnings remain
+- `npm run build` — passes
+- Production NFT audit — 146 files, one `.orb-source/repository.json`, no sensitive/project-wide trace expansion
+- Repository tests — local read succeeds; `.env.local` and Owner access denied; production bundle search succeeds; production local-source request denied
+- Database health audit — no new RLS init-plan findings; cache-hit results remain 99.4–100%
+- `NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts --tier 1` — Tier 1 8/8 passed
 
 ---
 
@@ -172,10 +132,10 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## Next Priorities
 
-1. **ORB-196: Panel transitions** — Animate orb/list pane show/hide. See "Panel Transitions — Design Notes" section above.
-2. **ORB-240: Guided tour update** — Reflects empty state, "Ask Orb" wording, Change Project, and current toolbar behavior.
-3. **Clean up Antigravity artifacts.** Delete or deliberately ignore `app/actions/dev-log.ts` and `docs/Fix_Mobile_More_Dropdown.md`.
-4. **ORB-192: Data privacy model.** Gates behavioral observation, internet research, Orb memory.
+1. **Stan tests ORB-252 on localhost:** repository questions as Admin/Super Admin/Developer, Owner denial, and local versus production source selection.
+2. **Run Tier 1 eval** once localhost:3001 is available; the new `repository-inspection-tool` case is the production-push gate.
+3. **Close ORB-252** after Stan approval, add resolution notes, and create/link the Knowledge Repo entry.
+4. **Commit ORB-255 + ORB-252 locally.** Do not push until Stan explicitly approves.
 
 ---
 
@@ -188,7 +148,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-06-11 — Codex (GPT-5)`
+`2026-06-12 — Codex (GPT-5)`
 
 ---
 

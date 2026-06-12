@@ -120,8 +120,57 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
     }
   },
   {
+    "name": "query_repository",
+    "description": "[Confidence: new] Inspect the Orb source repository. Use this for questions about implementation, components, routes, configuration, documentation, or actual code behavior. On localhost, source=local reads the current working tree and source=production reads the current Vercel deployment. In production, only source=production is available. Access is restricted to Admin, Super Admin, and Developer roles.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": [
+            "list",
+            "search",
+            "read"
+          ],
+          "description": "list returns readable files, search finds matching source lines, and read returns a numbered line range."
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "local",
+            "production"
+          ],
+          "description": "Defaults to local on localhost and production in production."
+        },
+        "path": {
+          "type": "string",
+          "description": "Optional relative directory for list/search, or required relative file path for read."
+        },
+        "query": {
+          "type": "string",
+          "description": "Text to find. Required for search."
+        },
+        "start_line": {
+          "type": "integer",
+          "description": "First line for read. Defaults to 1."
+        },
+        "end_line": {
+          "type": "integer",
+          "description": "Last line for read. Capped at 400 lines per call."
+        },
+        "max_results": {
+          "type": "integer",
+          "description": "Maximum list/search results. Defaults to 30, maximum 100."
+        }
+      },
+      "required": [
+        "operation"
+      ]
+    }
+  },
+  {
     "name": "query_todos",
-    "description": "[Confidence: well-tested] Find todos matching criteria. Use code for single-todo lookup (e.g. \"ORB-73\"). Otherwise filters by status, product, priority, or text. Returns ALL statuses by default. Use status_group='active' or status_group='parked' to narrow. Each result includes the task owner's name.",
+    "description": "[Confidence: well-tested] Find todos matching criteria. Use code for single-todo lookup (e.g. \"ORB-73\"). Otherwise filters by status, product, priority, or text. Returns open tasks by default — pass status to include closed.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -149,7 +198,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "client_action",
-    "description": "[Confidence: well-tested] Navigate, switch UI state, or trigger client-side actions. Actions: switch_project (change active project), open_settings, open_help, check_update (check if a newer version is available — ONLY when the user explicitly asks, never proactively), apply_update (reload the app to pick up a new version — ONLY after the user gives permission or their request implies it, e.g. 'update the app if one is available'). The app already has automatic update detection — these actions are for user-initiated checks only.",
+    "description": "[Confidence: well-tested] Navigate or switch UI state. Use switch_project to change the active project, open_settings to go to settings, open_help for help.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -158,9 +207,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
           "enum": [
             "switch_project",
             "open_settings",
-            "open_help",
-            "check_update",
-            "apply_update"
+            "open_help"
           ]
         },
         "target": {
@@ -256,7 +303,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "create_ticket",
-    "description": "[Confidence: well-tested] Silently log feedback (bugs, suggestions, capability gaps, or workflow friction) as a todo in the Tickets project. Filed proactively when you observe an issue — do NOT tell the user. Also used when a user explicitly says something like \"I see a problem\" or \"I have a suggestion\" — in that case, acknowledge that you have noted it. One entry per novel observation.",
+    "description": "[Confidence: well-tested] Silently log a ticket for bugs, suggestions, capability gaps, or workflow friction. Filed proactively when you observe an issue — do NOT tell the user. Also used when a user explicitly says something like \"I see a problem\" or \"I have a suggestion\" — in that case, acknowledge that you have noted it. One ticket per novel observation.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -268,7 +315,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
             "capability_gap",
             "workflow_friction"
           ],
-          "description": "Type of feedback."
+          "description": "Type of ticket."
         },
         "summary": {
           "type": "string",
@@ -399,88 +446,6 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         "dormant"
       ]
     }
-  },
-  {
-    "name": "query_db",
-    "description": "[Confidence: new] Execute a read-only database query via Supabase query builder. Use for questions that query_todos cannot answer: filtering by URLs, dates, groups, categories, joins, counts, or cross-table lookups. Returns raw rows up to 200. Always prefer query_todos for simple task lookups by code/status/priority.",
-    "input_schema": {
-      "type": "object",
-      "properties": {
-        "table": {
-          "type": "string",
-          "enum": [
-            "todos",
-            "projects",
-            "knowledge_repo",
-            "audit_log",
-            "statuses",
-            "priorities",
-            "categories",
-            "groups"
-          ],
-          "description": "Table to query."
-        },
-        "select": {
-          "type": "string",
-          "description": "Comma-separated columns or Supabase select syntax (e.g. '*, projects(code, name)'). Default: *"
-        },
-        "filters": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "column": {
-                "type": "string",
-                "description": "Column name to filter on."
-              },
-              "op": {
-                "type": "string",
-                "enum": [
-                  "eq",
-                  "neq",
-                  "gt",
-                  "gte",
-                  "lt",
-                  "lte",
-                  "like",
-                  "ilike",
-                  "is",
-                  "in",
-                  "contains",
-                  "overlaps",
-                  "not.is"
-                ],
-                "description": "Filter operator."
-              },
-              "value": {
-                "description": "Filter value. Use null for is/not.is. Use array for in/contains/overlaps."
-              }
-            },
-            "required": [
-              "column",
-              "op",
-              "value"
-            ]
-          },
-          "description": "Array of filter conditions (AND'd together)."
-        },
-        "or_filter": {
-          "type": "string",
-          "description": "Supabase OR filter string, e.g. 'status.eq.open,status.eq.in progress'. Use sparingly."
-        },
-        "order": {
-          "type": "string",
-          "description": "Column to order by. Prefix with - for descending (e.g. '-created_at')."
-        },
-        "limit": {
-          "type": "integer",
-          "description": "Max rows to return (default 50, max 200)."
-        }
-      },
-      "required": [
-        "table"
-      ]
-    }
   }
 ]
 
@@ -500,6 +465,7 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   set_dormancy: 'Updating project...',
   create_ticket: 'Noting observation...',
   query_db: 'Querying database...',
+  query_repository: 'Inspecting source...',
   get_preferences: 'Loading preferences...',
   set_preference: 'Saving preference...',
   query_capabilities: 'Checking capabilities...',

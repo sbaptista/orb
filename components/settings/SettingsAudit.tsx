@@ -54,8 +54,9 @@ export default function SettingsAudit() {
           emptyForm: EMPTY_FORM,
           pageClass: 'settings-page s-page-wide',
           layout: 'table',
-          pagination: { pageSize: PAGE_SIZE },
+          pagination: { pageSize: PAGE_SIZE, serverSearch: true, serverSort: true },
           subtitle: (items, total) => total ? `${items.length} of ${total} entr${total !== 1 ? 'ies' : 'y'}` : `${items.length} entr${items.length !== 1 ? 'ies' : 'y'}`,
+          searchPlaceholder: 'Filter by table, action, actor, or full record ID…',
           onRowClick: (item) => setViewingRow(item),
           headerExtra: isDev ? (
             <div className="flex-row gap-sm">
@@ -88,9 +89,13 @@ export default function SettingsAudit() {
           ],
 
           load: async (_supabase, pagination) => {
-            const p = pagination?.page ?? 0
-            const ps = pagination?.pageSize ?? PAGE_SIZE
-            const res = await getAuditLogs(p, ps)
+            const res = await getAuditLogs({
+              page: pagination?.page,
+              pageSize: pagination?.pageSize,
+              search: pagination?.search,
+              sortKey: pagination?.sortKey,
+              sortDir: pagination?.sortDir,
+            })
             return {
               items: (res.data ?? []) as AuditRow[],
               totalCount: res.count ?? 0,

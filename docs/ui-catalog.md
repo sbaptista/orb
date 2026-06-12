@@ -221,7 +221,7 @@ Prose container for Orb and dev-channel messages. Uses `remark-gfm` for GitHub-F
 ### Orb Action Circle (`oc-action-circle`)
 32×32px circular button base for the Orb input bar. Flex-centered, no border, smooth transition. Used as a base class by:
 - **Send Button (`oc-send-btn`)** — green accent (`--pill-active-bg`), white icon. Submit button for Orb input.
-- **Stop Button (`oc-stop-btn`)** — red tint background (`rgba(200,0,0,0.08)`), red square stop icon. Visible while Orb is processing.
+- **Stop Button (`oc-stop-btn`)** — red tint background (`rgba(200,0,0,0.08)`), red square stop icon. Visible whenever the parent is submitting or any Orb message is still marked as streaming, so an orphaned stream can always be stopped.
 
 ### Banner Button (`btn-banner`)
 Small uppercase pill button for floating banners (update available, maintenance mode). 12px border-radius, uppercase text, subtle box-shadow, hover scale effect. Variant: `btn-banner--warning` for amber/warning-colored banners.
@@ -267,7 +267,8 @@ Standard bordered table for settings/admin pages. Simpler than `tv-table` — no
 ### CRUD List (`SettingsCrudList`)
 **File:** `components/settings/SettingsCrudList.tsx`  
 Reusable pattern for settings lists with add/edit/delete actions, column resize, search, scope filters, bulk delete, and server-side pagination.
-- **Pagination:** `config.pagination = { pageSize: N }`. When set, `load()` receives `{ page, pageSize }` and must return `totalCount`. Renders Previous/Next pager in a footer bar inside the card.
+- **Pagination:** `config.pagination = { pageSize: N }`. When set, `load()` receives the current page criteria and must return `totalCount`. Renders First/Previous/Next/Last controls in a footer bar inside the card.
+- **Global paginated search/sort:** Set `serverSearch: true` and/or `serverSort: true` in `config.pagination`. The shared list debounces search, passes `{ search, sortKey, sortDir }` to `load()`, resets to page one when criteria change, and treats the returned count as the full filtered result count. Do not combine client-only filtering or sorting with server pagination when users expect full-dataset results.
 - **Header extras:** `config.headerExtra` — ReactNode rendered in the header beside the Add button (e.g. dev-only Diagnose button on Audit Log).
 - **Custom row click:** `config.onRowClick` — replaces edit-on-click behavior (e.g. opens a detail modal instead of edit form).
 

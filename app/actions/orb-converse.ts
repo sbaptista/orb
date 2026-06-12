@@ -22,6 +22,7 @@ import { createProject } from '@/app/actions/manage-project'
 import { DB_SCHEMA, ALLOWED_TABLES, SOFT_DELETE_TABLES, ALLOWED_OPS, COLUMN_NAME_RE } from '@/lib/db-schema'
 import { fuzzyMatch } from '@/lib/fuzzy-search'
 import { CHANGELOG } from '@/lib/changelog'
+import { queryRepository } from '@/lib/repository-reader'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -360,6 +361,14 @@ export async function orbConverse(req: OrbRequest) {
       const priorityInfo = ctx.priorityList.map((p: any) => `${p.value}:${p.label}${p.is_urgent ? ' (URGENT)' : ''}`).join(', ')
 
       const userRole = req.roleOverride || auth.role
+      const availableOrbTools = auth.canInspectRepository
+        ? ORB_TOOLS
+        : ORB_TOOLS.filter(tool => tool.name !== 'query_repository')
+      const repositoryAccessPrompt = auth.canInspectRepository
+        ? process.env.NODE_ENV === 'production'
+          ? 'REPOSITORY ACCESS: You may inspect the source bundled with the current production deployment by using query_repository with source="production".'
+          : 'REPOSITORY ACCESS: You may inspect both the current local working tree (source="local") and the current Vercel deployment (source="production"). Use the source the user asks about; default to local for implementation questions asked on localhost.'
+        : 'REPOSITORY ACCESS: This user is not an Admin, Super Admin, or Developer. You cannot inspect source code for them.'
 
       const messages: any[] = [
         ...(req.history?.map(h => ({ role: h.role, content: h.text })) ?? []),
@@ -407,6 +416,7 @@ export async function orbConverse(req: OrbRequest) {
               return `- [${k.projects?.name || k.projects?.code}] ${k.title}${tags}${origin}: ${k.content.slice(0, 100)}...`
             }).join('\n')}\n(Note: Use the 'search_knowledge' tool to query the full repository if the answer isn't here.)`,
             ORB_QUERY_ROUTING,
+            repositoryAccessPrompt,
             `DATABASE SCHEMA (for query_db):\n${DB_SCHEMA}`,
             ORB_SCOPE_RULES,
             `WHAT'S NEW (recent releases — use when the user asks "what's new?", "what changed?", or "what version is this?"):\n${CHANGELOG.slice(0, 3).map(r => `${r.version} (${r.date}):\n${r.changes.map(c => `  - ${c}`).join('\n')}`).join('\n\n')}`,
@@ -429,9 +439,9 @@ export async function orbConverse(req: OrbRequest) {
             ORB_DEV_CHANNEL_PROMPT,
           ].filter(Boolean).join('\n\n'),
           messages,
-          tools: [...ORB_TOOLS, ...ORB_PREFERENCE_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL],
+          tools: [...availableOrbTools, ...ORB_PREFERENCE_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL],
           stream: true,
-        })
+        }, { timeout: 60_000 })
 
         let currentTurnSpeech = ''
         const baseSpeech = accumulatedSpeech
@@ -1087,7 +1097,13 @@ export async function orbConverse(req: OrbRequest) {
             }
 
           } else if (tc.name === 'query_capabilities') {
-            output = getCapabilities(input.section || 'all')
+            output = getCapabilities(input.section || 'all', auth.canInspectRepository)
+
+          } else if (tc.name === 'query_repository') {
+            output = await queryRepository(input, {
+              userId: auth.user.id,
+              canInspectRepository: auth.canInspectRepository,
+            })
 
           } else if (tc.name === 'send_to_developer') {
             const targetTool = input.target_tool || 'Developer Tool'
@@ -1141,9 +1157,13 @@ export async function orbConverse(req: OrbRequest) {
         checkAndNotifyEscalation(auth.user.id, beforeUrgency, supabase)
           .catch(err => console.error('[orbConverse] Push check failed:', err))
       }
-      // Reached MAX_TURNS without a no-tool-call response — close the stream
-      // so the client's for-await loop doesn't hang.
-      stream.done({ speech: accumulatedSpeech, isStreaming: false })
+      // Reached MAX_TURNS without a no-tool-call response. Return an explicit
+      // outcome so the client never preserves a silent "Processing…" state.
+      const exhaustedMessage = 'I could not complete that inspection within the available tool steps. Try asking about a more specific screen, component, or file.'
+      stream.done({
+        speech: accumulatedSpeech ? `${accumulatedSpeech}\n\n${exhaustedMessage}` : exhaustedMessage,
+        isStreaming: false,
+      })
     } catch (err: any) {
       console.error('[orbConverse] Error:', err)
       // Surface a human-readable message instead of "System error."

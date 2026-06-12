@@ -180,6 +180,7 @@ export default function OrbConversation({
     const [supportsVoice, setSupportsVoice] = useState(false)
     const [moreMenuOpen, setMoreMenuOpen] = useState(false)
     const recognitionRef = useRef<any>(null)
+    const processing = submitting || messages.some(msg => msg.isStreaming)
 
     useEffect(() => {
         const api = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -277,7 +278,7 @@ export default function OrbConversation({
     function handleFormSubmit(e?: React.FormEvent, overrideValue?: string) {
         e?.preventDefault()
         const value = (overrideValue ?? textareaRef.current?.value ?? input).trim()
-        if (!value || submitting) return
+        if (!value || processing) return
 
         const newHist = [...history]
         if (newHist[newHist.length - 1] !== value) {
@@ -429,7 +430,7 @@ export default function OrbConversation({
 
                 <div className="oc-input-border">
                     <form onSubmit={handleFormSubmit}>
-                        {!input && !submitting && (
+                        {!input && !processing && (
                             <div className="oc-placeholder">
                                 Type / or ask Orb anything...
                             </div>
@@ -472,7 +473,7 @@ export default function OrbConversation({
                             }}
                             onFocus={() => setInputFocused(true)}
                             onBlur={() => setInputFocused(false)}
-                            disabled={submitting}
+                            disabled={processing}
                             placeholder=""
                         />
 
@@ -504,13 +505,13 @@ export default function OrbConversation({
                                 className="oc-tool-btn"
                                 onClick={() => isListening ? stopListening() : startListening()}
                                 onMouseDown={(e) => e.preventDefault()}
-                                disabled={!supportsVoice || submitting}
+                                disabled={!supportsVoice || processing}
                                 data-tooltip={isListening ? 'Stop recording' : 'Voice input'}
                                 aria-label={isListening ? 'Stop recording' : 'Voice input'}
                                 style={{
                                     color: isListening ? '#c00' : undefined,
                                     background: isListening ? 'rgba(200,0,0,0.06)' : undefined,
-                                    opacity: !supportsVoice || submitting ? 'var(--opacity-disabled)' : 1,
+                                    opacity: !supportsVoice || processing ? 'var(--opacity-disabled)' : 1,
                                 }}
                             >
                                 <span className="oc-tool-btn-icon">
@@ -588,7 +589,7 @@ export default function OrbConversation({
                                                 <button
                                                     className="oc-more-item"
                                                     onClick={() => { onClearTranscript(); setMoreMenuOpen(false) }}
-                                                    disabled={messages.length === 0 || submitting}
+                                                    disabled={messages.length === 0 || processing}
                                                 >
                                                     <span className="oc-more-label">Clear</span>
                                                     <span className="oc-more-desc">Reset conversation</span>
@@ -601,7 +602,7 @@ export default function OrbConversation({
 
                             <div className="flex-1" />
 
-                            {submitting ? (
+                            {processing ? (
                                 <button
                                     type="button"
                                     className="oc-action-circle oc-stop-btn"

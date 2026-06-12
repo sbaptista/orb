@@ -82,6 +82,18 @@ export const EVAL_CASES: EvalCase[] = [
     expectTool: { name: 'search_knowledge' },
   },
 
+  {
+    id: 'repository-inspection-tool',
+    description: 'Asking about implementation routes to the repository inspection tool',
+    productCode: 'ORB',
+    input: 'Inspect the local source code and find where the Orb More menu commands are implemented.',
+    tier: 1,
+    expectTool: {
+      name: 'query_repository',
+      params: { source: 'local' },
+    },
+  },
+
   // ═══════════════════════════════════════════════════════════════════════
   // TIER 2: Behavioral correctness (statistical — 3 runs, pass 2/3)
   // ═══════════════════════════════════════════════════════════════════════
@@ -102,6 +114,16 @@ export const EVAL_CASES: EvalCase[] = [
     input: 'What is happening in Helm?',
     tier: 2,
     speechNotContains: ['I can only see', 'not in scope', 'switch to helm first'],
+  },
+
+  {
+    id: 'ambiguous-ui-referent-clarifies',
+    description: 'An ambiguous visible UI control prompts a concise clarification instead of a repository guess',
+    productCode: 'ORB',
+    input: 'On the List pane, I see a kebab. What is it for?',
+    tier: 2,
+    expectNoTool: true,
+    speechContains: ['which', 'kebab'],
   },
 
   {

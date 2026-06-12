@@ -35,6 +35,37 @@ info:
         5: Low
 
   x-orb-internal-tools:
+    query_repository:
+      confidence: new
+      description: 'Inspect the Orb source repository. Use this for questions about implementation, components, routes, configuration, documentation, or actual code behavior. On localhost, source=local reads the current working tree and source=production reads the current Vercel deployment. In production, only source=production is available. Access is restricted to Admin, Super Admin, and Developer roles.'
+      input_schema:
+        type: object
+        properties:
+          operation:
+            type: string
+            enum: ['list', 'search', 'read']
+            description: 'list returns readable files, search finds matching source lines, and read returns a numbered line range.'
+          source:
+            type: string
+            enum: ['local', 'production']
+            description: 'Defaults to local on localhost and production in production.'
+          path:
+            type: string
+            description: 'Optional relative directory for list/search, or required relative file path for read.'
+          query:
+            type: string
+            description: 'Text to find. Required for search.'
+          start_line:
+            type: integer
+            description: 'First line for read. Defaults to 1.'
+          end_line:
+            type: integer
+            description: 'Last line for read. Capped at 400 lines per call.'
+          max_results:
+            type: integer
+            description: 'Maximum list/search results. Defaults to 30, maximum 100.'
+        required: ['operation']
+
     query_todos:
       confidence: well-tested
       description: 'Find todos matching criteria. Use code for single-todo lookup (e.g. "ORB-73"). Otherwise filters by status, product, priority, or text. Returns open tasks by default — pass status to include closed.'

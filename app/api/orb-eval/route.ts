@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
     role: (evalUser as any).roles?.name ?? 'Admin',
     roleId: evalUser.role_id,
     isAdmin: true,
+    canInspectRepository: true,
     supabase: admin,
     admin,
   }
@@ -201,6 +202,7 @@ export async function POST(request: NextRequest) {
       return `- [${k.projects?.name || k.projects?.code}] ${k.title}${tags}: ${k.content.slice(0, 100)}...`
     }).join('\n')}`,
     ORB_QUERY_ROUTING,
+    `REPOSITORY ACCESS: You may inspect the local working tree with query_repository source="local", or the current Vercel deployment with source="production".`,
     `DATABASE SCHEMA (for query_db):\n${DB_SCHEMA}`,
     ORB_SCOPE_RULES,
     `WHAT'S NEW:\n${CHANGELOG.slice(0, 3).map(r => `${r.version} (${r.date}):\n${r.changes.map(c => `  - ${c}`).join('\n')}`).join('\n\n')}`,
