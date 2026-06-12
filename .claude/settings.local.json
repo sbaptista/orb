@@ -330,7 +330,27 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'ORB-{d[\\\\\"todo_number\\\\\"]}: {d[\\\\\"title\\\\\"]}'\\)\")",
       "Bash(curl -s -X PATCH https://orb-eight-lake.vercel.app/api/tasks/fb07920b-a1f9-4996-baa3-1dcacfbd29d7 -H 'Authorization: __CMDSUB_OUTPUT__')",
       "Bash(git -C /Users/stanleybaptista/Projects/orb add -A)",
-      "Bash(git -C /Users/stanleybaptista/Projects/orb commit -m ' *)"
+      "Bash(git -C /Users/stanleybaptista/Projects/orb commit -m ' *)",
+      "Bash(curl -s \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?todo_number=eq.243&product_id=eq.$\\(curl -s \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/projects?code=eq.ORB&select=id\" -H \"apikey: $\\(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local)",
+      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?or=\\(title.ilike.*font*,title.ilike.*css*variable*,title.ilike.*responsive*,content.ilike.*fs-sm*\\)&select=id,title,created_at&order=created_at.desc' -H 'apikey: __CMDSUB_OUTPUT__')",
+      "Bash(curl -s -X PATCH https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?id=eq.c71783d0-63bc-4c6f-a524-c0dc13bfef9e -H 'apikey: __CMDSUB_OUTPUT__')",
+      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/statuses?select=name&order=name' -H 'apikey: __CMDSUB_OUTPUT__')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'Status: {d[0][\\\\\"status\\\\\"]}, closed_at: {d[0][\\\\\"closed_at\\\\\"]}'\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\)[0]; print\\(f'ID: {d[\\\\\"id\\\\\"]}'\\)\")",
+      "Bash(python3 -c \"import sys,json; [print\\(k\\) for k in json.load\\(sys.stdin\\)[0].keys\\(\\)]\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'ID: {d[0][\\\\\"id\\\\\"]}'\\)\")",
+      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?todo_number=eq.196&product_id=eq.fa823725-3771-42a4-97f7-ae16563b2b48&select=*' -H 'apikey: __CMDSUB_OUTPUT__')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\)[0]; print\\(f'ORB-{d[\\\\\"todo_number\\\\\"]}: {d[\\\\\"title\\\\\"]}'\\)\")",
+      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?or=\\(title.ilike.*196*,title.ilike.*world*class*,title.ilike.*unified*toolbar*,content.ilike.*ORB-196*\\)&select=id,title,created_at&order=created_at.desc' -H 'apikey: __CMDSUB_OUTPUT__')",
+      "Bash(curl -s -X PATCH https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?id=eq.bae9ae09-d4ef-4165-9330-21c94a1d64fa -H 'apikey: __CMDSUB_OUTPUT__')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\)[0]; print\\(f'Status: {d[\\\\\"status\\\\\"]}'\\)\")",
+      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?todo_number=eq.244&product_id=eq.fa823725-3771-42a4-97f7-ae16563b2b48&select=*' -H 'apikey: __CMDSUB_OUTPUT__')",
+      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?or=\\(title.ilike.*settings*,title.ilike.*priorities*,title.ilike.*statuses*,title.ilike.*platforms*\\)&select=id,title,created_at&order=created_at.desc' -H 'apikey: __CMDSUB_OUTPUT__')",
+      "Bash(curl -s -X PATCH https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?id=eq.1178a77b-be12-4bca-90a7-5a6390aeddf3 -H 'apikey: __CMDSUB_OUTPUT__')",
+      "Bash(git reset *)",
+      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?todo_number=eq.246&product_id=eq.fa823725-3771-42a4-97f7-ae16563b2b48&select=*' -H 'apikey: __CMDSUB_OUTPUT__')",
+      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?or=\\(title.ilike.*markdown*,title.ilike.*table*render*,content.ilike.*react-markdown*\\)&select=id,title,created_at&order=created_at.desc' -H 'apikey: __CMDSUB_OUTPUT__')",
+      "Bash(curl -s -X PATCH https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?id=eq.60799f67-b451-4abd-99f5-db1ee12be665 -H 'apikey: __CMDSUB_OUTPUT__')"
     ]
   }
 }
