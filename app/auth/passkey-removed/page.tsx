@@ -24,7 +24,7 @@ export default function PasskeyRemovedPage() {
             <button
               type="button"
               className="auth-submit"
-              onClick={() => router.push('/auth/login')}
+              onClick={() => router.push('/auth/passkey-reregister')}
             >
               Sign in with email
             </button>

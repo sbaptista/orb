@@ -257,7 +257,7 @@ export default function SettingsPasskeys() {
             color: 'var(--error)',
             marginBottom: 'var(--sp-md)',
           }}>
-            This is your only passkey. Removing it means you&apos;ll sign in with email verification codes only.
+            This is your only passkey. You&apos;ll be signed out and can re-register a new passkey after signing back in with email.
           </div>
         )}
 

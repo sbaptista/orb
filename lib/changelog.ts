@@ -6,10 +6,12 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
-    version: 'v0.5.216',
+    version: 'v0.5.217',
     date: '2026-06-13',
     changes: [
       'ORB-261: Passkey delete now signs user out and redirects to an explanation page, preventing stale browser credentials from causing confusion.',
+      'ORB-261: Dedicated email-only re-registration login page — no passkey button, no conditional mediation, clear context that this is part of passkey re-registration.',
+      'ORB-261: Fixed last-passkey delete warning to explain re-registration path instead of implying email-only forever.',
       'Removed 30-second polling from SystemStateProvider — health and version checks now only fire on mount, tab focus, visibility change, and online events.',
       'Added 60-second in-memory cache to /api/version route to reduce redundant Supabase queries.',
     ]
