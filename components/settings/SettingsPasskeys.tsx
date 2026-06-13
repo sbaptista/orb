@@ -229,7 +229,7 @@ export default function SettingsPasskeys() {
                     </button>
                     {deletingId === passkey.id ? (
                       <div style={{ display: 'flex', gap: 'var(--sp-xs)', alignItems: 'center' }}>
-                        <button className="btn-sign-out btn-sm" onClick={() => handleDelete(passkey.id)} disabled={deleteLoading}>
+                        <button className="btn-cancel btn-sm" style={{ color: 'var(--warning)', fontWeight: 'var(--fw-medium)' }} onClick={() => handleDelete(passkey.id)} disabled={deleteLoading}>
                           {deleteLoading ? '…' : 'Confirm'}
                         </button>
                         <button className="btn-cancel btn-sm" onClick={() => setDeletingId(null)}>
@@ -237,7 +237,7 @@ export default function SettingsPasskeys() {
                         </button>
                       </div>
                     ) : (
-                      <button className="btn-danger-confirm btn-sm" onClick={() => startDelete(passkey.id)}>
+                      <button className="btn-cancel btn-sm" style={{ color: 'var(--warning)' }} onClick={() => startDelete(passkey.id)}>
                         Delete
                       </button>
                     )}
@@ -252,11 +252,11 @@ export default function SettingsPasskeys() {
         {deletingId && isLastPasskey && (
           <div style={{
             padding: 'var(--sp-md) var(--sp-lg)',
-            background: 'rgba(239,68,68,0.06)',
+            background: 'rgba(122,80,16,0.06)',
             borderRadius: 'var(--r)',
-            border: '1px solid rgba(239,68,68,0.15)',
+            border: '1px solid rgba(122,80,16,0.15)',
             fontSize: 'var(--fs-sm)',
-            color: 'var(--error)',
+            color: 'var(--warning)',
             marginBottom: 'var(--sp-md)',
           }}>
             This is your only passkey. You&apos;ll be signed out and can re-register a new passkey after signing back in with email.
