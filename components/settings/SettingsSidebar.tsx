@@ -24,7 +24,7 @@ export default function SettingsSidebar({ isAdmin }: { isAdmin?: boolean }) {
   const passkeyDomainOk = isPasskeyAvailable()
   const items = NAV
     .filter(item => {
-      if (item.id === 'passkeys') return false
+      if (item.id === 'passkeys') return passkeyDomainOk
       if (['users', 'invitations', 'tickets', 'maintenance', 'knowledge', 'audit'].includes(item.id)) return !!isAdmin
       return true
     })
