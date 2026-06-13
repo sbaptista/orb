@@ -98,6 +98,7 @@ export default function SettingsPasskeys() {
     if (result.ok) {
       setDeletingId(null)
       setMessage('Passkey removed.')
+      await supabase.auth.refreshSession()
       await loadPasskeys()
     } else {
       setError(result.error || 'Failed to remove passkey.')
