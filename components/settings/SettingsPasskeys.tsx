@@ -124,10 +124,7 @@ export default function SettingsPasskeys() {
   const isLastPasskey = passkeys.length === 1
 
   return (
-    <div className="settings-page" style={{ maxWidth: '480px' }}>
-      <h2 className="s-title mb-2xl">Passkeys</h2>
-
-      {/* Main card */}
+    <>
       <div className="s-card" style={{ padding: 'var(--sp-xl)' }}>
         <h3 style={{ margin: '0 0 var(--sp-sm)', fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-medium)' }}>
           Your Passkeys
@@ -298,6 +295,6 @@ export default function SettingsPasskeys() {
           <li>Email verification codes always work as a fallback</li>
         </ul>
       </div>
-    </div>
+    </>
   )
 }

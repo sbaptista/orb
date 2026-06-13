@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import SkeletonRows from '@/components/ui/SkeletonRows'
 import { useToast } from '@/components/ui/Toast'
+import { isPasskeyAvailable, listPasskeys, removePasskey } from '@/lib/passkey'
+import SettingsPasskeys from '@/components/settings/SettingsPasskeys'
 
 export default function SettingsAccount() {
   const supabase = useMemo(() => createClient(), [])
@@ -83,6 +85,19 @@ export default function SettingsAccount() {
         setSaving(false)
         return
       }
+
+      if (isPasskeyAvailable()) {
+        const passkeyResult = await listPasskeys(supabase)
+        if (passkeyResult.ok && passkeyResult.data && passkeyResult.data.length > 0) {
+          for (const pk of passkeyResult.data) {
+            await removePasskey(supabase, pk.id)
+          }
+          await supabase.auth.signOut()
+          router.push(`/auth/passkey-removed?email=${encodeURIComponent(newEmail.trim())}`)
+          return
+        }
+      }
+
       setEmail(newEmail.trim())
       toast.success(`Confirmation sent to ${newEmail.trim()}.`)
     } else {
@@ -107,6 +122,8 @@ export default function SettingsAccount() {
 
   return (
     <div className="settings-page s-page" style={{ maxWidth: '480px' }}>
+      <h2 className="s-title mb-2xl">Account</h2>
+
       <div className="s-card mb-md">
         <div className="flex-col gap-lg">
           <div className="settings-grid-2col grid-2col">
@@ -170,6 +187,12 @@ export default function SettingsAccount() {
           {loggingOut ? 'Signing out…' : 'Sign Out'}
         </button>
       </div>
+
+      {isPasskeyAvailable() && (
+        <div style={{ marginTop: 'var(--sp-2xl)' }}>
+          <SettingsPasskeys />
+        </div>
+      )}
     </div>
   )
 }
