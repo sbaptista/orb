@@ -3,16 +3,14 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { isPasskeyAvailable, listPasskeys, removePasskey } from '@/lib/passkey'
+import { changeEmail } from '@/app/actions/change-email'
 
 export default function ChangeEmailModal({
   currentEmail,
   onClose,
-  onChanged,
 }: {
   currentEmail: string
   onClose: () => void
-  onChanged?: (newEmail: string) => void
 }) {
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
@@ -32,26 +30,15 @@ export default function ChangeEmailModal({
     setSaving(true)
     setError('')
 
-    const { error: emailErr } = await supabase.auth.updateUser({ email: trimmed })
-    if (emailErr) {
-      setError(emailErr.message)
+    const result = await changeEmail(trimmed)
+    if (!result.ok) {
+      setError(result.error || 'Failed to change email.')
       setSaving(false)
       return
     }
 
-    if (isPasskeyAvailable()) {
-      const passkeyResult = await listPasskeys(supabase)
-      if (passkeyResult.ok && passkeyResult.data && passkeyResult.data.length > 0) {
-        for (const pk of passkeyResult.data) {
-          await removePasskey(supabase, pk.id)
-        }
-        await supabase.auth.signOut()
-        router.push(`/auth/passkey-removed?email=${encodeURIComponent(currentEmail)}`)
-        return
-      }
-    }
-
-    onChanged?.(trimmed)
+    await supabase.auth.signOut()
+    router.push(`/auth/passkey-removed?email=${encodeURIComponent(trimmed)}`)
   }
 
   return (
@@ -113,7 +100,7 @@ export default function ChangeEmailModal({
               color: 'var(--text2)',
               lineHeight: 'var(--lh-normal)',
             }}>
-              A confirmation will be sent to <strong>{trimmed}</strong>. Your passkey will be removed and you&apos;ll be signed out. Sign back in with <strong>{currentEmail}</strong>, then confirm the new email from your inbox. Once confirmed, you&apos;ll be guided to register a new passkey.
+              Your email will be changed to <strong>{trimmed}</strong>. Your passkey will be removed and you&apos;ll be signed out, then guided to sign in and register a new passkey.
             </div>
           )}
 
@@ -124,7 +111,7 @@ export default function ChangeEmailModal({
               Cancel
             </button>
             <button type="submit" disabled={!canProceed} className="btn-primary">
-              {saving ? 'Processing…' : 'Proceed'}
+              {saving ? 'Changing…' : 'Proceed'}
             </button>
           </div>
         </form>

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveUser } from '@/lib/resolve-user'
 import { NextRequest, NextResponse } from 'next/server'
 import type { EmailOtpType } from '@supabase/supabase-js'
@@ -13,6 +14,36 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get('type')
 
   const supabase = await createClient()
+
+  // 0. Email change confirmation
+  if (token_hash && type === 'email_change') {
+    const { data, error } = await supabase.auth.verifyOtp({
+      token_hash,
+      type: 'email_change',
+    })
+
+    if (error || !data.user?.email) {
+      console.error('[auth/callback] email_change verifyOtp failed:', error?.message)
+      return NextResponse.redirect(`${origin}/auth/login?error=email_change_failed`)
+    }
+
+    const newEmail = data.user.email
+    await resolveUser(data.user.id, newEmail)
+
+    // Delete all passkeys server-side via admin API
+    const admin = createAdminClient()
+    const { data: factors } = await admin.auth.admin.mfa.listFactors({ userId: data.user.id })
+    if (factors?.factors) {
+      for (const factor of factors.factors) {
+        if (factor.factor_type === 'webauthn') {
+          await admin.auth.admin.mfa.deleteFactor({ userId: data.user.id, id: factor.id })
+        }
+      }
+    }
+
+    await supabase.auth.signOut()
+    return NextResponse.redirect(`${origin}/auth/passkey-removed?email=${encodeURIComponent(newEmail)}`)
+  }
 
   // 1. Server-side OTP token_hash links (invitations)
   if (token_hash && type) {

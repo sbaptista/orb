@@ -92,12 +92,6 @@ export default function SettingsAccount() {
     router.push('/auth/login')
   }
 
-  function handleEmailChanged(newEmail: string) {
-    setEmail(newEmail)
-    setShowEmailModal(false)
-    toast.success(`Confirmation sent to ${newEmail}.`)
-  }
-
   const hasChanges =
     firstName.trim() !== origFirstName.current ||
     lastName.trim() !== origLastName.current
@@ -181,7 +175,6 @@ export default function SettingsAccount() {
         <ChangeEmailModal
           currentEmail={email}
           onClose={() => setShowEmailModal(false)}
-          onChanged={handleEmailChanged}
         />
       )}
     </div>

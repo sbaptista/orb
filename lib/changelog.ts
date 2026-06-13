@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.223',
+    date: '2026-06-13',
+    changes: [
+      'ORB-262: Instant email change via admin API — no confirmation email, passkeys deleted server-side, users/invitations synced automatically.',
+      'ORB-262: Simplified email change modal — calls server action, signs out, redirects to guided passkey re-registration.',
+      'Fixed Supabase MFA deleteFactor param name (factorId → id) in email change and auth callback.',
+    ]
+  },
+  {
     version: 'v0.5.222',
     date: '2026-06-13',
     changes: [
