@@ -10,69 +10,70 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** v0.5.212 (not pushed)
 
 ---
 
 ### Last Session Completed
 
-**ORB-255 global filtering + ORB-252 repository inspection — 2026-06-12 (Codex)**
+**ORB-260, ORB-261, ORB-262 — Auth & Settings overhaul — 2026-06-13 (Claude Code, Opus 4.6)**
 
 ### What was done
 
-1. **ORB-255:** Added full-dataset filtering and sorting to paginated Knowledge Repository and Audit Log settings pages. Stan tested and approved it; the todo was closed and a linked Knowledge Repo entry was created.
-2. **ORB-252:** Added read-only `query_repository` operations for list, search, and ranged file reads.
-3. **Environment behavior:** Localhost Orb reads the live working tree and can query the current production deployment. Production Orb reads a sanitized source bundle regenerated during every Vercel build.
-4. **Authorization:** Added a Developer role without admin privileges. Admin, Super Admin, and Developer receive repository access; Owner does not. The tool list, capability reporting, handler, and production endpoint all enforce the same rule.
-5. **Security:** Hidden paths, traversal, symlinks, disallowed extensions, files over 250 KB, and oversized responses are blocked. The production trace contains only `.orb-source/repository.json`; environment files, certificates, AGENTS/HANDOFF, Git metadata, and worktrees were verified absent.
-6. **Database:** Applied `scripts/migrations/20260612_developer_role.sql`; live role row is ID 4, value 3, name Developer. Pre/post health checks showed no new RLS or query-health regressions.
-7. **ORB processing recovery:** Fixed the intermittent iPad state where an Orb card remained on `Processing…` while the toolbar reverted to Send. Stop now follows either submission state or any streaming message, terminal cleanup always settles the card, model turns time out after 60 seconds, production repository requests after 15 seconds, and exhausted tool loops return an explicit message.
-8. **General UI ambiguity behavior:** Orb now asks one concise location-based clarification when a visible referent such as "the kebab", "that button", or "this menu" has multiple plausible matches. It does not search the repository to guess which control the user is pointing at.
+1. **ORB-261 (Re-examine Login):** Restored explicit passkey button on login page. Fixed stale passkey flows — delete now signs user out and redirects through a dedicated re-registration page (`/auth/passkey-removed` → `/auth/passkey-reregister`) with email pre-filled. Warning (amber) styling on delete UI. Actionable error messages for stale passkeys. Closed.
+
+2. **ORB-260 (Simplify Settings):** Split compound Data page into separate Backup and Archive sidebar entries. Removed entire breadcrumb system (SettingsTopbar, Breadcrumbs, BreadcrumbOverridesProvider). Added inline back links on admin detail sub-pages. Closed.
+
+3. **ORB-262 (Migrate passkeys to Account page):** Moved passkey management from Settings sidebar to the Account page (conditionally rendered when `isPasskeyAvailable()`). Built full email change flow:
+   - `app/actions/change-email.ts` — server action using admin API for instant email change (no confirmation email), syncs users/invitations tables, deletes all webauthn factors, logs audit event.
+   - `ChangeEmailModal` — guided modal with current email read-only, new email input, validation, contextual guidance text. Calls server action, refreshes session in place, redirects to passkey setup.
+   - No sign-out or OTP needed — session refreshes via `supabase.auth.refreshSession()` and PasskeyGate handles re-registration.
+   - Setup-passkey page shows contextual messaging ("Your email was changed and your old passkey was removed") when arriving from email change.
+   - Fixed Supabase MFA `deleteFactor` param (`factorId` → `id`) in both `change-email.ts` and `auth/callback/route.ts`.
+   Closed.
+
+4. **Other:** Removed 30-second polling from SystemStateProvider. Added 60-second cache to /api/version. Unified topbar to AppNav (ORB-259). Removed version labels from all pages (ORB-258).
+
+### Key Files Changed
+
+- `app/actions/change-email.ts` — NEW: instant email change server action
+- `app/auth/callback/route.ts` — email_change handler + MFA param fix
+- `app/auth/passkey-removed/page.tsx` — explanation page after passkey deletion
+- `app/auth/passkey-reregister/page.tsx` — email-only login for re-registration
+- `app/auth/setup-passkey/page.tsx` — contextual messaging from email change
+- `app/settings/backup/page.tsx` — NEW: standalone Backup page
+- `app/settings/archive/page.tsx` — NEW: standalone Archive page
+- `components/settings/ChangeEmailModal.tsx` — rewritten for admin API flow
+- `components/settings/SettingsAccount.tsx` — Account page with passkeys + email change
+- `components/settings/SettingsPasskeys.tsx` — embeddable cards, delete with sign-out
+- `components/settings/SettingsSidebar.tsx` — Backup/Archive entries, passkeys removed
+- `components/settings/SettingsBackup.tsx` — NEW
+- `components/settings/SettingsArchive.tsx` — NEW
+- `components/SystemStateProvider.tsx` — removed polling
+- `app/api/version/route.ts` — 60s cache
+
+### Deleted Files
+
+- `app/settings/data/page.tsx`, `app/settings/passkeys/page.tsx`
+- `components/settings/SettingsData.tsx`, `components/settings/SettingsTopbar.tsx`
+- `components/ui/Breadcrumbs.tsx`, `lib/hooks/useBreadcrumbOverrides.tsx`
 
 ### Closed Todos This Session
 
-- **ORB-255** — Make filtering global, not page-local
-
-### Uncommitted Changes
-
-- `.gitignore` — ignores generated `.orb-source`
-- `app/actions/get-audit-logs.ts` — server-side global audit filtering/sorting
-- `app/actions/get-knowledge-entries.ts` — new server-side knowledge filtering/sorting
-- `app/actions/orb-converse.ts` — role-aware repository tool exposure and execution
-- `app/api/orb-eval/route.ts` — repository capability in eval context
-- `app/api/repository/route.ts` — role-checked production repository endpoint
-- `components/settings/SettingsAudit.tsx` — global server search/sort wiring
-- `components/settings/SettingsCrudList.tsx` — debounced server search/sort pagination support
-- `components/settings/SettingsKnowledge.tsx` — global server search/sort wiring
-- `components/AmbientDashboard.tsx` — robust Stop and terminal stream cleanup
-- `components/OrbConversation.tsx` — Stop visibility derived from submission or streaming-message state
-- `components/UnifiedDashboard.tsx` — robust Stop and terminal stream cleanup
-- `docs/api-spec.yaml` — canonical `query_repository` tool contract
-- `docs/orb-252-repository-access-plan.md` — ORB-252 architecture/security plan
-- `docs/orb-255-global-filtering-plan.md` — ORB-255 plan
-- `docs/ui-catalog.md` — server-paginated search/sort contract
-- `lib/auth.ts` — repository permission in auth context
-- `lib/changelog.ts` — v0.5.209 through v0.5.212 releases
-- `lib/orb-contract.ts` — regenerated Orb tool contract
-- `lib/orb-prompt.ts` — repository routing and permission-aware capability reporting
-- `lib/repository-access.ts` — repository role predicate
-- `lib/repository-reader.ts` — local/production repository query service
-- `lib/version.ts` — v0.5.212
-- `package.json` — v0.5.212 and production bundle prebuild
-- `scripts/eval-cases.ts` — Tier 1 repository routing case
-- `scripts/generate-orb-contract.ts` — complete generated tool labels
-- `scripts/generate-repository-bundle.mjs` — sanitized per-deployment source bundler
-- `scripts/migrations/20260612_developer_role.sql` — Developer role migration
+- **ORB-258** — Remove version labels from pages
+- **ORB-259** — Topbar consistency
+- **ORB-260** — Simplify Settings
+- **ORB-261** — Re-examine Login
+- **ORB-262** — Migrate passkeys to user account page
 
 ### Verification
 
 - `npx tsc --noEmit` — passes
-- `npm run lint` — passes; UI catalog verification passes; 66 existing warnings remain
-- `npm run build` — passes
-- Production NFT audit — 146 files, one `.orb-source/repository.json`, no sensitive/project-wide trace expansion
-- Repository tests — local read succeeds; `.env.local` and Owner access denied; production bundle search succeeds; production local-source request denied
-- Database health audit — no new RLS init-plan findings; cache-hit results remain 99.4–100%
-- `NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts --tier 1` — Tier 1 8/8 passed
+- Production tested: email change flow, passkey deletion, re-registration all working
+- Version: v0.5.224
+
+### Key Lesson
+
+When changing a user's email via admin API, don't sign them out and make them OTP back in — just refresh the session in place with `supabase.auth.refreshSession()`. The OTP path creates conflicting auth state and "expired" errors. Also: browser passkey credentials persist after server-side deletion — users must manually remove them from their device's Passwords app before re-registering.
 
 ---
 
@@ -100,8 +101,11 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## Earlier Sessions
 
+**ORB-255 global filtering + ORB-252 repository inspection — 2026-06-12 (Codex)**
+- Full-dataset filtering/sorting on Knowledge Repository and Audit Log. Repository access for Admin/Super Admin/Developer roles. Developer role migration. Orb processing recovery fix. General UI ambiguity behavior.
+
 **ORB-196: Unified Toolbar + Modal Conformity — 2026-06-10 (Session 76, Claude Code)**
-- Merged AppNav + CommandBar into single unified toolbar. SearchModal component. Modal footer standardization (btn-cancel/btn-primary/btn-danger). Empty states with OrbMini illustration. "Ask Orb" text consistency. Edge button toggle states for mobile.
+- Merged AppNav + CommandBar into single unified toolbar. SearchModal component. Modal footer standardization. Empty states with OrbMini illustration. "Ask Orb" text consistency.
 
 **CSS Variable Uniformity Sweep (ORB-237) + More Kebab Fix (ORB-236) — 2026-06-10 (Session 75, Claude Code)**
 - ORB-236: Fixed kebab button with textareaRef focus + preventDefault pattern. Beautified More menu.
@@ -127,15 +131,13 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 - **Three-tier font scaling:** Desktop → Tablet (touch) → Phone.
 - **Staging environment removed.** Two-tier workflow: localhost → production.
 - **Orb identity: Brownie temperament, butler intelligence.**
+- **Email change: instant via admin API.** No confirmation email, no sign-out. Session refreshes in place, PasskeyGate handles re-registration.
 
 ---
 
 ## Next Priorities
 
-1. **Stan tests ORB-252 on localhost:** repository questions as Admin/Super Admin/Developer, Owner denial, and local versus production source selection.
-2. **Run Tier 1 eval** once localhost:3001 is available; the new `repository-inspection-tool` case is the production-push gate.
-3. **Close ORB-252** after Stan approval, add resolution notes, and create/link the Knowledge Repo entry.
-4. **Commit ORB-255 + ORB-252 locally.** Do not push until Stan explicitly approves.
+1. Review open backlog for next work items.
 
 ---
 
@@ -148,7 +150,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-06-12 — Codex (GPT-5)`
+`2026-06-13 — Claude Code (Opus 4.6)`
 
 ---
 
