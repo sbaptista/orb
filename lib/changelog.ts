@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.224',
+    date: '2026-06-13',
+    changes: [
+      'ORB-262: Simplified email change flow — no sign-out or OTP needed. Session refreshes in place and user is taken directly to passkey registration.',
+      'ORB-262: Setup-passkey page shows contextual messaging when arriving from an email change.',
+    ]
+  },
+  {
     version: 'v0.5.223',
     date: '2026-06-13',
     changes: [

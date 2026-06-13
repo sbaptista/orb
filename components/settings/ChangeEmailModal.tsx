@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { isPasskeyAvailable } from '@/lib/passkey'
 import { changeEmail } from '@/app/actions/change-email'
 
 export default function ChangeEmailModal({
@@ -21,6 +22,7 @@ export default function ChangeEmailModal({
   const trimmed = newEmail.trim().toLowerCase()
   const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
   const isSameEmail = trimmed === currentEmail.toLowerCase()
+  const hasPasskeys = isPasskeyAvailable()
   const canProceed = isValid && !isSameEmail && !saving
 
   async function handleSubmit(e: React.FormEvent) {
@@ -37,8 +39,15 @@ export default function ChangeEmailModal({
       return
     }
 
-    await supabase.auth.signOut()
-    router.push(`/auth/passkey-removed?email=${encodeURIComponent(trimmed)}`)
+    // Refresh session to pick up the new email
+    await supabase.auth.refreshSession()
+
+    if (hasPasskeys) {
+      // Passkeys were deleted server-side — PasskeyGate will prompt re-registration
+      router.push('/auth/setup-passkey?from=email-change')
+    } else {
+      router.push('/dashboard')
+    }
   }
 
   return (
@@ -100,7 +109,8 @@ export default function ChangeEmailModal({
               color: 'var(--text2)',
               lineHeight: 'var(--lh-normal)',
             }}>
-              Your email will be changed to <strong>{trimmed}</strong>. Your passkey will be removed and you&apos;ll be signed out, then guided to sign in and register a new passkey.
+              Your email will be changed to <strong>{trimmed}</strong>.
+              {hasPasskeys && <> Your passkey will be removed and you&apos;ll be prompted to register a new one immediately.</>}
             </div>
           )}
 

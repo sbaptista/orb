@@ -1,13 +1,15 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useMemo, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { isPasskeyAvailable, registerPasskey } from '@/lib/passkey'
 
-export default function SetupPasskeyPage() {
+function SetupPasskeyContent() {
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const fromEmailChange = searchParams.get('from') === 'email-change'
   const [loading, setLoading] = useState(true)
   const [registering, setRegistering] = useState(false)
   const [error, setError] = useState('')
@@ -15,7 +17,6 @@ export default function SetupPasskeyPage() {
 
   useEffect(() => {
     async function checkSession() {
-      // If passkeys can't work on this domain, skip straight to dashboard
       if (!isPasskeyAvailable()) {
         router.push('/dashboard')
         return
@@ -38,7 +39,6 @@ export default function SetupPasskeyPage() {
 
     if (result.ok) {
       setSuccess(true)
-      // Brief delay so the user sees the success state
       setTimeout(() => router.push('/dashboard'), 800)
       return
     }
@@ -55,7 +55,7 @@ export default function SetupPasskeyPage() {
   if (loading) {
     return (
       <div className="auth-page">
-        <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading…</p>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading&hellip;</p>
       </div>
     )
   }
@@ -65,9 +65,11 @@ export default function SetupPasskeyPage() {
       <div className="auth-wrap">
         <div className="auth-card">
           <div className="auth-header">
-            <h1 className="auth-title">Set up a passkey</h1>
+            <h1 className="auth-title">{fromEmailChange ? 'Register a new passkey' : 'Set up a passkey'}</h1>
             <p className="auth-subtitle">
-              Use Face ID, Touch ID, or your device&apos;s biometric to sign in instantly next time. No codes needed.
+              {fromEmailChange
+                ? 'Your email was changed and your old passkey was removed. Register a new passkey to continue signing in securely.'
+                : "Use Face ID, Touch ID, or your device’s biometric to sign in instantly next time. No codes needed."}
             </p>
           </div>
 
@@ -82,7 +84,7 @@ export default function SetupPasskeyPage() {
                 textAlign: 'center',
                 fontWeight: 'var(--fw-medium)',
               }}>
-                Passkey registered. Signing you in…
+                Passkey registered. Signing you in&hellip;
               </div>
             ) : (
               <button
@@ -105,5 +107,17 @@ export default function SetupPasskeyPage() {
 
       </div>
     </div>
+  )
+}
+
+export default function SetupPasskeyPage() {
+  return (
+    <Suspense fallback={
+      <div className="auth-page">
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading&hellip;</p>
+      </div>
+    }>
+      <SetupPasskeyContent />
+    </Suspense>
   )
 }
