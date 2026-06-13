@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.220',
+    date: '2026-06-13',
+    changes: [
+      'ORB-260: Split compound Data page into separate Backup and Archive sidebar entries — each page does one thing.',
+      'ORB-260: Removed breadcrumb system (SettingsTopbar, Breadcrumbs, BreadcrumbOverridesProvider) — sidebar is now the sole Settings navigation.',
+      'ORB-260: Added inline back links on admin detail sub-pages (user detail, project todos).',
+    ]
+  },
+  {
     version: 'v0.5.219',
     date: '2026-06-13',
     changes: [

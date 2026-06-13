@@ -291,6 +291,9 @@ export default function SettingsUserDetail({ userId }: { userId: string }) {
     <div className="settings-page s-page">
       <div className="s-header">
         <div>
+            <Link href="/settings/users" className="text-sm" style={{ color: 'var(--text2)', textDecoration: 'none' }}>
+              ← Back to Users
+            </Link>
             <h2 className="s-title" style={{ marginBottom: '4px' }}>{displayName}&apos;s Projects</h2>
             <p className="text-sm text-muted">{userProfile.email}</p>
         </div>

@@ -5,7 +5,6 @@ import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import { getProjectTodos } from '@/app/actions/get-user-detail'
 import SkeletonRows from '@/components/ui/SkeletonRows'
 import EmptyState from '@/components/ui/EmptyState'
-import { useBreadcrumbOverrides } from '@/lib/hooks/useBreadcrumbOverrides'
 import Link from 'next/link'
 
 type Project = {
@@ -35,8 +34,6 @@ type Priority = {
 }
 
 export default function SettingsProjectTodos({ projectId }: { projectId: string }) {
-  const { setOverride } = useBreadcrumbOverrides()
-
   const [project, setProject] = useState<Project | null>(null)
   const [todos, setTodos] = useState<Todo[]>([])
   const [statuses, setStatuses] = useState<Status[]>([])
@@ -56,14 +53,13 @@ export default function SettingsProjectTodos({ projectId }: { projectId: string 
 
     if (res.project) {
       setProject(res.project as Project)
-      setOverride('/settings/projects', `/settings/users/${(res.project as Project).created_by}`)
     }
     setTodos(res.todos as Todo[])
     setStatuses(res.statuses as Status[])
     setPriorities(res.priorities as Priority[])
     setLoading(false)
     loaded.current = true
-  }, [projectId, setOverride])
+  }, [projectId])
 
   useVisibilityRefetch(load)
   useEffect(() => { load() }, [load])
@@ -88,6 +84,9 @@ export default function SettingsProjectTodos({ projectId }: { projectId: string 
     <div className="settings-page s-page-wide">
       <div className="s-header">
         <div>
+          <Link href={`/settings/users/${project.created_by}`} className="text-sm" style={{ color: 'var(--text2)', textDecoration: 'none' }}>
+            ← Back to user
+          </Link>
           <h2 className="s-title" style={{ marginBottom: '4px' }}>{project.name} — Todos</h2>
           <p className="text-sm text-muted">{todos.length} total tasks</p>
         </div>

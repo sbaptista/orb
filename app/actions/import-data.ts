@@ -91,7 +91,7 @@ export async function importData(payload: any) {
       user_id: ctx.user.id,
     })
 
-    revalidatePath('/settings/data')
+    revalidatePath('/settings/backup')
     return { ok: true }
 
   } catch (err: any) {

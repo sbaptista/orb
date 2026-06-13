@@ -15,7 +15,8 @@ const NAV: SidebarItem[] = [
   { id: 'maintenance', href: '/settings/maintenance', label: 'Maintenance Mode', icon: '🛠', active: false },
   { id: 'knowledge', href: '/settings/knowledge', label: 'Knowledge', icon: '📚', active: false },
   { id: 'audit',     href: '/settings/audit',     label: 'Audit Log', icon: '📋', active: false },
-  { id: 'data',       href: '/settings/data',       label: 'Data',       icon: '⬡', active: false },
+  { id: 'backup',     href: '/settings/backup',     label: 'Backup',     icon: '⬡', active: false },
+  { id: 'archive',    href: '/settings/archive',    label: 'Archive',    icon: '⧖', active: false },
   { id: 'whats-new',  href: '/settings/whats-new',  label: "What's New", icon: '✨', active: false },
 ]
 
