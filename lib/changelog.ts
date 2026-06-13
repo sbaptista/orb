@@ -6,6 +6,34 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.215',
+    date: '2026-06-12',
+    changes: [
+      'ORB-258: Removed fixed-position version label from all pages; version now lives only in the Settings sidebar.',
+      'ORB-259: Unified topbar — every page now uses the same AppNav component with a consistent Menu (Settings, Help, Print) and "Dashboard" back link.',
+      'Menu items are grayed out on the page you are currently viewing.',
+      'Deleted dead code: UnifiedView.tsx and AmbientDashboard.tsx (neither was routed).',
+      'Orb toolbar More menu now anchors correctly on all platforms (left on iPhone, right on desktop/iPad).',
+    ]
+  },
+  {
+    version: 'v0.5.214',
+    date: '2026-06-12',
+    changes: [
+      'ORB-248: Prev and Next input history buttons are now inline on the Orb toolbar on desktop and iPad, reducing two taps to one for high-frequency navigation.',
+      'Prev and Next remain behind More on iPhone where horizontal space is constrained.',
+      'AppNav top bar: replaced the "More" grid icon with a gear icon and "Menu" label to distinguish it from the Orb toolbar More button.',
+    ]
+  },
+  {
+    version: 'v0.5.213',
+    date: '2026-06-12',
+    changes: [
+      'ORB-249: Bumped all settings table text from --fs-xs to --fs-sm so table content matches the rest of the app.',
+      'Mobile card titles bumped from --fs-sm to --fs-base; card code, date, and meta bumped from --fs-xs to --fs-sm.',
+    ]
+  },
+  {
     version: 'v0.5.212',
     date: '2026-06-12',
     changes: [

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { resolveUser } from '@/lib/resolve-user'
 import { redirect } from 'next/navigation'
 import TodoView from '@/components/TodoView'
+import AppNav from '@/components/AppNav'
 
 export default async function ProductPage({
   params,
@@ -16,7 +17,13 @@ export default async function ProductPage({
   if (!result.ok) redirect(result.redirectTo)
 
   const isAdmin = result.user.role_id === 1 || result.user.role_id === 3
+  const userInitial = (result.user.first_name || user.email || '?').charAt(0).toUpperCase()
 
   const { productId } = await params
-  return <TodoView productId={productId} isAdmin={isAdmin} />
+  return (
+    <>
+      <AppNav userInitial={userInitial} />
+      <TodoView productId={productId} isAdmin={isAdmin} />
+    </>
+  )
 }

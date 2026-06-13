@@ -525,7 +525,33 @@ export default function OrbConversation({
                                 <span className="oc-tool-btn-label">Voice</span>
                             </button>
 
-                            {/* Overflow menu for secondary actions — same command model on every platform */}
+                            {/* Prev/Next — inline on desktop/iPad, hidden on iPhone (in More menu instead) */}
+                            <button
+                                type="button"
+                                className="oc-tool-btn oc-desktop-only"
+                                onClick={() => { handleHistoryUp(); textareaRef.current?.focus() }}
+                                onMouseDown={(e) => e.preventDefault()}
+                                disabled={history.length === 0}
+                                data-tooltip="Previous input"
+                                aria-label="Previous input"
+                            >
+                                <span className="oc-tool-btn-icon">↑</span>
+                                <span className="oc-tool-btn-label">Prev</span>
+                            </button>
+                            <button
+                                type="button"
+                                className="oc-tool-btn oc-desktop-only"
+                                onClick={() => { handleHistoryDown(); textareaRef.current?.focus() }}
+                                onMouseDown={(e) => e.preventDefault()}
+                                disabled={historyIndex === -1}
+                                data-tooltip="Next input"
+                                aria-label="Next input"
+                            >
+                                <span className="oc-tool-btn-icon">↓</span>
+                                <span className="oc-tool-btn-label">Next</span>
+                            </button>
+
+                            {/* Overflow menu for infrequent actions */}
                             <div className="oc-toolbar-overflow" style={{ position: 'relative' }}>
                                 <button
                                     type="button"
@@ -545,23 +571,27 @@ export default function OrbConversation({
                                     <>
                                         <div className="dropdown-backdrop" onClick={() => setMoreMenuOpen(false)} />
                                         <div className="oc-more-menu">
-                                            <div className="oc-more-group-header">Input</div>
-                                            <button
-                                                className="oc-more-item"
-                                                onClick={() => { handleHistoryUp(); setMoreMenuOpen(false) }}
-                                                disabled={history.length === 0}
-                                            >
-                                                <span className="oc-more-label">↑ Previous</span>
-                                                <span className="oc-more-desc">Recall last command</span>
-                                            </button>
-                                            <button
-                                                className="oc-more-item"
-                                                onClick={() => { handleHistoryDown(); setMoreMenuOpen(false) }}
-                                                disabled={historyIndex === -1}
-                                            >
-                                                <span className="oc-more-label">↓ Next</span>
-                                                <span className="oc-more-desc">Forward in history</span>
-                                            </button>
+                                            {/* Prev/Next in More menu — only visible on iPhone */}
+                                            <div className="oc-mobile-only">
+                                                <div className="oc-more-group-header">Input</div>
+                                                <button
+                                                    className="oc-more-item"
+                                                    onClick={() => { handleHistoryUp(); setMoreMenuOpen(false) }}
+                                                    disabled={history.length === 0}
+                                                >
+                                                    <span className="oc-more-label">↑ Previous</span>
+                                                    <span className="oc-more-desc">Recall last command</span>
+                                                </button>
+                                                <button
+                                                    className="oc-more-item"
+                                                    onClick={() => { handleHistoryDown(); setMoreMenuOpen(false) }}
+                                                    disabled={historyIndex === -1}
+                                                >
+                                                    <span className="oc-more-label">↓ Next</span>
+                                                    <span className="oc-more-desc">Forward in history</span>
+                                                </button>
+                                            </div>
+                                            <div className="oc-more-group-header">Transcript</div>
                                             <button
                                                 className="oc-more-item"
                                                 onClick={() => {
@@ -576,7 +606,6 @@ export default function OrbConversation({
                                                 <span className="oc-more-label">{copiedInput ? '✓ Copied' : 'Copy'}</span>
                                                 <span className="oc-more-desc">Copy input text</span>
                                             </button>
-                                            <div className="oc-more-group-header">Transcript</div>
                                             <button
                                                 className="oc-more-item"
                                                 onClick={() => { copyTranscript(); setMoreMenuOpen(false) }}

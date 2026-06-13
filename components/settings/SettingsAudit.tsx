@@ -135,19 +135,19 @@ export default function SettingsAudit() {
                   {item.action ?? '—'}
                 </span>
               </td>
-              <td className="audit-td" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text2)' }}>
+              <td className="audit-td" style={{ color: 'var(--text2)' }}>
                 {item.actor ?? '—'}
               </td>
-              <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-version)', color: 'var(--muted)' }}>
+              <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', color: 'var(--muted)' }}>
                 {item.record_id ? item.record_id.slice(0, 8) + '…' : '—'}
               </td>
-              <td className="audit-td" style={{ fontSize: 'var(--fs-version)', color: 'var(--muted)' }} title={formatCell(item.before)}>
+              <td className="audit-td" style={{ color: 'var(--muted)' }} title={formatCell(item.before)}>
                 {formatCell(item.before)}
               </td>
-              <td className="audit-td" style={{ fontSize: 'var(--fs-version)', color: 'var(--muted)' }} title={formatCell(item.after)}>
+              <td className="audit-td" style={{ color: 'var(--muted)' }} title={formatCell(item.after)}>
                 {formatCell(item.after)}
               </td>
-              <td className="audit-td" style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)' }}>
+              <td className="audit-td" style={{ color: 'var(--muted)' }}>
                 {new Date(item.created_at).toLocaleString()}
               </td>
             </tr>

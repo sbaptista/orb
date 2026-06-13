@@ -853,16 +853,16 @@ a, button, [role="button"], input, select, textarea {
 }
 .crud-card-code {
   font-family: var(--font-mono);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
   color: var(--text2);
 }
 .crud-card-date {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   color: var(--muted);
 }
 .crud-card-title {
-  font-size: var(--fs-sm);
+  font-size: var(--fs-base);
   font-weight: var(--fw-medium);
   color: var(--text);
   margin-bottom: 6px;
@@ -877,7 +877,7 @@ a, button, [role="button"], input, select, textarea {
 .crud-card-meta {
   display: flex;
   gap: var(--sp-md);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   color: var(--muted);
   margin-bottom: 8px;
 }
@@ -1045,7 +1045,7 @@ a, button, [role="button"], input, select, textarea {
 }
 
 .audit-table {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
@@ -1897,15 +1897,7 @@ a, button, [role="button"], input, select, textarea {
   right: 88px;
 }
 
-.dash-version {
-  position: fixed;
-  bottom: 14px;
-  left: 20px;
-  z-index: 20;
-  font-size: var(--fs-version);
-  color: var(--muted);
-  pointer-events: none;
-}
+
 
 .dash-separator {
   color: var(--muted);
@@ -1977,20 +1969,6 @@ a, button, [role="button"], input, select, textarea {
 
 
 
-.tv-back {
-  font-size: var(--fs-sm);
-  color: var(--muted);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.tv-title {
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
-  color: var(--text2);
-  flex: 1;
-  text-align: center;
-}
 
 /* ── Admin project search (TodoView) ── */
 .tv-admin-search {
@@ -2726,20 +2704,6 @@ a, button, [role="button"], input, select, textarea {
   }
 }
 
-.tv-version-footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: calc(12px + var(--sab)) 20px 12px;
-  pointer-events: none;
-}
-
-.tv-version-text {
-  font-size: var(--fs-version);
-  color: var(--muted);
-  letter-spacing: var(--ls-caps);
-}
 
 /* ── Orb Conversation ── */
 
@@ -3056,6 +3020,12 @@ a, button, [role="button"], input, select, textarea {
   line-height: var(--lh-none);
 }
 
+.oc-desktop-only { display: none; }
+@media (min-width: 768px) {
+  .oc-desktop-only { display: flex; }
+  .oc-mobile-only { display: none; }
+}
+
 .oc-toolbar-overflow {
   display: flex;
 }
@@ -3072,6 +3042,12 @@ a, button, [role="button"], input, select, textarea {
   padding: 4px;
   z-index: 30;
   min-width: 220px;
+}
+@media (min-width: 768px) {
+  .oc-more-menu {
+    left: auto;
+    right: 0;
+  }
 }
 
 .oc-more-group-header {
@@ -3204,16 +3180,6 @@ a, button, [role="button"], input, select, textarea {
   z-index: 1;
 }
 
-.panel-back {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 6px 0;
-  font-size: var(--fs-sm);
-  font-family: var(--font-ui);
-  white-space: nowrap;
-}
 
 .panel-title {
   flex: 1;
@@ -4140,19 +4106,6 @@ a, button, [role="button"], input, select, textarea {
   padding: 4px 0;
 }
 
-.auth-version {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: calc(12px + var(--sab)) 20px 12px;
-}
-
-.auth-version-text {
-  font-size: var(--fs-xs);
-  color: var(--muted);
-  letter-spacing: var(--ls-caps);
-}
 
 .auth-dev-banner {
   margin-top: var(--sp-md);
@@ -4793,13 +4746,6 @@ a, button, [role="button"], input, select, textarea {
   animation: up-orb-breathe 5.5s ease-in-out infinite;
 }
 
-.up-version {
-  position: fixed;
-  bottom: var(--sp-md);
-  left: var(--sp-md);
-  opacity: var(--opacity-muted);
-  font-size: var(--fs-version);
-}
 
 /* ── Mobile: Orb as bottom panel ── */
 @media (max-width: 767px) {
@@ -5288,6 +5234,11 @@ a, button, [role="button"], input, select, textarea {
   flex-shrink: 0;
 }
 
+.ud-commands-current {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
 
 /* ── Orb Conversation Spacer ── */
 .oc-thread-spacer {

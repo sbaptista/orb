@@ -153,10 +153,10 @@ export default function SettingsInvitations() {
               }}
             >
               {checkbox}
-              <td className="audit-td" style={{ color: 'var(--muted)', fontSize: 'var(--fs-xs)' }}>
+              <td className="audit-td" style={{ color: 'var(--muted)' }}>
                 {new Date(item.invited_at).toLocaleDateString()}
               </td>
-              <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)', fontSize: 'var(--fs-sm)' }}>
+              <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }}>
                 {item.email}
               </td>
               <td className="audit-td">
@@ -173,7 +173,6 @@ export default function SettingsInvitations() {
               </td>
               <td className="audit-td">
                 <span style={{
-                  fontSize: 'var(--fs-version)',
                   textTransform: 'capitalize',
                   color: item.status === 'pending' ? 'var(--status-open)'
                     : item.status === 'accepted' ? 'var(--success)'
@@ -182,7 +181,7 @@ export default function SettingsInvitations() {
                   {item.status}
                 </span>
               </td>
-              <td className="audit-td" style={{ color: 'var(--muted)', fontSize: 'var(--fs-xs)' }}>
+              <td className="audit-td" style={{ color: 'var(--muted)' }}>
                 {item.responded_at
                   ? new Date(item.responded_at).toLocaleDateString()
                   : '—'}

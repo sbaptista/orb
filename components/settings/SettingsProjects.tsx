@@ -207,17 +207,17 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
         renderRow: ({ item, onEdit, onDelete, extra, checkbox }) => (
           <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', opacity: item.is_dormant ? 'var(--opacity-muted)' : 1, cursor: 'pointer' }}>
             {checkbox}
-            <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', fontWeight: 'var(--fw-semibold)', color: 'var(--text2)', fontSize: 'var(--fs-xs)' }}>
+            <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', fontWeight: 'var(--fw-semibold)', color: 'var(--text2)' }}>
               {item.code}
             </td>
             <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }}>
               {item.name}
             </td>
-            <td className="audit-td" style={{ color: 'var(--muted)', fontSize: 'var(--fs-xs)' }}>
+            <td className="audit-td" style={{ color: 'var(--muted)' }}>
               {item.description ?? <span style={{ opacity: 'var(--opacity-muted)' }}>—</span>}
             </td>
             {isAdmin && (
-              <td className="audit-td" style={{ color: 'var(--text)', fontSize: 'var(--fs-xs)' }}>
+              <td className="audit-td" style={{ color: 'var(--text)' }}>
                 {(() => {
                   const owner = extra.users?.find((u: any) => u.id === item.created_by)
                   if (!owner) return <span style={{ opacity: 'var(--opacity-muted)' }}>—</span>
@@ -237,7 +237,7 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
                   letterSpacing: 'var(--ls-body)',
                 }}>Dormant</span>
               ) : (
-                <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)' }}>—</span>
+                <span style={{ color: 'var(--muted)' }}>—</span>
               )}
             </td>
             <td className="audit-td" onClick={e => e.stopPropagation()} style={{ overflow: 'visible' }}>

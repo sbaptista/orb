@@ -281,16 +281,11 @@ export default function OrbHelp() {
     Promise.resolve().then(() => setIsMobile(matches))
   }, [])
 
-  const goBack = () => router.back()
-
   const selected = TOPICS.find(t => t.id === selectedId)
 
   return (
     <div className="help-page">
       <div className="panel-topbar" style={{ position: 'relative' }}>
-        <button onClick={goBack} autoFocus className="panel-back" aria-label="Back">
-          ← back
-        </button>
         <span className="panel-title">Help</span>
         <button
           onClick={() => { router.push('/dashboard'); setTimeout(() => launchOrbTour(), 200) }}

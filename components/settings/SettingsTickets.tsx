@@ -571,7 +571,7 @@ export default function SettingsTickets() {
             >
               {checkbox}
               {/* Code */}
-              <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', fontWeight: 'var(--fw-semibold)', color: 'var(--text2)', fontSize: 'var(--fs-xs)' }}>
+              <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', fontWeight: 'var(--fw-semibold)', color: 'var(--text2)' }}>
                 TICKETS-{item.ticket_number}
               </td>
               {/* Type */}
@@ -595,7 +595,7 @@ export default function SettingsTickets() {
                 {item.summary}
               </td>
               {/* Reporter */}
-              <td className="audit-td" style={{ color: 'var(--text)', fontSize: 'var(--fs-xs)' }}>
+              <td className="audit-td" style={{ color: 'var(--text)' }}>
                 {reporterName(item)}
               </td>
               {/* Status */}
@@ -613,7 +613,7 @@ export default function SettingsTickets() {
                 </span>
               </td>
               {/* Linked todo */}
-              <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-xs)', color: ref ? 'var(--text)' : undefined }}>
+              <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', color: ref ? 'var(--text)' : undefined }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   {ref ?? <span style={{ opacity: 'var(--opacity-muted)' }}>—</span>}
                   {needsAction && (
@@ -635,7 +635,7 @@ export default function SettingsTickets() {
                 </div>
               </td>
               {/* Created */}
-              <td className="audit-td" style={{ fontSize: 'var(--fs-xs)', color: 'var(--muted)' }}>
+              <td className="audit-td" style={{ color: 'var(--muted)' }}>
                 {relativeDate(item.created_at)}
               </td>
               {/* Actions */}

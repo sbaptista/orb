@@ -1,13 +1,12 @@
 'use client'
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import HScrollNav from '@/components/ui/HScrollNav'
 import { createClient } from '@/lib/supabase/client'
 import { visibleProjectsQuery } from '@/lib/projects'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
-import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
+
 import TodoPanel from './TodoPanel'
 import TodoForm from './TodoForm'
 import EmptyState from '@/components/ui/EmptyState'
@@ -590,14 +589,8 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
   return (
     <div id="main-content" className="tv-page">
 
-      {/* Top bar: Back and Title are pinned; everything else scrolls on mobile */}
+      {/* Top bar */}
       <div className="tv-topbar">
-        <div className="tv-topbar-header">
-          <Link href="/dashboard" className="tv-back">
-            ← Back
-          </Link>
-        </div>
-
         {/* Desktop actions: flat flex row children, pushed right by spacer */}
         {!isMobile && <div style={{ flex: 1 }} />}
         {!isMobile && renderSearchInput()}
@@ -1039,10 +1032,6 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
 
 
 
-      {/* Version */}
-      <div className="tv-version-footer">
-        <OrbVersionLabel className="tv-version-text" />
-      </div>
     </div>
   )
 }

@@ -134,7 +134,7 @@ export default function SettingsFriction() {
               <tbody>
                 {logs.map(log => (
                   <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td className="audit-td" style={{ color: 'var(--muted)', fontSize: 'var(--fs-xs)' }}>
+                    <td className="audit-td" style={{ color: 'var(--muted)' }}>
                         {new Date(log.created_at).toLocaleString()}
                     </td>
                     <td className="audit-td">
@@ -157,7 +157,7 @@ export default function SettingsFriction() {
                             </div>
                         )}
                     </td>
-                    <td className="audit-td" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text2)' }}>
+                    <td className="audit-td" style={{ color: 'var(--text2)' }}>
                         {log.conversation_snippet ? (
                            <div style={{ fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                                &ldquo;{log.conversation_snippet}&rdquo;

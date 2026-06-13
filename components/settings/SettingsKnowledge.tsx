@@ -158,16 +158,16 @@ export default function SettingsKnowledge() {
         renderRow: ({ item, onEdit, onDelete, checkbox }) => (
           <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
             {checkbox}
-            <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', fontWeight: 'var(--fw-semibold)', color: 'var(--text2)', fontSize: 'var(--fs-xs)' }}>
+            <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', fontWeight: 'var(--fw-semibold)', color: 'var(--text2)' }}>
               {item.projects?.code ?? <span style={{ opacity: 'var(--opacity-muted)' }}>—</span>}
             </td>
             <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }}>
               {item.title}
             </td>
-            <td className="audit-td" style={{ color: 'var(--muted)', fontSize: 'var(--fs-xs)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <td className="audit-td" style={{ color: 'var(--muted)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {item.content}
             </td>
-            <td className="audit-td" style={{ fontSize: 'var(--fs-version)' }}>
+            <td className="audit-td">
               {item.tags?.length > 0 ? (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                   {item.tags.map(tag => (
@@ -176,7 +176,6 @@ export default function SettingsKnowledge() {
                       borderRadius: '8px',
                       background: 'var(--bg-hover)',
                       color: 'var(--muted)',
-                      fontSize: 'var(--fs-version)',
                     }}>{tag}</span>
                   ))}
                 </div>

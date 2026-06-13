@@ -19,7 +19,7 @@ import { checkReminders } from '@/app/actions/reminder-actions'
 import { fetchPendingDevMessages, markDevMessageDelivered, processDevMessage, purgeOldDevMessages } from '@/app/actions/dev-channel'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import DistillModal from './DistillModal'
-import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
+
 import { useToast } from '@/components/ui/Toast'
 import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
 import MuralCanvas from './MuralCanvas'
@@ -1121,7 +1121,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       const container = splitRef.current
       if (!container) return prev
       const total = isMobile ? container.clientHeight : container.clientWidth
-      const minSize = 200
+      const minSize = 360
       const current = prev ?? total * 0.5
       const next = Math.max(minSize, Math.min(total - minSize - 28, current + delta))
       return next
@@ -1558,9 +1558,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         </div>
 
 
-
-        {/* Version */}
-        <OrbVersionLabel as="div" className="dash-version" />
       </div>
 
       {/* ── Modals ── */}

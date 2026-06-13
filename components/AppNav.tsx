@@ -65,6 +65,8 @@ const IconCommands = (
 export default function AppNav({ printContext, userInitial = '?', userName, orbToggle, listToggle, onSearchProjects, onAddProject }: Props) {
   const pathname = usePathname()
   const onDashboard = pathname === '/dashboard' || pathname === '/'
+  const onSettings = pathname.startsWith('/settings')
+  const onHelp = pathname === '/help'
   const [showPrint, setShowPrint] = useState(false)
   const [commandsOpen, setCommandsOpen] = useState(false)
 
@@ -77,7 +79,7 @@ export default function AppNav({ printContext, userInitial = '?', userName, orbT
         ) : !onDashboard ? (
           <Link href="/dashboard" className="appnav-btn appnav-back" data-tooltip="Dashboard" aria-label="Back to Dashboard">
             <span className="appnav-btn-icon">{IconBack}</span>
-            <span className="appnav-btn-label">Back</span>
+            <span className="appnav-btn-label">Dashboard</span>
           </Link>
         ) : null}
 
@@ -101,8 +103,8 @@ export default function AppNav({ printContext, userInitial = '?', userName, orbT
         {/* ── Center-right group: Commands + Account ── */}
         <div className="appnav-group">
           <button className="appnav-btn" onClick={() => setCommandsOpen(true)} data-tooltip="Commands" aria-label="Commands">
-            <span className="appnav-btn-icon">{IconCommands}</span>
-            <span className="appnav-btn-label">More</span>
+            <span className="appnav-btn-icon">{IconSettings}</span>
+            <span className="appnav-btn-label">Menu</span>
           </button>
           <Link href="/account" className="appnav-btn" data-tooltip={userName || 'Account'} aria-label="Account">
             <span className="appnav-btn-icon"><span className="nav-avatar">{userInitial}</span></span>
@@ -142,10 +144,26 @@ export default function AppNav({ printContext, userInitial = '?', userName, orbT
               <button className="close-btn" onClick={() => setCommandsOpen(false)} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div className="ud-commands-list">
-              {!onDashboard && (
-                <Link href="/dashboard" className="ud-commands-item" onClick={() => setCommandsOpen(false)}>
-                  {IconBack}
-                  Dashboard
+              {onSettings ? (
+                <span className="ud-commands-item ud-commands-current" aria-disabled="true">
+                  {IconSettings}
+                  Settings
+                </span>
+              ) : (
+                <Link href="/settings" className="ud-commands-item" onClick={() => setCommandsOpen(false)}>
+                  {IconSettings}
+                  Settings
+                </Link>
+              )}
+              {onHelp ? (
+                <span className="ud-commands-item ud-commands-current" aria-disabled="true">
+                  {IconHelp}
+                  Help
+                </span>
+              ) : (
+                <Link href="/help" className="ud-commands-item" onClick={() => setCommandsOpen(false)}>
+                  {IconHelp}
+                  Help
                 </Link>
               )}
               {printContext && (
@@ -154,14 +172,6 @@ export default function AppNav({ printContext, userInitial = '?', userName, orbT
                   Print
                 </button>
               )}
-              <Link href="/help" className="ud-commands-item" onClick={() => setCommandsOpen(false)}>
-                {IconHelp}
-                Help
-              </Link>
-              <Link href="/settings" className="ud-commands-item" onClick={() => setCommandsOpen(false)}>
-                {IconSettings}
-                Settings
-              </Link>
             </div>
           </div>
         </div>
