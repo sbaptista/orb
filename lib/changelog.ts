@@ -6,11 +6,11 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
-    version: 'v0.5.221',
+    version: 'v0.5.222',
     date: '2026-06-13',
     changes: [
       'ORB-262: Migrated passkey management from Settings to the Account page — passkeys belong to the user, not the system.',
-      'ORB-262: Email change now automatically deletes all passkeys, signs user out, and redirects to re-registration flow.',
+      'ORB-262: Email change modal — guided flow with validation, current email displayed read-only, passkeys auto-deleted on change, user guided through full re-registration.',
       'ORB-262: Added "Account" page title.',
       'ORB-260: Split compound Data page into separate Backup and Archive sidebar entries — each page does one thing.',
       'ORB-260: Removed breadcrumb system (SettingsTopbar, Breadcrumbs, BreadcrumbOverridesProvider) — sidebar is now the sole Settings navigation.',

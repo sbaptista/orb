@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import SkeletonRows from '@/components/ui/SkeletonRows'
 import { useToast } from '@/components/ui/Toast'
-import { isPasskeyAvailable, listPasskeys, removePasskey } from '@/lib/passkey'
+import { isPasskeyAvailable } from '@/lib/passkey'
 import SettingsPasskeys from '@/components/settings/SettingsPasskeys'
+import ChangeEmailModal from '@/components/settings/ChangeEmailModal'
 
 export default function SettingsAccount() {
   const supabase = useMemo(() => createClient(), [])
@@ -15,13 +16,12 @@ export default function SettingsAccount() {
 
   const [userId, setUserId] = useState('')
   const [email, setEmail] = useState('')
-  const [newEmail, setNewEmail] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
+  const [showEmailModal, setShowEmailModal] = useState(false)
   const origFirstName = useRef('')
   const origLastName = useRef('')
 
@@ -41,7 +41,6 @@ export default function SettingsAccount() {
         if (!user) return
         setUserId(user.id)
         setEmail(user.email ?? '')
-        setNewEmail(user.email ?? '')
 
         const { data: profile } = await supabase
           .from('users')
@@ -66,7 +65,6 @@ export default function SettingsAccount() {
 
   async function handleSave() {
     setSaving(true)
-    setError('')
 
     const { error: nameErr } = await supabase
       .from('users')
@@ -75,35 +73,16 @@ export default function SettingsAccount() {
         last_name: lastName.trim(),
       })
       .eq('id', userId)
-    if (nameErr) { setSaving(false); toast.error('Failed to save. Try again.'); return }
 
-    const emailChanged = newEmail.trim() !== email
-    if (emailChanged) {
-      const { error: emailErr } = await supabase.auth.updateUser({ email: newEmail.trim() })
-      if (emailErr) {
-        setError(emailErr.message)
-        setSaving(false)
-        return
-      }
-
-      if (isPasskeyAvailable()) {
-        const passkeyResult = await listPasskeys(supabase)
-        if (passkeyResult.ok && passkeyResult.data && passkeyResult.data.length > 0) {
-          for (const pk of passkeyResult.data) {
-            await removePasskey(supabase, pk.id)
-          }
-          await supabase.auth.signOut()
-          router.push(`/auth/passkey-removed?email=${encodeURIComponent(newEmail.trim())}`)
-          return
-        }
-      }
-
-      setEmail(newEmail.trim())
-      toast.success(`Confirmation sent to ${newEmail.trim()}.`)
-    } else {
-      toast.success('Account saved.')
+    if (nameErr) {
+      setSaving(false)
+      toast.error('Failed to save. Try again.')
+      return
     }
 
+    origFirstName.current = firstName.trim()
+    origLastName.current = lastName.trim()
+    toast.success('Account saved.')
     setSaving(false)
   }
 
@@ -113,10 +92,15 @@ export default function SettingsAccount() {
     router.push('/auth/login')
   }
 
+  function handleEmailChanged(newEmail: string) {
+    setEmail(newEmail)
+    setShowEmailModal(false)
+    toast.success(`Confirmation sent to ${newEmail}.`)
+  }
+
   const hasChanges =
     firstName.trim() !== origFirstName.current ||
-    lastName.trim() !== origLastName.current ||
-    newEmail.trim() !== email
+    lastName.trim() !== origLastName.current
 
   if (loading) return <div className="s-loading"><SkeletonRows rows={3} /></div>
 
@@ -147,18 +131,17 @@ export default function SettingsAccount() {
 
           <div>
             <label className="label">Email</label>
-            <input
-              className="input"
-              value={newEmail}
-              onChange={e => setNewEmail(e.target.value)}
-            />
-            <p className="text-xs text-muted" style={{ margin: 'var(--sp-xs) 0 0' }}>
-              A confirmation email will be sent to the new address.
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-md)' }}>
+              <span className="text-sm" style={{ color: 'var(--text)', flex: 1 }}>{email}</span>
+              <button
+                type="button"
+                className="btn-cancel btn-sm"
+                onClick={() => setShowEmailModal(true)}
+              >
+                Change
+              </button>
+            </div>
           </div>
-
-
-          {error && <p className="text-sm text-error" style={{ margin: 0 }}>{error}</p>}
 
           <div className="flex-center gap-md">
             <button
@@ -192,6 +175,14 @@ export default function SettingsAccount() {
         <div style={{ marginTop: 'var(--sp-2xl)' }}>
           <SettingsPasskeys />
         </div>
+      )}
+
+      {showEmailModal && (
+        <ChangeEmailModal
+          currentEmail={email}
+          onClose={() => setShowEmailModal(false)}
+          onChanged={handleEmailChanged}
+        />
       )}
     </div>
   )
