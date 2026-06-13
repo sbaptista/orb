@@ -121,7 +121,13 @@ function LoginForm() {
       return
     }
 
-    setError(result.error || 'Passkey authentication failed. Try signing in with email.')
+    const msg = result.error || ''
+    if (msg.includes('verification failed') || msg.includes('invalid') || msg.includes('not found')) {
+      setError('This passkey is no longer valid. Please sign in with email and re-register your passkey in Settings.')
+      return
+    }
+
+    setError(msg || 'Passkey authentication failed. Try signing in with email.')
   }
 
   async function handleSubmit(e: React.FormEvent) {
