@@ -6,14 +6,15 @@ import { createClient } from '@/lib/supabase/client'
 import { checkLoginAllowed } from '@/app/actions/auth-actions'
 
 function ReregisterForm() {
-  const [email, setEmail] = useState('')
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const supabase = useMemo(() => createClient(), [])
+  const prefillEmail = searchParams.get('email') || ''
+  const [email, setEmail] = useState(prefillEmail)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [time, setTime] = useState(() => Date.now())
   const [mounted, setMounted] = useState(false)
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     setMounted(true)

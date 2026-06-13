@@ -98,8 +98,10 @@ export default function SettingsPasskeys() {
     const result = await removePasskey(supabase, id)
 
     if (result.ok) {
+      const { data: { user } } = await supabase.auth.getUser()
+      const email = user?.email || ''
       await supabase.auth.signOut()
-      router.push('/auth/passkey-removed')
+      router.push(`/auth/passkey-removed?email=${encodeURIComponent(email)}`)
       return
     } else {
       setError(result.error || 'Failed to remove passkey.')
