@@ -2,10 +2,23 @@ import { NextResponse } from 'next/server'
 import { VERSION } from '@/lib/version'
 import { createClient } from '@/lib/supabase/server'
 
-export async function GET() {
-  let isMaintenance = false
-  let lockedOut = false
-  let broadcast: { message: string; id: string; type: string } | null = null
+interface CachedSettings {
+  maintenance: boolean
+  broadcast: { message: string; id: string; type: string } | null
+  fetchedAt: number
+}
+
+let settingsCache: CachedSettings | null = null
+const CACHE_TTL_MS = 60_000
+
+async function getSystemSettings(): Promise<CachedSettings> {
+  const now = Date.now()
+  if (settingsCache && now - settingsCache.fetchedAt < CACHE_TTL_MS) {
+    return settingsCache
+  }
+
+  let maintenance = false
+  let broadcast: CachedSettings['broadcast'] = null
 
   try {
     const supabase = await createClient()
@@ -21,24 +34,7 @@ export async function GET() {
       const broadcastSetting = settings.find((s: any) => s.key === 'broadcast_message')
 
       if (maintenanceSetting) {
-        isMaintenance = maintenanceSetting.value === true
-        if (isMaintenance) {
-          lockedOut = true
-
-          const { data: { user } } = await supabase.auth.getUser()
-          if (user) {
-            const { data: dbUser } = await supabase
-              .from('users')
-              .select('role_id')
-              .eq('id', user.id)
-              .single()
-
-            const isAdmin = dbUser && [1, 3].includes(dbUser.role_id)
-            if (isAdmin) {
-              lockedOut = false
-            }
-          }
-        }
+        maintenance = maintenanceSetting.value === true
       }
 
       if (broadcastSetting?.value && typeof broadcastSetting.value === 'object' && broadcastSetting.value.message) {
@@ -49,10 +45,38 @@ export async function GET() {
     console.error('[api/version] Supabase query exception:', err)
   }
 
+  settingsCache = { maintenance, broadcast, fetchedAt: now }
+  return settingsCache
+}
+
+export async function GET() {
+  const { maintenance, broadcast } = await getSystemSettings()
+
+  let lockedOut = false
+  if (maintenance) {
+    try {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: dbUser } = await supabase
+          .from('users')
+          .select('role_id')
+          .eq('id', user.id)
+          .single()
+
+        lockedOut = !(dbUser && [1, 3].includes(dbUser.role_id))
+      } else {
+        lockedOut = true
+      }
+    } catch {
+      lockedOut = true
+    }
+  }
+
   return NextResponse.json(
     {
       version: VERSION,
-      maintenance: isMaintenance,
+      maintenance,
       lockedOut,
       broadcast,
     },
@@ -65,4 +89,3 @@ export async function GET() {
     }
   )
 }
-

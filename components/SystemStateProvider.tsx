@@ -84,17 +84,6 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
     return () => clearTimeout(timer)
   }, [checkHealth, checkMaintenance])
 
-  // Periodic polling check (30s) - only runs when tab is active/visible
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        checkHealth()
-        checkMaintenance()
-      }
-    }, 30000)
-
-    return () => clearInterval(interval)
-  }, [checkHealth, checkMaintenance])
 
   // Focus and visibility listeners
   useEffect(() => {

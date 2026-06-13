@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   isPasskeySupported,
@@ -12,10 +13,11 @@ import {
   type PasskeyEntry,
 } from '@/lib/passkey'
 
-type PageState = 'loading' | 'unsupported' | 'wrong-domain' | 'empty' | 'has-passkeys' | 'deleted'
+type PageState = 'loading' | 'unsupported' | 'wrong-domain' | 'empty' | 'has-passkeys'
 
 export default function SettingsPasskeys() {
   const supabase = useMemo(() => createClient(), [])
+  const router = useRouter()
   const [pageState, setPageState] = useState<PageState>('loading')
   const [passkeys, setPasskeys] = useState<PasskeyEntry[]>([])
   const [registering, setRegistering] = useState(false)
@@ -96,9 +98,9 @@ export default function SettingsPasskeys() {
     const result = await removePasskey(supabase, id)
 
     if (result.ok) {
-      setDeletingId(null)
-      setMessage('')
-      setPageState('deleted')
+      await supabase.auth.signOut()
+      router.push('/auth/passkey-removed')
+      return
     } else {
       setError(result.error || 'Failed to remove passkey.')
     }
@@ -170,20 +172,6 @@ export default function SettingsPasskeys() {
             marginBottom: 'var(--sp-lg)',
           }}>
             No passkeys registered yet. Register one to enable biometric sign-in.
-          </div>
-        )}
-
-        {pageState === 'deleted' && (
-          <div style={{
-            padding: 'var(--sp-md) var(--sp-lg)',
-            background: 'var(--bg-hover)',
-            borderRadius: 'var(--r)',
-            fontSize: 'var(--fs-sm)',
-            color: 'var(--text2)',
-            marginBottom: 'var(--sp-lg)',
-            lineHeight: 'var(--lh-normal)',
-          }}>
-            Passkey removed. To register a new one, sign out and sign back in with email — you&apos;ll be prompted to set up a new passkey automatically.
           </div>
         )}
 
@@ -273,7 +261,7 @@ export default function SettingsPasskeys() {
           </div>
         )}
 
-        {pageState !== 'loading' && pageState !== 'unsupported' && pageState !== 'wrong-domain' && pageState !== 'deleted' && (
+        {pageState !== 'loading' && pageState !== 'unsupported' && pageState !== 'wrong-domain' && (
           <button
             className="btn-primary"
             onClick={handleRegister}
