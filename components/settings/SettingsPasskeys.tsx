@@ -12,7 +12,7 @@ import {
   type PasskeyEntry,
 } from '@/lib/passkey'
 
-type PageState = 'loading' | 'unsupported' | 'wrong-domain' | 'empty' | 'has-passkeys'
+type PageState = 'loading' | 'unsupported' | 'wrong-domain' | 'empty' | 'has-passkeys' | 'deleted'
 
 export default function SettingsPasskeys() {
   const supabase = useMemo(() => createClient(), [])
@@ -97,9 +97,8 @@ export default function SettingsPasskeys() {
 
     if (result.ok) {
       setDeletingId(null)
-      setMessage('Passkey removed.')
-      await supabase.auth.refreshSession()
-      await loadPasskeys()
+      setMessage('')
+      setPageState('deleted')
     } else {
       setError(result.error || 'Failed to remove passkey.')
     }
@@ -171,6 +170,20 @@ export default function SettingsPasskeys() {
             marginBottom: 'var(--sp-lg)',
           }}>
             No passkeys registered yet. Register one to enable biometric sign-in.
+          </div>
+        )}
+
+        {pageState === 'deleted' && (
+          <div style={{
+            padding: 'var(--sp-md) var(--sp-lg)',
+            background: 'var(--bg-hover)',
+            borderRadius: 'var(--r)',
+            fontSize: 'var(--fs-sm)',
+            color: 'var(--text2)',
+            marginBottom: 'var(--sp-lg)',
+            lineHeight: 'var(--lh-normal)',
+          }}>
+            Passkey removed. To register a new one, sign out and sign back in with email — you&apos;ll be prompted to set up a new passkey automatically.
           </div>
         )}
 
@@ -260,7 +273,7 @@ export default function SettingsPasskeys() {
           </div>
         )}
 
-        {pageState !== 'loading' && pageState !== 'unsupported' && pageState !== 'wrong-domain' && (
+        {pageState !== 'loading' && pageState !== 'unsupported' && pageState !== 'wrong-domain' && pageState !== 'deleted' && (
           <button
             className="btn-primary"
             onClick={handleRegister}
