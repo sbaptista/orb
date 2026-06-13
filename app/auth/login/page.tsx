@@ -3,9 +3,8 @@
 import { useState, useEffect, useRef, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import { checkLoginAllowed } from '@/app/actions/auth-actions'
-import { isConditionalMediationSupported, authenticateWithConditionalMediation } from '@/lib/passkey'
+import { isPasskeyAvailable, isConditionalMediationSupported, authenticateWithPasskey, authenticateWithConditionalMediation } from '@/lib/passkey'
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -13,6 +12,8 @@ function LoginForm() {
   const [error, setError] = useState('')
   const [time, setTime] = useState(() => Date.now())
   const [mounted, setMounted] = useState(false)
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false)
+  const [passkeyLoading, setPasskeyLoading] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = useMemo(() => createClient(), [])
@@ -20,6 +21,7 @@ function LoginForm() {
 
   useEffect(() => {
     setMounted(true)
+    setPasskeyAvailable(isPasskeyAvailable())
   }, [])
 
   // ── Conditional mediation: background passkey autofill ──
@@ -98,6 +100,30 @@ function LoginForm() {
     }
   }, [searchParams])
 
+  async function handlePasskeyLogin() {
+    abortRef.current?.abort()
+    setPasskeyLoading(true)
+    setError('')
+
+    const result = await authenticateWithPasskey(supabase)
+
+    if (result.ok) {
+      router.push('/dashboard')
+      return
+    }
+
+    setPasskeyLoading(false)
+
+    if (result.error === 'cancelled') return
+
+    if (result.error === 'no_credentials') {
+      setError('No passkey found for this device. Sign in with email below.')
+      return
+    }
+
+    setError(result.error || 'Passkey authentication failed. Try signing in with email.')
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     // Abort any pending conditional mediation — user chose OTP path
@@ -159,9 +185,25 @@ function LoginForm() {
       <div className="auth-header">
         <h1 className="auth-title">Orb</h1>
         <p className="auth-subtitle">
-          Enter your email to receive a verification code
+          {passkeyAvailable ? 'Sign in with your passkey or email' : 'Enter your email to receive a verification code'}
         </p>
       </div>
+
+      {passkeyAvailable && (
+        <>
+          <button
+            type="button"
+            className="auth-submit"
+            onClick={handlePasskeyLogin}
+            disabled={passkeyLoading}
+          >
+            {passkeyLoading ? 'Authenticating…' : 'Sign in with passkey'}
+          </button>
+          <div className="auth-divider">
+            <span>or</span>
+          </div>
+        </>
+      )}
 
       <form onSubmit={handleSubmit} className="auth-form">
         <div className="auth-field">
@@ -214,10 +256,6 @@ export default function LoginPage() {
         }>
           <LoginForm />
         </Suspense>
-      </div>
-
-      <div className="auth-version">
-        <OrbVersionLabel className="auth-version-text" />
       </div>
     </div>
   )

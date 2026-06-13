@@ -4079,6 +4079,25 @@ a, button, [role="button"], input, select, textarea {
 }
 .auth-submit:disabled { cursor: not-allowed; opacity: var(--opacity-disabled); }
 
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  margin: var(--sp-sm) 0;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.auth-divider span {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  font-family: var(--font-ui);
+}
+
 .auth-error {
   margin-top: var(--sp-lg);
   padding: var(--sp-md);

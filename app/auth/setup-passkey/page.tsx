@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { isPasskeyAvailable, registerPasskey } from '@/lib/passkey'
-import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 
 export default function SetupPasskeyPage() {
   const supabase = useMemo(() => createClient(), [])
@@ -104,10 +103,6 @@ export default function SetupPasskeyPage() {
           )}
         </div>
 
-      </div>
-
-      <div className="auth-version">
-        <OrbVersionLabel className="auth-version-text" />
       </div>
     </div>
   )

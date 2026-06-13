@@ -3,7 +3,6 @@
 import { useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 
 function VerifyOtpContent() {
   const searchParams = useSearchParams()
@@ -95,10 +94,6 @@ function VerifyOtpContent() {
         <button onClick={() => router.push('/auth/login')} className="auth-back">
           ← Back to login
         </button>
-      </div>
-
-      <div className="auth-version">
-        <OrbVersionLabel className="auth-version-text" />
       </div>
     </div>
   )
