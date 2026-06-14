@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.231',
+    date: '2026-06-14',
+    changes: [
+      'ORB-256: Export conversation as markdown — downloads a .md file with speaker headings and thoughts as blockquotes. Uses native save dialog on Chrome/Edge, standard download on Safari.',
+      'Renamed existing clipboard "Export" to "Copy" in the More menu to distinguish from the new file export.',
+    ]
+  },
+  {
     version: 'v0.5.230',
     date: '2026-06-14',
     changes: [

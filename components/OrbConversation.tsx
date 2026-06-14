@@ -361,6 +361,50 @@ export default function OrbConversation({
         }).catch(() => {})
     }
 
+    async function exportTranscript() {
+        const date = new Date().toISOString().slice(0, 10)
+        const md = [
+            `# Orb Conversation — ${productCode} — ${date}`,
+            '',
+            ...messages.flatMap(m => {
+                const speaker = m.type === 'dev' ? (m.senderLabel ?? 'Developer') : m.type === 'user' ? 'You' : 'Orb'
+                const lines: string[] = [`## ${speaker}`, '']
+                if (m.thoughts?.length) {
+                    lines.push(...m.thoughts.map(t => `> ${t}`), '')
+                }
+                lines.push(m.text, '')
+                return lines
+            }),
+        ].join('\n')
+
+        const filename = `orb-${productCode.toLowerCase()}-${date}.md`
+        const blob = new Blob([md], { type: 'text/markdown' })
+
+        if (typeof window !== 'undefined' && 'showSaveFilePicker' in window) {
+            try {
+                const handle = await (window as any).showSaveFilePicker({
+                    suggestedName: filename,
+                    types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
+                })
+                const writable = await handle.createWritable()
+                await writable.write(blob)
+                await writable.close()
+                return
+            } catch (e: any) {
+                if (e?.name === 'AbortError') return
+            }
+        }
+
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+    }
+
     return (
         <div className="oc-wrap" data-mode={conversationActive ? 'dialogue' : 'ambient'}>
             {orbElement}
@@ -611,8 +655,16 @@ export default function OrbConversation({
                                                 onClick={() => { copyTranscript(); setMoreMenuOpen(false) }}
                                                 disabled={messages.length === 0}
                                             >
-                                                <span className="oc-more-label">{copiedTranscript ? '✓ Copied' : 'Export'}</span>
+                                                <span className="oc-more-label">{copiedTranscript ? '✓ Copied' : 'Copy'}</span>
                                                 <span className="oc-more-desc">Copy full conversation</span>
+                                            </button>
+                                            <button
+                                                className="oc-more-item"
+                                                onClick={() => { exportTranscript(); setMoreMenuOpen(false) }}
+                                                disabled={messages.length === 0}
+                                            >
+                                                <span className="oc-more-label">Export</span>
+                                                <span className="oc-more-desc">Download as markdown</span>
                                             </button>
                                             {onClearTranscript && (
                                                 <button
