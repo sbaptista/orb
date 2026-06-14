@@ -21,6 +21,7 @@ export default function SettingsPasskeys() {
   const [pageState, setPageState] = useState<PageState>('loading')
   const [passkeys, setPasskeys] = useState<PasskeyEntry[]>([])
   const [registering, setRegistering] = useState(false)
+  const [showLearnMore, setShowLearnMore] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -261,13 +262,18 @@ export default function SettingsPasskeys() {
         )}
 
         {pageState !== 'loading' && pageState !== 'unsupported' && pageState !== 'wrong-domain' && (
-          <button
-            className="btn-primary"
-            onClick={handleRegister}
-            disabled={registering}
-          >
-            {registering ? 'Registering…' : 'Register New Passkey'}
-          </button>
+          <div className="account-passkey-actions">
+            <button
+              className="btn-primary"
+              onClick={handleRegister}
+              disabled={registering}
+            >
+              {registering ? 'Registering…' : 'Register New Passkey'}
+            </button>
+            <button className="btn-primary" onClick={() => setShowLearnMore(true)}>
+              Learn more
+            </button>
+          </div>
         )}
 
         {message && (
@@ -283,18 +289,29 @@ export default function SettingsPasskeys() {
         )}
       </div>
 
-      {/* Info card */}
-      <div className="s-card" style={{ padding: 'var(--sp-xl)', marginTop: 'var(--sp-xl)' }}>
-        <h3 style={{ margin: '0 0 var(--sp-sm)', fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-medium)' }}>
-          How passkeys work
-        </h3>
-        <ul style={{ margin: 0, paddingLeft: 'var(--sp-xl)', fontSize: 'var(--fs-sm)', color: 'var(--text2)', lineHeight: 'var(--lh-loose)' }}>
-          <li>Passkeys use your device&apos;s biometric (Face ID, Touch ID, Windows Hello) instead of a password</li>
-          <li>They&apos;re stored securely on your device and synced via iCloud Keychain or your platform&apos;s credential manager</li>
-          <li>Each device needs its own passkey, or use a synced keychain across Apple devices</li>
-          <li>Email verification codes always work as a fallback</li>
-        </ul>
-      </div>
+      {showLearnMore && (
+        <>
+          <div className="modal-backdrop" onClick={() => setShowLearnMore(false)} />
+          <div role="dialog" aria-modal="true" aria-labelledby="passkey-learn-more-title" className="modal-center modal-sm">
+            <div className="modal-header" style={{ justifyContent: 'space-between' }}>
+              <h2 id="passkey-learn-more-title" style={{ margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 'var(--fw-bold)' }}>
+                About Passkeys
+              </h2>
+              <button onClick={() => setShowLearnMore(false)} className="close-btn" aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="modal-body" style={{ padding: 'var(--sp-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-lg)' }}>
+              <p className="account-dialog-copy">
+                Passkeys are a simpler and safer way to sign in without using passwords. Instead of typing a password, you unlock your phone or computer with Face ID, a fingerprint, or a PIN, and your device proves to the website that it&apos;s really you. The website never gets your secret sign-in key, which makes passkeys harder to steal, fake, or use in a phishing attack.
+              </p>
+              <div className="modal-footer">
+                <button className="btn-primary" onClick={() => setShowLearnMore(false)}>OK</button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   )
 }

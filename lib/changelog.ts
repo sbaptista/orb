@@ -6,6 +6,41 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.228',
+    date: '2026-06-14',
+    changes: [
+      'Account page polish: split Name, Email, and Passkeys into separate cards. Sign Out button on Account header line with green outlined styling.',
+      'Modal consistency: Change Name and Learn More dialogs now match Change Email padding and structure exactly.',
+      'Mural opacity: added semi-opaque backdrop to account page so mural bleeds through subtly on iPad and iPhone.',
+      'Increased global border prominence (0.15 → 0.25) for better card definition.',
+    ]
+  },
+  {
+    version: 'v0.5.227',
+    date: '2026-06-14',
+    changes: [
+      'ORB-263: Redesigned Account details as clear Name and Email rows with matching Change name and Change email dialogs, removing the ambiguous always-visible fields and Save button.',
+      'Moved Sign Out beside the Account heading and added the calm mural background to the page.',
+      'Replaced the passkey explanation card with a Learn more button and focused explanation dialog; passkey actions now adapt cleanly across desktop, iPad, and iPhone.',
+    ]
+  },
+  {
+    version: 'v0.5.226',
+    date: '2026-06-14',
+    changes: [
+      'Developer-channel messages now appear promptly as blue conversation cards through a dedicated visible-tab poll, without using Supabase Realtime.',
+      'The channel checks on mount, window focus, visibility return, BFCache restore, and every 15 seconds while visible; the existing in-flight guard prevents duplicate processing.',
+    ]
+  },
+  {
+    version: 'v0.5.225',
+    date: '2026-06-14',
+    changes: [
+      'ORB-247: Prevented overlapping Orb submissions from prematurely hiding the processing indicator, re-enabling input, or replacing the red Stop button while a request is still running.',
+      'Orb conversation stop and completion state is now scoped to each request, so a stopped stream cannot interfere with a newer request while it finishes unwinding.',
+    ]
+  },
+  {
     version: 'v0.5.224',
     date: '2026-06-13',
     changes: [

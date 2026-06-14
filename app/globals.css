@@ -23,7 +23,7 @@
   --muted: #547054;  /* darkened from #8a9e8a — was ~2.4:1, now 4.64:1 on --bg */
 
   /* ── Borders ── */
-  --border:       rgba(60, 110, 60, 0.15);
+  --border:       rgba(60, 110, 60, 0.25);
   --border-focus: rgba(60, 110, 60, 0.38);
 
   /* ── Shadows ── */
@@ -668,6 +668,95 @@ a, button, [role="button"], input, select, textarea {
   color: var(--muted);
 }
 
+/* Account page */
+.account-main {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  padding: var(--sp-2xl) var(--sp-lg);
+  min-height: calc(100dvh - 48px);
+  background: rgba(242, 245, 242, 0.85);
+}
+
+.account-page {
+  width: 100%;
+  max-width: 560px;
+}
+
+.account-profile-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-xl);
+}
+
+.account-profile-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-profile-label {
+  margin: 0 0 var(--sp-xs);
+  color: var(--text3);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-body);
+}
+
+.account-profile-value {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-base);
+  overflow-wrap: anywhere;
+}
+
+.account-passkey-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-md);
+}
+
+.account-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-lg);
+  padding: var(--sp-xl);
+}
+
+.account-dialog-copy {
+  margin: 0;
+  color: var(--text2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-relaxed);
+}
+
+@media (max-width: 767px) {
+  .account-main {
+    padding: var(--sp-xl) var(--sp-md);
+  }
+
+  .account-page {
+    padding: var(--sp-lg) 0;
+  }
+
+  .account-profile-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--sp-md);
+  }
+
+  .account-profile-row .btn-primary,
+  .account-passkey-actions .btn-primary {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .account-passkey-actions {
+    flex-direction: column;
+  }
+}
+
 /* ══════════════════════════════════════════════════════════
    UTILITY CLASSES
    ══════════════════════════════════════════════════════════ */
@@ -965,18 +1054,18 @@ a, button, [role="button"], input, select, textarea {
 
 .btn-sign-out {
   background: none;
-  border: 1px solid var(--border);
+  border: 1px solid var(--btn-primary-bg);
   border-radius: var(--r);
-  padding: 8px var(--sp-md);
+  padding: 8px var(--sp-lg);
   font-size: var(--fs-sm);
-  color: var(--text2);
+  font-weight: var(--fw-medium);
+  color: var(--btn-primary-bg);
   cursor: pointer;
   transition: all var(--transition);
 }
 
 .btn-sign-out:hover:not(:disabled) {
-  border-color: rgba(139, 32, 32, 0.4);
-  color: var(--error);
+  background: rgba(64, 128, 64, 0.08);
 }
 
 .btn-sign-out:disabled {

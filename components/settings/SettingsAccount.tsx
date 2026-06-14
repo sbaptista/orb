@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import SkeletonRows from '@/components/ui/SkeletonRows'
@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/Toast'
 import { isPasskeyAvailable } from '@/lib/passkey'
 import SettingsPasskeys from '@/components/settings/SettingsPasskeys'
 import ChangeEmailModal from '@/components/settings/ChangeEmailModal'
+import ChangeNameModal from '@/components/settings/ChangeNameModal'
 
 export default function SettingsAccount() {
   const supabase = useMemo(() => createClient(), [])
@@ -21,9 +22,8 @@ export default function SettingsAccount() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [showNameModal, setShowNameModal] = useState(false)
   const [showEmailModal, setShowEmailModal] = useState(false)
-  const origFirstName = useRef('')
-  const origLastName = useRef('')
 
   useEffect(() => {
     async function load() {
@@ -51,8 +51,6 @@ export default function SettingsAccount() {
         if (profile) {
           setFirstName(profile.first_name ?? '')
           setLastName(profile.last_name ?? '')
-          origFirstName.current = profile.first_name ?? ''
-          origLastName.current = profile.last_name ?? ''
         }
       } catch {
         console.warn('Auth check skipped due to lock contention')
@@ -63,26 +61,27 @@ export default function SettingsAccount() {
     load()
   }, [supabase])
 
-  async function handleSave() {
+  async function handleNameChange(nextFirstName: string, nextLastName: string) {
     setSaving(true)
 
     const { error: nameErr } = await supabase
       .from('users')
       .update({
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
+        first_name: nextFirstName.trim(),
+        last_name: nextLastName.trim(),
       })
       .eq('id', userId)
 
     if (nameErr) {
       setSaving(false)
-      toast.error('Failed to save. Try again.')
+      toast.error('Failed to change name. Try again.')
       return
     }
 
-    origFirstName.current = firstName.trim()
-    origLastName.current = lastName.trim()
-    toast.success('Account saved.')
+    setFirstName(nextFirstName.trim())
+    setLastName(nextLastName.trim())
+    setShowNameModal(false)
+    toast.success('Name changed.')
     setSaving(false)
   }
 
@@ -92,70 +91,14 @@ export default function SettingsAccount() {
     router.push('/auth/login')
   }
 
-  const hasChanges =
-    firstName.trim() !== origFirstName.current ||
-    lastName.trim() !== origLastName.current
-
   if (loading) return <div className="s-loading"><SkeletonRows rows={3} /></div>
 
+  const displayName = [firstName, lastName].filter(Boolean).join(' ') || 'No name added'
+
   return (
-    <div className="settings-page s-page" style={{ maxWidth: '480px' }}>
-      <h2 className="s-title mb-2xl">Account</h2>
-
-      <div className="s-card mb-md">
-        <div className="flex-col gap-lg">
-          <div className="settings-grid-2col grid-2col">
-            <div>
-              <label className="label">First Name</label>
-              <input
-                className="input"
-                value={firstName}
-                onChange={e => setFirstName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="label">Last Name</label>
-              <input
-                className="input"
-                value={lastName}
-                onChange={e => setLastName(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="label">Email</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-md)' }}>
-              <span className="text-sm" style={{ color: 'var(--text)', flex: 1 }}>{email}</span>
-              <button
-                type="button"
-                className="btn-cancel btn-sm"
-                onClick={() => setShowEmailModal(true)}
-              >
-                Change
-              </button>
-            </div>
-          </div>
-
-          <div className="flex-center gap-md">
-            <button
-              className="btn-primary"
-              onClick={handleSave}
-              disabled={saving || !hasChanges}
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="s-card mb-md">
-        <h3 className="text-sm" style={{ fontWeight: 'var(--fw-medium)', color: 'var(--text2)', margin: '0 0 var(--sp-xs)' }}>
-          Sign Out
-        </h3>
-        <p className="text-xs text-muted mb-md" style={{ margin: 0 }}>
-          You will be redirected to the login page.
-        </p>
+    <div className="settings-page s-page account-page">
+      <div className="s-header mb-2xl">
+        <h2 className="s-title">Account</h2>
         <button
           className="btn-sign-out"
           onClick={handleLogout}
@@ -165,10 +108,44 @@ export default function SettingsAccount() {
         </button>
       </div>
 
+      <div className="s-card mb-md">
+        <div className="account-profile-row">
+          <div className="account-profile-copy">
+            <p className="account-profile-label">Name</p>
+            <p className="account-profile-value">{displayName}</p>
+          </div>
+          <button type="button" className="btn-primary" onClick={() => setShowNameModal(true)}>
+            Change name
+          </button>
+        </div>
+      </div>
+
+      <div className="s-card mb-md">
+        <div className="account-profile-row">
+          <div className="account-profile-copy">
+            <p className="account-profile-label">Email</p>
+            <p className="account-profile-value">{email}</p>
+          </div>
+          <button type="button" className="btn-primary" onClick={() => setShowEmailModal(true)}>
+            Change email
+          </button>
+        </div>
+      </div>
+
       {isPasskeyAvailable() && (
-        <div style={{ marginTop: 'var(--sp-2xl)' }}>
+        <div className="mb-md">
           <SettingsPasskeys />
         </div>
+      )}
+
+      {showNameModal && (
+        <ChangeNameModal
+          firstName={firstName}
+          lastName={lastName}
+          saving={saving}
+          onClose={() => setShowNameModal(false)}
+          onSubmit={handleNameChange}
+        />
       )}
 
       {showEmailModal && (
