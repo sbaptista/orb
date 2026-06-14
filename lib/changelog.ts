@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.230',
+    date: '2026-06-14',
+    changes: [
+      'Added Passkeys section to Help page — how they work, managing them, and troubleshooting stale browser credentials.',
+      'Split Learn More passkey dialog into two paragraphs for readability.',
+      'Fix: dismissing the passkey registration prompt no longer shows an error.',
+    ]
+  },
+  {
     version: 'v0.5.229',
     date: '2026-06-14',
     changes: [

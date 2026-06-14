@@ -303,7 +303,10 @@ export default function SettingsPasskeys() {
             </div>
             <div className="modal-body" style={{ padding: 'var(--sp-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-lg)' }}>
               <p className="account-dialog-copy">
-                Passkeys are a simpler and safer way to sign in without using passwords. Instead of typing a password, you unlock your phone or computer with Face ID, a fingerprint, or a PIN, and your device proves to the website that it&apos;s really you. The website never gets your secret sign-in key, which makes passkeys harder to steal, fake, or use in a phishing attack.
+                Passkeys are a simpler and safer way to sign in without using passwords. Instead of typing a password, you unlock your phone or computer with Face ID, a fingerprint, or a PIN, and your device proves to the website that it&apos;s really you.
+              </p>
+              <p className="account-dialog-copy">
+                The website never gets your secret sign-in key, which makes passkeys harder to steal, fake, or use in a phishing attack.
               </p>
               <div className="modal-footer">
                 <button className="btn-primary" onClick={() => setShowLearnMore(false)}>OK</button>

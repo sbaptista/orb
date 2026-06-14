@@ -138,6 +138,47 @@ const TOPICS: Topic[] = [
     ),
   },
   {
+    id: 'passkeys',
+    label: 'Passkeys',
+    icon: '🔑',
+    content: (
+      <div>
+        <p className="help-p">
+          Passkeys are a simpler and safer way to sign in without using passwords. Instead of typing a password, you unlock your phone or computer with Face ID, a fingerprint, or a PIN, and your device proves to the website that it&apos;s really you.
+        </p>
+        <p className="help-p">
+          The website never gets your secret sign-in key, which makes passkeys harder to steal, fake, or use in a phishing attack.
+        </p>
+
+        <div className="help-section">
+          <h2 className="help-h2">How they work in Orb</h2>
+          <ul className="help-ul">
+            <li className="help-li">Each device needs its own passkey — register one on your Mac, iPad, and iPhone separately.</li>
+            <li className="help-li">After signing in with a verification code, you&apos;ll be prompted to register a passkey automatically.</li>
+            <li className="help-li">On future visits, sign-in is instant — just approve the biometric prompt.</li>
+          </ul>
+        </div>
+
+        <div className="help-section">
+          <h2 className="help-h2">Managing passkeys</h2>
+          <ul className="help-ul">
+            <li className="help-li">View, rename, and delete your passkeys from the <strong>Account</strong> page.</li>
+            <li className="help-li">If you delete a passkey, you&apos;ll be signed out and guided through re-registration.</li>
+            <li className="help-li">If you change your email address, your passkeys are removed automatically and you&apos;ll register new ones.</li>
+          </ul>
+        </div>
+
+        <div className="help-section">
+          <h2 className="help-h2">Troubleshooting</h2>
+          <ul className="help-ul">
+            <li className="help-li">If your browser shows an old passkey in the sign-in picker after deletion, ignore it — it no longer works. You can remove it from your device&apos;s Passwords settings.</li>
+            <li className="help-li">Passkeys require Safari 16+, Chrome 108+, or Edge 108+.</li>
+          </ul>
+        </div>
+      </div>
+    ),
+  },
+  {
     id: 'orb',
     label: 'The Orb',
     icon: '●',
