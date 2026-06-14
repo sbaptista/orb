@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.229',
+    date: '2026-06-14',
+    changes: [
+      'Fix: dismissing the passkey registration prompt no longer shows an error — NotAllowedError is now treated as a silent cancellation.',
+    ]
+  },
+  {
     version: 'v0.5.228',
     date: '2026-06-14',
     changes: [

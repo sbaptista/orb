@@ -235,15 +235,19 @@ export async function registerPasskey(
     const { data, error } = await (supabase.auth as any).registerPasskey()
 
     if (error) {
-      if (error.message?.includes('AbortError') || error.message?.includes('cancelled') || error.message?.includes('canceled')) {
+      const m = error.message || ''
+      if (m.includes('AbortError') || m.includes('cancelled') || m.includes('canceled') || m.includes('not allowed')) {
         return { ok: false, error: 'cancelled' }
       }
-      return { ok: false, error: error.message }
+      return { ok: false, error: m }
     }
 
     return { ok: true, data: data }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes('not allowed')) {
+      return { ok: false, error: 'cancelled' }
+    }
     return { ok: false, error: msg }
   }
 }
