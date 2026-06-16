@@ -63,9 +63,21 @@ function formatCreated(value: string, timeZone: string): string {
 
 type CreatedFilter = {
   label: string
+  label2?: string
   from: string | null
   to: string | null
   before: string | null
+}
+
+function shortDate(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const y = String(d.getFullYear()).slice(-2)
+  return `${m}/${day}/${y}`
+}
+
+function shortDateTime(d: Date): string {
+  return `${shortDate(d)} ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
 }
 
 export default function SettingsAudit() {
@@ -89,7 +101,7 @@ export default function SettingsAudit() {
       const end = new Date(start)
       end.setDate(end.getDate() + 1)
       setCreatedFilter({
-        label: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(start),
+        label: shortDate(start),
         from: start.toISOString(),
         to: null,
         before: end.toISOString(),
@@ -98,7 +110,7 @@ export default function SettingsAudit() {
       if (!createdToDraft) return
       const end = new Date(createdToDraft)
       setCreatedFilter({
-        label: `at or before ${end.toLocaleString()}`,
+        label: `≤ ${shortDate(end)}`,
         from: null,
         to: end.toISOString(),
         before: null,
@@ -107,7 +119,7 @@ export default function SettingsAudit() {
       if (!createdFromDraft) return
       const start = new Date(createdFromDraft)
       setCreatedFilter({
-        label: `at or after ${start.toLocaleString()}`,
+        label: `≥ ${shortDate(start)}`,
         from: start.toISOString(),
         to: null,
         before: null,
@@ -118,7 +130,8 @@ export default function SettingsAudit() {
       const end = new Date(createdToDraft)
       if (start > end) return
       setCreatedFilter({
-        label: `${start.toLocaleString()} – ${end.toLocaleString()}`,
+        label: shortDate(start),
+        label2: shortDate(end),
         from: start.toISOString(),
         to: end.toISOString(),
         before: null,
@@ -166,23 +179,28 @@ export default function SettingsAudit() {
           layout: 'table',
           pagination: { pageSize: PAGE_SIZE, serverSearch: true, serverSort: true },
           subtitle: (items, total) => total ? `${items.length} of ${total} entr${total !== 1 ? 'ies' : 'y'}` : `${items.length} entr${items.length !== 1 ? 'ies' : 'y'}`,
-          searchPlaceholder: 'Search log then press ➤ or Return',
+          searchPlaceholder: 'Search audit log',
           serverSearchOnSubmit: true,
           tableNavCaption: 'prev/next columns',
           onRowClick: (item) => setViewingRow(item),
           externalFilterKey: `${createdFilter?.from ?? ''}|${createdFilter?.to ?? ''}|${createdFilter?.before ?? ''}`,
           onResetFilters: () => clearCreatedFilter(),
           toolbarExtra: (
-            <div className="crud-toolbar-field crud-toolbar-field-compact">
-              <button
-                type="button"
-                className={createdFilter ? 'btn-primary' : 'btn-outline'}
-                onClick={() => setShowCreatedFilter(true)}
-                aria-label={createdFilter ? `Change date filter: ${createdFilter.label}` : 'Search by date'}
-              >
-                {createdFilter ? `Created: ${createdFilter.label}` : 'Search by Date'}
-              </button>
-            </div>
+            <button
+              type="button"
+              className={createdFilter ? 'btn-primary' : 'btn-outline'}
+              onClick={() => setShowCreatedFilter(true)}
+              aria-label={createdFilter ? `Change date filter: ${createdFilter.label}` : 'Search by date'}
+            >
+              {createdFilter ? (
+                createdFilter.label2 ? (
+                  <span className="audit-date-stack">
+                    <span>{createdFilter.label} –</span>
+                    <span>{createdFilter.label2}</span>
+                  </span>
+                ) : createdFilter.label
+              ) : 'Search by Date'}
+            </button>
           ),
 
           selectionColumnWidth: 38,

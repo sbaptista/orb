@@ -804,53 +804,65 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           {(config.searchFilter || usesServerSearch) && (
             <label className="crud-toolbar-field">
               {config.searchCaption && <span className="crud-toolbar-caption">{config.searchCaption}</span>}
-              <input
-                type="text"
-                value={search}
-                onChange={e => {
-                  setSearch(e.target.value)
-                  if (!usesServerSearch) {
-                    setPage(0)
-                    setSelectedIds([])
-                  }
-                }}
-                onKeyDown={e => {
-                  if (serverSearchOnSubmit && e.key === 'Enter') {
-                    e.preventDefault()
-                    submitSearch()
-                  }
-                }}
-                placeholder={config.searchPlaceholder ?? 'Filter…'}
-                aria-label={config.searchPlaceholder ?? `Filter ${config.title}`}
-                className="crud-search-input"
-                style={config.searchPlaceholder?.includes('summary') ? { maxWidth: '480px' } : undefined}
-              />
-              {serverSearchOnSubmit && (
-                <button
-                  type="button"
-                  className="oc-action-circle crud-search-submit"
-                  onClick={submitSearch}
-                  disabled={!search.trim()}
-                  data-tooltip="Search (Enter)"
-                  aria-label="Search"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"/>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                  </svg>
-                </button>
-              )}
+              <div className="crud-search-row">
+                <div className="crud-search-wrap">
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={e => {
+                      setSearch(e.target.value)
+                      if (!usesServerSearch) {
+                        setPage(0)
+                        setSelectedIds([])
+                      }
+                    }}
+                    onKeyDown={e => {
+                      if (serverSearchOnSubmit && e.key === 'Enter') {
+                        e.preventDefault()
+                        submitSearch()
+                      }
+                    }}
+                    placeholder={serverSearchOnSubmit ? '' : (config.searchPlaceholder ?? 'Filter…')}
+                    aria-label={config.searchPlaceholder ?? `Filter ${config.title}`}
+                    className="crud-search-input"
+                  />
+                  {serverSearchOnSubmit && !search && (
+                    <span className="crud-search-placeholder" aria-hidden="true">
+                      Search log then press
+                      <span className="crud-search-placeholder-icon">
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="22" y1="2" x2="11" y2="13"/>
+                          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                      </span>
+                      or
+                      <span className="crud-search-placeholder-return">⏎</span>
+                    </span>
+                  )}
+                </div>
+                {serverSearchOnSubmit && (
+                  <button
+                    type="button"
+                    className="oc-action-circle crud-search-submit"
+                    onClick={submitSearch}
+                    disabled={!search.trim()}
+                    data-tooltip="Search (Enter)"
+                    aria-label="Search"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13"/>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                  </button>
+                )}
+                {serverSearchOnSubmit && (debouncedSearch || (externalFilterKey && externalFilterKey !== '||')) && (
+                  <button type="button" className="btn-primary crud-reset-btn" onClick={resetAllFilters}>
+                    Reset
+                  </button>
+                )}
+                {config.toolbarExtra}
+              </div>
             </label>
-          )}
-          {config.toolbarExtra && (
-            <div className="crud-toolbar-extra">
-              {config.toolbarExtra}
-            </div>
-          )}
-          {serverSearchOnSubmit && (debouncedSearch || (externalFilterKey && externalFilterKey !== '||')) && (
-            <button type="button" className="text-btn crud-reset-btn" onClick={resetAllFilters}>
-              Reset
-            </button>
           )}
           {isTable && (
             <div className="crud-scroll-controls" aria-label="Table column navigation">

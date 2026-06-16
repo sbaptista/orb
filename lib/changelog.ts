@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.234',
+    date: '2026-06-16',
+    changes: [
+      'Moved Search by Date button inline next to the Reset button for a tighter toolbar layout.',
+      'Date range labels now show mm/dd/yy only (removed time component) for a cleaner, more compact display.',
+      'Added en-dash separator between stacked date range labels.',
+      'Fixed scroll navigation arrows not detecting table overflow after toolbar layout changes.',
+    ]
+  },
+  {
     version: 'v0.5.233',
     date: '2026-06-16',
     changes: [

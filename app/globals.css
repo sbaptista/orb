@@ -835,14 +835,49 @@ a, button, [role="button"], input, select, textarea {
   gap: 4px;
 }
 
-.crud-toolbar-field:has(.crud-search-submit) {
-  flex-direction: row;
-  flex-wrap: wrap;
+.crud-search-row {
+  display: flex;
   align-items: center;
+  gap: var(--sp-xs);
 }
 
-.crud-toolbar-field:has(.crud-search-submit) .crud-toolbar-caption {
-  width: 100%;
+.crud-search-wrap {
+  position: relative;
+  width: 280px;
+  flex: 0 1 280px;
+  min-width: 0;
+}
+
+.crud-search-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  pointer-events: none;
+  gap: 5px;
+}
+
+.crud-search-placeholder-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--btn-primary-bg);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.crud-search-placeholder-return {
+  font-size: var(--fs-base);
+  line-height: 1;
 }
 
 .crud-search-submit.oc-action-circle {
@@ -853,7 +888,6 @@ a, button, [role="button"], input, select, textarea {
   min-height: 30px;
   max-height: 30px;
   flex: none;
-  margin-left: var(--sp-xs);
   background: var(--btn-primary-bg);
   color: #fff;
 }
@@ -868,10 +902,7 @@ a, button, [role="button"], input, select, textarea {
 }
 
 .crud-reset-btn {
-  align-self: flex-end;
   flex: none;
-  font-size: var(--fs-sm);
-  padding-bottom: 6px;
 }
 
 .crud-toolbar-field-compact {
@@ -989,7 +1020,7 @@ a, button, [role="button"], input, select, textarea {
 
 /* ── Responsive CRUD: mobile card layout ── */
 .crud-mobile-cards { display: none !important; }
-.crud-desktop-table { display: block; }
+.crud-desktop-table { display: block; max-width: 100%; overflow: hidden; }
 @media (max-width: 767px) {
   .crud-desktop-table { display: none !important; }
   .crud-mobile-cards { display: block !important; }
@@ -1240,6 +1271,14 @@ a, button, [role="button"], input, select, textarea {
 
 .audit-td:last-child {
   border-right: none;
+}
+
+.audit-date-stack {
+  display: flex;
+  flex-direction: column;
+  line-height: var(--lh-tight);
+  font-size: var(--fs-xs);
+  text-align: center;
 }
 
 .audit-table tbody tr {
