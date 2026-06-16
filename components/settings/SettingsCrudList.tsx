@@ -1,17 +1,55 @@
 'use client'
 
-import React, { useEffect, useState, useMemo, useCallback, useRef, useId, type ReactNode } from 'react'
+import React, { useEffect, useState, useMemo, useCallback, useRef, useId, useSyncExternalStore, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import SkeletonRows from '@/components/ui/SkeletonRows'
 import { useToast } from '@/components/ui/Toast'
-import HScrollNav from '@/components/ui/HScrollNav'
 
 const PILL_THRESHOLD = 5
+
+function highlightText(node: React.ReactNode, term: string): React.ReactNode {
+  if (!term) return node
+  if (typeof node === 'string') {
+    const lower = node.toLowerCase()
+    const tLower = term.toLowerCase()
+    const idx = lower.indexOf(tLower)
+    if (idx === -1) return node
+    const parts: React.ReactNode[] = []
+    let last = 0
+    let pos = idx
+    let key = 0
+    while (pos !== -1) {
+      if (pos > last) parts.push(node.slice(last, pos))
+      parts.push(<mark key={key++} className="crud-highlight">{node.slice(pos, pos + term.length)}</mark>)
+      last = pos + term.length
+      pos = lower.indexOf(tLower, last)
+    }
+    if (last < node.length) parts.push(node.slice(last))
+    return <>{parts}</>
+  }
+  if (typeof node === 'number') {
+    return highlightText(String(node), term)
+  }
+  if (React.isValidElement(node)) {
+    const el = node as React.ReactElement<any>
+    if (el.type === 'input' || el.type === 'select' || el.type === 'textarea') return node
+    const children = el.props?.children
+    if (children === undefined || children === null) return node
+    const newChildren = React.Children.map(children, child => highlightText(child, term))
+    return React.cloneElement(el, {}, newChildren)
+  }
+  if (Array.isArray(node)) {
+    return node.map((child, i) => <React.Fragment key={i}>{highlightText(child, term)}</React.Fragment>)
+  }
+  return node
+}
+type TablePlatform = 'mac' | 'ipad' | 'iphone'
 
 type TableColumn<T = any> = {
   label: string
   width?: string
+  platformWidths?: Partial<Record<TablePlatform, string>>
   align?: 'left' | 'right' | 'center'
   sortKey?: string
   sortValue?: (item: T, extra: any) => string | number
@@ -38,12 +76,32 @@ type CrudConfig<T, F> = {
 
   layout?: 'list' | 'table'
   tableColumns?: TableColumn<T>[]
+  /** Number of leading columns (including checkbox) to pin when scrolling horizontally. */
+  stickyColumns?: number
+  /** Platform-specific frozen-column counts. Falls back to stickyColumns. */
+  stickyColumnsByPlatform?: Partial<Record<TablePlatform, number>>
+  /** Width of the bulk-selection checkbox column. Defaults to 36px. */
+  selectionColumnWidth?: number
+  /** Platform-specific bulk-selection widths. Falls back to selectionColumnWidth. */
+  selectionColumnWidths?: Partial<Record<TablePlatform, number>>
 
   load?: (supabase: any, pagination?: PaginationRequest) => Promise<{ items: T[]; extra?: any; totalCount?: number }>
   /** Server-side pagination. Search and sorting stay local unless explicitly enabled. */
   pagination?: { pageSize: number; serverSearch?: boolean; serverSort?: boolean }
   /** Extra ReactNode rendered in the header area (right side, before the Add button). */
   headerExtra?: ReactNode
+  /** ReactNode rendered before the active search control, such as a compact search-mode selector. */
+  toolbarLeading?: ReactNode
+  /** Extra ReactNode rendered in the table/search toolbar after the search field. */
+  toolbarExtra?: ReactNode
+  /** Controls whether the text search input is visible and active. Defaults to true. */
+  searchEnabled?: boolean
+  /** Caption rendered above the search input when the search toolbar is visible. */
+  searchCaption?: string
+  /** Caption rendered with table horizontal navigation controls. */
+  tableNavCaption?: string
+  /** Changes when an external server-side filter changes, resetting pagination to page one. */
+  externalFilterKey?: string
   /** Custom handler when a row is clicked. When provided, replaces the default edit-on-click behavior. */
   onRowClick?: (item: T) => void
   validate?: (form: F, items: T[], editingId: string | null) => string | null
@@ -126,8 +184,11 @@ type CrudConfig<T, F> = {
 export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<T, F> }) {
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
+  const configRef = useRef(config)
+  configRef.current = config
   const tableScrollRef = useRef<HTMLDivElement>(null)
   const loadRequestId = useRef(0)
+  const previousExternalFilterKey = useRef(config.externalFilterKey)
 
   const [items, setItems] = useState<T[]>([])
   const [extra, setExtra] = useState<any>({})
@@ -149,75 +210,58 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [page, setPage] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
+  const [canScrollTableLeft, setCanScrollTableLeft] = useState(false)
+  const [canScrollTableRight, setCanScrollTableRight] = useState(false)
   const scopeFilterId = useId()
-
-  // Column width resizing state/refs (declared at top level to obey hook rules)
-  const colStorageKey = `orb-col-widths-v2-${config.title}`
-  const [colWidths, setColWidths] = useState<Record<number, number>>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(colStorageKey)
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved)
-          const expectedLen = config.tableColumns?.length ?? 0
-          if (Object.keys(parsed).length === expectedLen) {
-            return parsed
-          }
-        } catch {
-          return {}
-        }
+  const tablePlatform = useSyncExternalStore<TablePlatform>(
+    (onChange) => {
+      const pointerQuery = window.matchMedia('(pointer: coarse)')
+      window.addEventListener('resize', onChange)
+      pointerQuery.addEventListener('change', onChange)
+      return () => {
+        window.removeEventListener('resize', onChange)
+        pointerQuery.removeEventListener('change', onChange)
       }
+    },
+    () => window.innerWidth <= 767
+      ? 'iphone'
+      : window.matchMedia('(pointer: coarse)').matches ? 'ipad' : 'mac',
+    () => 'mac',
+  )
+
+  const stickyCount = config.stickyColumnsByPlatform?.[tablePlatform] ?? config.stickyColumns ?? 0
+  const selectionColumnWidth = config.selectionColumnWidths?.[tablePlatform] ?? config.selectionColumnWidth ?? 36
+  const resolvedColumns = useMemo(() => config.tableColumns?.map(column => ({
+    ...column,
+    width: column.platformWidths?.[tablePlatform] ?? column.width,
+  })), [config.tableColumns, tablePlatform])
+
+  const tableMinWidth = useMemo(() => {
+    const cols = resolvedColumns
+    if (!cols) return 0
+    let total = config.bulkDelete ? selectionColumnWidth : 0
+    for (const c of cols) {
+      if (c.width) total += parseInt(c.width, 10) || 0
     }
-    return {}
-  })
-  const [activeResizeColIdx, setActiveResizeColIdx] = useState<number | null>(null)
-  const startX = useRef(0)
-  const startWidth = useRef(0)
-  const resizingIdx = useRef<number | null>(null)
-  const hasCustomWidths = Object.keys(colWidths).length > 0
-
-  const resetColWidths = useCallback(() => {
-    setColWidths({})
-    localStorage.removeItem(colStorageKey)
-  }, [colStorageKey])
-
-  useEffect(() => {
-    if (hasCustomWidths) {
-      localStorage.setItem(colStorageKey, JSON.stringify(colWidths))
-    }
-  }, [colWidths, colStorageKey, hasCustomWidths])
-
-  const startResizeActivation = (index: number) => {
-    setActiveResizeColIdx(index)
-  }
-
-  useEffect(() => {
-    if (activeResizeColIdx === null) return
-    const handleOutsideClick = (e: MouseEvent) => {
-      const th = (e.target as HTMLElement).closest('th.audit-th')
-      if (th) return
-      setActiveResizeColIdx(null)
-    }
-    window.addEventListener('mousedown', handleOutsideClick)
-    return () => {
-      window.removeEventListener('mousedown', handleOutsideClick)
-    }
-  }, [activeResizeColIdx])
-
-  const totalColWidth = useMemo(() => {
-    if (Object.keys(colWidths).length === 0) return undefined
-    let sum = !!config.bulkDelete ? 36 : 0
-    config.tableColumns?.forEach((_col, idx) => {
-      sum += colWidths[idx] || 100
-    })
-    return sum
-  }, [colWidths, config.bulkDelete, config.tableColumns])
+    return total
+  }, [resolvedColumns, config.bulkDelete, selectionColumnWidth])
 
   const canSelect = config.bulkDelete?.canSelect ?? (() => true)
   const usesServerSearch = !!config.pagination?.serverSearch
   const usesServerSort = !!config.pagination?.serverSort
+  const searchEnabled = config.searchEnabled ?? true
+  const pageSize = config.pagination?.pageSize
+  const externalFilterKey = config.externalFilterKey
 
   useEffect(() => {
+    if (!searchEnabled) {
+      setSearch('')
+      setDebouncedSearch('')
+      setPage(0)
+      setSelectedIds([])
+      return
+    }
+
     if (!usesServerSearch) {
       setDebouncedSearch(search)
       return
@@ -225,33 +269,52 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
 
     const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 300)
     return () => window.clearTimeout(timeout)
-  }, [search, usesServerSearch])
+  }, [search, usesServerSearch, searchEnabled])
+
+  useEffect(() => {
+    if (previousExternalFilterKey.current === externalFilterKey) return
+    previousExternalFilterKey.current = externalFilterKey
+    setPage(0)
+    setSelectedIds([])
+  }, [externalFilterKey])
 
   const load = useCallback(async () => {
     const requestId = ++loadRequestId.current
-    if (config.load) {
-      const paginationArg = config.pagination ? {
-        page,
-        pageSize: config.pagination.pageSize,
-        search: usesServerSearch ? debouncedSearch : '',
-        sortKey: usesServerSort ? sortKey : null,
-        sortDir,
-      } : undefined
-      const result = await config.load(supabase, paginationArg)
+    setLoading(true)
+    try {
+      const cfg = configRef.current
+      if (cfg.load) {
+        const paginationArg = pageSize ? {
+          page,
+          pageSize,
+          search: usesServerSearch && searchEnabled ? debouncedSearch : '',
+          sortKey: usesServerSort ? sortKey : null,
+          sortDir,
+        } : undefined
+        const result = await cfg.load(supabase, paginationArg)
+        if (requestId !== loadRequestId.current) return
+        setItems(result.items)
+        if (result.extra) setExtra(result.extra)
+        if (result.totalCount !== undefined) setTotalCount(result.totalCount)
+        setError('')
+      } else {
+        const { data, error: loadError } = await supabase.from(cfg.table).select('*').order(cfg.orderBy ?? 'sort_order')
+        if (loadError) throw loadError
+        if (requestId !== loadRequestId.current) return
+        setItems(data ?? [])
+        setError('')
+      }
+    } catch (loadError) {
       if (requestId !== loadRequestId.current) return
-      setItems(result.items)
-      if (result.extra) setExtra(result.extra)
-      if (result.totalCount !== undefined) setTotalCount(result.totalCount)
-    } else {
-      const { data } = await supabase.from(config.table).select('*').order(config.orderBy ?? 'sort_order')
-      if (requestId !== loadRequestId.current) return
-      setItems(data ?? [])
+      const message = loadError instanceof Error ? loadError.message : String(loadError)
+      setError(`Could not load ${configRef.current.title}: ${message}`)
+    } finally {
+      if (requestId === loadRequestId.current) setLoading(false)
     }
-    setLoading(false)
-  }, [supabase, config, page, debouncedSearch, sortKey, sortDir, usesServerSearch, usesServerSort])
+  }, [supabase, page, pageSize, debouncedSearch, sortKey, sortDir, usesServerSearch, usesServerSort, searchEnabled])
 
   useVisibilityRefetch(load)
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load() }, [load, externalFilterKey])
 
   const scoped = config.scopeFilter
     ? items.filter(item => config.scopeFilter!.filterItem(item, scope))
@@ -263,7 +326,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
 
   const displayed = (() => {
     if (!sortKey || usesServerSort) return filtered
-    const col = config.tableColumns?.find(c => c.sortKey === sortKey)
+    const col = resolvedColumns?.find(c => c.sortKey === sortKey)
     if (!col?.sortValue) return filtered
     return [...filtered].sort((a, b) => {
       const av = col.sortValue!(a, extra)
@@ -272,6 +335,29 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       return sortDir === 'asc' ? cmp : -cmp
     })
   })()
+
+  useEffect(() => {
+    const element = tableScrollRef.current
+    if (!element) return
+    const update = () => {
+      setCanScrollTableLeft(element.scrollLeft > 2)
+      setCanScrollTableRight(element.scrollLeft + element.clientWidth < element.scrollWidth - 2)
+    }
+    update()
+    element.addEventListener('scroll', update, { passive: true })
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+    const table = element.querySelector('table')
+    if (table) observer.observe(table)
+    return () => {
+      element.removeEventListener('scroll', update)
+      observer.disconnect()
+    }
+  }, [displayed.length, tableMinWidth])
+
+  function scrollTable(direction: -1 | 1) {
+    tableScrollRef.current?.scrollBy({ left: direction * 240, behavior: 'smooth' })
+  }
 
   const selectableIds = displayed.filter(canSelect).map(config.getId)
   const allChecked = selectableIds.length > 0 && selectableIds.every(id => selectedIds.includes(id))
@@ -533,8 +619,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   function renderItemRow(item: T, idx: number) {
     const id = config.getId(item)
     const selectable = hasBulk && canSelect(item)
+    const checkboxSticky = stickyCount > 0 ? { position: 'sticky' as const, left: 0, zIndex: 2, background: 'var(--bg)' } : {}
     const checkbox = hasBulk ? (
-      <td className="audit-td" style={{ textAlign: 'center' }}>
+      <td style={{ textAlign: 'center', padding: '8px var(--sp-md)', ...checkboxSticky }}>
         {selectable ? (
           <input
             type="checkbox"
@@ -550,7 +637,6 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       index: idx,
       items: displayed,
       onEdit: (e?: React.MouseEvent) => {
-        // Don't trigger row-edit when clicking buttons, links, inputs, selects
         if (e) {
           const tag = (e.target as HTMLElement).tagName
           if (['BUTTON', 'A', 'INPUT', 'SELECT', 'SVG', 'PATH'].includes(tag)) return
@@ -565,33 +651,42 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       extra,
       checkbox,
     })
-    if (isTable && !totalColWidth && React.isValidElement(rowNode) && (rowNode as React.ReactElement<any>).type === 'tr') {
+    if (isTable && stickyCount > 0 && React.isValidElement(rowNode) && (rowNode as React.ReactElement<any>).type === 'tr') {
       const trNode = rowNode as React.ReactElement<any>
-      const children = React.Children.toArray(trNode.props.children) as React.ReactElement<any>[]
-      const hasFullWidthCell = children.some(child => child?.props?.colSpan != null)
-      if (hasFullWidthCell) {
-        const newChildren = children.map(child => {
-          if (child?.props?.colSpan != null) {
-            return React.cloneElement(child, { colSpan: child.props.colSpan + 1 })
+      const children = React.Children.toArray(trNode.props.children).filter(Boolean) as React.ReactElement<any>[]
+      const stickyDataCount = stickyCount - (hasBulk ? 1 : 0)
+      const dataStart = hasBulk ? 1 : 0
+      const newChildren = children.map((child, ci) => {
+        const dataIdx = ci - dataStart
+        if (dataIdx >= 0 && dataIdx < stickyDataCount && React.isValidElement(child)) {
+          let leftOffset = hasBulk ? selectionColumnWidth : 0
+          for (let j = 0; j < dataIdx; j++) {
+            const w = resolvedColumns?.[j]?.width
+            if (w) leftOffset += parseInt(w, 10) || 0
           }
-          return child
-        })
-        return React.cloneElement(trNode, {}, ...newChildren)
-      } else {
-        children.push(
-          <td key="spacer-cell" className="audit-td" style={{ width: 'auto', borderRight: 'none' }} />
-        )
-        return React.cloneElement(trNode, {}, ...children)
-      }
+          const childEl = child as React.ReactElement<any>
+          return React.cloneElement(childEl, {
+            style: { ...(childEl.props?.style || {}), position: 'sticky', left: `${leftOffset}px`, zIndex: 2, background: 'var(--bg)' },
+          })
+        }
+        return child
+      })
+      return React.cloneElement(trNode, {}, ...newChildren)
     }
     if (isTable) return rowNode
     return <div key={config.getId(item)}>{rowNode}</div>
   }
 
+  const activeSearchTerm = searchEnabled ? (usesServerSearch ? debouncedSearch : search.trim()) : ''
+
   const itemRows = displayed.map((item, idx) => {
     const id = config.getId(item)
     if (confirmDeleteId === id) return renderDeleteConfirm(item)
-    return renderItemRow(item, idx)
+    const row = renderItemRow(item, idx)
+    if (activeSearchTerm && React.isValidElement(row)) {
+      return highlightText(row, activeSearchTerm) as React.ReactElement
+    }
+    return row
   })
 
   // ── Modal ──
@@ -619,11 +714,6 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           <div className="flex-row gap-sm" style={{ alignItems: 'baseline' }}>
             {config.subtitle && (
               <p className="text-sm text-muted">{config.subtitle(displayed, totalCount || undefined)}</p>
-            )}
-            {isTable && hasCustomWidths && (
-              <button className="text-btn btn-sm" onClick={resetColWidths}>
-                Reset columns
-              </button>
             )}
           </div>
         </div>
@@ -670,21 +760,67 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         </div>
       )}
 
-      {(config.searchFilter || usesServerSearch) && (
-        <div style={{ marginBottom: '12px' }}>
-          <input
-            type="text"
-            value={search}
-            onChange={e => {
-              setSearch(e.target.value)
-              setPage(0)
-              setSelectedIds([])
-            }}
-            placeholder={config.searchPlaceholder ?? 'Filter…'}
-            aria-label={config.searchPlaceholder ?? `Filter ${config.title}`}
-            className="crud-search-input"
-            style={config.searchPlaceholder?.includes('summary') ? { maxWidth: '480px' } : undefined}
-          />
+      {((config.searchFilter || usesServerSearch) || isTable) && (
+        <div className="crud-table-toolbar">
+          {config.toolbarLeading && (
+            <div className="crud-toolbar-leading">
+              {config.toolbarLeading}
+            </div>
+          )}
+          {searchEnabled && (config.searchFilter || usesServerSearch) && (
+            <label className="crud-toolbar-field">
+              {config.searchCaption && <span className="crud-toolbar-caption">{config.searchCaption}</span>}
+              <input
+                type="text"
+                value={search}
+                onChange={e => {
+                  setSearch(e.target.value)
+                  setPage(0)
+                  setSelectedIds([])
+                }}
+                placeholder={config.searchPlaceholder ?? 'Filter…'}
+                aria-label={config.searchPlaceholder ?? `Filter ${config.title}`}
+                className="crud-search-input"
+                style={config.searchPlaceholder?.includes('summary') ? { maxWidth: '480px' } : undefined}
+              />
+            </label>
+          )}
+          {config.toolbarExtra && (
+            <div className="crud-toolbar-extra">
+              {config.toolbarExtra}
+            </div>
+          )}
+          {isTable && (
+            <div className="crud-scroll-controls" aria-label="Table column navigation">
+              <div className="crud-scroll-buttons">
+                <div className="nav-circle-control">
+                  <button
+                    type="button"
+                    className="nav-circle-btn"
+                    onClick={() => { if (canScrollTableLeft) scrollTable(-1) }}
+                    aria-disabled={!canScrollTableLeft}
+                    aria-label="Previous table columns"
+                    data-tooltip="Previous table columns"
+                  >
+                    ‹
+                  </button>
+                </div>
+                <div className="nav-circle-control">
+                  <button
+                    type="button"
+                    className="nav-circle-btn"
+                    onClick={() => { if (canScrollTableRight) scrollTable(1) }}
+                    aria-disabled={!canScrollTableRight}
+                    aria-label="Next table columns"
+                    data-tooltip="Next table columns"
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+              <span className="crud-scroll-controls-label">{config.tableNavCaption ?? 'Prev/Next Columns'}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -722,101 +858,61 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           <>
             {/* Desktop table */}
             <div className={hasMobileCards ? 'crud-desktop-table' : undefined}>
-              <HScrollNav scrollRef={tableScrollRef as React.RefObject<HTMLElement>} className="crud-table-scroll">
-                <div className="s-card" style={{
-                  padding: 0, overflow: 'hidden',
-                  ...(totalColWidth ? { width: 'fit-content', maxWidth: '100%', flex: 'none' } : {}),
-                }}>
+              <div className="s-card" style={{ padding: 0, overflow: 'hidden' }}>
                   <div ref={tableScrollRef} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' as any }}>
-                    {activeResizeColIdx !== null && (
-                      <style>{`
-                        .audit-table tr th:nth-child(${activeResizeColIdx + (hasBulk ? 2 : 1)}) {
-                          border-right: 2px solid var(--accent, #5a3090) !important;
-                        }
-                        .audit-table tr td:nth-child(${activeResizeColIdx + (hasBulk ? 2 : 1)}) {
-                          border-right: 2px solid var(--accent, #5a3090) !important;
-                        }
-                      `}</style>
-                    )}
-                    <table className="audit-table" style={{ width: totalColWidth ? `${totalColWidth}px` : '100%' }}>
+                    <table className="audit-table" style={tableMinWidth ? { width: `${tableMinWidth}px`, minWidth: `${tableMinWidth}px`, tableLayout: 'fixed' } : undefined}>
+                      {tableMinWidth > 0 && (
+                        <colgroup>
+                          {hasBulk && <col style={{ width: `${selectionColumnWidth}px` }} />}
+                          {resolvedColumns?.map((col, i) => (
+                            <col key={i} style={{ width: col.width }} />
+                          ))}
+                        </colgroup>
+                      )}
                       <thead>
                         <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                          {hasBulk && (
-                            <th className="audit-th" style={{ width: '36px', textAlign: 'center' }}>
-                              <input
-                                type="checkbox"
-                                checked={allChecked}
-                                onChange={toggleSelectAll}
-                                style={{ cursor: 'pointer' }}
-                              />
-                            </th>
-                          )}
-                          {config.tableColumns?.map((col, i) => {
+                          {hasBulk && (() => {
+                            const isSticky = stickyCount > 0
+                            return (
+                              <th className="audit-th" style={{
+                                width: `${selectionColumnWidth}px`, textAlign: 'center',
+                                ...(isSticky ? { position: 'sticky', left: 0, zIndex: 3 } : {}),
+                              }}>
+                                <input
+                                  type="checkbox"
+                                  checked={allChecked}
+                                  onChange={toggleSelectAll}
+                                  style={{ cursor: 'pointer' }}
+                                />
+                              </th>
+                            )
+                          })()}
+                          {resolvedColumns?.map((col, i) => {
                             const isSortable = !!col.sortKey
                             const isActive = sortKey === col.sortKey
-                            const dynamicWidth = colWidths[i]
-                            const widthStyle = dynamicWidth ? `${dynamicWidth}px` : col.width
+                            const colIdx = hasBulk ? i + 1 : i
+                            const isSticky = colIdx < stickyCount
 
-                            const handleResizeStart = (e: React.PointerEvent) => {
-                               e.preventDefault()
-                               e.stopPropagation()
-                               resizingIdx.current = i
-                               startX.current = e.clientX
-
-                               const thEl = (e.target as HTMLElement).closest('th')
-                               let currentWidth = colWidths[i]
-
-                               if (Object.keys(colWidths).length === 0 && tableScrollRef.current) {
-                                 const ths = tableScrollRef.current.querySelectorAll('th.audit-th')
-                                 const initialWidths: Record<number, number> = {}
-                                 const offset = !!config.bulkDelete ? 1 : 0
-                                 config.tableColumns?.forEach((col, idx) => {
-                                   const el = ths[idx + offset]
-                                   if (el) {
-                                     initialWidths[idx] = el.getBoundingClientRect().width
-                                   } else {
-                                     initialWidths[idx] = 100
-                                   }
-                                 })
-                                 setColWidths(initialWidths)
-                                 currentWidth = initialWidths[i]
-                               }
-
-                               startWidth.current = currentWidth || (thEl ? thEl.getBoundingClientRect().width : 100)
-
-                              const onPointerMove = (moveEvent: PointerEvent) => {
-                                if (resizingIdx.current === null) return
-                                const delta = moveEvent.clientX - startX.current
-                                const newWidth = Math.max(60, startWidth.current + delta)
-                                setColWidths(prev => ({ ...prev, [i]: newWidth }))
+                            let leftOffset = 0
+                            if (isSticky) {
+                              if (hasBulk) leftOffset += selectionColumnWidth
+                              for (let j = 0; j < i; j++) {
+                                const w = resolvedColumns?.[j]?.width
+                                if (w) leftOffset += parseInt(w, 10) || 0
                               }
-
-                              const onPointerUp = () => {
-                                resizingIdx.current = null
-                                window.removeEventListener('pointermove', onPointerMove)
-                                window.removeEventListener('pointerup', onPointerUp)
-                              }
-
-                              window.addEventListener('pointermove', onPointerMove)
-                              window.addEventListener('pointerup', onPointerUp)
                             }
 
                             return (
                               <th key={i} className="audit-th"
                                 style={{
-                                  width: widthStyle,
-                                  ...(dynamicWidth ? { minWidth: widthStyle, maxWidth: widthStyle } : {}),
+                                  width: col.width,
+                                  minWidth: col.width,
                                   textAlign: col.align ?? 'left',
                                   cursor: isSortable ? 'pointer' : undefined,
                                   userSelect: 'none',
-                                  position: 'relative',
+                                  ...(isSticky ? { position: 'sticky', left: `${leftOffset}px`, zIndex: 3 } : {}),
                                 }}
-                                onClick={(e) => {
-                                  if ((e.target as HTMLElement).closest('.col-resize-handle-sheets')) {
-                                    e.stopPropagation()
-                                    return
-                                  }
-                                  startResizeActivation(i)
+                                onClick={() => {
                                   if (isSortable) {
                                     setPage(0)
                                     setSelectedIds([])
@@ -825,7 +921,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                                   }
                                 }}
                               >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', paddingRight: '12px', minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', minWidth: 0 }}>
                                   <span style={{
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
@@ -840,24 +936,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                                     </span>
                                   )}
                                 </div>
-
-                                {activeResizeColIdx === i && (
-                                  <div
-                                    className="col-resize-handle-sheets"
-                                    onPointerDown={handleResizeStart}
-                                    onClick={e => e.stopPropagation()}
-                                  >
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                      <polyline points="17 8 21 12 17 16"></polyline>
-                                      <polyline points="7 8 3 12 7 16"></polyline>
-                                      <line x1="3" y1="12" x2="21" y2="12"></line>
-                                    </svg>
-                                  </div>
-                                )}
                               </th>
                             )
                           })}
-                          {!totalColWidth && <th className="audit-th" style={{ width: 'auto', borderRight: 'none' }} />}
                         </tr>
                       </thead>
                       <tbody>
@@ -871,58 +952,49 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                       <div className="flex-between" style={{ padding: 'var(--sp-sm) var(--sp-lg)', borderTop: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', gap: 'var(--sp-sm)' }}>
                           <button
-                            className="nav-btn"
-                            onClick={() => { setPage(0); setSelectedIds([]) }}
-                            disabled={page === 0}
+                            className="nav-circle-btn"
+                            onClick={() => { if (page > 0) { setPage(0); setSelectedIds([]) } }}
+                            aria-disabled={page === 0}
+                            aria-label="First page"
                             data-tooltip="First page"
                           >
-                            <span className="nav-btn-icon">
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
-                            </span>
-                            <span className="nav-btn-label">First</span>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
                           </button>
                           <button
-                            className="nav-btn"
-                            onClick={() => { setPage(p => Math.max(0, p - 1)); setSelectedIds([]) }}
-                            disabled={page === 0}
+                            className="nav-circle-btn"
+                            onClick={() => { if (page > 0) { setPage(p => Math.max(0, p - 1)); setSelectedIds([]) } }}
+                            aria-disabled={page === 0}
+                            aria-label="Previous page"
                             data-tooltip="Previous page"
                           >
-                            <span className="nav-btn-icon">
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                            </span>
-                            <span className="nav-btn-label">Previous</span>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                           </button>
                         </div>
                         <span className="text-xs text-muted">Page {page + 1} of {lastPage + 1}</span>
                         <div style={{ display: 'flex', gap: 'var(--sp-sm)' }}>
                           <button
-                            className="nav-btn"
-                            onClick={() => { setPage(p => p + 1); setSelectedIds([]) }}
-                            disabled={page >= lastPage}
+                            className="nav-circle-btn"
+                            onClick={() => { if (page < lastPage) { setPage(p => p + 1); setSelectedIds([]) } }}
+                            aria-disabled={page >= lastPage}
+                            aria-label="Next page"
                             data-tooltip="Next page"
                           >
-                            <span className="nav-btn-icon">
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                            </span>
-                            <span className="nav-btn-label">Next</span>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                           </button>
                           <button
-                            className="nav-btn"
-                            onClick={() => { setPage(lastPage); setSelectedIds([]) }}
-                            disabled={page >= lastPage}
+                            className="nav-circle-btn"
+                            onClick={() => { if (page < lastPage) { setPage(lastPage); setSelectedIds([]) } }}
+                            aria-disabled={page >= lastPage}
+                            aria-label="Last page"
                             data-tooltip="Last page"
                           >
-                            <span className="nav-btn-icon">
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
-                            </span>
-                            <span className="nav-btn-label">Last</span>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
                           </button>
                         </div>
                       </div>
                     )
                   })()}
-                </div>
-              </HScrollNav>
+              </div>
             </div>
 
             {/* Mobile cards */}

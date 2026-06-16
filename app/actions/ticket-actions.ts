@@ -78,6 +78,7 @@ export async function createTicket({
   detail,
   conversation_snippet,
   reportedBy,
+  systemInfo,
 }: {
   source: 'orb-auto' | 'user-request' | 'admin'
   type: TicketType
@@ -85,6 +86,7 @@ export async function createTicket({
   detail?: any
   conversation_snippet?: string
   reportedBy?: string
+  systemInfo?: { browser: string; os: string; os_version: string; viewport: string } | null
 }) {
   const admin = createAdminClient()
 
@@ -97,6 +99,8 @@ export async function createTicket({
     .maybeSingle()
   const nextNum = (maxRow?.ticket_number ?? 0) + 1
 
+  const mergedDetail = { ...(detail ?? {}), ...(systemInfo ? { system: systemInfo } : {}) }
+
   const { data: ticket, error } = await admin
     .from('tickets')
     .insert({
@@ -104,7 +108,7 @@ export async function createTicket({
       type,
       source,
       summary,
-      detail: detail ?? {},
+      detail: mergedDetail,
       conversation_snippet: conversation_snippet ?? null,
       reported_by: reportedBy ?? null,
       status: 'open',

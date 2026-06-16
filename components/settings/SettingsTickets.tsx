@@ -265,6 +265,22 @@ export default function SettingsTickets() {
             <div className="compose-body">
               {/* Left Column: Form Controls */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-md)' }}>
+                {editingTicket?.detail?.system && (
+                  <div style={{
+                    padding: 'var(--sp-sm) var(--sp-md)',
+                    background: 'var(--bg-hover)',
+                    borderRadius: 'var(--r)',
+                    fontSize: 'var(--fs-sm)',
+                    color: 'var(--muted)',
+                    display: 'flex',
+                    gap: 'var(--sp-lg)',
+                    flexWrap: 'wrap',
+                  }}>
+                    <span>🖥 {editingTicket.detail.system.browser}</span>
+                    <span>{editingTicket.detail.system.os} {editingTicket.detail.system.os_version}</span>
+                    <span>{editingTicket.detail.system.viewport}</span>
+                  </div>
+                )}
                 {needsAction && ref && (
                   <div style={{
                     padding: 'var(--sp-md)',

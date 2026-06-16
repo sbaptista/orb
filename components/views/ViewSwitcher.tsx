@@ -30,7 +30,7 @@ export default function ViewSwitcher({ current, onSwitch, onClose }: ViewSwitche
         </button>
       ))}
       <div style={{ flex: 1 }} />
-      <button className="nav-btn" onClick={onClose} aria-label="Close views" title="Close" style={{ padding: '2px 4px', minWidth: 'auto' }}>
+      <button className="nav-circle-btn" onClick={onClose} aria-label="Close views" data-tooltip="Close views">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>

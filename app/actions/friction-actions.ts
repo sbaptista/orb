@@ -1,6 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { logAuditEvent } from '@/lib/audit'
 
 export async function logFriction({ category, summary, detail, conversation_snippet, product_id }: {
     category: string,
@@ -10,18 +11,19 @@ export async function logFriction({ category, summary, detail, conversation_snip
     product_id?: string
 }) {
     const admin = createAdminClient()
-    const { error } = await admin.from('orb_friction').insert({
+    const { data, error } = await admin.from('orb_friction').insert({
         category,
         summary,
         detail,
         conversation_snippet,
         product_id
-    })
-    
+    }).select('id').single()
+
     if (error) {
         console.error("logFriction error:", error)
         return { error: error.message }
     }
+    await logAuditEvent({ action: 'friction_log', table_name: 'orb_friction', record_id: data?.id, after: { category, summary }, actor: 'orb' })
     return { ok: true }
 }
 
@@ -42,5 +44,6 @@ export async function deleteFrictionLog(id: string) {
         console.error("deleteFrictionLog error:", error)
         return { error: error.message }
     }
+    await logAuditEvent({ action: 'friction_delete', table_name: 'orb_friction', record_id: id, actor: 'admin-ui' })
     return { ok: true }
 }

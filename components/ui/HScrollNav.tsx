@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect } from 'react'
 
 interface HScrollNavProps {
   children: React.ReactNode
@@ -64,9 +64,10 @@ export default function HScrollNav({
     >
       {canScrollLeft && (
         <button
-          className="cs-scroll-arrow cs-scroll-arrow-left"
+          className="cs-scroll-arrow cs-scroll-arrow-left nav-circle-btn"
           onClick={() => scroll(-1)}
           aria-label="Scroll left"
+          data-tooltip="Previous"
         >
           ‹
         </button>
@@ -93,9 +94,10 @@ export default function HScrollNav({
 
       {canScrollRight && (
         <button
-          className="cs-scroll-arrow cs-scroll-arrow-right"
+          className="cs-scroll-arrow cs-scroll-arrow-right nav-circle-btn"
           onClick={() => scroll(1)}
           aria-label="Scroll right"
+          data-tooltip="Next"
         >
           ›
         </button>

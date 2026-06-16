@@ -11,6 +11,7 @@ export async function logAudit(params: {
   after?: any
   actor?: string
   user_id?: string
+  system_info?: { browser: string; os: string; os_version: string; viewport: string } | null
 }) {
   let userId = params.user_id
   if (!userId) {

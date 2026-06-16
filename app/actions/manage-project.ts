@@ -2,6 +2,7 @@
 
 import { getAuthContext, requireAdmin } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { logAuditEvent } from '@/lib/audit'
 
 async function checkCodeConflict(admin: ReturnType<typeof createAdminClient>, code: string, userId: string, excludeId?: string) {
   const query = admin.from('projects').select('id').ilike('code', code).eq('created_by', userId).is('deleted_at', null)
@@ -66,6 +67,7 @@ export async function createProject(data: {
     .single()
 
   if (error) return { error: error.message }
+  await logAuditEvent({ action: 'project_create', table_name: 'projects', record_id: project.id, after: { name: project.name, code: project.code }, actor: 'web-ui', user_id: ownerId })
   return { project }
 }
 
@@ -138,6 +140,7 @@ export async function updateProject(id: string, data: {
     .single()
 
   if (error) return { error: error.message }
+  await logAuditEvent({ action: 'project_update', table_name: 'projects', record_id: id, after: data, actor: 'web-ui', user_id: ctx.user.id })
   return { project }
 }
 
@@ -151,6 +154,7 @@ export async function toggleProjectDormancy(id: string, isDormant: boolean) {
     .single()
 
   if (error) return { error: error.message }
+  await logAuditEvent({ action: 'project_dormancy', table_name: 'projects', record_id: id, after: { is_dormant: isDormant }, actor: 'web-ui', user_id: ctx.user.id })
   return { project }
 }
 
@@ -159,6 +163,7 @@ export async function deleteProjects(ids: string[]) {
   const client = ctx.isAdmin ? ctx.admin : ctx.supabase
   const { error } = await client.from('projects').delete().in('id', ids)
   if (error) return { error: error.message }
+  await logAuditEvent({ action: 'project_bulk_delete', table_name: 'projects', after: { count: ids.length, ids }, actor: 'web-ui', user_id: ctx.user.id })
   return { success: true }
 }
 
@@ -167,5 +172,6 @@ export async function deleteProject(id: string) {
   const client = ctx.isAdmin ? ctx.admin : ctx.supabase
   const { error } = await client.from('projects').delete().eq('id', id)
   if (error) return { error: error.message }
+  await logAuditEvent({ action: 'project_delete', table_name: 'projects', record_id: id, actor: 'web-ui', user_id: ctx.user.id })
   return { success: true }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { logAuditEvent } from '@/lib/audit'
 
 const STAN_ID = '3c8f183a-1350-4ce2-9b60-7d51ccd55b60'
 
@@ -114,6 +115,8 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  await logAuditEvent({ action: 'todo_create', table_name: 'todos', record_id: todo.id, after: { title: todo.title, status: todo.status, product_code }, actor: 'rest-api', user_id: targetUserId })
 
   return NextResponse.json(todo, { status: 201 })
 }

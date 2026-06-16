@@ -1,8 +1,20 @@
 # UI Component Catalog
 
 > **Read this before building any UI.** Every AI agent must check this catalog at session start.  
-> If a pattern exists here, use it. If none fits, propose the new pattern to Stan before creating it.  
+> If a pattern exists here, use it. If none fits, tell Stan the catalog may be incomplete and ask whether he wants a new pattern added before creating it.
 > Source of truth for CSS: `app/globals.css`. Source of truth for components: `components/`.
+
+---
+
+## How To Use This Catalog
+
+Treat UI as assembly from established parts:
+- Identify the family first: modal, table, button, form field, navigation, card, empty state, etc.
+- Pick the canonical pattern below and inspect its listed component files before editing.
+- Reuse the documented classes and structure directly.
+- If two viable patterns fit, ask Stan which model he wants.
+- If no pattern fits, say the catalog may be incomplete and ask Stan whether he wants a new pattern added to the catalog.
+- If Stan says yes, add the pattern to this catalog in the same change as the implementation; if he says no, do not create a parallel component family.
 
 ---
 
@@ -71,6 +83,22 @@ Standard settings layout with centered content card.
 - **Version Badge:** Located in the bottom corner of the Settings page sidebar (e.g. displaying `v0.5.127`). Non-clickable.
 - **What's New Screen:** Located under Settings. Displays recent release notes and contains:
   - **Check for Update Button:** A button labeled "Check for Update" that allows users to manually fetch and apply newer app versions.
+
+### Account Page (`account-*`)
+**Files:** `app/account/page.tsx`, `components/settings/SettingsAccount.tsx`, `components/settings/ChangeNameModal.tsx`, `components/settings/ChangeEmailModal.tsx`, `components/settings/SettingsPasskeys.tsx`
+
+The Account page uses the calm `MuralCanvas` behind a centered settings surface. Its header pairs the page title with Sign Out. Profile properties are read-only rows with explicit, matching actions: Change name and Change email. Both actions open canonical centered modals. On iPhone, each row stacks and its action becomes full width.
+
+| Class | Purpose |
+|---|---|
+| `account-main` | Positioned page content above the fixed mural |
+| `account-page` | Centered Account content width |
+| `account-profile-row` | Read-only profile property with explicit change action |
+| `account-profile-copy` | Flexible label/value container |
+| `account-profile-label` / `account-profile-value` | Profile property typography |
+| `account-passkey-actions` | Register New Passkey and Learn more action group |
+| `account-modal-body` | Shared body spacing for Account dialogs |
+| `account-dialog-copy` | Readable explanatory dialog text |
 
 ### Ambient Dashboard (`dash-*`)
 **Status:** Current `/dashboard` page — will be replaced by Unified Dashboard  
@@ -151,7 +179,7 @@ Accessibility contract: `SearchModal` renders as a named `role="dialog"` with `a
 
 ### Horizontal Scroll Nav (`HScrollNav`)
 **File:** `components/ui/HScrollNav.tsx`  
-Adds fade edges and optional scroll arrows to horizontally-scrollable containers (e.g., project pill strips).
+Adds fade edges and circular previous/next controls to horizontally-scrollable containers (e.g., project pill strips). Table column navigation uses compact circular controls inside a rounded group with a centered **Prev/Next Columns** caption; the group anchors to the far right of the table toolbar and wraps under when space is constrained.
 
 ### Filter Kebab (`FilterKebab`)
 **File:** `components/ui/FilterKebab.tsx`  
@@ -197,6 +225,9 @@ Form save action button. Used in modal/panel footers.
 ### Nav Button (`nav-btn`)
 See Navigation section above.
 
+### Circular Navigation Button (`nav-circle-btn`)
+Strict `44×44px` circular icon button for previous/next, pagination, and icon-only navigation actions. It explicitly sets equal width/min/max-width and height/min/max-height plus `appearance: none`, preventing iOS Safari from stretching the target into an oval. Hover and press states change the background, border, and foreground; press also gives a subtle scale response. Every instance requires an accessible label and `data-tooltip`.
+
 ### Move Button (`btn-move`)
 Arrow button for reordering items in CRUD lists.
 
@@ -218,10 +249,20 @@ The Orb command toolbar uses the same compact command model on Mac, iPad, and iP
 ### Orb Markdown (`oc-orb-md`)
 Prose container for Orb and dev-channel messages. Uses `remark-gfm` for GitHub-Flavored Markdown (tables, strikethrough, autolinks). Table styles: collapsed borders, `--fs-xs` font, `--bg3` header background, alternating `--bg2` row stripes.
 
+### Developer Channel Message (`oc-dev-card`, `oc-dev-label`)
+Inbound messages from developer AI tools render as blue-tinted cards with the tool/model name above the message, visually distinct from both Stan's messages and Orb responses. The dashboard checks for pending messages on mount, focus, visibility return, BFCache restore, and every 15 seconds while the page is visible. Polling pauses while hidden, uses an in-flight guard to prevent duplicate processing, and does not use Supabase Realtime.
+
+### Global Developer Panel (`GlobalDevPanel`)
+**Files:** `components/dev/GlobalDevPanel.tsx`, `components/OrbDevPanel.tsx`
+
+The development-only `DEV` launcher is mounted globally through `Providers`, so authoring tools such as Table Tuning are available on every route. Dashboard-specific Orb simulation controls are portaled into the same panel when `UnifiedDashboard` is mounted; other routes show only global tools.
+
 ### Orb Action Circle (`oc-action-circle`)
 32×32px circular button base for the Orb input bar. Flex-centered, no border, smooth transition. Used as a base class by:
 - **Send Button (`oc-send-btn`)** — green accent (`--pill-active-bg`), white icon. Submit button for Orb input.
 - **Stop Button (`oc-stop-btn`)** — red tint background (`rgba(200,0,0,0.08)`), red square stop icon. Visible whenever the parent is submitting or any Orb message is still marked as streaming, so an orphaned stream can always be stopped.
+
+The parent dashboard owns a synchronous, request-scoped processing lock. A request claims the lock before React state updates, preventing overlapping submissions; only that request may release its processing state. Stop marks that specific request as aborted and releases the input without allowing its late stream completion to affect a newer request.
 
 ### Banner Button (`btn-banner`)
 Small uppercase pill button for floating banners (update available, maintenance mode). 12px border-radius, uppercase text, subtle box-shadow, hover scale effect. Variant: `btn-banner--warning` for amber/warning-colored banners.
@@ -264,13 +305,43 @@ Standard bordered table for settings/admin pages. Simpler than `tv-table` — no
 - **Sheets-style Column Resizing:** Clicking a column header activates resizing for that column, rendering a resize icon (`.col-resize-handle-sheets` double-arrow) at the bottom-right and highlighting the active column with a `border-right: 2px solid var(--accent)`. Dragging the handle resizes the column to the right, pushing all columns to its right without modifying their widths. Clicking outside the headers deselects the active column.
 - **Touch stability:** `touch-action: pan-x pan-y` on table, `touch-action: none` on resize handles, `overscroll-behavior-x: contain` on scroll container.
 
+### Development Table Tuner (`TableTuner`)
+**File:** `components/dev/TableTuner.tsx`
+
+Development-only authoring tool available for every rendered HTML table on every route. Open the global `DEV` menu and choose **Tables**, then:
+- Drag the highlighted header boundaries until the columns look right.
+- Enter exact values directly in each column's pixel-width field when precision is useful.
+- Use **Freeze through** on a column to pin the contiguous group from the left, matching spreadsheet behavior.
+- Use **Unfreeze** to remove the frozen group.
+- The tuner detects **Mac**, **iPad**, or **iPhone** using Orb's breakpoint and pointer rules, displays the active platform, and stores an independent draft for each platform.
+- Use **Copy configuration** to capture the viewport, scroll dimensions, and all saved platform presets with their measured widths and frozen-column counts.
+- Platform drafts persist independently in local storage for iteration, but never appear in production and do not change source configuration until the copied values are deliberately applied.
+
+| Class | Purpose |
+|---|---|
+| `table-tuner` | Fixed development-only tuning surface opened from the existing DEV menu |
+| `table-tuner-panel` | Tuning controls and measured column list |
+| `table-tuner-handle` | Touch-friendly draggable column boundary overlay |
+| `table-tuner-frozen-edge` | Strong divider after the final frozen column |
+
 ### CRUD List (`SettingsCrudList`)
 **File:** `components/settings/SettingsCrudList.tsx`  
 Reusable pattern for settings lists with add/edit/delete actions, column resize, search, scope filters, bulk delete, and server-side pagination.
 - **Pagination:** `config.pagination = { pageSize: N }`. When set, `load()` receives the current page criteria and must return `totalCount`. Renders First/Previous/Next/Last controls in a footer bar inside the card.
 - **Global paginated search/sort:** Set `serverSearch: true` and/or `serverSort: true` in `config.pagination`. The shared list debounces search, passes `{ search, sortKey, sortDir }` to `load()`, resets to page one when criteria change, and treats the returned count as the full filtered result count. Do not combine client-only filtering or sorting with server pagination when users expect full-dataset results.
 - **Header extras:** `config.headerExtra` — ReactNode rendered in the header beside the Add button (e.g. dev-only Diagnose button on Audit Log).
+- **Toolbar extras:** `config.toolbarLeading` renders before the active search control, `config.toolbarExtra` renders after it. Use these for compact mode selectors and controls that belong beside search rather than in the page header. `config.searchEnabled` can hide and deactivate the text search input when another search mode is active; hidden text search is cleared so invisible filters do not remain active. `config.searchCaption` and `config.tableNavCaption` provide small caption text for the search field and column navigation group.
+- **External server filters:** `config.externalFilterKey` — change this stable key when a custom server-side filter changes so pagination resets to page one without discarding the search term.
 - **Custom row click:** `config.onRowClick` — replaces edit-on-click behavior (e.g. opens a detail modal instead of edit form).
+- **Selection column width:** `config.selectionColumnWidth` — optional pixel width for the bulk-selection checkbox column; defaults to `36`.
+- **Platform table widths:** `tableColumns[].platformWidths` and `config.selectionColumnWidths` provide Mac/iPad/iPhone overrides using the same breakpoint and pointer rules as Table Tuning.
+- **Platform frozen columns:** `config.stickyColumnsByPlatform` overrides the default frozen-column count per platform.
+- **Audit Log compact search:** Audit Log uses a standard green `btn-primary` **Search by...** dropdown. Text fields mode shows the text search field. Created date mode hides and clears text search, shows the Created date filter button, and opens the Created filter modal when selected.
+
+### Audit Created Filter
+**File:** `components/settings/SettingsAudit.tsx`
+
+Created timestamps display in the browser's IANA timezone. The dedicated **Created** filter supports On date, At or before, At or after, and Between. Local picker values are converted to UTC boundaries before the server query; general text search deliberately excludes Created so timestamp interpretation is never implicit or timezone-dependent. Audit details show both the browser-local timestamp and canonical UTC value.
 
 ### Action Cell Pattern (`action-cell`, `action-link`)
 **File:** `app/globals.css`  
@@ -312,8 +383,13 @@ Do not use a gear icon for item-level actions. Do not use a kebab for page navig
 
 **Use for:** Todo edit, new project form, distill modal, any focused editing task.  
 **Use `modal-compose` for:** Compose/edit workflows with a live preview (e.g. ticket email editing).
+**Canonical examples:** `components/AddProductModal.tsx`, `components/TodoPanel.tsx`, `components/DistillModal.tsx`, `components/TodoForm.tsx`.
 
-**Deprecated patterns (removed):** `.apm-modal`, `.dm-modal` — replaced by `modal-center` with width modifiers.
+**Deprecated patterns (removed):** `.apm-modal`, `.dm-modal`, `.tf-*` — replaced by `modal-center` with width modifiers.
+
+### Todo Create Modal
+**File:** `components/TodoForm.tsx`
+Uses the canonical centered modal pattern with `modal-lg`, `modal-header`, `modal-body`, and `modal-footer`. The body uses `pf-field` labels, a larger title input, a responsive two-column metadata grid, and a monospace URL textarea. Do not reintroduce standalone `.tf-*` modal shells.
 
 ### Slide Panel (`slide-panel`)
 **Status:** Being phased out in favor of `modal-center`  

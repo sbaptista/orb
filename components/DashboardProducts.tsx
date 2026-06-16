@@ -7,6 +7,8 @@ import { visibleProjectsQuery } from '@/lib/projects'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 
 import SkeletonRows from '@/components/ui/SkeletonRows'
+import { logAudit } from '@/app/actions/log-audit'
+import { collectSystemInfo } from '@/lib/system-info'
 
 type Product = {
   id: string
@@ -208,7 +210,10 @@ export default function DashboardProducts() {
       .single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setProducts(prev => prev.map(p => p.id === id ? data as Product : p))
+    if (data) {
+      setProducts(prev => prev.map(p => p.id === id ? data as Product : p))
+      logAudit({ action: 'project_update', table_name: 'projects', record_id: id, after: { name: data.name, code: data.code }, system_info: collectSystemInfo() })
+    }
     setEditingId(null)
   }
 
@@ -230,7 +235,10 @@ export default function DashboardProducts() {
       .single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) setProducts(prev => [...prev, data as Product])
+    if (data) {
+      setProducts(prev => [...prev, data as Product])
+      logAudit({ action: 'project_create', table_name: 'projects', record_id: data.id, after: { name: data.name, code: data.code }, system_info: collectSystemInfo() })
+    }
     setShowAdd(false)
     setAddForm(EMPTY_FORM)
   }
@@ -239,6 +247,7 @@ export default function DashboardProducts() {
     setSaving(true)
     await supabase.from('projects').delete().eq('id', id)
     setSaving(false)
+    logAudit({ action: 'project_delete', table_name: 'projects', record_id: id, system_info: collectSystemInfo() })
     setProducts(prev => prev.filter(p => p.id !== id))
     setConfirmDeleteId(null)
   }

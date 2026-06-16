@@ -63,6 +63,7 @@ export type OrbRequest = {
   roleOverride?: string | null
   uiContext?: UIContext
   simulateError?: 'billing' | 'overloaded' | null
+  systemInfo?: { browser: string; os: string; os_version: string; viewport: string } | null
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
@@ -536,6 +537,7 @@ export async function orbConverse(req: OrbRequest) {
                   after: { code: `${product.code}-${data.todo_number}`, title: input.title, priority_value: input.priority_value ?? null, due_at: input.due_at ?? null },
                   actor: 'orb',
                   user_id: auth.user.id,
+                  system_info: req.systemInfo,
                 })
               }
             }
@@ -650,6 +652,7 @@ export async function orbConverse(req: OrbRequest) {
                   after: { status: data.status, priority_value: data.priority_value, title: data.title, code: input.code, due_at: data.due_at },
                   actor: 'orb',
                   user_id: auth.user.id,
+                  system_info: req.systemInfo,
                 })
 
 
@@ -732,6 +735,7 @@ export async function orbConverse(req: OrbRequest) {
                   before: { code: input.code, title: todo.title, status: todo.status },
                   actor: 'orb',
                   user_id: auth.user.id,
+                  system_info: req.systemInfo,
                 })
               }
             }
@@ -801,6 +805,7 @@ export async function orbConverse(req: OrbRequest) {
                     after: { code: newCode, product_code: targetProject.code },
                     actor: 'orb',
                     user_id: auth.user.id,
+                    system_info: req.systemInfo,
                   })
                 }
               }
@@ -1062,6 +1067,7 @@ export async function orbConverse(req: OrbRequest) {
               detail: input.detail ? { detail: input.detail } : {},
               conversation_snippet: req.input,
               reportedBy: auth.user.id,
+              systemInfo: req.systemInfo,
             })
             if (res.error) output = { error: res.error }
             else {
@@ -1121,10 +1127,17 @@ export async function orbConverse(req: OrbRequest) {
             }
           }
           } catch (toolErr: any) {
-            // Safety net: if any tool handler throws, catch it cleanly
-            // instead of crashing the entire streaming loop
             console.error(`[orbConverse] Tool "${tc.name}" threw:`, toolErr)
             output = { error: `Tool execution failed: ${toolErr.message || 'Unknown error'}` }
+            createTicket({
+              source: 'orb-auto',
+              type: 'bug',
+              summary: `Orb tool "${tc.name}" threw an unhandled error`,
+              detail: { error: toolErr.message || String(toolErr), tool: tc.name, input: JSON.stringify(input).slice(0, 500), timestamp: new Date().toISOString() },
+              conversation_snippet: req.input,
+              reportedBy: auth.user.id,
+              systemInfo: req.systemInfo,
+            }).catch(e => console.error('[orbConverse] Failed to auto-file tool error ticket:', e))
           }
 
           if (output?.error) {
@@ -1184,6 +1197,18 @@ export async function orbConverse(req: OrbRequest) {
         userMessage = 'Something went wrong. Try again — if it persists, let Stan know.'
       }
 
+      // Auto-file a ticket for non-billing service errors (overloaded, rate limit, network, unknown)
+      if (!isBillingError) {
+        createTicket({
+          source: 'orb-auto',
+          type: 'bug',
+          summary: `Orb service error: ${errType || 'unknown'}`,
+          detail: { error: errMsg, type: errType, timestamp: new Date().toISOString() },
+          conversation_snippet: req.input,
+          systemInfo: req.systemInfo,
+        }).catch(e => console.error('[orbConverse] Failed to auto-file service error ticket:', e))
+      }
+
       // Auto-file a ticket AND email admins on billing errors
       if (isBillingError) {
         const ticketDetail = { error: errMsg, type: errType, timestamp: new Date().toISOString() }
@@ -1194,6 +1219,7 @@ export async function orbConverse(req: OrbRequest) {
           type: 'bug',
           summary: ticketSummary,
           detail: ticketDetail,
+          systemInfo: req.systemInfo,
         }).catch(ticketErr => console.error('[orbConverse] Failed to auto-file billing ticket:', ticketErr))
         // Email all admins immediately (fire-and-forget) — urgent, includes specific reason
         try {

@@ -57,7 +57,7 @@ export default function ChangeEmailModal({
       <div role="dialog" aria-modal="true" aria-labelledby="change-email-title" className="modal-center modal-sm">
         <div className="modal-header" style={{ justifyContent: 'space-between' }}>
           <h2 id="change-email-title" style={{ margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 'var(--fw-bold)' }}>
-            Change email address
+            Change Email
           </h2>
           <button onClick={onClose} className="close-btn" aria-label="Close">
             <svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -121,7 +121,7 @@ export default function ChangeEmailModal({
               Cancel
             </button>
             <button type="submit" disabled={!canProceed} className="btn-primary">
-              {saving ? 'Changing…' : 'Proceed'}
+              {saving ? 'Changing…' : 'Change email'}
             </button>
           </div>
         </form>

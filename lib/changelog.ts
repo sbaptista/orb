@@ -6,6 +6,28 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.232',
+    date: '2026-06-14',
+    changes: [
+      'Added a development-only Table Tuning mode available to every rendered table, so column widths can be set visually by dragging instead of reasoning about pixel values.',
+      'Added spreadsheet-style Freeze through and Unfreeze controls, local draft persistence, a visible frozen-column divider, and configuration export with viewport and scroll measurements.',
+      'Table Tuning now detects Mac, iPad, and iPhone and stores independent width and frozen-column presets for each platform.',
+      'Applied the approved Audit Log Mac table preset: 38/128/140/140/79/140/140/140/140px with no frozen columns on Mac.',
+      'Standardized circular navigation controls with strict 44×44 bounds that remain circular in iOS Safari, plus clear hover and pressed feedback.',
+      'Moved Audit Log Created filtering beside text search with explicit captions for text-field search and create-date search, and removed the duplicate timezone helper text from the toolbar.',
+      'Added a compact standard green Search by... dropdown for Audit Log: Text fields mode shows only the text field, while Created date mode hides and clears text search, shows the Created filter button, and opens the date filter modal.',
+      'Moved the Audit Log User column to the first data position and made it the single frozen data column on every platform.',
+      'Moved table column navigation to the far right of the table toolbar as a borderless prev/next columns group with compact 40px circular arrow buttons and tooltips; pagination controls continue using the shared circular pattern.',
+      'Restyled the New Task create modal to use the canonical centered modal system with clearer labels, grouped metadata, and a calmer footer.',
+      'Polished the Audit Log Created date-time filter modal with canonical body padding, top-right close alignment, and clearer local-time copy.',
+      'Strengthened the UI catalog and agent instructions with a Lego-style assembly protocol: pick the catalog family, inspect a canonical implementation, reuse the structure, ask when multiple patterns fit, and ask whether to add a missing catalog pattern before creating one.',
+      'Audit text search now covers Table, Action, historical User identity, Actor, Record, Before, and After through a maintained trigram index and database search function, with no hidden result caps, literal punctuation handling, and accurate pagination counts.',
+      'Added a dedicated timezone-aware Created filter with On, At or before, At or after, and Between conditions. Timestamps display in the browser timezone, while audit details retain canonical UTC.',
+      'Audit entries now snapshot user name and email at event time, preserving historical identity when a user later changes either value.',
+      'Audit loading failures now remain visible errors instead of being mistaken for empty search results.',
+    ]
+  },
+  {
     version: 'v0.5.231',
     date: '2026-06-14',
     changes: [

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { readStreamableValue } from 'ai/rsc'
 import { orbConverse, type OrbResponse } from '@/app/actions/orb-converse'
+import { collectSystemInfo, type SystemInfo } from '@/lib/system-info'
 
 export type PanelMessage = {
   id: string
@@ -29,6 +30,7 @@ export default function OrbPanel({ productId, productCode, todoCount, onMutation
   const threadRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef(false)
+  const systemInfoRef = useRef<SystemInfo | null>(null)
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -59,11 +61,13 @@ export default function OrbPanel({ productId, productCode, todoCount, onMutation
       .map(m => ({ role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant', text: m.text }))
 
     try {
+      if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
       const stream = await orbConverse({
         input: text,
         productId,
         history,
         dryRun: false,
+        systemInfo: systemInfoRef.current,
       })
 
       let didMutate = false

@@ -3,8 +3,10 @@
 import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
+import { logAudit } from '@/app/actions/log-audit'
 import { useToast } from '@/components/ui/Toast'
 import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
+import { collectSystemInfo } from '@/lib/system-info'
 import type { Todo, Product, Priority } from './TodoView'
 
 type Props = {
@@ -72,94 +74,128 @@ export default function TodoForm({
     }
     if (data) {
       toast.success('Todo created')
+      logAudit({
+        action: 'todo_create',
+        table_name: 'todos',
+        record_id: data.id,
+        after: { title: data.title, status: data.status, priority_value: data.priority_value, product_id: data.product_id },
+        actor: 'web-ui',
+        system_info: collectSystemInfo(),
+      })
       if (beforeUrgency) notifyIfEscalated(beforeUrgency)
       onCreate(data as Todo)
     }
   }
 
   return (
-    <div className="tf-backdrop">
-      <div onClick={e => e.stopPropagation()} className="tf-card">
-        <div className="tf-header">
-          <span className="tf-header-title">New todo</span>
-          <button onClick={onClose} className="close-btn" aria-label="Close">
+    <>
+      <div className="modal-backdrop" onClick={onClose} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="new-todo-title"
+        className="modal-center modal-lg"
+      >
+        <div className="modal-header" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h2 id="new-todo-title" style={{ margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 'var(--fw-semibold)' }}>
+              New task
+            </h2>
+            <p className="text-xs text-muted" style={{ margin: '2px 0 0' }}>
+              Capture the work now. Details can be refined later.
+            </p>
+          </div>
+          <button onClick={onClose} className="close-btn" aria-label="Close" style={{ marginTop: '-6px', marginRight: '-8px' }}>
             <svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="tf-form">
-          <input
-            type="text"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            placeholder="What needs doing?"
-            autoFocus
-            aria-label="Todo title"
-            className="pf-input"
-          />
+        <form onSubmit={handleSubmit} className="todo-create-form">
+          <div className="modal-body todo-create-body">
+            <div className="pf-field">
+              <label htmlFor="todo-create-title" className="pf-label">Title *</label>
+              <input
+                id="todo-create-title"
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="What needs doing?"
+                autoFocus
+                className="pf-input todo-create-title-input"
+              />
+            </div>
 
-          <textarea
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            placeholder="Description (optional)"
-            aria-label="Description"
-            className="pf-textarea"
-          />
+            <div className="pf-field">
+              <label htmlFor="todo-create-description" className="pf-label">Description</label>
+              <textarea
+                id="todo-create-description"
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="Add context, notes, or the next useful detail."
+                className="pf-textarea"
+              />
+            </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: !productId && products.length > 1 ? '1fr 1fr' : '1fr', gap: 'var(--sp-sm)' }}>
-            <select
-              value={priorityValue}
-              onChange={e => setPriorityValue(e.target.value === '' ? '' : Number(e.target.value))}
-              aria-label="Priority"
-              className="pf-select"
-            >
-              <option value="">No priority</option>
-              {priorities.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-            </select>
+            <div className="todo-create-grid">
+              <div className="pf-field">
+                <label htmlFor="todo-create-priority" className="pf-label">Priority</label>
+                <select
+                  id="todo-create-priority"
+                  value={priorityValue}
+                  onChange={e => setPriorityValue(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="pf-select"
+                >
+                  <option value="">No priority</option>
+                  {priorities.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+              </div>
 
-            {!productId && products.length > 1 && (
-              <select
-                value={selectedProduct}
-                onChange={e => setSelectedProduct(e.target.value)}
-                aria-label="Product"
-                className="pf-select"
-              >
-                {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            )}
+              {!productId && products.length > 1 && (
+                <div className="pf-field">
+                  <label htmlFor="todo-create-project" className="pf-label">Project</label>
+                  <select
+                    id="todo-create-project"
+                    value={selectedProduct}
+                    onChange={e => setSelectedProduct(e.target.value)}
+                    className="pf-select"
+                  >
+                    {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="pf-field">
+              <label htmlFor="todo-create-due" className="pf-label">Due date</label>
+              <input
+                id="todo-create-due"
+                type="datetime-local"
+                value={dueAt}
+                onChange={e => setDueAt(e.target.value)}
+                className="pf-input"
+              />
+            </div>
+
+            <div className="pf-field">
+              <label htmlFor="todo-create-urls" className="pf-label">URLs</label>
+              <textarea
+                id="todo-create-urls"
+                value={urlInput}
+                onChange={e => setUrlInput(e.target.value)}
+                className="pf-textarea todo-create-urls"
+                placeholder="One link per line"
+              />
+            </div>
+
+            {error && <p className="s-error">{error}</p>}
           </div>
-
-          <div style={{ marginTop: 'var(--sp-xs)' }}>
-            <label className="label text-xs text-muted" style={{ display: 'block', marginBottom: '4px' }}>Due Date</label>
-            <input
-              type="datetime-local"
-              value={dueAt}
-              onChange={e => setDueAt(e.target.value)}
-              className="pf-input"
-              style={{ width: '100%', margin: 0 }}
-              aria-label="Due Date"
-            />
-          </div>
-
-          <div style={{ marginTop: 'var(--sp-xs)' }}>
-            <label className="label text-xs text-muted" style={{ display: 'block', marginBottom: '4px' }}>URLs (one per line)</label>
-            <textarea
-              value={urlInput}
-              onChange={e => setUrlInput(e.target.value)}
-              className="pf-textarea"
-              style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-sm)', minHeight: '64px' }}
-              aria-label="URLs"
-            />
-          </div>
-
-          {error && <p className="text-sm text-error">{error}</p>}
 
           <div className="modal-footer">
             <button type="button" onClick={onClose} className="btn-cancel">Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Adding…' : 'Add'}</button>
+            <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Creating…' : 'Create task'}</button>
           </div>
         </form>
       </div>
-    </div>
+    </>
   )
 }

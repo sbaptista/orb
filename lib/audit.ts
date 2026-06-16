@@ -8,6 +8,7 @@ export async function logAuditEvent(params: {
   after?: any,
   actor?: string,
   user_id?: string,
+  system_info?: { browser: string; os: string; os_version: string; viewport: string } | null,
 }) {
   const supabase = createAdminClient()
 
@@ -22,6 +23,7 @@ export async function logAuditEvent(params: {
         after: params.after,
         actor: params.actor ?? null,
         user_id: params.user_id ?? null,
+        system_info: params.system_info ?? null,
         created_at: new Date().toISOString()
       })
     

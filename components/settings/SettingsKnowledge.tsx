@@ -2,6 +2,8 @@
 
 import SettingsCrudList from './SettingsCrudList'
 import { getKnowledgeEntries } from '@/app/actions/get-knowledge-entries'
+import { logAudit } from '@/app/actions/log-audit'
+import { collectSystemInfo } from '@/lib/system-info'
 
 type KnowledgeEntry = {
   id: string
@@ -83,6 +85,24 @@ export default function SettingsKnowledge() {
         }),
 
         getId: (item) => item.id,
+
+        onAdd: async (supabase, record) => {
+          const { data, error } = await supabase.from('knowledge_repo').insert(record).select('id').single()
+          if (error) throw new Error(error.message)
+          logAudit({ action: 'knowledge_create', table_name: 'knowledge_repo', record_id: data?.id, after: { title: record.title }, system_info: collectSystemInfo() })
+        },
+
+        onSave: async (supabase, id, record) => {
+          const { error } = await supabase.from('knowledge_repo').update(record).eq('id', id)
+          if (error) throw new Error(error.message)
+          logAudit({ action: 'knowledge_update', table_name: 'knowledge_repo', record_id: id, after: { title: record.title }, system_info: collectSystemInfo() })
+        },
+
+        onDelete: async (supabase, item) => {
+          const { error } = await supabase.from('knowledge_repo').delete().eq('id', item.id)
+          if (error) throw new Error(error.message)
+          logAudit({ action: 'knowledge_delete', table_name: 'knowledge_repo', record_id: item.id, before: { title: item.title }, system_info: collectSystemInfo() })
+        },
 
         deleteWarning: (item) => (
           <>Delete knowledge entry <strong>{item.title}</strong>? This cannot be undone.</>

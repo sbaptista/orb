@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 
 import type { ConversationMessage } from './OrbConversation'
+import { DEV_PANEL_SLOT_ID } from './dev/GlobalDevPanel'
 
 export class DevTestError extends Error {
   constructor() { super('DEV: Error boundary test'); this.name = 'DevTestError' }
@@ -40,7 +42,11 @@ const SPEECH_PRESETS: Record<string, Speech> = {
 }
 
 function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChange, onSpeak, onSubmit, dryRun, onDryRunChange, messages, onForceQuiet, onErrorTest, simulateError, onSimulateErrorChange }: Props) {
-  const [open, setOpen] = useState(false)
+  const hydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  )
   const [simulatedOffline, setSimulatedOffline] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('todos_dev_simulate_offline') === 'true'
@@ -85,10 +91,11 @@ function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChan
     })
   }
 
-  return (
-    <div className="dev-panel">
-      {open && (
-        <div className="dev-menu">
+  const slot = hydrated ? document.getElementById(DEV_PANEL_SLOT_ID) : null
+  if (!slot) return null
+
+  return createPortal(
+    <>
           <div className="dev-section">Orb mood</div>
           <button type="button" className="dev-btn" aria-pressed={override === null} onClick={() => onChange(null)}>
             Auto (from data)
@@ -176,13 +183,8 @@ function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChan
           <button type="button" className="dev-btn" aria-pressed={simulateError === 'overloaded'} onClick={() => onSimulateErrorChange(simulateError === 'overloaded' ? null : 'overloaded')}>
             Overloaded {simulateError === 'overloaded' ? '✓' : ''}
           </button>
-        </div>
-      )}
-
-      <button type="button" onClick={() => setOpen(v => !v)} className="dev-toggle">
-        DEV {open ? '▼' : '▲'}
-      </button>
-    </div>
+    </>,
+    slot,
   )
 }
 

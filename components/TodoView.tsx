@@ -12,6 +12,7 @@ import TodoForm from './TodoForm'
 import EmptyState from '@/components/ui/EmptyState'
 import DistillModal from './DistillModal'
 import { logAudit } from '@/app/actions/log-audit'
+import { collectSystemInfo, type SystemInfo } from '@/lib/system-info'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { checkReminders } from '@/app/actions/reminder-actions'
 import { ACTIVE_STATUSES, PARKED_STATUSES } from '@/lib/status-groups'
@@ -140,6 +141,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
   const statusColor    = useCallback((status: string) => `var(--status-${status.replace(/\s+/g, '-')})`, [])
 
   const initialLoadDone = useRef(false)
+  const systemInfoRef = useRef<SystemInfo | null>(null)
 
   const fetchTodos = useCallback(async (pageNum = 0, append = false) => {
     if (!append && !initialLoadDone.current) {
@@ -326,12 +328,14 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
       const updated = data as Todo
       setTodos(prev => prev.map(t => t.id === todo.id ? updated : t))
       if (selectedTodo?.id === todo.id) setSelectedTodo(updated)
+      if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
       logAudit({
         action: isClosed(newStatus) ? 'todo_close' : 'todo_reopen',
         table_name: 'todos',
         record_id: todo.id,
         before: { status: todo.status },
-        after: { status: newStatus, title: todo.title }
+        after: { status: newStatus, title: todo.title },
+        system_info: systemInfoRef.current,
       })
       if (beforeUrgency) {
         try {
@@ -386,10 +390,12 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
       toast.error('Failed to close items. Try again.')
       return
     }
+    if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
     logAudit({
       action: 'todo_bulk_close',
       table_name: 'todos',
-      after: { count: ids.length, ids }
+      after: { count: ids.length, ids },
+      system_info: systemInfoRef.current,
     })
     if (beforeUrgency) {
       try {
@@ -420,10 +426,12 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
       toast.error('Failed to delete items. Try again.')
       return
     }
+    if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
     logAudit({
       action: 'todo_bulk_delete',
       table_name: 'todos',
-      before: { count: ids.length, ids }
+      before: { count: ids.length, ids },
+      system_info: systemInfoRef.current,
     })
     if (beforeUrgency) {
       try {
@@ -644,7 +652,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
           <span className="text-xs text-muted" style={{ marginLeft: 'auto' }}>
             {filtered.length} todo{filtered.length !== 1 ? 's' : ''}
           </span>
-          <button className="nav-btn" onClick={() => setShowFilters(false)} aria-label="Close filters" title="Close" style={{ padding: '2px 4px', minWidth: 'auto' }}>
+          <button className="nav-circle-btn" onClick={() => setShowFilters(false)} aria-label="Close filters" data-tooltip="Close filters">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>

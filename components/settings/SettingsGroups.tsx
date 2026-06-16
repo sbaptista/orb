@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import SkeletonRows from '@/components/ui/SkeletonRows'
 import { useToast } from '@/components/ui/Toast'
+import { logAudit } from '@/app/actions/log-audit'
+import { collectSystemInfo } from '@/lib/system-info'
 
 type Product = { id: string; name: string }
 type Group = { id: string; name: string; product_id: string | null; sort_order: number }
@@ -86,7 +88,11 @@ export default function SettingsGroups() {
       .single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) { toast.success('Group added.'); setGroups(prev => [...prev, data as Group]) }
+    if (data) {
+      toast.success('Group added.')
+      setGroups(prev => [...prev, data as Group])
+      logAudit({ action: 'group_create', table_name: 'groups', record_id: data.id, after: { name: data.name }, system_info: collectSystemInfo() })
+    }
     setShowAdd(false)
     setAddForm(EMPTY_FORM)
   }
@@ -107,7 +113,11 @@ export default function SettingsGroups() {
       .single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    if (data) { toast.success('Group saved.'); setGroups(prev => prev.map(g => g.id === id ? data as Group : g)) }
+    if (data) {
+      toast.success('Group saved.')
+      setGroups(prev => prev.map(g => g.id === id ? data as Group : g))
+      logAudit({ action: 'group_update', table_name: 'groups', record_id: id, after: { name: data.name }, system_info: collectSystemInfo() })
+    }
     setEditingId(null)
   }
 
@@ -115,6 +125,7 @@ export default function SettingsGroups() {
     setSaving(true)
     await supabase.from('groups').delete().eq('id', id)
     setSaving(false)
+    logAudit({ action: 'group_delete', table_name: 'groups', record_id: id, system_info: collectSystemInfo() })
     toast.success('Group deleted.')
     setGroups(prev => prev.filter(g => g.id !== id))
     setConfirmDeleteId(null)

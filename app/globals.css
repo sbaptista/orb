@@ -810,13 +810,140 @@ a, button, [role="button"], input, select, textarea {
 
 .crud-search-input {
   width: 100%;
-  max-width: 280px;
+  max-width: 420px;
   padding: 6px 10px;
   font-size: var(--fs-sm);
   border: 1px solid var(--border);
   border-radius: var(--r);
   background: var(--bg);
   color: var(--text);
+}
+
+.crud-table-toolbar {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--sp-md);
+  margin-bottom: 12px;
+}
+
+.crud-toolbar-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.crud-toolbar-field-compact {
+  flex: none;
+}
+
+.crud-toolbar-caption {
+  display: block;
+  color: var(--text3);
+  font-size: var(--fs-version);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-wide);
+  line-height: var(--lh-tight);
+  text-transform: uppercase;
+}
+
+.crud-table-toolbar > .crud-toolbar-field {
+  flex: 1 1 280px;
+}
+
+.crud-toolbar-leading {
+  flex: none;
+  position: relative;
+}
+
+.crud-search-mode {
+  position: relative;
+}
+
+.crud-search-mode-menu {
+  top: calc(100% + 4px);
+  bottom: auto;
+  left: 0;
+  right: auto;
+  margin: 0;
+  z-index: 70;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: none;
+}
+
+.crud-search-mode-menu .dropdown-item {
+  background: var(--bg2);
+}
+
+.crud-search-mode-menu .dropdown-item:hover {
+  background: var(--bg3);
+}
+
+.crud-toolbar-extra {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+}
+
+.crud-scroll-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: none;
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.crud-scroll-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.crud-scroll-buttons .nav-circle-btn {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
+  flex-basis: 40px;
+}
+
+.nav-circle-control {
+  display: flex;
+  align-items: center;
+}
+
+.crud-scroll-controls-label {
+  color: var(--text3);
+  font-size: var(--fs-version);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-body);
+  line-height: var(--lh-tight);
+  text-align: center;
+  text-transform: none;
+  padding: 0 2px;
+}
+
+@media (max-width: 767px) {
+  .crud-search-input {
+    max-width: 100%;
+  }
+  .crud-table-toolbar > .crud-toolbar-field {
+    flex-basis: 100%;
+  }
+  .crud-toolbar-extra {
+    flex: 1 1 auto;
+  }
 }
 
 
@@ -828,76 +955,6 @@ a, button, [role="button"], input, select, textarea {
   background: var(--bg2);
   border-radius: var(--r-md);
   margin-bottom: 8px;
-}
-
-/* HScrollNav for tables: arrows sit outside the card, flanking horizontally */
-/* ── Table horizontal scroll ── */
-.crud-table-scroll .cs-scroll-arrow {
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border: none;
-  cursor: pointer;
-  font-size: 28px;
-  font-weight: var(--fw-light);
-  color: var(--text2);
-  background: none;
-  padding: 0;
-  line-height: var(--lh-none);
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  transition: opacity 0.15s;
-  position: static;
-  top: auto !important;
-  bottom: auto !important;
-}
-.crud-table-scroll .cs-scroll-arrow:hover {
-  color: var(--text);
-}
-
-/* Desktop: arrows flank the table left/right */
-@media (min-width: 768px) {
-  .crud-table-scroll {
-    display: flex;
-    align-items: flex-start;
-    gap: 0;
-  }
-  .crud-table-scroll > div {
-    flex: 1;
-    min-width: 0;
-  }
-  .crud-table-scroll .cs-scroll-arrow {
-    width: 32px;
-    align-self: flex-start;
-    padding-top: 6px;
-  }
-  .crud-table-scroll .cs-scroll-arrow-left { order: -1; }
-  .crud-table-scroll .cs-scroll-arrow-right { order: 1; }
-}
-
-/* Mobile: arrows sit in a row above the table */
-@media (max-width: 767px) {
-  .crud-table-scroll {
-    display: flex;
-    flex-wrap: wrap;
-  }
-  .crud-table-scroll > div {
-    width: 100%;
-    order: 2;
-  }
-  .crud-table-scroll .cs-scroll-arrow {
-    order: 1;
-    width: 44px;
-    height: 44px;
-    font-size: var(--fs-xl);
-  }
-  .crud-table-scroll .cs-scroll-arrow-left {
-    margin-right: auto;
-  }
-  .crud-table-scroll .cs-scroll-arrow-right {
-    margin-left: auto;
-  }
 }
 
 /* ── Scope filter dropdown (when pill count > threshold) ── */
@@ -1135,10 +1192,8 @@ a, button, [role="button"], input, select, textarea {
 
 .audit-table {
   font-size: var(--fs-sm);
-  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
-  touch-action: pan-x pan-y;
 }
 
 .audit-th {
@@ -1179,32 +1234,19 @@ a, button, [role="button"], input, select, textarea {
   background: var(--bg3);
   transition: background 0.15s ease;
 }
-
-
-/* Column resize handle — Google Sheets style */
-.col-resize-handle-sheets {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 16px;
-  height: 16px;
-  cursor: col-resize;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg);
-  border-left: 1px solid var(--border);
-  border-top: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-  color: var(--accent, #5a3090);
-  transition: background 0.15s, color 0.15s;
-  touch-action: none;
+.audit-table tbody tr:hover td[style*="sticky"] {
+  background: var(--bg3);
 }
 
-.col-resize-handle-sheets:hover {
-  background: var(--bg-hover);
-  color: var(--accent-hover, #7c3aed);
+
+/* Search highlight */
+mark.crud-highlight {
+  background: color-mix(in srgb, #f59e0b 22%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+  outline: 1.5px solid #f59e0b;
+  outline-offset: 0px;
 }
 
 
@@ -1220,6 +1262,59 @@ a, button, [role="button"], input, select, textarea {
 /* ══════════════════════════════════════════════════════════
    DASHBOARD — Nav & Controls
    ══════════════════════════════════════════════════════════ */
+
+.nav-circle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  max-height: 44px;
+  box-sizing: border-box;
+  flex: 0 0 44px;
+  padding: 0;
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg2);
+  color: var(--text2);
+  font-family: var(--font-ui);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--transition), border-color var(--transition), color var(--transition), transform 0.1s ease;
+}
+
+.nav-circle-btn:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--bg3);
+  border-color: var(--text3);
+  color: var(--text);
+}
+
+.nav-circle-btn:active:not(:disabled):not([aria-disabled="true"]) {
+  background: color-mix(in srgb, var(--bg3) 76%, var(--text) 8%);
+  border-color: var(--accent);
+  color: var(--text);
+  transform: scale(0.94);
+}
+
+.nav-circle-btn:disabled,
+.nav-circle-btn[aria-disabled="true"] {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+@media (max-width: 767px) {
+  .cs-scroll-arrow.nav-circle-btn:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: translateY(-50%) scale(0.94);
+  }
+}
 
 .nav-btn {
   background: none;
@@ -3820,55 +3915,43 @@ a, button, [role="button"], input, select, textarea {
 
 /* (apm-* classes removed — AddProductModal now uses modal-center modal-sm) */
 
-/* ── Todo form modal (`.tf-*`) ── */
+/* ── Todo create modal ── */
 
-.tf-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(42, 51, 42, 0.25);
-  z-index: 40;
+.todo-create-form {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--sp-lg);
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
 }
 
-.tf-card {
-  background: var(--bg2);
-  border-radius: var(--r-xl);
-  box-shadow: var(--shadow-lg);
-  width: 100%;
-  max-width: 420px;
-  font-family: var(--font-ui);
-  overflow: hidden;
-}
-
-.tf-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--sp-lg) var(--sp-xl);
-  border-bottom: 1px solid var(--border);
-}
-
-.tf-header-title {
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
-  color: var(--text2);
-}
-
-.tf-form {
+.todo-create-body {
   padding: var(--sp-xl);
   display: flex;
   flex-direction: column;
+  gap: var(--sp-lg);
+}
+
+.todo-create-title-input {
+  font-size: var(--fs-lg);
+  padding: 10px 14px;
+}
+
+.todo-create-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: var(--sp-md);
 }
 
-.tf-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--sp-sm);
-  padding-top: var(--sp-xs);
+.todo-create-urls {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  min-height: 72px;
+}
+
+@media (max-width: 767px) {
+  .todo-create-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* (dm-* classes removed — DistillModal now uses modal-center) */
@@ -3944,6 +4027,159 @@ a, button, [role="button"], input, select, textarea {
   background: var(--pill-active-bg);
   border-color: var(--pill-active-border);
   color: var(--pill-active-color);
+}
+
+/* ── Development-only table tuning (`.table-tuner-*`) ── */
+
+.table-tuner {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 100000;
+}
+
+.table-tuner-panel {
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(70dvh, 620px);
+  padding: var(--sp-md);
+  overflow: auto;
+  border: 1px solid var(--border2, var(--border));
+  border-radius: var(--r-md);
+  background: var(--bg);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  font-size: var(--fs-xs);
+}
+
+.table-tuner-heading,
+.table-tuner-column,
+.table-tuner-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+}
+
+.table-tuner-heading {
+  justify-content: space-between;
+  margin-bottom: var(--sp-sm);
+}
+
+.table-tuner-panel p {
+  margin: 0 0 var(--sp-md);
+  color: var(--text2);
+  line-height: var(--lh-relaxed);
+}
+
+.table-tuner-name {
+  flex: 1;
+  min-width: 0;
+  margin: 0 !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--fw-medium);
+}
+
+.table-tuner-context {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  margin-bottom: var(--sp-md);
+}
+
+.table-tuner-platform {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--pill-active-border);
+  border-radius: 999px;
+  background: var(--pill-active-bg);
+  color: var(--pill-active-color);
+  font-size: var(--fs-version);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+}
+
+.table-tuner-columns {
+  display: grid;
+  gap: 6px;
+  margin-bottom: var(--sp-md);
+}
+
+.table-tuner-column span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-tuner-width {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  font-family: var(--font-mono);
+  color: var(--text2);
+}
+
+.table-tuner-width input {
+  width: 68px;
+  min-height: 44px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg2);
+  color: var(--text);
+  font: inherit;
+  text-align: right;
+}
+
+.table-tuner-width span {
+  flex: none;
+  overflow: visible;
+}
+
+.table-tuner-column .dev-btn {
+  width: auto;
+  min-height: 44px;
+}
+
+.table-tuner-actions {
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-md);
+}
+
+.table-tuner-actions .dev-btn {
+  width: auto;
+  min-height: 44px;
+}
+
+.table-tuner-handle {
+  position: fixed;
+  z-index: 99999;
+  width: 28px;
+  min-width: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translateX(-14px);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.table-tuner-handle span {
+  display: block;
+  width: 3px;
+  height: 100%;
+  margin: 0 auto;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 72%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--bg) 70%, transparent);
+}
+
+.table-tuner-frozen-edge {
+  box-shadow: inset -3px 0 0 color-mix(in srgb, var(--accent) 78%, transparent);
 }
 
 /* ── Collapsible sidebar (`.cs-*`) ── */
@@ -4343,20 +4579,17 @@ a, button, [role="button"], input, select, textarea {
     align-items: center;
     justify-content: center;
     position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 44px;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
     z-index: 10;
-    border: none;
     cursor: pointer;
     font-size: 26px;
     font-weight: var(--fw-light);
     color: var(--text2);
-    padding: 0;
     line-height: var(--lh-none);
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
-    transition: opacity 0.15s;
   }
 
   .cs-scroll-arrow-left {

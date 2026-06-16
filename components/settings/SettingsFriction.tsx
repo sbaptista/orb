@@ -6,6 +6,8 @@ import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import SkeletonRows from '@/components/ui/SkeletonRows'
 import { useToast } from '@/components/ui/Toast'
 import { getFrictionLogs, deleteFrictionLog } from '@/app/actions/friction-actions'
+import { logAudit } from '@/app/actions/log-audit'
+import { collectSystemInfo } from '@/lib/system-info'
 
 type OrbFriction = {
   id: string
@@ -70,15 +72,17 @@ export default function SettingsFriction() {
         const { data: openStatus } = await supabase
             .from('statuses').select('name').eq('is_open', true).limit(1).single()
 
-        const { error: insertErr } = await supabase.from('todos').insert({
+        const { data: newTodo, error: insertErr } = await supabase.from('todos').insert({
             title: `[${log.category}] ${log.summary}`,
             description: `Auto-generated from Orb Issue log (${log.category}).${snippetStr}${detailsStr}`,
             status: openStatus?.name ?? 'open',
             priority_value: urgentPri?.value ?? null,
             product_id: projId
-        })
-        
+        }).select('id').single()
+
         if (insertErr) throw insertErr
+
+        logAudit({ action: 'todo_create', table_name: 'todos', record_id: newTodo?.id, after: { title: `[${log.category}] ${log.summary}`, source: 'friction_log' }, system_info: collectSystemInfo() })
 
         const { error: deleteErr } = await deleteFrictionLog(log.id)
         if (deleteErr) throw new Error(deleteErr)

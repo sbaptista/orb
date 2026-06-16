@@ -1,10 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState, useSyncExternalStore } from 'react'
 import SettingsCrudList from './SettingsCrudList'
 import { getAuditLogs } from '@/app/actions/get-audit-logs'
 import { deleteAuditLogs } from '@/app/actions/delete-audit-logs'
-import { diagnoseAudit } from '@/app/actions/diagnose-audit'
 
 type AuditRow = {
   id: string
@@ -16,6 +15,10 @@ type AuditRow = {
   user_id: string | null
   created_at: string
   actor: string | null
+  user_name_snapshot: string | null
+  user_email_snapshot: string | null
+  system_info: { browser: string; os: string; os_version: string; viewport: string } | null
+  users: { first_name: string | null; last_name: string | null; email: string } | null
 }
 
 type AuditForm = Record<string, never>
@@ -29,12 +32,131 @@ function formatCell(value: unknown): string {
   return String(value)
 }
 
+function formatUser(row: AuditRow): string {
+  if (row.user_name_snapshot || row.user_email_snapshot) {
+    return row.user_name_snapshot || row.user_email_snapshot || '—'
+  }
+  if (row.users) {
+    const name = [row.users.first_name, row.users.last_name].filter(Boolean).join(' ')
+    return name || row.users.email
+  }
+  return row.user_id ? row.user_id.slice(0, 8) + '…' : '—'
+}
+
+function formatCurrentUser(row: AuditRow): string | null {
+  if (!row.users) return null
+  const name = [row.users.first_name, row.users.last_name].filter(Boolean).join(' ')
+  return name || row.users.email
+}
+
+function subscribeToTimeZone() {
+  return () => {}
+}
+
+function getBrowserTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone
+}
+
+function formatCreated(value: string, timeZone: string): string {
+  return new Date(value).toLocaleString(undefined, { timeZone })
+}
+
+type CreatedFilter = {
+  label: string
+  from: string | null
+  to: string | null
+  before: string | null
+}
+
 export default function SettingsAudit() {
   const [viewingRow, setViewingRow] = useState<AuditRow | null>(null)
-  const [diagnostic, setDiagnostic] = useState<string | null>(null)
-  const isDev = process.env.NODE_ENV === 'development'
+  const timeZone = useSyncExternalStore(subscribeToTimeZone, getBrowserTimeZone, () => 'UTC')
+  const [auditSearchMode, setAuditSearchMode] = useState<'text' | 'created'>('text')
+  const [searchModeMenuOpen, setSearchModeMenuOpen] = useState(false)
+  const [showCreatedFilter, setShowCreatedFilter] = useState(false)
+  const [createdMode, setCreatedMode] = useState<'on' | 'before' | 'after' | 'between'>('on')
+  const [createdDate, setCreatedDate] = useState('')
+  const [createdFromDraft, setCreatedFromDraft] = useState('')
+  const [createdToDraft, setCreatedToDraft] = useState('')
+  const [createdFilter, setCreatedFilter] = useState<CreatedFilter | null>(null)
+  const createdModeId = useId()
+  const createdDateId = useId()
+  const createdFromId = useId()
+  const createdToId = useId()
 
-  const columns: Array<{ key: keyof AuditRow; label: string }> = [
+  function applyCreatedFilter() {
+    if (createdMode === 'on') {
+      if (!createdDate) return
+      const start = new Date(`${createdDate}T00:00:00`)
+      const end = new Date(start)
+      end.setDate(end.getDate() + 1)
+      setCreatedFilter({
+        label: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(start),
+        from: start.toISOString(),
+        to: null,
+        before: end.toISOString(),
+      })
+    } else if (createdMode === 'before') {
+      if (!createdToDraft) return
+      const end = new Date(createdToDraft)
+      setCreatedFilter({
+        label: `at or before ${end.toLocaleString()}`,
+        from: null,
+        to: end.toISOString(),
+        before: null,
+      })
+    } else if (createdMode === 'after') {
+      if (!createdFromDraft) return
+      const start = new Date(createdFromDraft)
+      setCreatedFilter({
+        label: `at or after ${start.toLocaleString()}`,
+        from: start.toISOString(),
+        to: null,
+        before: null,
+      })
+    } else {
+      if (!createdFromDraft || !createdToDraft) return
+      const start = new Date(createdFromDraft)
+      const end = new Date(createdToDraft)
+      if (start > end) return
+      setCreatedFilter({
+        label: `${start.toLocaleString()} – ${end.toLocaleString()}`,
+        from: start.toISOString(),
+        to: end.toISOString(),
+        before: null,
+      })
+    }
+    setShowCreatedFilter(false)
+  }
+
+  function clearCreatedFilter() {
+    setCreatedFilter(null)
+    setCreatedDate('')
+    setCreatedFromDraft('')
+    setCreatedToDraft('')
+    setShowCreatedFilter(false)
+  }
+
+  function changeAuditSearchMode(nextMode: 'text' | 'created') {
+    setSearchModeMenuOpen(false)
+    setAuditSearchMode(nextMode)
+    if (nextMode === 'text') {
+      clearCreatedFilter()
+    } else {
+      setShowCreatedFilter(true)
+    }
+  }
+
+  const canApplyCreatedFilter = createdMode === 'on'
+    ? !!createdDate
+    : createdMode === 'before'
+      ? !!createdToDraft
+      : createdMode === 'after'
+        ? !!createdFromDraft
+        : !!createdFromDraft && !!createdToDraft && new Date(createdFromDraft) <= new Date(createdToDraft)
+
+  const columns: Array<{ key: keyof AuditRow | '_user'; label: string }> = [
+    { key: '_user', label: 'User' },
     { key: 'table_name', label: 'Table' },
     { key: 'action', label: 'Action' },
     { key: 'actor', label: 'Actor' },
@@ -56,36 +178,99 @@ export default function SettingsAudit() {
           layout: 'table',
           pagination: { pageSize: PAGE_SIZE, serverSearch: true, serverSort: true },
           subtitle: (items, total) => total ? `${items.length} of ${total} entr${total !== 1 ? 'ies' : 'y'}` : `${items.length} entr${items.length !== 1 ? 'ies' : 'y'}`,
-          searchPlaceholder: 'Filter by table, action, actor, or full record ID…',
+          searchPlaceholder: 'Search table, action, user, actor, record, before, or after…',
+          searchEnabled: auditSearchMode === 'text',
+          tableNavCaption: 'prev/next columns',
           onRowClick: (item) => setViewingRow(item),
-          headerExtra: isDev ? (
-            <div className="flex-row gap-sm">
-              {diagnostic && (
-                <button className="btn-dev" onClick={() => navigator.clipboard.writeText(diagnostic)}>
-                  Copy
-                </button>
-              )}
+          externalFilterKey: `${createdFilter?.from ?? ''}|${createdFilter?.to ?? ''}|${createdFilter?.before ?? ''}`,
+          toolbarLeading: (
+            <div className="crud-search-mode">
               <button
-                className="btn-dev"
-                onClick={async () => {
-                  setDiagnostic('Running…')
-                  const r = await diagnoseAudit()
-                  setDiagnostic(JSON.stringify(r, null, 2))
+                type="button"
+                className="btn-primary"
+                onClick={e => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setSearchModeMenuOpen(open => !open)
                 }}
+                aria-haspopup="menu"
+                aria-expanded={searchModeMenuOpen}
+                data-tooltip="Select by text fields or Created date"
               >
-                Diagnose
+                Search by...
+              </button>
+              {searchModeMenuOpen && (
+                <>
+                  <div
+                    className="dropdown-backdrop"
+                    onClick={e => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setSearchModeMenuOpen(false)
+                    }}
+                  />
+                  <div
+                    className="dropdown-menu crud-search-mode-menu"
+                    role="menu"
+                    aria-label="Choose audit search type"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      className="dropdown-item"
+                      role="menuitemradio"
+                      aria-checked={auditSearchMode === 'text'}
+                      onClick={e => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        changeAuditSearchMode('text')
+                      }}
+                    >
+                      Text fields
+                    </button>
+                    <button
+                      type="button"
+                      className="dropdown-item"
+                      role="menuitemradio"
+                      aria-checked={auditSearchMode === 'created'}
+                      onClick={e => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        changeAuditSearchMode('created')
+                      }}
+                    >
+                      Created date
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ),
+          toolbarExtra: auditSearchMode === 'created' ? (
+            <div className="crud-toolbar-field crud-toolbar-field-compact">
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={() => setShowCreatedFilter(true)}
+                aria-label={createdFilter ? `Change Created filter: ${createdFilter.label}` : 'Filter by Created date and time'}
+              >
+                {createdFilter ? `Created: ${createdFilter.label}` : 'Created'}
               </button>
             </div>
           ) : undefined,
 
+          stickyColumns: 2,
+          selectionColumnWidth: 38,
+          selectionColumnWidths: { ipad: 38, iphone: 38 },
           tableColumns: [
-            { label: 'Table',   width: '12%', sortKey: 'table_name', sortValue: (r: AuditRow) => r.table_name ?? '' },
-            { label: 'Action',  width: '10%', sortKey: 'action',     sortValue: (r: AuditRow) => r.action ?? '' },
-            { label: 'Actor',   width: '12%', sortKey: 'actor',      sortValue: (r: AuditRow) => r.actor ?? '' },
-            { label: 'Record',  width: '14%' },
-            { label: 'Before',  width: '18%' },
-            { label: 'After',   width: '18%' },
-            { label: 'Created', width: '16%', sortKey: 'created_at', sortValue: (r: AuditRow) => new Date(r.created_at).getTime() },
+            { label: 'User',    width: '140px', platformWidths: { ipad: '140px', iphone: '140px' } },
+            { label: 'Table',   width: '128px', platformWidths: { ipad: '128px', iphone: '128px' }, sortKey: 'table_name', sortValue: (r: AuditRow) => r.table_name ?? '' },
+            { label: 'Action',  width: '140px', platformWidths: { ipad: '170px', iphone: '140px' }, sortKey: 'action',     sortValue: (r: AuditRow) => r.action ?? '' },
+            { label: 'Actor',   width: '79px',  platformWidths: { ipad: '120px', iphone: '140px' }, sortKey: 'actor',      sortValue: (r: AuditRow) => r.actor ?? '' },
+            { label: 'Record',  width: '140px', platformWidths: { ipad: '140px', iphone: '140px' } },
+            { label: 'Before',  width: '140px', platformWidths: { ipad: '140px', iphone: '140px' } },
+            { label: 'After',   width: '140px', platformWidths: { ipad: '140px', iphone: '140px' } },
+            { label: 'Created', width: '140px', platformWidths: { ipad: '170px', iphone: '140px' }, sortKey: 'created_at', sortValue: (r: AuditRow) => new Date(r.created_at).getTime() },
           ],
 
           load: async (_supabase, pagination) => {
@@ -95,7 +280,11 @@ export default function SettingsAudit() {
               search: pagination?.search,
               sortKey: pagination?.sortKey,
               sortDir: pagination?.sortDir,
+              createdFrom: createdFilter?.from,
+              createdTo: createdFilter?.to,
+              createdBefore: createdFilter?.before,
             })
+            if (res.error) throw new Error(res.error)
             return {
               items: (res.data ?? []) as AuditRow[],
               totalCount: res.count ?? 0,
@@ -120,6 +309,9 @@ export default function SettingsAudit() {
               style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
             >
               {checkbox}
+              <td className="audit-td" style={{ color: 'var(--text2)' }}>
+                {formatUser(item)}
+              </td>
               <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }}>
                 {item.table_name ?? '—'}
               </td>
@@ -135,7 +327,7 @@ export default function SettingsAudit() {
                   {item.action ?? '—'}
                 </span>
               </td>
-              <td className="audit-td" style={{ color: 'var(--text2)' }}>
+              <td className="audit-td" style={{ color: 'var(--muted)' }}>
                 {item.actor ?? '—'}
               </td>
               <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', color: 'var(--muted)' }}>
@@ -148,17 +340,79 @@ export default function SettingsAudit() {
                 {formatCell(item.after)}
               </td>
               <td className="audit-td" style={{ color: 'var(--muted)' }}>
-                {new Date(item.created_at).toLocaleString()}
+                {formatCreated(item.created_at, timeZone)}
               </td>
             </tr>
           ),
         }}
       />
 
-      {isDev && diagnostic && (
-        <div className="settings-page s-page-wide" style={{ paddingTop: 0 }}>
-          <pre className="diagnostic-pre">{diagnostic}</pre>
-        </div>
+      {showCreatedFilter && (
+        <>
+          <div className="modal-backdrop" onClick={() => setShowCreatedFilter(false)} />
+          <div
+            className="modal-center"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="audit-created-filter-title"
+            style={{ maxWidth: '520px' }}
+          >
+            <div className="modal-header" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <h3 id="audit-created-filter-title" style={{ margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
+                  Filter Created
+                </h3>
+                <p className="text-xs text-muted" style={{ margin: '2px 0 0' }}>
+                  All times local ({timeZone || 'your browser timezone'}).
+                </p>
+              </div>
+              <button className="close-btn" onClick={() => setShowCreatedFilter(false)} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div className="modal-body" style={{ padding: 'var(--sp-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-lg)' }}>
+              <div className="pf-field">
+                <label htmlFor={createdModeId} className="pf-label">Condition</label>
+                <select
+                  id={createdModeId}
+                  className="pf-select"
+                  value={createdMode}
+                  onChange={e => setCreatedMode(e.target.value as typeof createdMode)}
+                >
+                  <option value="on">On date</option>
+                  <option value="before">At or before date and time</option>
+                  <option value="after">At or after date and time</option>
+                  <option value="between">Between dates and times</option>
+                </select>
+              </div>
+
+              {createdMode === 'on' ? (
+                <div className="pf-field">
+                  <label htmlFor={createdDateId} className="pf-label">Date</label>
+                  <input id={createdDateId} type="date" className="pf-input" value={createdDate} onChange={e => setCreatedDate(e.target.value)} />
+                </div>
+              ) : (
+                <>
+                  {(createdMode === 'after' || createdMode === 'between') && (
+                    <div className="pf-field">
+                      <label htmlFor={createdFromId} className="pf-label">{createdMode === 'between' ? 'From' : 'Date and time'}</label>
+                      <input id={createdFromId} type="datetime-local" className="pf-input" value={createdFromDraft} onChange={e => setCreatedFromDraft(e.target.value)} />
+                    </div>
+                  )}
+                  {(createdMode === 'before' || createdMode === 'between') && (
+                    <div className="pf-field">
+                      <label htmlFor={createdToId} className="pf-label">{createdMode === 'between' ? 'To' : 'Date and time'}</label>
+                      <input id={createdToId} type="datetime-local" className="pf-input" value={createdToDraft} onChange={e => setCreatedToDraft(e.target.value)} />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="modal-footer">
+              {createdFilter && <button type="button" className="text-btn" style={{ marginRight: 'auto' }} onClick={clearCreatedFilter}>Clear</button>}
+              <button type="button" className="btn-cancel" onClick={() => setShowCreatedFilter(false)}>Cancel</button>
+              <button type="button" className="btn-primary" onClick={applyCreatedFilter} disabled={!canApplyCreatedFilter}>Apply</button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Audit row detail modal */}
@@ -179,6 +433,24 @@ export default function SettingsAudit() {
               <button className="close-btn" onClick={() => setViewingRow(null)} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div className="modal-body" style={{ padding: 'var(--sp-lg) var(--sp-xl)' }}>
+              {viewingRow.system_info && (
+                <div style={{
+                  display: 'flex',
+                  gap: 'var(--sp-md)',
+                  flexWrap: 'wrap',
+                  padding: 'var(--sp-sm) var(--sp-md)',
+                  background: 'var(--bg)',
+                  borderRadius: 'var(--r)',
+                  border: '1px solid var(--border)',
+                  fontSize: 'var(--fs-version)',
+                  color: 'var(--muted)',
+                  marginBottom: 'var(--sp-lg)',
+                }}>
+                  <span>{viewingRow.system_info.browser}</span>
+                  <span>{viewingRow.system_info.os} {viewingRow.system_info.os_version}</span>
+                  <span>{viewingRow.system_info.viewport}</span>
+                </div>
+              )}
               {columns.map(col => (
                 <div key={col.key} style={{ marginBottom: 'var(--sp-md)' }}>
                   <label className="label" style={{ marginBottom: '4px' }}>{col.label}</label>
@@ -194,9 +466,19 @@ export default function SettingsAudit() {
                     maxHeight: '200px',
                     overflow: 'auto',
                   }}>
-                    {typeof viewingRow[col.key] === 'object' && viewingRow[col.key] !== null
-                      ? JSON.stringify(viewingRow[col.key], null, 2)
-                      : formatCell(viewingRow[col.key])}
+                    {col.key === '_user'
+                      ? (() => {
+                          const historical = formatUser(viewingRow)
+                          const current = formatCurrentUser(viewingRow)
+                          return current && current !== historical
+                            ? `${historical}\nCurrent identity: ${current}`
+                            : historical
+                        })()
+                      : col.key === 'created_at'
+                        ? `${formatCreated(viewingRow.created_at, timeZone)} (${timeZone})\n${viewingRow.created_at} (UTC)`
+                      : typeof viewingRow[col.key as keyof AuditRow] === 'object' && viewingRow[col.key as keyof AuditRow] !== null
+                        ? JSON.stringify(viewingRow[col.key as keyof AuditRow], null, 2)
+                        : formatCell(viewingRow[col.key as keyof AuditRow])}
                   </pre>
                 </div>
               ))}

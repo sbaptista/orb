@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import SettingsAccount from '@/components/settings/SettingsAccount'
 import AppNav from '@/components/AppNav'
+import MuralCanvas from '@/components/MuralCanvas'
 
 export default async function AccountPage() {
   const supabase = await createClient()
@@ -18,8 +19,9 @@ export default async function AccountPage() {
 
   return (
     <>
+      <MuralCanvas urgency="calm" />
       <AppNav userInitial={userInitial} />
-      <main style={{ display: 'flex', justifyContent: 'center', padding: 'var(--sp-2xl) var(--sp-lg)' }}>
+      <main className="account-main">
         <SettingsAccount />
       </main>
     </>

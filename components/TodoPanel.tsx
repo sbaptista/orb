@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Todo, Product, Priority, StatusDef } from './TodoView'
 import DistillModal from './DistillModal'
 import { logAudit } from '@/app/actions/log-audit'
+import { collectSystemInfo } from '@/lib/system-info'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { useToast } from '@/components/ui/Toast'
 import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
@@ -98,7 +99,8 @@ export default function TodoPanel({
         table_name: 'todos',
         record_id: todo.id,
         before: { status: todo.status, priority_value: todo.priority_value, title: todo.title },
-        after: { status: form.status, priority_value: form.priority_value, title: form.title }
+        after: { status: form.status, priority_value: form.priority_value, title: form.title },
+        system_info: collectSystemInfo(),
       })
       if (justClosed) {
         setShowDistill(true)
@@ -120,7 +122,8 @@ export default function TodoPanel({
       action: 'todo_delete',
       table_name: 'todos',
       record_id: todo.id,
-      before: { title: todo.title, status: todo.status }
+      before: { title: todo.title, status: todo.status },
+      system_info: collectSystemInfo(),
     })
     setDeleting(false)
     toast.success('Todo deleted.')

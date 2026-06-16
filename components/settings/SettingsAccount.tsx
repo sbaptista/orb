@@ -9,6 +9,8 @@ import { isPasskeyAvailable } from '@/lib/passkey'
 import SettingsPasskeys from '@/components/settings/SettingsPasskeys'
 import ChangeEmailModal from '@/components/settings/ChangeEmailModal'
 import ChangeNameModal from '@/components/settings/ChangeNameModal'
+import { logAudit } from '@/app/actions/log-audit'
+import { collectSystemInfo } from '@/lib/system-info'
 
 export default function SettingsAccount() {
   const supabase = useMemo(() => createClient(), [])
@@ -81,6 +83,7 @@ export default function SettingsAccount() {
     setFirstName(nextFirstName.trim())
     setLastName(nextLastName.trim())
     setShowNameModal(false)
+    logAudit({ action: 'user_name_change', table_name: 'users', record_id: userId, before: { first_name: firstName, last_name: lastName }, after: { first_name: nextFirstName.trim(), last_name: nextLastName.trim() }, system_info: collectSystemInfo() })
     toast.success('Name changed.')
     setSaving(false)
   }

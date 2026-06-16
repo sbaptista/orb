@@ -1,6 +1,7 @@
 'use server'
 
 import { requireAdmin } from '@/lib/auth'
+import { logAuditEvent } from '@/lib/audit'
 
 export async function updateUserStage(
   targetUserId: string,
@@ -31,5 +32,6 @@ export async function updateUserStage(
     .eq('id', targetUserId)
 
   if (error) return { error: error.message }
+  await logAuditEvent({ action: 'user_stage_change', table_name: 'users', record_id: targetUserId, after: updates, actor: 'admin-ui', user_id: ctx.user.id })
   return { success: true }
 }

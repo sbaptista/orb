@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { logAuditEvent } from '@/lib/audit'
 
 const STAN_ID = '3c8f183a-1350-4ce2-9b60-7d51ccd55b60'
 
@@ -106,6 +107,8 @@ export async function PATCH(
     return NextResponse.json({ error: 'Todo not found' }, { status: 404 })
   }
 
+  await logAuditEvent({ action: 'todo_update', table_name: 'todos', record_id: id, after: updates, actor: 'rest-api', user_id: targetUserId })
+
   return NextResponse.json(todo)
 }
 
@@ -128,6 +131,9 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  const targetUserId = await resolveTargetUserId(request, supabase)
+  await logAuditEvent({ action: 'todo_delete', table_name: 'todos', record_id: id, actor: 'rest-api', user_id: targetUserId })
 
   return NextResponse.json({ success: true })
 }

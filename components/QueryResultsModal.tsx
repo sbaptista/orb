@@ -3,6 +3,8 @@
 import { useState, useMemo, useCallback, useId } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { visibleProjectsQuery } from '@/lib/projects'
+import { logAudit } from '@/app/actions/log-audit'
+import { collectSystemInfo } from '@/lib/system-info'
 import EmptyState from '@/components/ui/EmptyState'
 import type { Todo, Product, Priority, StatusDef } from './TodoView'
 
@@ -66,13 +68,17 @@ function InlineTodoEditor({
       .select('*, groups(name), categories(name)')
       .single()
     setSaving(false)
-    if (data) onSave(data as Todo)
+    if (data) {
+      logAudit({ action: 'todo_update', table_name: 'todos', record_id: todo.id, before: { status: todo.status, title: todo.title }, after: { status: form.status, title: form.title }, system_info: collectSystemInfo() })
+      onSave(data as Todo)
+    }
   }
 
   async function handleDelete() {
     setDeleting(true)
     await supabase.from('todos').delete().eq('id', todo.id)
     setDeleting(false)
+    logAudit({ action: 'todo_delete', table_name: 'todos', record_id: todo.id, before: { title: todo.title, status: todo.status }, system_info: collectSystemInfo() })
     onDelete(todo.id)
   }
 

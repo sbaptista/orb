@@ -14,6 +14,7 @@ import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { registerOrbTour, unregisterOrbTour, runOrbTour } from './OrbTour'
 import { OrbDevPanel, DevTestError, type MoodOverride, type SimulateError } from './OrbDevPanel'
 import { orbConverse, orbGreeting, type OrbResponse } from '@/app/actions/orb-converse'
+import { collectSystemInfo, type SystemInfo } from '@/lib/system-info'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { checkReminders } from '@/app/actions/reminder-actions'
 import { fetchPendingDevMessages, markDevMessageDelivered, processDevMessage, purgeOldDevMessages } from '@/app/actions/dev-channel'
@@ -72,6 +73,7 @@ const LAST_PRODUCT_KEY  = 'todos_last_product_id'
 const SS_INPUT          = 'todos_orb_input'
 const SS_CONVERSATION   = 'todos_orb_conversation'
 const INACTIVITY_MS     = 5 * 60 * 1000
+const DEV_CHANNEL_POLL_INTERVAL = 15_000
 const PAGE_SIZE         = 40
 
 function genId() {
@@ -213,8 +215,13 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const prevOverallUrgencyRef  = useRef<Urgency | null>(null)
   const orbLongPressRef        = useRef<ReturnType<typeof setTimeout> | null>(null)
   const orbPressedRef          = useRef(false)
-  const abortConverseRef       = useRef(false)
-  const activeProcessingIdRef  = useRef<string | null>(null)
+  const systemInfoRef          = useRef<SystemInfo | null>(null)
+  const conversationRequestSequenceRef = useRef(0)
+  const activeConversationRequestRef = useRef<{
+    id: number
+    processingId: string
+    aborted: boolean
+  } | null>(null)
   const welcomeDismissedRef    = useRef(false)
   const orbFadeRef             = useRef<ReturnType<typeof setTimeout> | null>(null)
   const orbSwitchingRef        = useRef(false)
@@ -366,10 +373,13 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   }
 
   const handleStop = useCallback(() => {
-    abortConverseRef.current = true
-    const activeId = activeProcessingIdRef.current
+    const request = activeConversationRequestRef.current
+    if (!request) return
+
+    request.aborted = true
+    activeConversationRequestRef.current = null
     setMessages(prev => prev.map(m => {
-      if (m.id === activeId || m.isStreaming) {
+      if (m.id === request.processingId) {
         return { ...m, isStreaming: false, text: m.text === 'Processing…' ? 'Stopped.' : m.text }
       }
       return m
@@ -614,7 +624,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   useEffect(() => { fetchAllTodos() }, [fetchAllTodos])
   useVisibilityRefetch(fetchAllTodos)
 
-  // Dev channel — poll for pending messages on tab focus
+  // Dev channel — lightweight polling while the page is visible
   const devPollInFlightRef = useRef(false)
   const pollDevChannel = useCallback(async () => {
     if (devPollInFlightRef.current) return
@@ -654,8 +664,28 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  useVisibilityRefetch(pollDevChannel)
-  useEffect(() => { pollDevChannel() }, [pollDevChannel])
+  useEffect(() => {
+    function pollIfVisible() {
+      if (document.visibilityState === 'visible') pollDevChannel()
+    }
+
+    function onPageShow(event: PageTransitionEvent) {
+      if (event.persisted) pollIfVisible()
+    }
+
+    pollIfVisible()
+    window.addEventListener('focus', pollIfVisible)
+    window.addEventListener('pageshow', onPageShow)
+    document.addEventListener('visibilitychange', pollIfVisible)
+    const interval = window.setInterval(pollIfVisible, DEV_CHANNEL_POLL_INTERVAL)
+
+    return () => {
+      window.removeEventListener('focus', pollIfVisible)
+      window.removeEventListener('pageshow', onPageShow)
+      document.removeEventListener('visibilitychange', pollIfVisible)
+      window.clearInterval(interval)
+    }
+  }, [pollDevChannel])
 
   // Sync overall urgency from local data when orbTodos change
   useEffect(() => {
@@ -804,7 +834,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   async function handleSubmit(value?: string) {
     const text = (value ?? input).trim()
-    if (!text || submitting) return
+    if (!text || activeConversationRequestRef.current) return
 
     if (text === '?' || text === '/?') { openHelp(); setInput(''); return }
 
@@ -871,6 +901,13 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       .map(m => ({ role: (m.type === 'user' ? 'user' : 'assistant') as 'user' | 'assistant', text: m.text }))
 
     const processingId = genId()
+    const request = {
+      id: ++conversationRequestSequenceRef.current,
+      processingId,
+      aborted: false,
+    }
+    activeConversationRequestRef.current = request
+
     setMessages(prev => [
       ...prev,
       { id: genId(), type: 'user', text },
@@ -882,13 +919,11 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     setSubmitting(true)
     resetInactivity()
 
-    abortConverseRef.current = false
-    activeProcessingIdRef.current = processingId
-
     try {
-      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive } })
+      if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
+      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError, systemInfo: systemInfoRef.current, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive } })
       for await (const chunk of readStreamableValue(stream)) {
-        if (abortConverseRef.current) break
+        if (request.aborted) break
         if (!chunk) continue
         setMessages(prev => prev.map(m => {
           if (m.id !== processingId) return m
@@ -951,15 +986,17 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     } catch (err) {
       console.error('[orbSubmit]', err)
       if (isAuthError(String(err))) { handleSessionExpired(toast); return }
-      if (!abortConverseRef.current) {
+      if (!request.aborted) {
         setMessages(prev => prev.map(m => m.id === processingId ? { ...m, text: 'Something went wrong. Try again?' } : m))
       }
     } finally {
-      setSubmitting(false)
-      activeProcessingIdRef.current = null
+      if (activeConversationRequestRef.current?.id === request.id) {
+        activeConversationRequestRef.current = null
+        setSubmitting(false)
+      }
       setMessages(prev => prev.map(m => {
         if (m.id !== processingId) return m
-        if (abortConverseRef.current) {
+        if (request.aborted) {
           return { ...m, isStreaming: false, text: m.text === 'Processing…' ? 'Stopped.' : m.text }
         }
         return {
@@ -1001,7 +1038,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       const updated = data as Todo
       setTodos(prev => prev.map(t => t.id === todo.id ? updated : t))
       if (selectedTodo?.id === todo.id) setSelectedTodo(updated)
-      logAudit({ action: isClosed(newStatus) ? 'todo_close' : 'todo_reopen', table_name: 'todos', record_id: todo.id, before: { status: todo.status }, after: { status: newStatus, title: todo.title } })
+      if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
+      logAudit({ action: isClosed(newStatus) ? 'todo_close' : 'todo_reopen', table_name: 'todos', record_id: todo.id, before: { status: todo.status }, after: { status: newStatus, title: todo.title }, system_info: systemInfoRef.current })
       if (beforeUrgency) {
         try {
           await notifyIfEscalated(beforeUrgency)
@@ -1035,7 +1073,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       const updated = data as Todo
       setTodos(prev => prev.map(t => t.id === todo.id ? updated : t))
       if (selectedTodo?.id === todo.id) setSelectedTodo(updated)
-      logAudit({ action: isClosing ? 'todo_close' : 'todo_update', table_name: 'todos', record_id: todo.id, before: { status: todo.status }, after: { status: newStatus, title: todo.title } })
+      if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
+      logAudit({ action: isClosing ? 'todo_close' : 'todo_update', table_name: 'todos', record_id: todo.id, before: { status: todo.status }, after: { status: newStatus, title: todo.title }, system_info: systemInfoRef.current })
       if (isClosing) setDistillTodo(updated)
 
       fetchOrbTodos()
@@ -1072,7 +1111,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     const closedStatus = statuses.find(s => s.is_closed)?.name ?? 'closed'
     const { error } = await supabase.from('todos').update({ status: closedStatus, closed_at: new Date().toISOString() }).in('id', ids)
     if (error) { if (isAuthError(error.message)) { handleSessionExpired(toast); return }; toast.error('Failed to close items.'); return }
-    logAudit({ action: 'todo_bulk_close', table_name: 'todos', after: { count: ids.length, ids } })
+    if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
+    logAudit({ action: 'todo_bulk_close', table_name: 'todos', after: { count: ids.length, ids }, system_info: systemInfoRef.current })
     if (beforeUrgency) {
       try {
         await notifyIfEscalated(beforeUrgency)
@@ -1097,7 +1137,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     }
     const { error } = await supabase.from('todos').delete().in('id', ids)
     if (error) { if (isAuthError(error.message)) { handleSessionExpired(toast); return }; toast.error('Failed to delete items.'); return }
-    logAudit({ action: 'todo_bulk_delete', table_name: 'todos', before: { count: ids.length, ids } })
+    if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
+    logAudit({ action: 'todo_bulk_delete', table_name: 'todos', before: { count: ids.length, ids }, system_info: systemInfoRef.current })
     if (beforeUrgency) {
       try {
         await notifyIfEscalated(beforeUrgency)
@@ -1456,7 +1497,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                   ]}
                 />
                 <span className="text-xs text-muted" style={{ marginLeft: 'auto' }}>{todos.length} todo{todos.length !== 1 ? 's' : ''}</span>
-                <button className="nav-btn" onClick={() => setShowFilters(false)} aria-label="Close filters" title="Close" style={{ padding: '2px 4px', minWidth: 'auto' }}>
+                <button className="nav-circle-btn" onClick={() => setShowFilters(false)} aria-label="Close filters" data-tooltip="Close filters">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>

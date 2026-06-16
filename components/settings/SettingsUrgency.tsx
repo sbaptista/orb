@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
 import SkeletonRows from '@/components/ui/SkeletonRows'
+import { logAudit } from '@/app/actions/log-audit'
+import { collectSystemInfo } from '@/lib/system-info'
 
 export default function SettingsUrgency() {
   const supabase = createClient()
@@ -65,6 +67,7 @@ export default function SettingsUrgency() {
       return
     }
 
+    logAudit({ action: 'urgency_threshold_change', table_name: 'users', record_id: userId, before: { urgency_threshold_hours: origUrgencyThreshold.current }, after: { urgency_threshold_hours: Number(urgencyThreshold) }, system_info: collectSystemInfo() })
     origUrgencyThreshold.current = Number(urgencyThreshold)
     toast.success('Urgency Threshold saved.')
     setSaving(false)
