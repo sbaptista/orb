@@ -96,12 +96,16 @@ type CrudConfig<T, F> = {
   toolbarExtra?: ReactNode
   /** Controls whether the text search input is visible and active. Defaults to true. */
   searchEnabled?: boolean
+  /** When true, server search only fires on explicit submit (Enter key or send button), not on debounce. */
+  serverSearchOnSubmit?: boolean
   /** Caption rendered above the search input when the search toolbar is visible. */
   searchCaption?: string
   /** Caption rendered with table horizontal navigation controls. */
   tableNavCaption?: string
   /** Changes when an external server-side filter changes, resetting pagination to page one. */
   externalFilterKey?: string
+  /** Called when the user clicks the Reset button. Use to clear external filters (e.g. date filter). */
+  onResetFilters?: () => void
   /** Custom handler when a row is clicked. When provided, replaces the default edit-on-click behavior. */
   onRowClick?: (item: T) => void
   validate?: (form: F, items: T[], editingId: string | null) => string | null
@@ -188,7 +192,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   configRef.current = config
   const tableScrollRef = useRef<HTMLDivElement>(null)
   const loadRequestId = useRef(0)
-  const previousExternalFilterKey = useRef(config.externalFilterKey)
+
 
   const [items, setItems] = useState<T[]>([])
   const [extra, setExtra] = useState<any>({})
@@ -250,46 +254,72 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const usesServerSearch = !!config.pagination?.serverSearch
   const usesServerSort = !!config.pagination?.serverSort
   const searchEnabled = config.searchEnabled ?? true
+  const serverSearchOnSubmit = !!config.serverSearchOnSubmit
   const pageSize = config.pagination?.pageSize
   const externalFilterKey = config.externalFilterKey
 
+  // --- Debounce: search → debouncedSearch ---------------------------------
   useEffect(() => {
-    if (!searchEnabled) {
-      setSearch('')
-      setDebouncedSearch('')
-      setPage(0)
-      setSelectedIds([])
+    if (!usesServerSearch || serverSearchOnSubmit) {
+      if (!usesServerSearch) setDebouncedSearch(search)
       return
     }
-
-    if (!usesServerSearch) {
-      setDebouncedSearch(search)
-      return
-    }
-
-    const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 500)
     return () => window.clearTimeout(timeout)
-  }, [search, usesServerSearch, searchEnabled])
+  }, [search, usesServerSearch, serverSearchOnSubmit])
 
-  useEffect(() => {
-    if (previousExternalFilterKey.current === externalFilterKey) return
-    previousExternalFilterKey.current = externalFilterKey
+  function submitSearch() {
+    setDebouncedSearch(search.trim())
     setPage(0)
     setSelectedIds([])
-  }, [externalFilterKey])
+  }
+
+  function resetAllFilters() {
+    setSearch('')
+    setDebouncedSearch('')
+    setPage(0)
+    setSelectedIds([])
+    config.onResetFilters?.()
+  }
+
+  // --- Request key: the single source of truth for when to reload ---------
+  // Every value that should trigger a server call is encoded here.
+  // Changing any one of them produces a new string → the effect fires once.
+  const serverSearchTerm = usesServerSearch && searchEnabled ? debouncedSearch : ''
+  const requestKey = `${serverSearchTerm}|${page}|${sortKey}|${sortDir}|${externalFilterKey ?? ''}`
+  const prevRequestKey = useRef(requestKey)
+
+  // Reset page when search or external filter changes (not on page change itself)
+  useEffect(() => {
+    const prev = prevRequestKey.current
+    if (!prev) return
+    const [prevSearch, prevPage, , , prevFilter] = prev.split('|')
+    const pageChanged = String(page) !== prevPage
+    const searchChanged = serverSearchTerm !== prevSearch
+    const filterChanged = (externalFilterKey ?? '') !== prevFilter
+    if ((searchChanged || filterChanged) && !pageChanged) {
+      setPage(0)
+      setSelectedIds([])
+    }
+  }, [serverSearchTerm, externalFilterKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // --- Stable load function (reads params from refs/current values) -------
+  const loadParamsRef = useRef({ page, pageSize, serverSearchTerm, sortKey, sortDir, usesServerSearch, usesServerSort })
+  loadParamsRef.current = { page, pageSize, serverSearchTerm, sortKey, sortDir, usesServerSearch, usesServerSort }
 
   const load = useCallback(async () => {
     const requestId = ++loadRequestId.current
     setLoading(true)
     try {
       const cfg = configRef.current
+      const p = loadParamsRef.current
       if (cfg.load) {
-        const paginationArg = pageSize ? {
-          page,
-          pageSize,
-          search: usesServerSearch && searchEnabled ? debouncedSearch : '',
-          sortKey: usesServerSort ? sortKey : null,
-          sortDir,
+        const paginationArg = p.pageSize ? {
+          page: p.page,
+          pageSize: p.pageSize,
+          search: p.serverSearchTerm,
+          sortKey: p.usesServerSort ? p.sortKey : null,
+          sortDir: p.sortDir,
         } : undefined
         const result = await cfg.load(supabase, paginationArg)
         if (requestId !== loadRequestId.current) return
@@ -311,10 +341,14 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     } finally {
       if (requestId === loadRequestId.current) setLoading(false)
     }
-  }, [supabase, page, pageSize, debouncedSearch, sortKey, sortDir, usesServerSearch, usesServerSort, searchEnabled])
+  }, [supabase]) // stable — supabase client never changes
 
+  // --- Single trigger: reload when the request key changes ----------------
   useVisibilityRefetch(load)
-  useEffect(() => { load() }, [load, externalFilterKey])
+  useEffect(() => {
+    prevRequestKey.current = requestKey
+    load()
+  }, [requestKey, load])
 
   const scoped = config.scopeFilter
     ? items.filter(item => config.scopeFilter!.filterItem(item, scope))
@@ -677,7 +711,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     return <div key={config.getId(item)}>{rowNode}</div>
   }
 
-  const activeSearchTerm = searchEnabled ? (usesServerSearch ? debouncedSearch : search.trim()) : ''
+  const activeSearchTerm = usesServerSearch ? debouncedSearch : search.trim()
 
   const itemRows = displayed.map((item, idx) => {
     const id = config.getId(item)
@@ -767,7 +801,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
               {config.toolbarLeading}
             </div>
           )}
-          {searchEnabled && (config.searchFilter || usesServerSearch) && (
+          {(config.searchFilter || usesServerSearch) && (
             <label className="crud-toolbar-field">
               {config.searchCaption && <span className="crud-toolbar-caption">{config.searchCaption}</span>}
               <input
@@ -775,20 +809,48 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                 value={search}
                 onChange={e => {
                   setSearch(e.target.value)
-                  setPage(0)
-                  setSelectedIds([])
+                  if (!usesServerSearch) {
+                    setPage(0)
+                    setSelectedIds([])
+                  }
+                }}
+                onKeyDown={e => {
+                  if (serverSearchOnSubmit && e.key === 'Enter') {
+                    e.preventDefault()
+                    submitSearch()
+                  }
                 }}
                 placeholder={config.searchPlaceholder ?? 'Filter…'}
                 aria-label={config.searchPlaceholder ?? `Filter ${config.title}`}
                 className="crud-search-input"
                 style={config.searchPlaceholder?.includes('summary') ? { maxWidth: '480px' } : undefined}
               />
+              {serverSearchOnSubmit && (
+                <button
+                  type="button"
+                  className="oc-action-circle crud-search-submit"
+                  onClick={submitSearch}
+                  disabled={!search.trim()}
+                  data-tooltip="Search (Enter)"
+                  aria-label="Search"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"/>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                  </svg>
+                </button>
+              )}
             </label>
           )}
           {config.toolbarExtra && (
             <div className="crud-toolbar-extra">
               {config.toolbarExtra}
             </div>
+          )}
+          {serverSearchOnSubmit && (debouncedSearch || (externalFilterKey && externalFilterKey !== '||')) && (
+            <button type="button" className="text-btn crud-reset-btn" onClick={resetAllFilters}>
+              Reset
+            </button>
           )}
           {isTable && (
             <div className="crud-scroll-controls" aria-label="Table column navigation">

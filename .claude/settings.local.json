@@ -393,7 +393,10 @@
       "Bash(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local)",
       "Bash(python3 -c \"import sys,json;d=json.loads\\(sys.stdin.read\\(\\)\\)[0];print\\(f'ORB-{d[\\\\\"todo_number\\\\\"]}: {d[\\\\\"title\\\\\"]}\\\\nStatus: {d[\\\\\"status\\\\\"]}\\\\nPriority: {d[\\\\\"priority_value\\\\\"]}\\\\n\\\\n{d[\\\\\"description\\\\\"] or \\\\\"\\(no description\\)\\\\\"}'\\)\")",
       "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?select=todo_number&product_id=eq.f643f732-73b5-4bee-96be-da36197fb41c&deleted_at=is.null&order=todo_number.desc&limit=1' -H 'apikey: __CMDSUB_OUTPUT__')",
-      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?select=todo_number&product_id=eq.f643f732-73b5-4bee-96be-da36197fb41c&order=todo_number.desc&limit=1' -H 'apikey: __CMDSUB_OUTPUT__')"
+      "Bash(curl -s 'https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?select=todo_number&product_id=eq.f643f732-73b5-4bee-96be-da36197fb41c&order=todo_number.desc&limit=1' -H 'apikey: __CMDSUB_OUTPUT__')",
+      "Bash(curl -s \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/projects?select=id&code=eq.ORB\" -H \"apikey: $\\(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local)",
+      "Bash(curl -s \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?select=id,title,status,todo_number,product_id&todo_number=eq.254&product_id=eq.$\\(curl -s \"https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/projects?select=id&code=eq.ORB\" -H \"apikey: $\\(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local)",
+      "Bash(curl -s -X PATCH https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/todos?id=eq.16c9680a-cf03-470a-a985-e5f8c84c2f49 -H 'apikey: __CMDSUB_OUTPUT__')"
     ]
   }
 }

@@ -71,8 +71,6 @@ type CreatedFilter = {
 export default function SettingsAudit() {
   const [viewingRow, setViewingRow] = useState<AuditRow | null>(null)
   const timeZone = useSyncExternalStore(subscribeToTimeZone, getBrowserTimeZone, () => 'UTC')
-  const [auditSearchMode, setAuditSearchMode] = useState<'text' | 'created'>('text')
-  const [searchModeMenuOpen, setSearchModeMenuOpen] = useState(false)
   const [showCreatedFilter, setShowCreatedFilter] = useState(false)
   const [createdMode, setCreatedMode] = useState<'on' | 'before' | 'after' | 'between'>('on')
   const [createdDate, setCreatedDate] = useState('')
@@ -137,16 +135,6 @@ export default function SettingsAudit() {
     setShowCreatedFilter(false)
   }
 
-  function changeAuditSearchMode(nextMode: 'text' | 'created') {
-    setSearchModeMenuOpen(false)
-    setAuditSearchMode(nextMode)
-    if (nextMode === 'text') {
-      clearCreatedFilter()
-    } else {
-      setShowCreatedFilter(true)
-    }
-  }
-
   const canApplyCreatedFilter = createdMode === 'on'
     ? !!createdDate
     : createdMode === 'before'
@@ -178,88 +166,25 @@ export default function SettingsAudit() {
           layout: 'table',
           pagination: { pageSize: PAGE_SIZE, serverSearch: true, serverSort: true },
           subtitle: (items, total) => total ? `${items.length} of ${total} entr${total !== 1 ? 'ies' : 'y'}` : `${items.length} entr${items.length !== 1 ? 'ies' : 'y'}`,
-          searchPlaceholder: 'Search table, action, user, actor, record, before, or after…',
-          searchEnabled: auditSearchMode === 'text',
+          searchPlaceholder: 'Search log then press ➤ or Return',
+          serverSearchOnSubmit: true,
           tableNavCaption: 'prev/next columns',
           onRowClick: (item) => setViewingRow(item),
           externalFilterKey: `${createdFilter?.from ?? ''}|${createdFilter?.to ?? ''}|${createdFilter?.before ?? ''}`,
-          toolbarLeading: (
-            <div className="crud-search-mode">
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={e => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setSearchModeMenuOpen(open => !open)
-                }}
-                aria-haspopup="menu"
-                aria-expanded={searchModeMenuOpen}
-                data-tooltip="Select by text fields or Created date"
-              >
-                Search by...
-              </button>
-              {searchModeMenuOpen && (
-                <>
-                  <div
-                    className="dropdown-backdrop"
-                    onClick={e => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setSearchModeMenuOpen(false)
-                    }}
-                  />
-                  <div
-                    className="dropdown-menu crud-search-mode-menu"
-                    role="menu"
-                    aria-label="Choose audit search type"
-                    onClick={e => e.stopPropagation()}
-                  >
-                    <button
-                      type="button"
-                      className="dropdown-item"
-                      role="menuitemradio"
-                      aria-checked={auditSearchMode === 'text'}
-                      onClick={e => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        changeAuditSearchMode('text')
-                      }}
-                    >
-                      Text fields
-                    </button>
-                    <button
-                      type="button"
-                      className="dropdown-item"
-                      role="menuitemradio"
-                      aria-checked={auditSearchMode === 'created'}
-                      onClick={e => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        changeAuditSearchMode('created')
-                      }}
-                    >
-                      Created date
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          ),
-          toolbarExtra: auditSearchMode === 'created' ? (
+          onResetFilters: () => clearCreatedFilter(),
+          toolbarExtra: (
             <div className="crud-toolbar-field crud-toolbar-field-compact">
               <button
                 type="button"
-                className="btn-outline"
+                className={createdFilter ? 'btn-primary' : 'btn-outline'}
                 onClick={() => setShowCreatedFilter(true)}
-                aria-label={createdFilter ? `Change Created filter: ${createdFilter.label}` : 'Filter by Created date and time'}
+                aria-label={createdFilter ? `Change date filter: ${createdFilter.label}` : 'Search by date'}
               >
-                {createdFilter ? `Created: ${createdFilter.label}` : 'Created'}
+                {createdFilter ? `Created: ${createdFilter.label}` : 'Search by Date'}
               </button>
             </div>
-          ) : undefined,
+          ),
 
-          stickyColumns: 2,
           selectionColumnWidth: 38,
           selectionColumnWidths: { ipad: 38, iphone: 38 },
           tableColumns: [
@@ -360,7 +285,7 @@ export default function SettingsAudit() {
             <div className="modal-header" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <h3 id="audit-created-filter-title" style={{ margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
-                  Filter Created
+                  Search by Date
                 </h3>
                 <p className="text-xs text-muted" style={{ margin: '2px 0 0' }}>
                   All times local ({timeZone || 'your browser timezone'}).

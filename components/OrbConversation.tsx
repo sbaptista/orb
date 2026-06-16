@@ -698,7 +698,7 @@ export default function OrbConversation({
                                     type="submit"
                                     className="oc-action-circle oc-send-btn"
                                     disabled={!input.trim()}
-                                    data-tooltip="Send (Shift+Enter)"
+                                    data-tooltip="Send (Enter)"
                                     aria-label="Send"
                                 >
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

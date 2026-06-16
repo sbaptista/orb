@@ -577,6 +577,7 @@ a, button, [role="button"], input, select, textarea {
 .s-page-wide {
   padding: var(--sp-2xl);
   max-width: 960px;
+  overflow: hidden;
   font-family: var(--font-ui);
 }
 
@@ -834,6 +835,45 @@ a, button, [role="button"], input, select, textarea {
   gap: 4px;
 }
 
+.crud-toolbar-field:has(.crud-search-submit) {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.crud-toolbar-field:has(.crud-search-submit) .crud-toolbar-caption {
+  width: 100%;
+}
+
+.crud-search-submit.oc-action-circle {
+  width: 30px;
+  min-width: 30px;
+  max-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  max-height: 30px;
+  flex: none;
+  margin-left: var(--sp-xs);
+  background: var(--btn-primary-bg);
+  color: #fff;
+}
+
+.crud-search-submit.oc-action-circle:hover:not(:disabled) {
+  background: var(--btn-primary-hover-bg);
+}
+
+.crud-search-submit.oc-action-circle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.crud-reset-btn {
+  align-self: flex-end;
+  flex: none;
+  font-size: var(--fs-sm);
+  padding-bottom: 6px;
+}
+
 .crud-toolbar-field-compact {
   flex: none;
 }
@@ -857,30 +897,6 @@ a, button, [role="button"], input, select, textarea {
   position: relative;
 }
 
-.crud-search-mode {
-  position: relative;
-}
-
-.crud-search-mode-menu {
-  top: calc(100% + 4px);
-  bottom: auto;
-  left: 0;
-  right: auto;
-  margin: 0;
-  z-index: 70;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: none;
-}
-
-.crud-search-mode-menu .dropdown-item {
-  background: var(--bg2);
-}
-
-.crud-search-mode-menu .dropdown-item:hover {
-  background: var(--bg3);
-}
 
 .crud-toolbar-extra {
   flex: none;

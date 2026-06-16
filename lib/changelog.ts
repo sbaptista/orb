@@ -6,6 +6,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.5.233',
+    date: '2026-06-16',
+    changes: [
+      'Audit Log search now requires explicit submit (Enter key or send button) instead of firing on every keystroke, dramatically reducing server calls.',
+      'Text search and date filter work simultaneously — removed the Search by... mode switcher that forced choosing one or the other.',
+      'Added a Reset button that clears all active filters (text and date) in one click.',
+      'Removed frozen columns from the Audit Log table for a cleaner scrolling experience.',
+      'Fixed horizontal scroll navigation arrows not detecting table overflow on the Audit Log page.',
+      'Refactored CrudList data loading to use a stable load function with a single request key, eliminating cascading reloads from state changes.',
+      'Corrected Orb send button tooltip from "Send (Shift+Enter)" to "Send (Enter)".',
+    ]
+  },
+  {
     version: 'v0.5.232',
     date: '2026-06-14',
     changes: [
