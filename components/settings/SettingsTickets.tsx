@@ -129,14 +129,14 @@ export default function SettingsTickets() {
         layout: 'table',
         subtitle: items => `${items.length} ticket${items.length !== 1 ? 's' : ''}`,
         tableColumns: [
-          { label: 'Code', width: '9%' },
-          { label: 'Type', width: '11%' },
-          { label: 'Summary' },
-          { label: 'Reporter', width: '14%' },
-          { label: 'Status', width: '11%' },
-          { label: 'Linked todo', width: '9%' },
-          { label: 'Created', width: '9%' },
-          { label: 'Actions', width: '10%' },
+          { label: 'Code', width: '90px' },
+          { label: 'Type', width: '110px' },
+          { label: 'Summary', width: '260px' },
+          { label: 'Reporter', width: '150px' },
+          { label: 'Status', width: '120px' },
+          { label: 'Linked todo', width: '120px' },
+          { label: 'Created', width: '120px' },
+          { label: 'Actions', width: '130px' },
         ],
         load: async () => {
           const [ticketsRes, projectsRes] = await Promise.all([

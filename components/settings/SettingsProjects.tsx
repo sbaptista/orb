@@ -49,17 +49,17 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
           return false
         },
         tableColumns: [
-          { label: 'Code',        width: '10%', sortKey: 'code',  sortValue: (p: Project) => p.code ?? '' },
-          { label: 'Name',        width: '20%', sortKey: 'name',  sortValue: (p: Project) => p.name },
-          { label: 'Description', width: '25%' },
+          { label: 'Code',        width: '90px',  sortKey: 'code',  sortValue: (p: Project) => p.code ?? '' },
+          { label: 'Name',        width: '180px', sortKey: 'name',  sortValue: (p: Project) => p.name },
+          { label: 'Description', width: '240px' },
           ...(isAdmin ? [
-            { label: 'Owner',     width: '15%', sortKey: 'owner', sortValue: (p: Project, extra: any) => {
+            { label: 'Owner',     width: '160px', sortKey: 'owner', sortValue: (p: Project, extra: any) => {
               const owner = extra.users?.find((u: any) => u.id === p.created_by)
               return owner ? [owner.first_name, owner.last_name].filter(Boolean).join(' ') || owner.email : ''
             }},
           ] : []),
-          { label: 'Status',      width: '12%', align: 'center' as const },
-          { label: 'Actions',     width: '18%' },
+          { label: 'Status',      width: '110px', align: 'center' as const },
+          { label: 'Actions',     width: '140px' },
         ],
 
         load: async (_supabase) => {

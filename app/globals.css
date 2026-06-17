@@ -454,6 +454,31 @@ a, button, [role="button"], input, select, textarea {
   color: var(--text);
 }
 
+.btn-danger-outline {
+  background: none;
+  border: 1px solid var(--error);
+  border-radius: var(--r);
+  padding: 7px var(--sp-md);
+  font-size: var(--fs-sm);
+  color: var(--error);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: all var(--transition);
+  min-height: 44px;
+}
+.btn-danger-outline:not(:disabled):hover {
+  background: var(--error);
+  color: #fff;
+}
+.btn-danger-outline:not(:disabled):active {
+  background: color-mix(in srgb, var(--error) 85%, #000);
+  color: #fff;
+}
+.btn-danger-outline:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+}
+
 .btn-danger-confirm {
   background: none;
   border: none;

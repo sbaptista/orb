@@ -51,13 +51,13 @@ export default function SettingsUsers() {
         editModalTitle: 'Edit User',
         subtitle: items => `${items.length} user${items.length !== 1 ? 's' : ''}`,
         tableColumns: [
-          { label: 'Name',    width: '30%', sortKey: 'name',  sortValue: (u: UserRow) => displayName(u) },
-          { label: 'Email',   width: '30%', sortKey: 'email', sortValue: (u: UserRow) => u.email },
-          { label: 'Role',    width: '20%', sortKey: 'role',  sortValue: (u: UserRow, extra: any) => {
+          { label: 'Name',    width: '220px', sortKey: 'name',  sortValue: (u: UserRow) => displayName(u) },
+          { label: 'Email',   width: '300px', sortKey: 'email', sortValue: (u: UserRow) => u.email },
+          { label: 'Role',    width: '150px', sortKey: 'role',  sortValue: (u: UserRow, extra: any) => {
             const role = extra.roles?.find((r: RoleRow) => r.id === u.role_id)
             return role?.name ?? ''
           }},
-          { label: 'Actions', width: '20%' },
+          { label: 'Actions', width: '170px' },
         ],
 
         load: async () => {

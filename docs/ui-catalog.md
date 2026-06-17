@@ -198,8 +198,11 @@ Transparent background, bordered. Used alongside primary buttons.
 ### Outline (`btn-outline`)
 Bordered, transparent. General-purpose secondary action.
 
+### Danger Outline (`btn-danger-outline`)
+Red border, red text, transparent background. Hover fills red with white text. For destructive actions in toolbars and bulk bars where filled `btn-danger` would be too heavy. Used by CrudList bulk delete.
+
 ### Danger Confirm (`btn-danger-confirm`)
-Red background. Used only inside confirmation flows (e.g., "Confirm delete").
+Text-only red, no background or border. Used inside inline row confirmation flows (e.g., "Confirm delete").
 
 ### Row Action (`btn-row-action`)
 Small inline button for table row actions. Variants: `btn-row-delete`, `btn-row-edit`.
@@ -334,6 +337,7 @@ Reusable pattern for settings lists with add/edit/delete actions, column resize,
 - **External server filters:** `config.externalFilterKey` — change this stable key when a custom server-side filter changes so pagination resets to page one without discarding the search term.
 - **Custom row click:** `config.onRowClick` — replaces edit-on-click behavior (e.g. opens a detail modal instead of edit form).
 - **Selection column width:** `config.selectionColumnWidth` — optional pixel width for the bulk-selection checkbox column; defaults to `36`.
+- **Pixel table widths:** Settings tables that need fixed geometry use pixel column widths (`90px`, `180px`, etc.). When every configured column uses pixels, CrudList shrink-wraps the toolbar, Prev/Next Columns controls, table frame, and pagination footer to the exact sum of the columns plus the selection column.
 - **Platform table widths:** `tableColumns[].platformWidths` and `config.selectionColumnWidths` provide Mac/iPad/iPhone overrides using the same breakpoint and pointer rules as Table Tuning.
 - **Platform frozen columns:** `config.stickyColumnsByPlatform` overrides the default frozen-column count per platform.
 - **Audit Log compact search:** Audit Log uses a standard green `btn-primary` **Search by...** dropdown. Text fields mode shows the text search field. Created date mode hides and clears text search, shows the Created date filter button, and opens the Created filter modal when selected.

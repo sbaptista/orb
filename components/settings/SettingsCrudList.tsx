@@ -123,6 +123,8 @@ type CrudConfig<T, F> = {
   deleteWarning?: (item: T, extra: any) => ReactNode
   canDelete?: (item: T, extra: any) => boolean
 
+  /** When true, hides the Add button but keeps the Edit modal available. */
+  hideAdd?: boolean
   /** Label for the add button. Defaults to "Add {itemLabel}". */
   addButtonLabel?: string
   /** Label for the modal title when adding. Defaults to "Add {itemLabel}". */
@@ -242,15 +244,17 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     width: column.platformWidths?.[tablePlatform] ?? column.width,
   })), [config.tableColumns, tablePlatform])
 
-  const tableMinWidth = useMemo(() => {
+  const hasColumnWidths = !!resolvedColumns?.some(column => column.width)
+  const usesExactPixelWidths = !!resolvedColumns?.length && resolvedColumns.every(column => !column.width || /^\d+px$/.test(column.width))
+  const tableExactWidth = useMemo(() => {
     const cols = resolvedColumns
-    if (!cols) return 0
+    if (!cols || !usesExactPixelWidths) return 0
     let total = config.bulkDelete ? selectionColumnWidth : 0
     for (const c of cols) {
-      if (c.width) total += parseInt(c.width, 10) || 0
+      if (c.width) total += Number.parseInt(c.width, 10) || 0
     }
     return total
-  }, [resolvedColumns, config.bulkDelete, selectionColumnWidth])
+  }, [resolvedColumns, usesExactPixelWidths, config.bulkDelete, selectionColumnWidth])
 
   const canSelect = config.bulkDelete?.canSelect ?? (() => true)
   const usesServerSearch = !!config.pagination?.serverSearch
@@ -392,7 +396,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       element.removeEventListener('scroll', update)
       observer.disconnect()
     }
-  }, [displayed.length, tableMinWidth])
+  }, [displayed.length, tableExactWidth])
 
   function scrollTable(direction: -1 | 1) {
     tableScrollRef.current?.scrollBy({ left: direction * 240, behavior: 'smooth' })
@@ -690,7 +694,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       extra,
       checkbox,
     })
-    if (isTable && stickyCount > 0 && React.isValidElement(rowNode) && (rowNode as React.ReactElement<any>).type === 'tr') {
+    if (isTable && stickyCount > 0 && usesExactPixelWidths && React.isValidElement(rowNode) && (rowNode as React.ReactElement<any>).type === 'tr') {
       const trNode = rowNode as React.ReactElement<any>
       const children = React.Children.toArray(trNode.props.children).filter(Boolean) as React.ReactElement<any>[]
       const stickyDataCount = stickyCount - (hasBulk ? 1 : 0)
@@ -701,7 +705,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           let leftOffset = hasBulk ? selectionColumnWidth : 0
           for (let j = 0; j < dataIdx; j++) {
             const w = resolvedColumns?.[j]?.width
-            if (w) leftOffset += parseInt(w, 10) || 0
+            if (w) leftOffset += Number.parseInt(w, 10) || 0
           }
           const childEl = child as React.ReactElement<any>
           return React.cloneElement(childEl, {
@@ -760,7 +764,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         </div>
         <div className="flex-row gap-sm">
           {config.headerExtra}
-          {hasForm && (
+          {hasForm && !config.hideAdd && (
             <button className="btn-outline" onClick={openAddModal}>
               + {config.addButtonLabel ?? `Add ${config.itemLabel}`}
             </button>
@@ -802,7 +806,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       )}
 
       {((config.searchFilter || usesServerSearch || hasExternalSearch) || isTable) && (
-        <div className="crud-table-toolbar">
+        <div className="crud-table-toolbar" style={tableExactWidth ? { width: `${tableExactWidth}px`, maxWidth: '100%' } : undefined}>
           {config.toolbarLeading && (
             <div className="crud-toolbar-leading">
               {config.toolbarLeading}
@@ -918,10 +922,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
             {selectedIds.length} selected
           </span>
           <button
-            className="oc-tool-btn"
+            className="btn-danger-outline"
             onClick={handleBulkDelete}
             disabled={saving}
-            style={{ fontSize: 'var(--fs-xs)', color: 'var(--error)', borderColor: 'var(--error)' }}
           >
             Delete
           </button>
@@ -946,10 +949,10 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           <>
             {/* Desktop table */}
             <div className={hasMobileCards ? 'crud-desktop-table' : undefined}>
-              <div className="s-card" style={{ padding: 0, overflow: 'hidden' }}>
+              <div className="s-card" style={{ padding: 0, overflow: 'hidden', ...(tableExactWidth ? { width: `${tableExactWidth}px`, maxWidth: '100%' } : {}) }}>
                   <div ref={tableScrollRef} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' as any }}>
-                    <table className="audit-table" style={tableMinWidth ? { width: `${tableMinWidth}px`, minWidth: `${tableMinWidth}px`, tableLayout: 'fixed' } : undefined}>
-                      {tableMinWidth > 0 && (
+                    <table className="audit-table" style={tableExactWidth ? { width: `${tableExactWidth}px`, minWidth: `${tableExactWidth}px`, tableLayout: 'fixed' } : hasColumnWidths ? { width: '100%', tableLayout: 'fixed' } : undefined}>
+                      {(tableExactWidth > 0 || hasColumnWidths) && (
                         <colgroup>
                           {hasBulk && <col style={{ width: `${selectionColumnWidth}px` }} />}
                           {resolvedColumns?.map((col, i) => (
@@ -986,7 +989,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                               if (hasBulk) leftOffset += selectionColumnWidth
                               for (let j = 0; j < i; j++) {
                                 const w = resolvedColumns?.[j]?.width
-                                if (w) leftOffset += parseInt(w, 10) || 0
+                                if (w && usesExactPixelWidths) leftOffset += Number.parseInt(w, 10) || 0
                               }
                             }
 

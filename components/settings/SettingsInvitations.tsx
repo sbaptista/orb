@@ -94,12 +94,12 @@ export default function SettingsInvitations() {
           return `${pending} pending · ${items.length} total`
         },
         tableColumns: [
-          { label: 'Invited',   width: '12%', sortKey: 'invited_at',    sortValue: (i: Invitation) => new Date(i.invited_at).getTime() },
-          { label: 'Email',     width: '26%', sortKey: 'email',         sortValue: (i: Invitation) => i.email },
-          { label: 'Stage',     width: '10%', sortKey: 'release_stage', sortValue: (i: Invitation) => i.release_stage },
-          { label: 'Status',    width: '10%', sortKey: 'status',        sortValue: (i: Invitation) => i.status },
-          { label: 'Responded', width: '12%', sortKey: 'responded_at',  sortValue: (i: Invitation) => i.responded_at ? new Date(i.responded_at).getTime() : 0 },
-          { label: 'Actions',   width: '22%' },
+          { label: 'Invited',   width: '115px', sortKey: 'invited_at',    sortValue: (i: Invitation) => new Date(i.invited_at).getTime() },
+          { label: 'Email',     width: '260px', sortKey: 'email',         sortValue: (i: Invitation) => i.email },
+          { label: 'Stage',     width: '110px', sortKey: 'release_stage', sortValue: (i: Invitation) => i.release_stage },
+          { label: 'Status',    width: '110px', sortKey: 'status',        sortValue: (i: Invitation) => i.status },
+          { label: 'Responded', width: '120px', sortKey: 'responded_at',  sortValue: (i: Invitation) => i.responded_at ? new Date(i.responded_at).getTime() : 0 },
+          { label: 'Actions',   width: '160px' },
         ],
 
         scopeFilter: {

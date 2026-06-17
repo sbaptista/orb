@@ -41,11 +41,11 @@ export default function SettingsKnowledge() {
         subtitle: (items, total) => total ? `${items.length} of ${total} entr${total !== 1 ? 'ies' : 'y'}` : `${items.length} entr${items.length !== 1 ? 'ies' : 'y'}`,
         searchPlaceholder: 'Filter by title, content, project, or tag…',
         tableColumns: [
-          { label: 'Project', width: '10%', sortKey: 'project', sortValue: (e: KnowledgeEntry) => e.projects?.code ?? '' },
-          { label: 'Title',   width: '30%', sortKey: 'title',   sortValue: (e: KnowledgeEntry) => e.title },
-          { label: 'Content', width: '35%' },
-          { label: 'Tags',    width: '10%' },
-          { label: 'Actions', width: '15%' },
+          { label: 'Project', width: '100px', sortKey: 'project', sortValue: (e: KnowledgeEntry) => e.projects?.code ?? '' },
+          { label: 'Title',   width: '260px', sortKey: 'title',   sortValue: (e: KnowledgeEntry) => e.title },
+          { label: 'Content', width: '330px' },
+          { label: 'Tags',    width: '110px' },
+          { label: 'Actions', width: '130px' },
         ],
 
         load: async (_supabase, pagination) => {

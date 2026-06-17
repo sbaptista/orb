@@ -6,6 +6,27 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.4',
+    date: '2026-06-17',
+    changes: [
+      'Settings table geometry: Shared CrudList now uses exact pixel-width math only when all configured columns are pixel widths, keeping toolbar, Prev/Next Columns controls, table frame, and pagination aligned to the rightmost cell.',
+      'Converted Projects, Users, Invitations, Knowledge Repository, and Tickets settings tables from percentage column widths to explicit pixel widths so they participate in the same stable geometry model as Audit Log and Orb Memory.',
+      'Removed the temporary Orb Memory table prototype after folding its successful width contract into the shared SettingsCrudList path.',
+    ]
+  },
+  {
+    version: 'v0.6.1',
+    date: '2026-06-17',
+    changes: [
+      'Cross-session memory: The Orb now remembers work patterns, rhythms, and preferences across sessions. Two tracks — autonomous (Orb observes silently) and offered (user confirms before saving).',
+      'Memory management UI at Settings > Orb Memory — view, edit, search, and delete all memories. Bulk delete supported.',
+      'Voice personality with adjustable openness: one personality at three volumes — reserved (facts only), natural (default, personality present), open (humor, metaphors, emotional reads). Set via Orb preferences.',
+      'New preference keys: openness (reserved/natural/open) and memory_level (off/session/full).',
+      'New Orb tools: save_memory and recall_memories for cross-session memory persistence.',
+      'Added hideAdd prop to SettingsCrudList for tables where only edit/delete is appropriate.',
+    ]
+  },
+  {
     version: 'v0.6.0',
     date: '2026-06-16',
     changes: [
