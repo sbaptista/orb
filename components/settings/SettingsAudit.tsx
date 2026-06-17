@@ -80,9 +80,25 @@ function shortDateTime(d: Date): string {
   return `${shortDate(d)} ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
 }
 
+function SendIcon({ size = 14, strokeWidth = 2.5 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13"/>
+      <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+    </svg>
+  )
+}
+
 export default function SettingsAudit() {
   const [viewingRow, setViewingRow] = useState<AuditRow | null>(null)
   const timeZone = useSyncExternalStore(subscribeToTimeZone, getBrowserTimeZone, () => 'UTC')
+
+  // Text search state
+  const [showTextSearch, setShowTextSearch] = useState(false)
+  const [textSearchDraft, setTextSearchDraft] = useState('')
+  const [textSearchTerm, setTextSearchTerm] = useState('')
+
+  // Date search state
   const [showCreatedFilter, setShowCreatedFilter] = useState(false)
   const [createdMode, setCreatedMode] = useState<'on' | 'before' | 'after' | 'between'>('on')
   const [createdDate, setCreatedDate] = useState('')
@@ -93,6 +109,18 @@ export default function SettingsAudit() {
   const createdDateId = useId()
   const createdFromId = useId()
   const createdToId = useId()
+
+  function applyTextSearch() {
+    const term = textSearchDraft.trim()
+    setTextSearchTerm(term)
+    setShowTextSearch(false)
+  }
+
+  function clearTextSearch() {
+    setTextSearchDraft('')
+    setTextSearchTerm('')
+    setShowTextSearch(false)
+  }
 
   function applyCreatedFilter() {
     if (createdMode === 'on') {
@@ -148,6 +176,15 @@ export default function SettingsAudit() {
     setShowCreatedFilter(false)
   }
 
+  function resetAll() {
+    setTextSearchDraft('')
+    setTextSearchTerm('')
+    setCreatedFilter(null)
+    setCreatedDate('')
+    setCreatedFromDraft('')
+    setCreatedToDraft('')
+  }
+
   const canApplyCreatedFilter = createdMode === 'on'
     ? !!createdDate
     : createdMode === 'before'
@@ -155,6 +192,8 @@ export default function SettingsAudit() {
       : createdMode === 'after'
         ? !!createdFromDraft
         : !!createdFromDraft && !!createdToDraft && new Date(createdFromDraft) <= new Date(createdToDraft)
+
+  const hasAnyFilter = !!textSearchTerm || !!createdFilter
 
   const columns: Array<{ key: keyof AuditRow | '_user'; label: string }> = [
     { key: '_user', label: 'User' },
@@ -178,29 +217,51 @@ export default function SettingsAudit() {
           pageClass: 'settings-page s-page-wide',
           layout: 'table',
           pagination: { pageSize: PAGE_SIZE, serverSearch: true, serverSort: true },
-          subtitle: (items, total) => total ? `${items.length} of ${total} entr${total !== 1 ? 'ies' : 'y'}` : `${items.length} entr${items.length !== 1 ? 'ies' : 'y'}`,
-          searchPlaceholder: 'Search audit log',
-          serverSearchOnSubmit: true,
+          subtitle: (_items, total, pageInfo) => {
+            if (!total) return 'No rows found.'
+            const ps = pageInfo?.pageSize ?? PAGE_SIZE
+            const pg = pageInfo?.page ?? 0
+            const start = pg * ps + 1
+            const end = Math.min(start + _items.length - 1, total)
+            if (start === end) return `Row ${start} of ${total}.`
+            return `Rows ${start}–${end} of ${total}.`
+          },
+          externalSearchTerm: textSearchTerm,
+          searchCaption: 'Search by text, date, or both',
           tableNavCaption: 'prev/next columns',
           onRowClick: (item) => setViewingRow(item),
           externalFilterKey: `${createdFilter?.from ?? ''}|${createdFilter?.to ?? ''}|${createdFilter?.before ?? ''}`,
-          onResetFilters: () => clearCreatedFilter(),
+          onResetFilters: resetAll,
           toolbarExtra: (
-            <button
-              type="button"
-              className={createdFilter ? 'btn-primary' : 'btn-outline'}
-              onClick={() => setShowCreatedFilter(true)}
-              aria-label={createdFilter ? `Change date filter: ${createdFilter.label}` : 'Search by date'}
-            >
-              {createdFilter ? (
-                createdFilter.label2 ? (
-                  <span className="audit-date-stack">
-                    <span>{createdFilter.label} –</span>
-                    <span>{createdFilter.label2}</span>
-                  </span>
-                ) : createdFilter.label
-              ) : 'Search by Date'}
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setShowTextSearch(true)}
+              >
+                {textSearchTerm || 'Search by Text'}
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setShowCreatedFilter(true)}
+                aria-label={createdFilter ? `Change date filter: ${createdFilter.label}` : 'Search by date'}
+              >
+                {createdFilter ? (
+                  createdFilter.label2 ? (
+                    <span className="audit-date-stack">
+                      <span>{createdFilter.label} –</span>
+                      <span>{createdFilter.label2}</span>
+                    </span>
+                  ) : createdFilter.label
+                ) : 'Search by Date'}
+              </button>
+              {hasAnyFilter && (
+                <button type="button" className="btn-primary" onClick={resetAll}>
+                  Reset
+                </button>
+              )}
+            </>
           ),
 
           selectionColumnWidth: 38,
@@ -290,6 +351,68 @@ export default function SettingsAudit() {
         }}
       />
 
+      {/* ── Text search modal ── */}
+      {showTextSearch && (
+        <>
+          <div className="modal-backdrop" onClick={() => setShowTextSearch(false)} />
+          <div
+            className="modal-center"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="audit-text-search-title"
+            style={{ maxWidth: '520px' }}
+          >
+            <form onSubmit={e => { e.preventDefault(); applyTextSearch() }}>
+              <div className="modal-header" style={{ justifyContent: 'space-between' }}>
+                <h3 id="audit-text-search-title" style={{ margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
+                  Search by Text
+                </h3>
+                <button type="button" className="close-btn" onClick={() => setShowTextSearch(false)} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              </div>
+              <div className="modal-body" style={{ padding: 'var(--sp-xl)' }}>
+                <div className="crud-search-wrap" style={{ width: '100%', flex: 'unset' }}>
+                  <input
+                    type="text"
+                    value={textSearchDraft}
+                    onChange={e => setTextSearchDraft(e.target.value)}
+                    placeholder=""
+                    aria-label="Search audit log"
+                    className="crud-search-input"
+                    autoFocus
+                  />
+                  {!textSearchDraft && (
+                    <span className="crud-search-placeholder" aria-hidden="true">
+                      Search audit log then press
+                      <span className="crud-search-placeholder-icon">
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="22" y1="2" x2="11" y2="13"/>
+                          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                      </span>
+                      or
+                      <span className="crud-search-placeholder-return">⏎</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="modal-footer">
+                {textSearchTerm && <button type="button" className="text-btn" style={{ marginRight: 'auto' }} onClick={clearTextSearch}>Clear</button>}
+                <button type="button" className="btn-cancel" onClick={() => setShowTextSearch(false)}>Cancel</button>
+                <button
+                  type="submit"
+                  className="oc-action-circle crud-search-submit"
+                  disabled={!textSearchDraft.trim()}
+                  aria-label="Search"
+                >
+                  <SendIcon />
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
+      )}
+
+      {/* ── Date search modal ── */}
       {showCreatedFilter && (
         <>
           <div className="modal-backdrop" onClick={() => setShowCreatedFilter(false)} />
@@ -300,65 +423,74 @@ export default function SettingsAudit() {
             aria-labelledby="audit-created-filter-title"
             style={{ maxWidth: '520px' }}
           >
-            <div className="modal-header" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <h3 id="audit-created-filter-title" style={{ margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
-                  Search by Date
-                </h3>
-                <p className="text-xs text-muted" style={{ margin: '2px 0 0' }}>
-                  All times local ({timeZone || 'your browser timezone'}).
-                </p>
-              </div>
-              <button className="close-btn" onClick={() => setShowCreatedFilter(false)} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-            </div>
-            <div className="modal-body" style={{ padding: 'var(--sp-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-lg)' }}>
-              <div className="pf-field">
-                <label htmlFor={createdModeId} className="pf-label">Condition</label>
-                <select
-                  id={createdModeId}
-                  className="pf-select"
-                  value={createdMode}
-                  onChange={e => setCreatedMode(e.target.value as typeof createdMode)}
-                >
-                  <option value="on">On date</option>
-                  <option value="before">At or before date and time</option>
-                  <option value="after">At or after date and time</option>
-                  <option value="between">Between dates and times</option>
-                </select>
-              </div>
-
-              {createdMode === 'on' ? (
-                <div className="pf-field">
-                  <label htmlFor={createdDateId} className="pf-label">Date</label>
-                  <input id={createdDateId} type="date" className="pf-input" value={createdDate} onChange={e => setCreatedDate(e.target.value)} />
+            <form onSubmit={e => { e.preventDefault(); applyCreatedFilter() }}>
+              <div className="modal-header" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <h3 id="audit-created-filter-title" style={{ margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
+                    Search by Date
+                  </h3>
+                  <p className="text-xs text-muted" style={{ margin: '2px 0 0' }}>
+                    All times local ({timeZone || 'your browser timezone'}).
+                  </p>
                 </div>
-              ) : (
-                <>
-                  {(createdMode === 'after' || createdMode === 'between') && (
-                    <div className="pf-field">
-                      <label htmlFor={createdFromId} className="pf-label">{createdMode === 'between' ? 'From' : 'Date and time'}</label>
-                      <input id={createdFromId} type="datetime-local" className="pf-input" value={createdFromDraft} onChange={e => setCreatedFromDraft(e.target.value)} />
-                    </div>
-                  )}
-                  {(createdMode === 'before' || createdMode === 'between') && (
-                    <div className="pf-field">
-                      <label htmlFor={createdToId} className="pf-label">{createdMode === 'between' ? 'To' : 'Date and time'}</label>
-                      <input id={createdToId} type="datetime-local" className="pf-input" value={createdToDraft} onChange={e => setCreatedToDraft(e.target.value)} />
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-            <div className="modal-footer">
-              {createdFilter && <button type="button" className="text-btn" style={{ marginRight: 'auto' }} onClick={clearCreatedFilter}>Clear</button>}
-              <button type="button" className="btn-cancel" onClick={() => setShowCreatedFilter(false)}>Cancel</button>
-              <button type="button" className="btn-primary" onClick={applyCreatedFilter} disabled={!canApplyCreatedFilter}>Apply</button>
-            </div>
+                <button type="button" className="close-btn" onClick={() => setShowCreatedFilter(false)} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              </div>
+              <div className="modal-body" style={{ padding: 'var(--sp-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-lg)' }}>
+                <div className="pf-field">
+                  <label htmlFor={createdModeId} className="pf-label">Condition</label>
+                  <select
+                    id={createdModeId}
+                    className="pf-select"
+                    value={createdMode}
+                    onChange={e => setCreatedMode(e.target.value as typeof createdMode)}
+                  >
+                    <option value="on">On date</option>
+                    <option value="before">At or before date and time</option>
+                    <option value="after">At or after date and time</option>
+                    <option value="between">Between dates and times</option>
+                  </select>
+                </div>
+
+                {createdMode === 'on' ? (
+                  <div className="pf-field">
+                    <label htmlFor={createdDateId} className="pf-label">Date</label>
+                    <input id={createdDateId} type="date" className="pf-input" value={createdDate} onChange={e => setCreatedDate(e.target.value)} />
+                  </div>
+                ) : (
+                  <>
+                    {(createdMode === 'after' || createdMode === 'between') && (
+                      <div className="pf-field">
+                        <label htmlFor={createdFromId} className="pf-label">{createdMode === 'between' ? 'From' : 'Date and time'}</label>
+                        <input id={createdFromId} type="datetime-local" className="pf-input" value={createdFromDraft} onChange={e => setCreatedFromDraft(e.target.value)} />
+                      </div>
+                    )}
+                    {(createdMode === 'before' || createdMode === 'between') && (
+                      <div className="pf-field">
+                        <label htmlFor={createdToId} className="pf-label">{createdMode === 'between' ? 'To' : 'Date and time'}</label>
+                        <input id={createdToId} type="datetime-local" className="pf-input" value={createdToDraft} onChange={e => setCreatedToDraft(e.target.value)} />
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              <div className="modal-footer">
+                {createdFilter && <button type="button" className="text-btn" style={{ marginRight: 'auto' }} onClick={clearCreatedFilter}>Clear</button>}
+                <button type="button" className="btn-cancel" onClick={() => setShowCreatedFilter(false)}>Cancel</button>
+                <button
+                  type="submit"
+                  className="oc-action-circle crud-search-submit"
+                  disabled={!canApplyCreatedFilter}
+                  aria-label="Apply date filter"
+                >
+                  <SendIcon />
+                </button>
+              </div>
+            </form>
           </div>
         </>
       )}
 
-      {/* Audit row detail modal */}
+      {/* ── Audit row detail modal ── */}
       {viewingRow && (
         <>
           <div className="modal-backdrop" onClick={() => setViewingRow(null)} />

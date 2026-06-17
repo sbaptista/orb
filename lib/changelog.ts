@@ -6,6 +6,22 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.0',
+    date: '2026-06-16',
+    changes: [
+      'Converted audit log text search from inline field to a modal with Enter-key-submits pattern, matching the date search interaction.',
+      'Redesigned audit toolbar as three primary buttons: Search by Text, Search by Date, and Reset.',
+      'Subtitle now shows precise row ranges: "Rows N–M of P."',
+      'Date search modal Apply button replaced with circular send button for visual consistency.',
+      'Both search modals use <form onSubmit> for native Enter-key submission — a reusable pattern for future modals.',
+      'Added externalSearchTerm config prop to CrudList, enabling parent-managed search state with CrudList handling the server request lifecycle.',
+      'Fixed scroll navigation arrows permanently failing to detect table overflow — root cause was useEffect measuring layout before browser paint; wrapped all geometry reads in requestAnimationFrame.',
+      'Restored table card borders and rounded corners after CSS containment experiments.',
+      'All toolbar buttons now render as btn-primary (green) regardless of filter state.',
+      'Version label now visible at the end of the horizontal settings nav on iPhone, where the sidebar is hidden.',
+    ]
+  },
+  {
     version: 'v0.5.234',
     date: '2026-06-16',
     changes: [

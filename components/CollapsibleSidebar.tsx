@@ -62,6 +62,7 @@ export default function CollapsibleSidebar({ items, defaultOpen = true }: Props)
               </button>
             )
           })}
+          <OrbVersionLabel className="cs-nav-version" format="version" />
         </nav>
       </HScrollNav>
     </div>

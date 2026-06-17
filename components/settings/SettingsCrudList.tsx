@@ -72,7 +72,7 @@ type CrudConfig<T, F> = {
   orderBy?: string
   pageClass?: string
   idColumn?: string
-  subtitle?: (items: T[], totalCount?: number) => string
+  subtitle?: (items: T[], totalCount?: number, pageInfo?: { page: number; pageSize: number }) => string
 
   layout?: 'list' | 'table'
   tableColumns?: TableColumn<T>[]
@@ -98,6 +98,8 @@ type CrudConfig<T, F> = {
   searchEnabled?: boolean
   /** When true, server search only fires on explicit submit (Enter key or send button), not on debounce. */
   serverSearchOnSubmit?: boolean
+  /** When set, overrides the internal search term for server-side search. The parent manages the search UI. CrudList hides its own search input. */
+  externalSearchTerm?: string
   /** Caption rendered above the search input when the search toolbar is visible. */
   searchCaption?: string
   /** Caption rendered with table horizontal navigation controls. */
@@ -255,6 +257,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const usesServerSort = !!config.pagination?.serverSort
   const searchEnabled = config.searchEnabled ?? true
   const serverSearchOnSubmit = !!config.serverSearchOnSubmit
+  const hasExternalSearch = config.externalSearchTerm !== undefined
   const pageSize = config.pagination?.pageSize
   const externalFilterKey = config.externalFilterKey
 
@@ -285,7 +288,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   // --- Request key: the single source of truth for when to reload ---------
   // Every value that should trigger a server call is encoded here.
   // Changing any one of them produces a new string → the effect fires once.
-  const serverSearchTerm = usesServerSearch && searchEnabled ? debouncedSearch : ''
+  const serverSearchTerm = hasExternalSearch
+    ? config.externalSearchTerm!
+    : (usesServerSearch && searchEnabled ? debouncedSearch : '')
   const requestKey = `${serverSearchTerm}|${page}|${sortKey}|${sortDir}|${externalFilterKey ?? ''}`
   const prevRequestKey = useRef(requestKey)
 
@@ -377,9 +382,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       setCanScrollTableLeft(element.scrollLeft > 2)
       setCanScrollTableRight(element.scrollLeft + element.clientWidth < element.scrollWidth - 2)
     }
-    update()
+    requestAnimationFrame(update)
     element.addEventListener('scroll', update, { passive: true })
-    const observer = new ResizeObserver(update)
+    const observer = new ResizeObserver(() => requestAnimationFrame(update))
     observer.observe(element)
     const table = element.querySelector('table')
     if (table) observer.observe(table)
@@ -711,7 +716,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     return <div key={config.getId(item)}>{rowNode}</div>
   }
 
-  const activeSearchTerm = usesServerSearch ? debouncedSearch : search.trim()
+  const activeSearchTerm = hasExternalSearch
+    ? config.externalSearchTerm!
+    : (usesServerSearch ? debouncedSearch : search.trim())
 
   const itemRows = displayed.map((item, idx) => {
     const id = config.getId(item)
@@ -747,7 +754,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           <h2 className="s-title">{config.title}</h2>
           <div className="flex-row gap-sm" style={{ alignItems: 'baseline' }}>
             {config.subtitle && (
-              <p className="text-sm text-muted">{config.subtitle(displayed, totalCount || undefined)}</p>
+              <p className="text-sm text-muted">{config.subtitle(displayed, totalCount || undefined, { page, pageSize: pageSize ?? 0 })}</p>
             )}
           </div>
         </div>
@@ -794,14 +801,21 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         </div>
       )}
 
-      {((config.searchFilter || usesServerSearch) || isTable) && (
+      {((config.searchFilter || usesServerSearch || hasExternalSearch) || isTable) && (
         <div className="crud-table-toolbar">
           {config.toolbarLeading && (
             <div className="crud-toolbar-leading">
               {config.toolbarLeading}
             </div>
           )}
-          {(config.searchFilter || usesServerSearch) && (
+          {hasExternalSearch ? (
+            <div className="crud-toolbar-field">
+              {config.searchCaption && <span className="crud-toolbar-caption">{config.searchCaption}</span>}
+              <div className="crud-search-row">
+                {config.toolbarExtra}
+              </div>
+            </div>
+          ) : (config.searchFilter || usesServerSearch) ? (
             <label className="crud-toolbar-field">
               {config.searchCaption && <span className="crud-toolbar-caption">{config.searchCaption}</span>}
               <div className="crud-search-row">
@@ -863,7 +877,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                 {config.toolbarExtra}
               </div>
             </label>
-          )}
+          ) : null}
           {isTable && (
             <div className="crud-scroll-controls" aria-label="Table column navigation">
               <div className="crud-scroll-buttons">

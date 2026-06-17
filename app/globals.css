@@ -1020,7 +1020,7 @@ a, button, [role="button"], input, select, textarea {
 
 /* ── Responsive CRUD: mobile card layout ── */
 .crud-mobile-cards { display: none !important; }
-.crud-desktop-table { display: block; max-width: 100%; overflow: hidden; }
+.crud-desktop-table { display: block; }
 @media (max-width: 767px) {
   .crud-desktop-table { display: none !important; }
   .crud-mobile-cards { display: block !important; }
@@ -4282,6 +4282,10 @@ mark.crud-highlight {
   white-space: nowrap;
 }
 
+.cs-nav-version {
+  display: none;
+}
+
 .cs-nav {
   flex: 1;
   padding: 8px 0;
@@ -4674,6 +4678,17 @@ mark.crud-highlight {
   .cs-item[aria-current="page"] {
     background: var(--pill-active-bg) !important;
     color: var(--pill-active-color) !important;
+  }
+
+  .cs-nav-version {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    font-size: var(--fs-version);
+    color: var(--muted);
+    letter-spacing: var(--ls-caps);
+    white-space: nowrap;
+    padding: 0 6px;
   }
 
   .sl-title {
