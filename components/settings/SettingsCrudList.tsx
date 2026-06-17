@@ -1037,7 +1037,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                       </tbody>
                     </table>
                   </div>
-                  {config.pagination && totalCount > 0 && (() => {
+                  {config.pagination && totalCount > config.pagination.pageSize && (() => {
                     const lastPage = Math.max(0, Math.ceil(totalCount / config.pagination.pageSize) - 1)
                     return (
                       <div className="flex-between" style={{ padding: 'var(--sp-sm) var(--sp-lg)', borderTop: '1px solid var(--border)' }}>

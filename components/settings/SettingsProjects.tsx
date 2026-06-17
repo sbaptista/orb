@@ -1,6 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import SettingsCrudList from './SettingsCrudList'
+import TextSearchModal from './TextSearchModal'
 import { getAdminProjects, getUserProjects, createProject, deleteProject, deleteProjects, updateProject } from '@/app/actions/manage-project'
 import { listUsers } from '@/app/actions/list-users'
 
@@ -23,9 +25,14 @@ type ProjectForm = {
 }
 
 const EMPTY_FORM: ProjectForm = { name: '', code: '', description: '', is_dormant: false, ownerId: '' }
+const PAGE_SIZE = 25
 
 export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?: boolean; userId?: string }) {
+  const [showTextSearch, setShowTextSearch] = useState(false)
+  const [textSearchTerm, setTextSearchTerm] = useState('')
+
   return (
+    <>
     <SettingsCrudList<Project, ProjectForm>
       config={{
         title: 'Projects',
@@ -34,20 +41,31 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
         emptyForm: EMPTY_FORM,
         pageClass: 'settings-page s-page-wide',
         layout: 'table',
-        subtitle: items => `${items.length} project${items.length !== 1 ? 's' : ''}`,
-        searchPlaceholder: 'Filter by name, code, or owner…',
-        searchFilter: (item: Project, query: string, extra: any) => {
-          const q = query.toLowerCase()
-          if (item.name.toLowerCase().includes(q)) return true
-          if (item.code?.toLowerCase().includes(q)) return true
-          if (item.description?.toLowerCase().includes(q)) return true
-          const owner = extra.users?.find((u: any) => u.id === item.created_by)
-          if (owner) {
-            const ownerName = [owner.first_name, owner.last_name].filter(Boolean).join(' ').toLowerCase()
-            if (ownerName.includes(q) || owner.email?.toLowerCase().includes(q)) return true
-          }
-          return false
+        pagination: { pageSize: PAGE_SIZE, serverSearch: true, serverSort: true },
+        subtitle: (_items, total, pageInfo) => {
+          if (!total) return 'No projects found.'
+          const ps = pageInfo?.pageSize ?? PAGE_SIZE
+          const pg = pageInfo?.page ?? 0
+          const start = pg * ps + 1
+          const end = Math.min(start + _items.length - 1, total)
+          if (start === end) return `Project ${start} of ${total}.`
+          return `Projects ${start}–${end} of ${total}.`
         },
+        externalSearchTerm: textSearchTerm,
+        searchCaption: 'Search by text',
+        onResetFilters: () => setTextSearchTerm(''),
+        toolbarExtra: (
+          <>
+            <button type="button" className="btn-primary" onClick={() => setShowTextSearch(true)}>
+              {textSearchTerm || 'Search by Text'}
+            </button>
+            {textSearchTerm && (
+              <button type="button" className="btn-primary" onClick={() => setTextSearchTerm('')}>
+                Reset
+              </button>
+            )}
+          </>
+        ),
         tableColumns: [
           { label: 'Code',        width: '90px',  sortKey: 'code',  sortValue: (p: Project) => p.code ?? '' },
           { label: 'Name',        width: '180px', sortKey: 'name',  sortValue: (p: Project) => p.name },
@@ -62,14 +80,20 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
           { label: 'Actions',     width: '140px' },
         ],
 
-        load: async (_supabase) => {
+        load: async (_supabase, pagination) => {
+          const paginationOpts = {
+            page: pagination?.page,
+            pageSize: pagination?.pageSize,
+            search: pagination?.search,
+          }
           const [projectsRes, usersRes] = await Promise.all([
-            isAdmin ? getAdminProjects() : getUserProjects(),
+            isAdmin ? getAdminProjects(paginationOpts) : getUserProjects(paginationOpts),
             isAdmin ? listUsers() : Promise.resolve({ users: [] }),
           ])
           return {
             items: (projectsRes.projects ?? []) as Project[],
             extra: { users: usersRes.users ?? [] },
+            totalCount: projectsRes.count ?? 0,
           }
         },
 
@@ -250,5 +274,16 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
         ),
       }}
     />
+
+    <TextSearchModal
+      open={showTextSearch}
+      onClose={() => setShowTextSearch(false)}
+      onApply={term => { setTextSearchTerm(term); setShowTextSearch(false) }}
+      onClear={() => { setTextSearchTerm(''); setShowTextSearch(false) }}
+      currentTerm={textSearchTerm}
+      placeholder="Search projects then press"
+      ariaLabel="Search projects"
+    />
+    </>
   )
 }

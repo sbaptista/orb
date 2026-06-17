@@ -1,10 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import SettingsCrudList from './SettingsCrudList'
+import TextSearchModal from './TextSearchModal'
+import DateSearchModal, { type CreatedFilter } from './DateSearchModal'
 import { getTickets, createTodoFromTicket, dismissTicket, updateTicket, deleteTicket, type Ticket, type TicketType, type TicketStatus } from '@/app/actions/ticket-actions'
 import { getAdminProjects } from '@/app/actions/manage-project'
 import { useToast } from '@/components/ui/Toast'
-import { useState } from 'react'
 
 type Project = { id: string; name: string; code: string | null }
 type TicketForm = {
@@ -106,18 +108,48 @@ const EMPTY_FORM: TicketForm = {
   sendEmail: true,
 }
 
+const PAGE_SIZE = 25
+
+const SCOPES = [
+  { id: 'active', label: 'Active' },
+  { id: 'all', label: 'All' },
+  { id: 'open', label: 'Open' },
+  { id: 'in_progress', label: 'In Progress' },
+  { id: 'pending', label: 'Pending' },
+  { id: 'awaiting_input', label: 'Awaiting Input' },
+  { id: 'pending_release', label: 'Pending Release' },
+  { id: 'pending_verification', label: 'Pending Verification' },
+  { id: 'on_hold', label: 'On Hold' },
+  { id: 'deferred', label: 'Deferred' },
+  { id: 'closed', label: 'Closed' },
+  { id: 'dismissed', label: 'Dismissed' },
+]
+
 export default function SettingsTickets() {
   const toast = useToast()
-  
-  // Custom modal / inline UI helper states
+
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null)
-  const [createTodoFor, setCreateTodoFor] = useState<string | null>(null) // ticketId
+  const [createTodoFor, setCreateTodoFor] = useState<string | null>(null)
   const [createForm, setCreateForm] = useState({ projectId: '', title: '' })
   const [creating, setCreating] = useState(false)
-  const [refresher, setRefresher] = useState(0) // increment to trigger reload inside child
+  const [refresher, setRefresher] = useState(0)
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
 
+  const [scope, setScope] = useState('active')
+  const [showTextSearch, setShowTextSearch] = useState(false)
+  const [textSearchTerm, setTextSearchTerm] = useState('')
+  const [showCreatedFilter, setShowCreatedFilter] = useState(false)
+  const [createdFilter, setCreatedFilter] = useState<CreatedFilter | null>(null)
+
+  const hasAnyFilter = !!textSearchTerm || !!createdFilter
+
+  function resetAll() {
+    setTextSearchTerm('')
+    setCreatedFilter(null)
+  }
+
   return (
+    <>
     <SettingsCrudList<Ticket, TicketForm>
       key={refresher}
       config={{
@@ -127,7 +159,63 @@ export default function SettingsTickets() {
         emptyForm: EMPTY_FORM,
         pageClass: 'settings-page s-page-wide',
         layout: 'table',
-        subtitle: items => `${items.length} ticket${items.length !== 1 ? 's' : ''}`,
+        pagination: { pageSize: PAGE_SIZE, serverSearch: true, serverSort: true },
+        subtitle: (_items, total, pageInfo) => {
+          if (!total) return 'No tickets found.'
+          const ps = pageInfo?.pageSize ?? PAGE_SIZE
+          const pg = pageInfo?.page ?? 0
+          const start = pg * ps + 1
+          const end = Math.min(start + _items.length - 1, total)
+          if (start === end) return `Ticket ${start} of ${total}.`
+          return `Tickets ${start}–${end} of ${total}.`
+        },
+        externalSearchTerm: textSearchTerm,
+        searchCaption: 'Search by text, date, or both',
+        externalFilterKey: `${scope}|${createdFilter?.from ?? ''}|${createdFilter?.to ?? ''}|${createdFilter?.before ?? ''}`,
+        onResetFilters: resetAll,
+        toolbarLeading: (
+          <div style={{ marginBottom: 'var(--sp-sm)' }}>
+            <label className="label">Filters</label>
+            <div className="flex-row gap-sm" style={{ flexWrap: 'wrap' }}>
+              {SCOPES.map(s => (
+                <button
+                  key={s.id}
+                  className={`pill ${scope === s.id ? 'pill-active' : ''}`}
+                  onClick={() => setScope(s.id)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ),
+        toolbarExtra: (
+          <>
+            <button type="button" className="btn-primary" onClick={() => setShowTextSearch(true)}>
+              {textSearchTerm || 'Search by Text'}
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => setShowCreatedFilter(true)}
+              aria-label={createdFilter ? `Change date filter: ${createdFilter.label}` : 'Search by date'}
+            >
+              {createdFilter ? (
+                createdFilter.label2 ? (
+                  <span className="audit-date-stack">
+                    <span>{createdFilter.label} –</span>
+                    <span>{createdFilter.label2}</span>
+                  </span>
+                ) : createdFilter.label
+              ) : 'Search by Date'}
+            </button>
+            {hasAnyFilter && (
+              <button type="button" className="btn-primary" onClick={resetAll}>
+                Reset
+              </button>
+            )}
+          </>
+        ),
         tableColumns: [
           { label: 'Code', width: '90px' },
           { label: 'Type', width: '110px' },
@@ -138,12 +226,19 @@ export default function SettingsTickets() {
           { label: 'Created', width: '120px' },
           { label: 'Actions', width: '130px' },
         ],
-        load: async () => {
+        load: async (_supabase, pagination) => {
           const [ticketsRes, projectsRes] = await Promise.all([
-            getTickets(),
+            getTickets({
+              page: pagination?.page,
+              pageSize: pagination?.pageSize,
+              search: pagination?.search,
+              scope,
+              createdFrom: createdFilter?.from,
+              createdTo: createdFilter?.to,
+              createdBefore: createdFilter?.before,
+            }),
             getAdminProjects(),
           ])
-          // Explicitly map nested users relation to reporter to align with expected reporterName lookup key
           const rawTickets = (ticketsRes.data ?? []) as any[]
           const ticketsWithReporter = rawTickets.map(t => ({
             ...t,
@@ -155,39 +250,8 @@ export default function SettingsTickets() {
             extra: {
               projects: (projectsRes.projects ?? []) as Project[],
               superAdminProjectId: (projectsRes as any).superAdminProjectId || null,
-            }
-          }
-        },
-        searchFilter: (item, query) => {
-          const q = query.toLowerCase()
-          return (
-            item.summary.toLowerCase().includes(q) ||
-            item.type.includes(q) ||
-            reporterName(item).toLowerCase().includes(q) ||
-            item.status.includes(q)
-          )
-        },
-        searchPlaceholder: 'Search by summary, type, reporter, or status.',
-        scopeFilter: {
-          defaultScope: 'active',
-          defaultLabel: 'Active',
-          getScopes: () => [
-            { id: 'all', label: 'All' },
-            { id: 'open', label: 'Open' },
-            { id: 'in_progress', label: 'In Progress' },
-            { id: 'pending', label: 'Pending' },
-            { id: 'awaiting_input', label: 'Awaiting Input' },
-            { id: 'pending_release', label: 'Pending Release' },
-            { id: 'pending_verification', label: 'Pending Verification' },
-            { id: 'on_hold', label: 'On Hold' },
-            { id: 'deferred', label: 'Deferred' },
-            { id: 'closed', label: 'Closed' },
-            { id: 'dismissed', label: 'Dismissed' },
-          ],
-          filterItem: (item, scope) => {
-            if (scope === 'all') return true
-            if (scope === 'active') return item.status !== 'closed' && item.status !== 'dismissed'
-            return item.status === scope
+            },
+            totalCount: ticketsRes.count ?? 0,
           }
         },
         bulkDelete: {
@@ -813,5 +877,24 @@ export default function SettingsTickets() {
         },
       }}
     />
+
+    <TextSearchModal
+      open={showTextSearch}
+      onClose={() => setShowTextSearch(false)}
+      onApply={term => { setTextSearchTerm(term); setShowTextSearch(false) }}
+      onClear={() => { setTextSearchTerm(''); setShowTextSearch(false) }}
+      currentTerm={textSearchTerm}
+      placeholder="Search tickets then press"
+      ariaLabel="Search tickets"
+    />
+
+    <DateSearchModal
+      open={showCreatedFilter}
+      onClose={() => setShowCreatedFilter(false)}
+      onApply={filter => { setCreatedFilter(filter); setShowCreatedFilter(false) }}
+      onClear={() => { setCreatedFilter(null); setShowCreatedFilter(false) }}
+      currentFilter={createdFilter}
+    />
+    </>
   )
 }

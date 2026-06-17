@@ -71,40 +71,74 @@ export async function createProject(data: {
   return { project }
 }
 
-export async function getAdminProjects() {
+export async function getAdminProjects(options?: {
+  page?: number
+  pageSize?: number
+  search?: string
+}) {
   let ctx
   try {
     ctx = await requireAdmin()
   } catch (e: any) {
-    return { error: e.message as string, projects: [] as any[], superAdminProjectId: null }
+    return { error: e.message as string, projects: [] as any[], superAdminProjectId: null, count: 0 }
   }
 
-  const { data, error } = await ctx.admin
+  let query = ctx.admin
     .from('projects')
     .select(`
       id, name, code, description, is_dormant, sort_order, created_by,
       users!created_by ( role_id )
-    `)
+    `, options?.pageSize ? { count: 'exact' } : undefined)
     .order('sort_order')
 
-  if (error) return { error: error.message, projects: [] as any[], superAdminProjectId: null }
+  const search = options?.search?.trim().toLowerCase()
+  if (search) {
+    query = query.or(`name.ilike.*${search}*,code.ilike.*${search}*,description.ilike.*${search}*`)
+  }
+
+  if (options?.pageSize) {
+    const page = Math.max(0, options.page ?? 0)
+    const from = page * options.pageSize
+    query = query.range(from, from + options.pageSize - 1)
+  }
+
+  const { data, error, count } = await query
+
+  if (error) return { error: error.message, projects: [] as any[], superAdminProjectId: null, count: 0 }
 
   const projects = data ?? []
-  // Find project with code 'ORB' owned by a Super Admin (role_id = 3)
   const superAdminProject = projects.find((p: any) => p.users?.role_id === 3 && p.code === 'ORB')
   const superAdminProjectId = superAdminProject?.id ?? null
 
-  return { projects, superAdminProjectId }
+  return { projects, superAdminProjectId, count: count ?? projects.length }
 }
 
-export async function getUserProjects() {
+export async function getUserProjects(options?: {
+  page?: number
+  pageSize?: number
+  search?: string
+}) {
   const ctx = await getAuthContext()
-  const { data, error } = await ctx.supabase
+
+  let query = ctx.supabase
     .from('projects')
-    .select('id, name, code, description, is_dormant, sort_order, created_by')
+    .select('id, name, code, description, is_dormant, sort_order, created_by', options?.pageSize ? { count: 'exact' } : undefined)
     .order('sort_order')
-  if (error) return { error: error.message, projects: [] as any[] }
-  return { projects: data ?? [] }
+
+  const search = options?.search?.trim().toLowerCase()
+  if (search) {
+    query = query.or(`name.ilike.*${search}*,code.ilike.*${search}*,description.ilike.*${search}*`)
+  }
+
+  if (options?.pageSize) {
+    const page = Math.max(0, options.page ?? 0)
+    const from = page * options.pageSize
+    query = query.range(from, from + options.pageSize - 1)
+  }
+
+  const { data, error, count } = await query
+  if (error) return { error: error.message, projects: [] as any[], count: 0 }
+  return { projects: data ?? [], count: count ?? (data ?? []).length }
 }
 
 export async function updateProject(id: string, data: {

@@ -3,7 +3,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createServiceClient } from '@/lib/supabase/service'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_VOICE, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, buildUrgencyRules } from '@/lib/orb-prompt'
+import { ORB_PRINCIPLES, buildVoicePrompt, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, buildUrgencyRules } from '@/lib/orb-prompt'
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { DB_SCHEMA, ALLOWED_TABLES, SOFT_DELETE_TABLES, ALLOWED_OPS, COLUMN_NAME_RE } from '@/lib/db-schema'
@@ -152,7 +152,7 @@ export async function processDevMessage(id: string): Promise<string | null> {
 
   const systemPrompt = [
     `You are the voice of the orb — the conversational layer of Orb.`,
-    ORB_VOICE,
+    buildVoicePrompt('natural'),
     `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
     ORB_PRINCIPLES,
     `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,

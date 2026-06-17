@@ -439,7 +439,16 @@ export async function createTodoFromTicket(
 
 // ── getTickets ────────────────────────────────────────────────────────────────
 
-export async function getTickets(filter?: { status?: TicketStatus }) {
+export async function getTickets(options?: {
+  page?: number
+  pageSize?: number
+  search?: string
+  scope?: string
+  status?: TicketStatus
+  createdFrom?: string | null
+  createdTo?: string | null
+  createdBefore?: string | null
+}) {
   const ctx = await requireAdmin()
 
   let query = ctx.admin
@@ -452,22 +461,50 @@ export async function getTickets(filter?: { status?: TicketStatus }) {
       reported_by,
       users!reported_by ( first_name, last_name, email ),
       todos!todo_id ( todo_number, status, projects!product_id ( code ) )
-    `)
+    `, options?.pageSize ? { count: 'exact' } : undefined)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
-  if (filter?.status) {
-    query = query.eq('status', filter.status)
+  if (options?.status) {
+    query = query.eq('status', options.status)
   }
 
-  const { data, error } = await query
+  if (options?.scope) {
+    if (options.scope === 'active') {
+      query = query.not('status', 'in', '("closed","dismissed")')
+    } else if (options.scope !== 'all') {
+      query = query.eq('status', options.scope)
+    }
+  }
+
+  if (options?.search) {
+    query = query.or(`summary.ilike.*${options.search}*,type.ilike.*${options.search}*`)
+  }
+
+  if (options?.createdFrom) {
+    query = query.gte('created_at', options.createdFrom)
+  }
+  if (options?.createdTo) {
+    query = query.lte('created_at', options.createdTo)
+  }
+  if (options?.createdBefore) {
+    query = query.lt('created_at', options.createdBefore)
+  }
+
+  if (options?.pageSize) {
+    const page = Math.max(0, options.page ?? 0)
+    const from = page * options.pageSize
+    query = query.range(from, from + options.pageSize - 1)
+  }
+
+  const { data, error, count } = await query
 
   if (error) {
     console.error('[getTickets] error:', error)
     return { error: error.message }
   }
 
-  return { ok: true, data: data as unknown as Ticket[] }
+  return { ok: true, data: data as unknown as Ticket[], count: count ?? (data ?? []).length }
 }
 
 // ── dismissTicket ─────────────────────────────────────────────────────────────

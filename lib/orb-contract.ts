@@ -470,4 +470,6 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   set_preference: 'Saving preference...',
   query_capabilities: 'Checking capabilities...',
   send_to_developer: 'Sending to developer...',
+  save_memory: 'Remembering...',
+  recall_memories: 'Recalling...',
 }

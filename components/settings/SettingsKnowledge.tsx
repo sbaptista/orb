@@ -1,6 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import SettingsCrudList from './SettingsCrudList'
+import TextSearchModal from './TextSearchModal'
 import { getKnowledgeEntries } from '@/app/actions/get-knowledge-entries'
 import { logAudit } from '@/app/actions/log-audit'
 import { collectSystemInfo } from '@/lib/system-info'
@@ -28,7 +30,11 @@ const EMPTY_FORM: KnowledgeForm = { title: '', content: '', tags: '', product_id
 const PAGE_SIZE = 25
 
 export default function SettingsKnowledge() {
+  const [showTextSearch, setShowTextSearch] = useState(false)
+  const [textSearchTerm, setTextSearchTerm] = useState('')
+
   return (
+    <>
     <SettingsCrudList<KnowledgeEntry, KnowledgeForm>
       config={{
         title: 'Knowledge Repository',
@@ -38,14 +44,36 @@ export default function SettingsKnowledge() {
         pageClass: 'settings-page s-page-wide',
         layout: 'table',
         pagination: { pageSize: PAGE_SIZE, serverSearch: true, serverSort: true },
-        subtitle: (items, total) => total ? `${items.length} of ${total} entr${total !== 1 ? 'ies' : 'y'}` : `${items.length} entr${items.length !== 1 ? 'ies' : 'y'}`,
-        searchPlaceholder: 'Filter by title, content, project, or tag…',
+        subtitle: (_items, total, pageInfo) => {
+          if (!total) return 'No entries found.'
+          const ps = pageInfo?.pageSize ?? PAGE_SIZE
+          const pg = pageInfo?.page ?? 0
+          const start = pg * ps + 1
+          const end = Math.min(start + _items.length - 1, total)
+          if (start === end) return `Entry ${start} of ${total}.`
+          return `Entries ${start}–${end} of ${total}.`
+        },
+        externalSearchTerm: textSearchTerm,
+        searchCaption: 'Search by text',
+        onResetFilters: () => setTextSearchTerm(''),
+        toolbarExtra: (
+          <>
+            <button type="button" className="btn-primary" onClick={() => setShowTextSearch(true)}>
+              {textSearchTerm || 'Search by Text'}
+            </button>
+            {textSearchTerm && (
+              <button type="button" className="btn-primary" onClick={() => setTextSearchTerm('')}>
+                Reset
+              </button>
+            )}
+          </>
+        ),
         tableColumns: [
-          { label: 'Project', width: '100px', sortKey: 'project', sortValue: (e: KnowledgeEntry) => e.projects?.code ?? '' },
-          { label: 'Title',   width: '260px', sortKey: 'title',   sortValue: (e: KnowledgeEntry) => e.title },
-          { label: 'Content', width: '330px' },
-          { label: 'Tags',    width: '110px' },
-          { label: 'Actions', width: '130px' },
+          { label: 'Project', width: '170px', sortKey: 'project', sortValue: (e: KnowledgeEntry) => e.projects?.code ?? '' },
+          { label: 'Title',   width: '170px', sortKey: 'title',   sortValue: (e: KnowledgeEntry) => e.title },
+          { label: 'Content', width: '180px' },
+          { label: 'Tags',    width: '170px' },
+          { label: 'Actions', width: '170px' },
         ],
 
         load: async (_supabase, pagination) => {
@@ -213,5 +241,16 @@ export default function SettingsKnowledge() {
         ),
       }}
     />
+
+    <TextSearchModal
+      open={showTextSearch}
+      onClose={() => setShowTextSearch(false)}
+      onApply={term => { setTextSearchTerm(term); setShowTextSearch(false) }}
+      onClear={() => { setTextSearchTerm(''); setShowTextSearch(false) }}
+      currentTerm={textSearchTerm}
+      placeholder="Search entries then press"
+      ariaLabel="Search knowledge entries"
+    />
+    </>
   )
 }

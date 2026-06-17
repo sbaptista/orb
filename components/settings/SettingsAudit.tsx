@@ -1,7 +1,9 @@
 'use client'
 
-import { useId, useState, useSyncExternalStore } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import SettingsCrudList from './SettingsCrudList'
+import TextSearchModal from './TextSearchModal'
+import DateSearchModal, { type CreatedFilter } from './DateSearchModal'
 import { getAuditLogs } from '@/app/actions/get-audit-logs'
 import { deleteAuditLogs } from '@/app/actions/delete-audit-logs'
 
@@ -61,137 +63,20 @@ function formatCreated(value: string, timeZone: string): string {
   return new Date(value).toLocaleString(undefined, { timeZone })
 }
 
-type CreatedFilter = {
-  label: string
-  label2?: string
-  from: string | null
-  to: string | null
-  before: string | null
-}
-
-function shortDate(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  const y = String(d.getFullYear()).slice(-2)
-  return `${m}/${day}/${y}`
-}
-
-function shortDateTime(d: Date): string {
-  return `${shortDate(d)} ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
-}
-
-function SendIcon({ size = 14, strokeWidth = 2.5 }: { size?: number; strokeWidth?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
-      <line x1="22" y1="2" x2="11" y2="13"/>
-      <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-    </svg>
-  )
-}
 
 export default function SettingsAudit() {
   const [viewingRow, setViewingRow] = useState<AuditRow | null>(null)
   const timeZone = useSyncExternalStore(subscribeToTimeZone, getBrowserTimeZone, () => 'UTC')
 
-  // Text search state
   const [showTextSearch, setShowTextSearch] = useState(false)
-  const [textSearchDraft, setTextSearchDraft] = useState('')
   const [textSearchTerm, setTextSearchTerm] = useState('')
-
-  // Date search state
   const [showCreatedFilter, setShowCreatedFilter] = useState(false)
-  const [createdMode, setCreatedMode] = useState<'on' | 'before' | 'after' | 'between'>('on')
-  const [createdDate, setCreatedDate] = useState('')
-  const [createdFromDraft, setCreatedFromDraft] = useState('')
-  const [createdToDraft, setCreatedToDraft] = useState('')
   const [createdFilter, setCreatedFilter] = useState<CreatedFilter | null>(null)
-  const createdModeId = useId()
-  const createdDateId = useId()
-  const createdFromId = useId()
-  const createdToId = useId()
-
-  function applyTextSearch() {
-    const term = textSearchDraft.trim()
-    setTextSearchTerm(term)
-    setShowTextSearch(false)
-  }
-
-  function clearTextSearch() {
-    setTextSearchDraft('')
-    setTextSearchTerm('')
-    setShowTextSearch(false)
-  }
-
-  function applyCreatedFilter() {
-    if (createdMode === 'on') {
-      if (!createdDate) return
-      const start = new Date(`${createdDate}T00:00:00`)
-      const end = new Date(start)
-      end.setDate(end.getDate() + 1)
-      setCreatedFilter({
-        label: shortDate(start),
-        from: start.toISOString(),
-        to: null,
-        before: end.toISOString(),
-      })
-    } else if (createdMode === 'before') {
-      if (!createdToDraft) return
-      const end = new Date(createdToDraft)
-      setCreatedFilter({
-        label: `≤ ${shortDate(end)}`,
-        from: null,
-        to: end.toISOString(),
-        before: null,
-      })
-    } else if (createdMode === 'after') {
-      if (!createdFromDraft) return
-      const start = new Date(createdFromDraft)
-      setCreatedFilter({
-        label: `≥ ${shortDate(start)}`,
-        from: start.toISOString(),
-        to: null,
-        before: null,
-      })
-    } else {
-      if (!createdFromDraft || !createdToDraft) return
-      const start = new Date(createdFromDraft)
-      const end = new Date(createdToDraft)
-      if (start > end) return
-      setCreatedFilter({
-        label: shortDate(start),
-        label2: shortDate(end),
-        from: start.toISOString(),
-        to: end.toISOString(),
-        before: null,
-      })
-    }
-    setShowCreatedFilter(false)
-  }
-
-  function clearCreatedFilter() {
-    setCreatedFilter(null)
-    setCreatedDate('')
-    setCreatedFromDraft('')
-    setCreatedToDraft('')
-    setShowCreatedFilter(false)
-  }
 
   function resetAll() {
-    setTextSearchDraft('')
     setTextSearchTerm('')
     setCreatedFilter(null)
-    setCreatedDate('')
-    setCreatedFromDraft('')
-    setCreatedToDraft('')
   }
-
-  const canApplyCreatedFilter = createdMode === 'on'
-    ? !!createdDate
-    : createdMode === 'before'
-      ? !!createdToDraft
-      : createdMode === 'after'
-        ? !!createdFromDraft
-        : !!createdFromDraft && !!createdToDraft && new Date(createdFromDraft) <= new Date(createdToDraft)
 
   const hasAnyFilter = !!textSearchTerm || !!createdFilter
 
@@ -351,144 +236,23 @@ export default function SettingsAudit() {
         }}
       />
 
-      {/* ── Text search modal ── */}
-      {showTextSearch && (
-        <>
-          <div className="modal-backdrop" onClick={() => setShowTextSearch(false)} />
-          <div
-            className="modal-center"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="audit-text-search-title"
-            style={{ maxWidth: '520px' }}
-          >
-            <form onSubmit={e => { e.preventDefault(); applyTextSearch() }}>
-              <div className="modal-header" style={{ justifyContent: 'space-between' }}>
-                <h3 id="audit-text-search-title" style={{ margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
-                  Search by Text
-                </h3>
-                <button type="button" className="close-btn" onClick={() => setShowTextSearch(false)} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-              </div>
-              <div className="modal-body" style={{ padding: 'var(--sp-xl)' }}>
-                <div className="crud-search-wrap" style={{ width: '100%', flex: 'unset' }}>
-                  <input
-                    type="text"
-                    value={textSearchDraft}
-                    onChange={e => setTextSearchDraft(e.target.value)}
-                    placeholder=""
-                    aria-label="Search audit log"
-                    className="crud-search-input"
-                    autoFocus
-                  />
-                  {!textSearchDraft && (
-                    <span className="crud-search-placeholder" aria-hidden="true">
-                      Search audit log then press
-                      <span className="crud-search-placeholder-icon">
-                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="22" y1="2" x2="11" y2="13"/>
-                          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                        </svg>
-                      </span>
-                      or
-                      <span className="crud-search-placeholder-return">⏎</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="modal-footer">
-                {textSearchTerm && <button type="button" className="text-btn" style={{ marginRight: 'auto' }} onClick={clearTextSearch}>Clear</button>}
-                <button type="button" className="btn-cancel" onClick={() => setShowTextSearch(false)}>Cancel</button>
-                <button
-                  type="submit"
-                  className="oc-action-circle crud-search-submit"
-                  disabled={!textSearchDraft.trim()}
-                  aria-label="Search"
-                >
-                  <SendIcon />
-                </button>
-              </div>
-            </form>
-          </div>
-        </>
-      )}
+      <TextSearchModal
+        open={showTextSearch}
+        onClose={() => setShowTextSearch(false)}
+        onApply={term => { setTextSearchTerm(term); setShowTextSearch(false) }}
+        onClear={() => { setTextSearchTerm(''); setShowTextSearch(false) }}
+        currentTerm={textSearchTerm}
+        placeholder="Search audit log then press"
+        ariaLabel="Search audit log"
+      />
 
-      {/* ── Date search modal ── */}
-      {showCreatedFilter && (
-        <>
-          <div className="modal-backdrop" onClick={() => setShowCreatedFilter(false)} />
-          <div
-            className="modal-center"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="audit-created-filter-title"
-            style={{ maxWidth: '520px' }}
-          >
-            <form onSubmit={e => { e.preventDefault(); applyCreatedFilter() }}>
-              <div className="modal-header" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <h3 id="audit-created-filter-title" style={{ margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
-                    Search by Date
-                  </h3>
-                  <p className="text-xs text-muted" style={{ margin: '2px 0 0' }}>
-                    All times local ({timeZone || 'your browser timezone'}).
-                  </p>
-                </div>
-                <button type="button" className="close-btn" onClick={() => setShowCreatedFilter(false)} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-              </div>
-              <div className="modal-body" style={{ padding: 'var(--sp-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-lg)' }}>
-                <div className="pf-field">
-                  <label htmlFor={createdModeId} className="pf-label">Condition</label>
-                  <select
-                    id={createdModeId}
-                    className="pf-select"
-                    value={createdMode}
-                    onChange={e => setCreatedMode(e.target.value as typeof createdMode)}
-                  >
-                    <option value="on">On date</option>
-                    <option value="before">At or before date and time</option>
-                    <option value="after">At or after date and time</option>
-                    <option value="between">Between dates and times</option>
-                  </select>
-                </div>
-
-                {createdMode === 'on' ? (
-                  <div className="pf-field">
-                    <label htmlFor={createdDateId} className="pf-label">Date</label>
-                    <input id={createdDateId} type="date" className="pf-input" value={createdDate} onChange={e => setCreatedDate(e.target.value)} />
-                  </div>
-                ) : (
-                  <>
-                    {(createdMode === 'after' || createdMode === 'between') && (
-                      <div className="pf-field">
-                        <label htmlFor={createdFromId} className="pf-label">{createdMode === 'between' ? 'From' : 'Date and time'}</label>
-                        <input id={createdFromId} type="datetime-local" className="pf-input" value={createdFromDraft} onChange={e => setCreatedFromDraft(e.target.value)} />
-                      </div>
-                    )}
-                    {(createdMode === 'before' || createdMode === 'between') && (
-                      <div className="pf-field">
-                        <label htmlFor={createdToId} className="pf-label">{createdMode === 'between' ? 'To' : 'Date and time'}</label>
-                        <input id={createdToId} type="datetime-local" className="pf-input" value={createdToDraft} onChange={e => setCreatedToDraft(e.target.value)} />
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-              <div className="modal-footer">
-                {createdFilter && <button type="button" className="text-btn" style={{ marginRight: 'auto' }} onClick={clearCreatedFilter}>Clear</button>}
-                <button type="button" className="btn-cancel" onClick={() => setShowCreatedFilter(false)}>Cancel</button>
-                <button
-                  type="submit"
-                  className="oc-action-circle crud-search-submit"
-                  disabled={!canApplyCreatedFilter}
-                  aria-label="Apply date filter"
-                >
-                  <SendIcon />
-                </button>
-              </div>
-            </form>
-          </div>
-        </>
-      )}
+      <DateSearchModal
+        open={showCreatedFilter}
+        onClose={() => setShowCreatedFilter(false)}
+        onApply={filter => { setCreatedFilter(filter); setShowCreatedFilter(false) }}
+        onClear={() => { setCreatedFilter(null); setShowCreatedFilter(false) }}
+        currentFilter={createdFilter}
+      />
 
       {/* ── Audit row detail modal ── */}
       {viewingRow && (

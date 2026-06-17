@@ -7,7 +7,7 @@ import { createStreamableValue } from 'ai/rsc'
 import { getAuthContext, type AuthContext } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_VOICE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_FEEDBACK_TONE, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_PROACTIVE_TONE, ORB_SELF_DIAGNOSTICS, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, computeObservations, ORB_PREFERENCE_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
+import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 // computeInsights suspended — code preserved in lib/insights.ts for future use
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
@@ -98,6 +98,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     { data: orbPreferences },
     { data: recentTickets },
     { data: behaviorRules },
+    { data: orbMemories },
   ] = await Promise.all([
     visibleProjectsQuery(supabase, 'id, name, code, description, created_by'),
     auth.isAdmin ? supabase.from('projects').select('id, name, code').eq('is_dormant', true).order('sort_order') : Promise.resolve({ data: [] }),
@@ -126,6 +127,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
       ? auth.admin.from('tickets').select('id, ticket_number, type, summary, status, dismiss_reason, created_at, closed_at, detail').order('created_at', { ascending: false }).limit(10)
       : Promise.resolve({ data: [] }),
     supabase.from('knowledge_repo').select('title, content').contains('tags', ['orb-behavior']).order('created_at', { ascending: false }).limit(20),
+    supabase.from('orb_memory').select('track, category, content, confidence, created_at').eq('user_id', auth.user.id).or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`).order('created_at', { ascending: false }).limit(30),
   ])
 
   const currentUserName = userProfile ? [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ') : ''
@@ -271,7 +273,9 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
 
   const behaviorRuleList = (behaviorRules ?? []) as Array<{ title: string; content: string }>
 
-  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, urgencyThresholdHours, preferenceList, guidanceLevel, observations, behaviorRuleList, contextString: byProduct + dormantSection + extraContext + ticketsSection }
+  const memoryList = (orbMemories ?? []) as Array<{ track: string; category: string; content: string; confidence: number; created_at: string }>
+
+  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, urgencyThresholdHours, preferenceList, guidanceLevel, observations, behaviorRuleList, memoryList, contextString: byProduct + dormantSection + extraContext + ticketsSection }
 }
 
 
@@ -361,6 +365,9 @@ export async function orbConverse(req: OrbRequest) {
       const statusNames = ctx.statusList.map((s: any) => `${s.name}${s.is_closed ? ' (closed)' : s.is_open ? ' (default)' : ''}`).join(', ')
       const priorityInfo = ctx.priorityList.map((p: any) => `${p.value}:${p.label}${p.is_urgent ? ' (URGENT)' : ''}`).join(', ')
 
+      const openness = ctx.preferenceList.find(p => p.key === 'openness')?.value ?? 'natural'
+      const memoryLevel = ctx.preferenceList.find(p => p.key === 'memory_level')?.value ?? 'full'
+
       const userRole = req.roleOverride || auth.role
       const availableOrbTools = auth.canInspectRepository
         ? ORB_TOOLS
@@ -390,7 +397,7 @@ export async function orbConverse(req: OrbRequest) {
           system: [
             // Identity
             `You are the voice of the orb — the conversational layer of Orb.`,
-            ORB_VOICE,
+            buildVoicePrompt(openness),
             `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
             ctx.currentUser ? `USER CONTEXT: You are talking to ${ctx.currentUser.email} (Name: ${ctx.currentUser.name || 'Unknown'}, Role: ${userRole || 'Unknown'}).` : '',
 
@@ -432,15 +439,17 @@ export async function orbConverse(req: OrbRequest) {
             ORB_PREFERENCE_DISCOVERY,
             buildPreferencesPrompt(ctx.preferenceList),
             buildSurveyPrompt(req.uiContext?.daysActive, ctx.preferenceList),
-            ORB_PROACTIVE_TONE,
+            buildProactiveTonePrompt(openness),
             buildObservationsPrompt(ctx.observations, ctx.guidanceLevel),
             ORB_ATTRIBUTION,
             ORB_MUTATION_VERIFICATION,
-            ORB_FEEDBACK_TONE,
+            buildFeedbackTonePrompt(openness),
+            memoryLevel !== 'off' ? buildMemoryPrompt(ctx.memoryList, memoryLevel) : '',
+            memoryLevel !== 'off' ? ORB_MEMORY_BEHAVIOR : '',
             ORB_DEV_CHANNEL_PROMPT,
           ].filter(Boolean).join('\n\n'),
           messages,
-          tools: [...availableOrbTools, ...ORB_PREFERENCE_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL],
+          tools: [...availableOrbTools, ...ORB_PREFERENCE_TOOLS, ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []), ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL],
           stream: true,
         }, { timeout: 60_000 })
 
@@ -1124,6 +1133,42 @@ export async function orbConverse(req: OrbRequest) {
             else {
               output = { ok: true, target: targetTool }
               stream.update({ speech: accumulatedSpeech, thought: `Sent to ${targetTool}` })
+            }
+
+          } else if (tc.name === 'save_memory') {
+            if (memoryLevel === 'off') {
+              output = { error: 'Memory is disabled. The user has set memory_level to "off".' }
+            } else {
+              const expiresAt = memoryLevel === 'session'
+                ? new Date(new Date().setUTCHours(23, 59, 59, 999)).toISOString()
+                : null
+              const { data: mem, error: memErr } = await supabase.from('orb_memory').insert({
+                user_id: auth.user.id,
+                track: input.track,
+                category: input.category,
+                content: input.content,
+                context: input.context || null,
+                expires_at: expiresAt,
+              }).select('id, track, category').single()
+              if (memErr) output = { error: memErr.message }
+              else output = { ok: true, id: mem.id, track: mem.track, category: mem.category }
+            }
+
+          } else if (tc.name === 'recall_memories') {
+            if (memoryLevel === 'off') {
+              output = { memories: [], note: 'Memory is disabled.' }
+            } else {
+              let query = supabase.from('orb_memory')
+                .select('id, track, category, content, confidence, created_at')
+                .eq('user_id', auth.user.id)
+                .or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`)
+                .order('created_at', { ascending: false })
+                .limit(input.limit || 10)
+              if (input.category) query = query.eq('category', input.category)
+              if (input.query) query = query.ilike('content', `%${input.query}%`)
+              const { data: mems, error: memErr } = await query
+              if (memErr) output = { error: memErr.message }
+              else output = { memories: mems ?? [] }
             }
           }
           } catch (toolErr: any) {

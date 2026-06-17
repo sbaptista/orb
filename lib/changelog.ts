@@ -6,6 +6,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.5',
+    date: '2026-06-17',
+    changes: [
+      'Standardized all CrudList settings tables (Orb Memory, Projects, Users, Tickets, Knowledge Repository) to match the Audit Log\'s canonical search pattern: green btn-primary search buttons opening modal dialogs instead of inline search inputs.',
+      'Extracted TextSearchModal and DateSearchModal as shared reusable components from Audit Log, eliminating ~250 lines of duplicated modal code.',
+      'Added server-side pagination to Projects, Users, and Tickets tables. Pagination controls auto-hide when all items fit on one page.',
+      'Tickets scope filter (Active/Open/Closed/etc.) now works server-side, enabling correct behavior with paginated results.',
+      'All table subtitles now show row-range format: "Rows X–Y of Z." for consistency.',
+      'Added date search capability to Orb Memory and Tickets tables.',
+      'Added text search capability to Users table (previously had no search).',
+    ]
+  },
+  {
     version: 'v0.6.4',
     date: '2026-06-17',
     changes: [

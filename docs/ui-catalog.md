@@ -340,11 +340,21 @@ Reusable pattern for settings lists with add/edit/delete actions, column resize,
 - **Pixel table widths:** Settings tables that need fixed geometry use pixel column widths (`90px`, `180px`, etc.). When every configured column uses pixels, CrudList shrink-wraps the toolbar, Prev/Next Columns controls, table frame, and pagination footer to the exact sum of the columns plus the selection column.
 - **Platform table widths:** `tableColumns[].platformWidths` and `config.selectionColumnWidths` provide Mac/iPad/iPhone overrides using the same breakpoint and pointer rules as Table Tuning.
 - **Platform frozen columns:** `config.stickyColumnsByPlatform` overrides the default frozen-column count per platform.
-- **Audit Log compact search:** Audit Log uses a standard green `btn-primary` **Search by...** dropdown. Text fields mode shows the text search field. Created date mode hides and clears text search, shows the Created date filter button, and opens the Created filter modal when selected.
+- **External search buttons (canonical):** All CrudList tables use `externalSearchTerm` + `toolbarExtra` with green `btn-primary` buttons. Tables manage search/date state in the parent component, pass `externalSearchTerm`, `searchCaption`, `externalFilterKey`, `onResetFilters`, and `toolbarExtra` to CrudList. The inline search input is fully replaced.
+- **Pagination auto-hide:** The pagination footer (First/Prev/Next/Last) only renders when `totalCount > pageSize`. Tables with small datasets show no pagination controls but get them automatically when data grows.
+- **Subtitle format:** All paginated tables use `Rows X–Y of Z.` (or singular `Row X of Z.`). Copy the subtitle pattern from Audit Log.
+
+### Shared Search Modals
+**Files:** `components/settings/TextSearchModal.tsx`, `components/settings/DateSearchModal.tsx`
+
+Reusable `modal-center` search modals extracted from Audit Log and shared across all CrudList tables.
+
+- **TextSearchModal:** Text search input with `crud-search-wrap` styling, custom placeholder with send icon + return symbol. Props: `open`, `onClose`, `onApply(term)`, `onClear()`, `currentTerm`, `placeholder?`, `ariaLabel?`. Exports `SendIcon`.
+- **DateSearchModal:** Date filter with condition select (On date / At or before / At or after / Between) and date/datetime-local inputs. Props: `open`, `onClose`, `onApply(filter)`, `onClear()`, `currentFilter`. Exports `CreatedFilter` type, `shortDate`, `shortDateTime`.
+
+Tables with date columns (Audit Log, Orb Memory, Tickets) render both buttons. Tables without date columns (Knowledge, Projects, Users) render text search button only.
 
 ### Audit Created Filter
-**File:** `components/settings/SettingsAudit.tsx`
-
 Created timestamps display in the browser's IANA timezone. The dedicated **Created** filter supports On date, At or before, At or after, and Between. Local picker values are converted to UTC boundaries before the server query; general text search deliberately excludes Created so timestamp interpretation is never implicit or timezone-dependent. Audit details show both the browser-local timestamp and canonical UTC value.
 
 ### Action Cell Pattern (`action-cell`, `action-link`)

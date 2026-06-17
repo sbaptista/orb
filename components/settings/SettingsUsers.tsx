@@ -1,6 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import SettingsCrudList from './SettingsCrudList'
+import TextSearchModal from './TextSearchModal'
 import { inviteUser } from '@/app/actions/invite-user'
 import { updateUser } from '@/app/actions/update-user'
 import { deleteUser, deleteUsers } from '@/app/actions/delete-user'
@@ -36,8 +38,14 @@ function displayName(u: UserRow) {
   return [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email
 }
 
+const PAGE_SIZE = 25
+
 export default function SettingsUsers() {
+  const [showTextSearch, setShowTextSearch] = useState(false)
+  const [textSearchTerm, setTextSearchTerm] = useState('')
+
   return (
+    <>
     <SettingsCrudList<UserRow, UserForm>
       config={{
         title: 'Users',
@@ -46,10 +54,34 @@ export default function SettingsUsers() {
         emptyForm: EMPTY_FORM,
         pageClass: 'settings-page s-page-wide',
         layout: 'table',
+        pagination: { pageSize: PAGE_SIZE, serverSearch: true, serverSort: true },
         addButtonLabel: 'Invite User',
         addModalTitle: 'Invite User',
         editModalTitle: 'Edit User',
-        subtitle: items => `${items.length} user${items.length !== 1 ? 's' : ''}`,
+        subtitle: (_items, total, pageInfo) => {
+          if (!total) return 'No users found.'
+          const ps = pageInfo?.pageSize ?? PAGE_SIZE
+          const pg = pageInfo?.page ?? 0
+          const start = pg * ps + 1
+          const end = Math.min(start + _items.length - 1, total)
+          if (start === end) return `User ${start} of ${total}.`
+          return `Users ${start}–${end} of ${total}.`
+        },
+        externalSearchTerm: textSearchTerm,
+        searchCaption: 'Search by text',
+        onResetFilters: () => setTextSearchTerm(''),
+        toolbarExtra: (
+          <>
+            <button type="button" className="btn-primary" onClick={() => setShowTextSearch(true)}>
+              {textSearchTerm || 'Search by Text'}
+            </button>
+            {textSearchTerm && (
+              <button type="button" className="btn-primary" onClick={() => setTextSearchTerm('')}>
+                Reset
+              </button>
+            )}
+          </>
+        ),
         tableColumns: [
           { label: 'Name',    width: '220px', sortKey: 'name',  sortValue: (u: UserRow) => displayName(u) },
           { label: 'Email',   width: '300px', sortKey: 'email', sortValue: (u: UserRow) => u.email },
@@ -60,14 +92,19 @@ export default function SettingsUsers() {
           { label: 'Actions', width: '170px' },
         ],
 
-        load: async () => {
-          const result = await listUsers()
+        load: async (_supabase, pagination) => {
+          const result = await listUsers({
+            page: pagination?.page,
+            pageSize: pagination?.pageSize,
+            search: pagination?.search,
+          })
           return {
             items: (result.users ?? []) as UserRow[],
             extra: {
               roles: (result.roles ?? []) as RoleRow[],
               currentUserId: result.currentUserId ?? null,
             },
+            totalCount: result.count ?? 0,
           }
         },
 
@@ -243,5 +280,16 @@ export default function SettingsUsers() {
         },
       }}
     />
+
+    <TextSearchModal
+      open={showTextSearch}
+      onClose={() => setShowTextSearch(false)}
+      onApply={term => { setTextSearchTerm(term); setShowTextSearch(false) }}
+      onClear={() => { setTextSearchTerm(''); setShowTextSearch(false) }}
+      currentTerm={textSearchTerm}
+      placeholder="Search users then press"
+      ariaLabel="Search users"
+    />
+    </>
   )
 }

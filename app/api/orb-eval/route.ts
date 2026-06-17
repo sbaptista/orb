@@ -6,7 +6,7 @@ import path from 'path'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_VOICE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_FEEDBACK_TONE, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_PROACTIVE_TONE, ORB_SELF_DIAGNOSTICS, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, computeObservations, ORB_PREFERENCE_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
+import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { DB_SCHEMA } from '@/lib/db-schema'
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
   // Build system prompt (same structure as orbConverse)
   const systemPrompt = [
     `You are the voice of the orb — the conversational layer of Orb.`,
-    ORB_VOICE,
+    buildVoicePrompt('natural'),
     `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
     `USER CONTEXT: You are talking to ${auth.user.email} (Name: ${auth.user.name || 'Unknown'}, Role: ${auth.role}).`,
     ORB_PRINCIPLES,
@@ -214,11 +214,13 @@ export async function POST(request: NextRequest) {
     ORB_SELF_DIAGNOSTICS,
     ORB_PREFERENCE_DISCOVERY,
     buildPreferencesPrompt(preferenceList),
-    ORB_PROACTIVE_TONE,
+    buildProactiveTonePrompt('natural'),
     buildObservationsPrompt(observations, guidanceLevel),
     ORB_ATTRIBUTION,
     ORB_MUTATION_VERIFICATION,
-    ORB_FEEDBACK_TONE,
+    buildFeedbackTonePrompt('natural'),
+    buildMemoryPrompt([], 'full'),
+    ORB_MEMORY_BEHAVIOR,
     ORB_DEV_CHANNEL_PROMPT,
   ].filter(Boolean).join('\n\n')
 
@@ -234,7 +236,7 @@ export async function POST(request: NextRequest) {
       max_tokens: 4096,
       system: systemPrompt,
       messages,
-      tools: [...ORB_TOOLS, ...ORB_PREFERENCE_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL] as any,
+      tools: [...ORB_TOOLS, ...ORB_PREFERENCE_TOOLS, ...ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL] as any,
     })
 
     // Extract speech and tool calls

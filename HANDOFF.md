@@ -10,62 +10,65 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.0
+- **Version:** 0.6.1
 
 ---
 
 ### Last Session Completed
 
-**ORB-254: Audit the Audit Log — 2026-06-16 (Claude Code, Opus 4.6)**
+**ORB-266: Ghost in the Machine — 2026-06-17 (Claude Code, Opus 4.6)**
 
-Continued from prior Codex session. Major audit log toolbar redesign and persistent scroll detection fix.
+Full implementation of cross-session memory and voice personality with adjustable openness.
 
 **What was done:**
 
-1. **Text search converted to modal pattern** — inline text search field replaced with a "Search by Text" button that opens a modal. Modal uses `<form onSubmit>` for native Enter-key submission. Same pattern applied to existing date search modal.
+1. **Cross-session memory** — `orb_memory` table (migration already applied), `save_memory` and `recall_memories` tools wired into Orb conversation loop, memory loaded into system prompt context, behavioral protocol governing when/how memories are saved (autonomous vs offered tracks).
 
-2. **Toolbar redesign** — three primary buttons: Search by Text, Search by Date, Reset. All render as `btn-primary` (green) regardless of filter state. Caption reads "Search by text, date, or both."
+2. **Voice personality** — replaced static `ORB_VOICE`, `ORB_FEEDBACK_TONE`, `ORB_PROACTIVE_TONE` constants with `buildVoicePrompt(openness)`, `buildFeedbackTonePrompt(openness)`, `buildProactiveTonePrompt(openness)`. One personality at three volumes: reserved/natural/open.
 
-3. **Subtitle row ranges** — subtitle now shows "Rows N–M of P." instead of plain count.
+3. **New preference keys** — `openness` (reserved/natural/open) and `memory_level` (off/session/full) added to `VALID_PREFERENCE_KEYS`.
 
-4. **`externalSearchTerm` CrudList prop** — new config option allowing parent components to manage search state externally while CrudList handles the server request lifecycle.
+4. **Settings > Orb Memory** — table UI using SettingsCrudList with `hideAdd` (new prop). Users can view, edit, search, and delete memories. Bulk delete supported.
 
-5. **Scroll navigation arrow fix (root cause found)** — `useEffect` fires after React commit but before browser layout completes for newly mounted elements. `clientWidth`/`scrollWidth` returned 0. Fix: wrap all geometry reads in `requestAnimationFrame`. CSS containment approaches (`display: grid`, `contain: inline-size`) were all dead ends that broke visual styling. Entry written to knowledge_repo (`f98569de`).
+5. **CrudList improvements** — `hideAdd` prop, `btn-danger-outline` CSS class for bulk delete, toolbar `maxWidth` constrained to `tableMinWidth` for narrower tables.
 
-6. **Table card borders restored** — reverted to original inline styles (`padding: 0; overflow: hidden` on s-card, `overflow-x: auto` on scroll container). No CSS class containment needed.
+6. **Eval cases** — 2 new Tier 1 cases (memory-save-offered, memory-recall). Full suite: **Tier 1: 10/10 green**.
 
-7. **Mobile version label** — version now appears at the end of the horizontal settings nav on iPhone, where the sidebar (and its version label) is hidden.
-
-8. **Date range labels** — removed time component (mm/dd/yy only), added en-dash separator between stacked range labels.
+7. **Version bumped to v0.6.1** — changelog, version.ts, package.json.
 
 ### Uncommitted Changes
 
-None. All changes committed and pushed as v0.6.0 (`89f1cac`).
-
----
-
-### Key Files Modified This Session
-
-- `components/settings/SettingsAudit.tsx` — modal search, toolbar buttons, subtitle, send icons
-- `components/settings/SettingsCrudList.tsx` — `externalSearchTerm` prop, rAF scroll fix, subtitle callback extension
-- `components/CollapsibleSidebar.tsx` — mobile version label at end of nav
-- `app/globals.css` — `.cs-nav-version` mobile-only style, cleanup of removed CSS classes
-- `lib/changelog.ts` — v0.6.0 entry
-- `lib/version.ts` — v0.6.0
-- `package.json` — v0.6.0
+- `lib/orb-prompt.ts` — voice functions, memory tools, memory prompt, preference keys
+- `lib/orb-contract.ts` — save_memory/recall_memories tool labels
+- `app/actions/orb-converse.ts` — memory loading, tool handlers, voice/memory wiring
+- `app/actions/dev-channel.ts` — updated ORB_VOICE → buildVoicePrompt import
+- `app/api/orb-eval/route.ts` — same import updates, memory tools/prompts added
+- `app/actions/get-memory-entries.ts` — NEW: server action for memory CRUD
+- `components/settings/SettingsMemory.tsx` — NEW: memory settings page
+- `app/settings/memory/page.tsx` — NEW: route
+- `components/settings/SettingsSidebar.tsx` — Orb Memory nav entry
+- `components/settings/SettingsCrudList.tsx` — hideAdd prop, btn-danger-outline, toolbar maxWidth
+- `app/globals.css` — btn-danger-outline class
+- `docs/ui-catalog.md` — btn-danger-outline documented
+- `scripts/eval-cases.ts` — 2 new Tier 1 cases
+- `scripts/migrations/20260617_orb_memory.sql` — NEW (already applied to DB)
+- `lib/changelog.ts` — v0.6.1 entry
+- `lib/version.ts` — v0.6.1
+- `package.json` — v0.6.1
+- `WIP.md` — detailed status file (delete at commit time)
 
 ---
 
 ### Key Lesson
 
-**useEffect scroll measurements can return 0** — `useEffect` runs after React's commit but sometimes before browser layout completes. Wrap geometry reads in `requestAnimationFrame`. CSS containment (`display: grid`, `contain: inline-size`) is not the fix and breaks visual styling. Diagnostic technique: render raw measurements to the UI to confirm timing vs CSS root cause. Full write-up in knowledge_repo entry `f98569de`.
+**CrudList table width alignment** — When a CrudList table uses pixel column widths and is narrower than the viewport, the toolbar (search + scroll controls) extends wider than the table. Fix: set `maxWidth` on the toolbar div to `tableMinWidth + selectionColumnWidth`. The table itself must keep `width` + `minWidth` + `tableLayout: fixed` (established in ORB-233) — removing `width` breaks the Audit Log table. Knowledge repo entry `93b80281` documents the original table width fix.
 
 ---
 
 ### Not started
 
-- **ORB-265:** Full Audit of Orb Instructions — Orb fabricates todo numbers and silently fails operations. Deferred until audit work is complete.
-- **Blank User columns when filtering by date** — potential search reliability issue noticed during testing, not yet investigated.
+- **ORB-265:** Full Audit of Orb Instructions — Orb fabricates todo numbers and silently fails operations.
+- **ORB-254 remaining:** Blank User columns when filtering by date.
 
 ---
 
@@ -93,8 +96,8 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## Earlier Sessions
 
-**ORB-254: Audit toolbar polish — 2026-06-16 (Claude Code, Opus 4.6)**
-- Inline date button, date-only range labels, scroll nav fix, mobile version label. Bumped to v0.6.0.
+**ORB-254: Audit the Audit Log — 2026-06-16 (Claude Code, Opus 4.6)**
+- Modal search, toolbar redesign, scroll nav fix, mobile version label. Bumped to v0.6.0.
 
 **ORB-254: Audit Log stages 1–3 + Stage 4 partial — 2026-06-15 (Codex, GPT-5)**
 - System info collection, audit log completeness, Orb auto-tickets, table UX with sticky columns. v0.5.232.
@@ -129,13 +132,17 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 - **Email change: instant via admin API.** No confirmation email, no sign-out. Session refreshes in place, PasskeyGate handles re-registration.
 - **Column resize removed.** Sticky columns + horizontal scroll replaces resize. `stickyColumns` is a per-table config on SettingsCrudList.
 - **externalSearchTerm pattern:** Parent manages search UI (modals, buttons), CrudList handles data loading. Clean separation for complex search UIs.
+- **Voice personality: one personality at three volumes** (reserved/natural/open), not three different characters. Adjustable via `openness` preference.
+- **Two-track memory model:** autonomous (Orb saves silently after 2+ observations) and offered (user confirms before saving). All memories visible in Settings > Orb Memory.
+- **CrudList toolbar maxWidth:** When table uses pixel column widths, toolbar maxWidth is constrained to tableMinWidth so controls align with the table edge.
 
 ---
 
 ## Next Priorities
 
-1. **ORB-254 remaining** — investigate blank User columns when filtering by date. Continue visual testing across Mac, iPad, iPhone.
-2. **ORB-265** — Full Audit of Orb Instructions (after audit work is done).
+1. **ORB-266 testing** — test memory + voice on all three platforms (Mac, iPad, iPhone). Verify Audit Log table not broken by toolbar maxWidth change.
+2. **ORB-265** — Full Audit of Orb Instructions.
+3. **ORB-254 remaining** — blank User columns when filtering by date.
 
 ---
 
@@ -148,7 +155,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-06-16 — Claude Code (Opus 4.6)`
+`2026-06-17 — Claude Code (Opus 4.6)`
 
 ---
 

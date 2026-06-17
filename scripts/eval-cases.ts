@@ -239,4 +239,31 @@ export const EVAL_CASES: EvalCase[] = [
       params: { code: 'ORB-198', new_status: 'closed' },
     },
   },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ORB-266: Memory tools
+  // ═══════════════════════════════════════════════════════════════════════
+
+  {
+    id: 'memory-save-offered',
+    description: 'User explicitly asks Orb to remember something → save_memory with track offered',
+    productCode: 'ORB',
+    input: 'Remember that I prefer to do my reviews in the morning.',
+    tier: 1,
+    expectTool: {
+      name: 'save_memory',
+      params: { track: 'offered' },
+    },
+  },
+
+  {
+    id: 'memory-recall',
+    description: 'User asks to check memories → recall_memories',
+    productCode: 'ORB',
+    input: 'Search your memories for anything about my review habits.',
+    tier: 1,
+    expectTool: {
+      name: 'recall_memories',
+    },
+  },
 ]
