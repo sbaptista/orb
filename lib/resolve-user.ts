@@ -132,7 +132,7 @@ export async function resolveUser(authId: string, email: string): Promise<Resolv
           first_name: invitation.first_name,
           last_name: invitation.last_name,
           role_id: invitation.role_id ?? 2,
-          release_stage: invitation.release_stage ?? 'pre-alpha',
+          release_stage: invitation.release_stage ?? 'alpha',
         })
         .select('id, email, first_name, last_name, role_id, onboarded_at')
         .single()

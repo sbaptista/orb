@@ -11,7 +11,12 @@ export function getResend() {
 }
 
 export const FROM_EMAIL = 'Stan Baptista <noreply@stanbaptista.me>'
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://orb-eight-lake.vercel.app'
+function getSiteUrl(): string {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL
+  if (process.env.NODE_ENV === 'development') return 'https://localhost:3001'
+  return 'https://orb-eight-lake.vercel.app'
+}
+const SITE_URL = getSiteUrl()
 export const ICON_URL = `${SITE_URL}/apple-icon`
 
 export async function sendInviteEmail({
@@ -46,7 +51,7 @@ export async function sendInviteEmail({
   <p style="margin-bottom: 12px;"><strong>Your data is visible to me.</strong> As the developer and admin, I can see your projects and tasks. This helps me improve the app and troubleshoot issues. I won't share your data with anyone. Please do not put any confidential information in Orb.</p>
   <p style="margin-bottom: 12px;"><strong>Availability is not guaranteed.</strong> Orb is a personal project under active development. Features may change, and access may be modified or discontinued at any time. Think of it as an early preview — not a permanent service.</p>
 
-  <p style="font-size: 14px; color: #555;">Orb works on most modern browsers: Safari, Chrome, Firefox, Edge, and Comet. On iPhone or iPad, you can install it as an app — open the link above in Safari, then tap Share → Add to Home Screen.</p>
+  <p style="font-size: 14px; color: #555;">Orb works on most modern browsers. For example: Safari, Chrome, Firefox, and Edge.</p>
 
   <h3 style="margin-top: 28px; margin-bottom: 12px;">How to give feedback:</h3>
   <p>Just tell Orb. Say something like <em>"I have a suggestion"</em> or <em>"something's broken"</em> — it'll log it automatically and it goes straight to me.</p>
@@ -204,13 +209,11 @@ function invitationNotificationHtml(
   accentBg: string,
   inv: InvitationEmailPayload,
   extraBody?: string,
-  origin?: string,
 ): string {
   const name = escapeHtml(invitationDisplayName(inv))
   const email = escapeHtml(inv.email)
-  const stage = escapeHtml(inv.release_stage ?? 'pre-alpha')
+  const stage = escapeHtml(inv.release_stage ?? 'alpha')
   const responded = escapeHtml(new Date(inv.responded_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }))
-  const siteUrl = origin ?? SITE_URL
 
   return `
 <!DOCTYPE html>
@@ -234,11 +237,6 @@ function invitationNotificationHtml(
       ${extraBody ?? ''}
     </div>
 
-    <div style="text-align: center; margin-top: 28px;">
-      <a href="${siteUrl}/settings/invitations" style="display: inline-block; padding: 12px 28px; background: #2d5a2d; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
-        View Invitations
-      </a>
-    </div>
   </div>
   <p style="text-align: center; font-size: 12px; color: #a0aec0; margin-top: 20px;">
     Sent automatically by Orb.
@@ -250,11 +248,9 @@ function invitationNotificationHtml(
 export async function sendInvitationAcceptedEmail({
   to,
   invitation,
-  origin,
 }: {
   to: string
   invitation: InvitationEmailPayload
-  origin?: string
 }) {
   const name = invitationDisplayName(invitation)
   const html = invitationNotificationHtml(
@@ -262,8 +258,6 @@ export async function sendInvitationAcceptedEmail({
     'Someone accepted an Orb invitation and can now sign in.',
     '#2d5a2d',
     invitation,
-    undefined,
-    origin,
   )
 
   const { data, error } = await getResend().emails.send({
@@ -284,11 +278,9 @@ export async function sendInvitationAcceptedEmail({
 export async function sendInvitationDeclinedEmail({
   to,
   invitation,
-  origin,
 }: {
   to: string
   invitation: InvitationEmailPayload
-  origin?: string
 }) {
   const name = invitationDisplayName(invitation)
   const reasonHtml = invitation.decline_reason
@@ -304,7 +296,6 @@ export async function sendInvitationDeclinedEmail({
     '#4a5568',
     invitation,
     reasonHtml,
-    origin,
   )
 
   const { data, error } = await getResend().emails.send({

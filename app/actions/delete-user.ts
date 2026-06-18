@@ -45,6 +45,12 @@ export async function deleteUser(userId: string) {
     if (!target) return { error: 'User not found' }
     if (target.role_id === SUPER_ADMIN_ROLE_ID) return { error: 'Cannot delete Super Admin' }
 
+    // Clean up user-scoped data (no FK cascade on these tables)
+    for (const table of ['orb_memory', 'orb_preferences', 'orb_adaptations', 'push_subscriptions'] as const) {
+      const { error } = await ctx.admin.from(table).delete().eq('user_id', userId)
+      if (error) console.warn(`[deleteUser] Warning: Failed to clean ${table}:`, error.message)
+    }
+
     const { error: dbError } = await ctx.admin
       .from('users')
       .delete()

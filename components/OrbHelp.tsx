@@ -238,12 +238,12 @@ const TOPICS: Topic[] = [
   },
   {
     id: 'testing',
-    label: 'Pre-Alpha Testing',
+    label: 'Alpha Testing',
     icon: '🧪',
     content: (
       <div>
         <p className="help-p">
-          Thank you for participating in the Orb pre-alpha! Your feedback helps us shape the strategic features and usability of the app.
+          Thank you for participating in the Orb alpha! Your feedback helps us shape the strategic features and usability of the app.
         </p>
 
         <div className="help-section">
@@ -283,7 +283,7 @@ const TOPICS: Topic[] = [
         <div className="help-section" style={{ borderLeft: '3px solid var(--accent)', paddingLeft: '10px' }}>
           <h2 className="help-h2">Privacy &amp; Observability</h2>
           <p className="help-p text-sm">
-            To optimize the AI&apos;s prompts and debug issues, **task names and conversation logs are visible to the developer (Stan)**. Please do not input highly sensitive, confidential, or personal information during the pre-alpha phase.
+            To optimize the AI&apos;s prompts and debug issues, **task names and conversation logs are visible to the developer (Stan)**. Please do not input highly sensitive, confidential, or personal information during the alpha phase.
           </p>
         </div>
       </div>

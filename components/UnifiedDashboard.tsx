@@ -11,7 +11,7 @@ import AppNav from './AppNav'
 import SearchModal from './ui/SearchModal'
 import EmptyState from './ui/EmptyState'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
-import { registerOrbTour, unregisterOrbTour, runOrbTour } from './OrbTour'
+import { registerOrbTour, unregisterOrbTour, runOrbTour, launchOrbTour } from './OrbTour'
 import { OrbDevPanel, DevTestError, type MoodOverride, type SimulateError } from './OrbDevPanel'
 import { orbConverse, orbGreeting, type OrbResponse } from '@/app/actions/orb-converse'
 import { collectSystemInfo, type SystemInfo } from '@/lib/system-info'
@@ -157,7 +157,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [userFullName, setUserFullName]         = useState<string>('')
   const [isNewUser, setIsNewUser]               = useState(false)
   const [urgencyThreshold, setUrgencyThreshold] = useState<number>(0)
-  const [releaseStage, setReleaseStage]         = useState<string>('pre-alpha')
+  const [releaseStage, setReleaseStage]         = useState<string>('alpha')
   const [orbFading, setOrbFading]               = useState(false)
   const [pulse, setPulse]                       = useState(false)
 
@@ -535,7 +535,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     fetchStatuses()
   }, [supabase])
 
-  // Welcome message — shown directly in the conversation on first login
+  // Welcome modal — shown on first login, offers the guided tour
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false)
   useEffect(() => {
     if (!isNewUser || welcomeDismissedRef.current) return
     welcomeDismissedRef.current = true
@@ -546,11 +547,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         supabase.from('users').update({ onboarded_at: new Date().toISOString() }).eq('id', authUser.id).then(() => {})
       }
     })
-    setMessages(prev => prev.length > 0 ? prev : [
-      { id: genId(), type: 'orb', action: 'tour', text: `Welcome to Orb.\n\nWant a quick tour? It takes about a minute. You can always start it later from **Help**.` },
-    ])
-    setConversationActive(true)
-    resetInactivity()
+    setShowWelcomeModal(true)
   }, [isNewUser])
 
   // Register the guided tour runner so the conversation nudge button and the
@@ -1321,6 +1318,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           orbToggle={
             <button
               className="appnav-btn appnav-edge"
+              data-tour="orb-toggle"
               onClick={isMobile ? () => setActiveMobileTab('orb') : () => setOrbPaneVisible(v => !v)}
               data-tooltip={isMobile ? (activeMobileTab === 'orb' ? 'Viewing Orb' : 'Show Orb') : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')}
               aria-label={isMobile ? (activeMobileTab === 'orb' ? 'Viewing Orb' : 'Show Orb') : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')}
@@ -1365,7 +1363,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             <OrbConversation
               orbElement={orbElement}
               messages={messages}
-              onDismissNudge={() => setMessages(prev => prev.map(m => m.action === 'tour' ? { ...m, action: undefined } : m))}
               input={input}
               submitting={submitting}
               productCode={selected?.code ?? selected?.name ?? ''}
@@ -1664,6 +1661,45 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           emptyMessage="No matching projects"
           errorMessage={projectsLoadError ? 'Projects failed to load.' : undefined}
         />
+      )}
+
+      {/* ── Welcome modal (new users) ── */}
+      {showWelcomeModal && (
+        <div className="modal-overlay" onClick={() => setShowWelcomeModal(false)}>
+          <div
+            className="modal-center"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="welcome-dialog-title"
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '400px', textAlign: 'center' }}
+          >
+            <div style={{ padding: 'var(--sp-2xl) var(--sp-xl) var(--sp-xl)' }}>
+              <h2 id="welcome-dialog-title" style={{ margin: '0 0 var(--sp-md)', fontSize: 'var(--fs-xl)', fontWeight: 'var(--fw-semibold)' }}>
+                {user?.first_name ? `Hi ${user.first_name}, welcome to Orb` : 'Welcome to Orb'}
+              </h2>
+              <p style={{ margin: '0 0 var(--sp-lg)', color: 'var(--text-secondary)', fontSize: 'var(--fs-base)', lineHeight: 'var(--lh-relaxed)' }}>
+                Want a quick tour? It takes about a minute.
+                <br />
+                <span style={{ fontSize: 'var(--fs-sm)', opacity: 0.7 }}>You can always start it later from Menu → Help.</span>
+              </p>
+              <div className="modal-footer" style={{ justifyContent: 'center', gap: 'var(--sp-md)', padding: 0, borderTop: 'none' }}>
+                <button
+                  className="btn-cancel"
+                  onClick={() => setShowWelcomeModal(false)}
+                >
+                  Maybe later
+                </button>
+                <button
+                  className="btn-primary"
+                  onClick={() => { setShowWelcomeModal(false); launchOrbTour() }}
+                >
+                  Yes, show me around
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <OrbDevPanel

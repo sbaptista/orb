@@ -764,8 +764,8 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         </div>
         <div className="flex-row gap-sm">
           {config.headerExtra}
-          {hasForm && !config.hideAdd && (
-            <button className="btn-outline" onClick={openAddModal}>
+          {hasForm && !config.hideAdd && !((config.searchFilter || usesServerSearch || hasExternalSearch) || isTable) && (
+            <button className="btn-primary" onClick={openAddModal}>
               + {config.addButtonLabel ?? `Add ${config.itemLabel}`}
             </button>
           )}
@@ -817,6 +817,11 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
               {config.searchCaption && <span className="crud-toolbar-caption">{config.searchCaption}</span>}
               <div className="crud-search-row">
                 {config.toolbarExtra}
+                {hasForm && !config.hideAdd && (
+                  <button className="btn-primary" onClick={openAddModal}>
+                    + {config.addButtonLabel ?? `Add ${config.itemLabel}`}
+                  </button>
+                )}
               </div>
             </div>
           ) : (config.searchFilter || usesServerSearch) ? (
@@ -879,6 +884,11 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                   </button>
                 )}
                 {config.toolbarExtra}
+                {hasForm && !config.hideAdd && (
+                  <button className="btn-primary" onClick={openAddModal}>
+                    + {config.addButtonLabel ?? `Add ${config.itemLabel}`}
+                  </button>
+                )}
               </div>
             </label>
           ) : null}

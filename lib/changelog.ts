@@ -6,6 +6,20 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.7',
+    date: '2026-06-18',
+    changes: [
+      'ORB-240: Redesigned guided tour — 8 steps leading with the Orb\'s strategic value (chief of staff, pattern recognition, adaptive learning) alongside practical navigation.',
+      'ORB-240: Welcome flow changed from in-conversation nudge to a centered modal with "Yes, show me around" / "Maybe later" buttons, personalized with the user\'s first name.',
+      'ORB-240: Fixed tour launch from Help — poll-based wait for dashboard mount replaces unreliable 200ms timeout.',
+      'ORB-289: Graduated from pre-alpha to alpha — all user-facing copy and defaults updated.',
+      'Settings: CrudList add button moved into toolbar next to search and changed from btn-outline to btn-primary for consistency.',
+      'Email: Invitation copy simplified (removed PWA install instructions). Admin notification emails are now pure notifications with no button link.',
+      'Email: Dev/prod URL detection added to invitation emails so links point back to the sending environment.',
+      'User cleanup: deleteUser now removes orb_memory, orb_preferences, orb_adaptations, and push_subscriptions. Invitation deletion now logs to audit.',
+    ]
+  },
+  {
     version: 'v0.6.6',
     date: '2026-06-18',
     changes: [

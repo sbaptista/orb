@@ -1,4 +1,3 @@
-import { headers } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   sendInvitationAcceptedEmail,
@@ -42,20 +41,8 @@ export async function dispatchNotification(
 ): Promise<void> {
   console.log(`[dispatchNotification] Event: ${event}, Payload:`, JSON.stringify(payload))
   try {
-    let origin: string | undefined
-    try {
-      const headersList = await headers()
-      const host = headersList.get('x-forwarded-host') || headersList.get('host')
-      const protocol = headersList.get('x-forwarded-proto') || 'https'
-      if (host) {
-        origin = `${protocol}://${host}`
-      }
-    } catch {
-      // Ignore if headers() throws outside request context (e.g. scripts/cron)
-    }
-
     const recipients = await getAdminEmails()
-    console.log(`[dispatchNotification] Resolved admin emails:`, recipients, `Origin:`, origin)
+    console.log(`[dispatchNotification] Resolved admin emails:`, recipients)
     if (recipients.length === 0) {
       console.warn(`[dispatchNotification] No admin emails for event ${event}`)
       return
@@ -68,8 +55,8 @@ export async function dispatchNotification(
     await Promise.all(
       recipients.map(async email => {
         try {
-          console.log(`[dispatchNotification] Sending ${event} email to ${email} (origin: ${origin || 'default'})...`)
-          const result = await send({ to: email, invitation: payload, origin })
+          console.log(`[dispatchNotification] Sending ${event} email to ${email}...`)
+          const result = await send({ to: email, invitation: payload })
           console.log(`[dispatchNotification] Send result for ${email}:`, JSON.stringify(result))
           if (result && 'error' in result && result.error) {
             console.error(`[dispatchNotification] ${event} email failed for ${email}:`, result.error)

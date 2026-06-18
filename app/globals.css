@@ -5792,39 +5792,6 @@ mark.crud-highlight {
   }
 }
 
-/* Inline tour-nudge buttons inside an Orb conversation card */
-.oc-tour-start {
-  background: var(--pill-active-bg);
-  border: 1px solid var(--pill-active-border);
-  color: var(--pill-active-color);
-  border-radius: var(--r-lg);
-  padding: 6px 16px;
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-semibold);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-.oc-tour-start:hover {
-  background: var(--pill-active-border);
-  color: #fff;
-}
-.oc-tour-later {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  border-radius: var(--r-lg);
-  padding: 6px 14px;
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-}
-.oc-tour-later:hover {
-  color: var(--text2);
-  border-color: var(--border-focus);
-}
 .help-tour-btn {
   background: var(--pill-active-bg);
   border: 1px solid var(--pill-active-border);

@@ -85,7 +85,7 @@ export async function inviteUser(
         first_name: firstName,
         last_name: lastName,
         role_id: roleId,
-        release_stage: releaseStage ?? 'pre-alpha',
+        release_stage: releaseStage ?? 'alpha',
         invited_by: ctx.user.id,
       })
       .select('id')
@@ -108,7 +108,7 @@ export async function inviteUser(
       action: 'user_invite',
       table_name: 'users',
       record_id: linkData.user.id,
-      after: { email, release_stage: releaseStage ?? 'pre-alpha' },
+      after: { email, release_stage: releaseStage ?? 'alpha' },
       actor: 'admin-ui',
       user_id: ctx.user.id,
     })

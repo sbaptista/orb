@@ -102,7 +102,7 @@ export default function AppNav({ printContext, userInitial = '?', userName, orbT
 
         {/* ── Center-right group: Commands + Account ── */}
         <div className="appnav-group">
-          <button className="appnav-btn" onClick={() => setCommandsOpen(true)} data-tooltip="Commands" aria-label="Commands">
+          <button className="appnav-btn" data-tour="commands" onClick={() => setCommandsOpen(true)} data-tooltip="Commands" aria-label="Commands">
             <span className="appnav-btn-icon">{IconSettings}</span>
             <span className="appnav-btn-label">Menu</span>
           </button>

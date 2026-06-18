@@ -110,6 +110,15 @@ export async function deleteInvitation(invitationId: string) {
         return { error: error.message }
     }
 
+    await logAuditEvent({
+        action: 'invitation_delete',
+        table_name: 'invitations',
+        record_id: invitationId,
+        before: { email: inv?.email },
+        actor: 'admin-ui',
+        user_id: ctx.user.id,
+    })
+
     if (inv?.email) {
         const cleanEmail = inv.email.trim().toLowerCase()
         // Check if the user exists in public.users
@@ -146,6 +155,14 @@ export async function deleteInvitations(ids: string[]) {
         console.error('deleteInvitations error:', error)
         return { error: error.message }
     }
+
+    await logAuditEvent({
+        action: 'invitation_bulk_delete',
+        table_name: 'invitations',
+        after: { count: ids.length, emails: invs?.map(i => i.email) ?? [] },
+        actor: 'admin-ui',
+        user_id: ctx.user.id,
+    })
 
     if (invs && invs.length > 0) {
         const emails = Array.from(new Set(invs.map(i => i.email.trim().toLowerCase())))

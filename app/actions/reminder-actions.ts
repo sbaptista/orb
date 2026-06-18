@@ -12,7 +12,11 @@ export async function checkReminders() {
     const result = await processReminders()
     return result
   } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    if (msg.includes('not authenticated') || msg.includes('session') || msg.includes('JWT')) {
+      return { error: 'Not authenticated' }
+    }
     console.error('Failed to run checkReminders action:', error)
-    return { error: error instanceof Error ? error.message : 'Failed to check reminders' }
+    return { error: msg }
   }
 }
