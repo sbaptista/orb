@@ -67,6 +67,7 @@ async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
       input: testCase.input,
       productCode: testCase.productCode,
       history: testCase.history,
+      mutationApproval: testCase.mutationApproval,
     }),
   })
 

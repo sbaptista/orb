@@ -4,17 +4,18 @@ import fs from 'fs'
 import path from 'path'
 import Anthropic from '@anthropic-ai/sdk'
 import { createStreamableValue } from 'ai/rsc'
+import { headers } from 'next/headers'
 import { getAuthContext, type AuthContext } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
+import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, buildAdaptationsPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 // computeInsights suspended — code preserved in lib/insights.ts for future use
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { computeUrgency, type Urgency } from '@/lib/orb-state'
 import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
 import { createTicket } from '@/app/actions/ticket-actions'
-import { sendTicketNotificationEmail, getResend, FROM_EMAIL, ICON_URL } from '@/lib/email'
+import { sendTicketNotificationEmail, sendAdaptationEmail, getResend, FROM_EMAIL, ICON_URL } from '@/lib/email'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 import { VERSION } from '@/lib/version'
@@ -30,6 +31,7 @@ import { queryRepository } from '@/lib/repository-reader'
 
 export type OrbResponse = {
   speech: string
+  insight?: { type: 'observation' | 'coaching' | 'strategic'; summary: string }
   thought?: string // A discrete "work step" completed by the Orb
   refresh?: boolean
   mutatedProductId?: string
@@ -41,6 +43,79 @@ export type OrbResponse = {
   suggestedKnowledge?: { id: string; productId: string; title: string; suggestion: { title: string; content: string } }
   knowledgeResults?: Array<{ title: string; content: string; code?: string }>
   newProject?: { id: string; name: string; code: string; description: string | null; created_by: string }
+}
+
+type OrbInsight = NonNullable<OrbResponse['insight']>
+
+function looksLikeMutationRequest(input: string): boolean {
+  return /\b(create|add|file|log|make|update|change|rename|close|complete|delete|remove|move|archive|defer|park|wake|sleep)\b/i.test(input)
+}
+
+function looksLikeMutationCompletionClaim(speech: string): boolean {
+  return /\b(done|created|added|filed|logged|made|updated|changed|renamed|closed|completed|deleted|removed|moved|archived|deferred|parked|saved)\b/i.test(speech)
+    || /\b[A-Z][A-Z0-9]{1,15}-\d+\b/.test(speech)
+}
+
+const APPROVAL_GATED_TOOLS = new Set([
+  'create_todo', 'update_todo', 'delete_todo', 'move_todo',
+  'create_project', 'update_project', 'delete_project', 'set_dormancy',
+])
+
+function isAffirmativeApproval(input: string): boolean {
+  return /^(yes|yep|yeah|ok|okay|sure|confirmed?|approved?|proceed|go ahead|do it|create it|create them|make it|make them)\b/i.test(input.trim())
+}
+
+function historyHasPendingMutationProposal(history?: OrbRequest['history']): boolean {
+  const recentAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
+  if (!recentAssistant) return false
+  const asksApproval = /\b(go ahead|confirm|approve|proceed|want me to|should i|create (it|this|these|them)|make (it|this|these|them)|do it)\b/i.test(recentAssistant)
+  const namesMutation = /\b(create|add|file|log|make|update|change|rename|close|complete|delete|remove|move|archive|defer|park|wake|sleep)\b/i.test(recentAssistant)
+  const claimsDone = looksLikeMutationCompletionClaim(recentAssistant)
+  return asksApproval && namesMutation && !claimsDone
+}
+
+function mutationToolSummary(name: string, input: any): string {
+  if (name === 'create_todo') {
+    return `create a task${input.title ? `: "${input.title}"` : ''}${input.product_code ? ` in ${input.product_code}` : ''}`
+  }
+  if (name === 'update_todo') return `update ${input.code ?? 'the task'}`
+  if (name === 'delete_todo') return `delete ${input.code ?? 'the task'}`
+  if (name === 'move_todo') return `move ${input.code ?? 'the task'} to ${input.target_project_code ?? 'the target project'}`
+  if (name === 'create_project') return `create a project${input.name ? `: "${input.name}"` : ''}`
+  if (name === 'update_project') return `update ${input.project_code ?? 'the project'}`
+  if (name === 'delete_project') return `delete ${input.project_code ?? 'the project'}`
+  if (name === 'set_dormancy') return `${input.dormant ? 'put to sleep' : 'wake'} ${input.project_code ?? 'the project'}`
+  return `run ${name}`
+}
+
+function buildApprovalPrompt(toolCalls: Array<{ name: string; input: any }>): string {
+  const summaries = toolCalls.map(tc => mutationToolSummary(tc.name, tc.input))
+  if (summaries.length === 1) {
+    return `I'll ${summaries[0]}. Go ahead?`
+  }
+  return `I'll do ${summaries.length} changes:\n${summaries.map((s, i) => `${i + 1}. ${s}`).join('\n')}\nGo ahead?`
+}
+
+function extractInsight(rawSpeech: string): { speech: string; insight?: OrbInsight } {
+  const insightPattern = /\[INSIGHT:(observation|coaching|strategic)\]([\s\S]*?)\[\/INSIGHT\]/i
+  const match = rawSpeech.match(insightPattern)
+  if (!match) return { speech: rawSpeech }
+
+  const type = match[1].toLowerCase() as OrbInsight['type']
+  const summary = match[2].trim()
+  const speech = rawSpeech.replace(insightPattern, summary).trim()
+  return summary ? { speech, insight: { type, summary } } : { speech }
+}
+
+async function getRequestOrigin(): Promise<string | undefined> {
+  try {
+    const headersList = await headers()
+    const host = headersList.get('x-forwarded-host') || headersList.get('host')
+    const protocol = headersList.get('x-forwarded-proto') || 'https'
+    return host ? `${protocol}://${host}` : undefined
+  } catch {
+    return undefined
+  }
 }
 
 export type UIContext = {
@@ -99,6 +174,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     { data: recentTickets },
     { data: behaviorRules },
     { data: orbMemories },
+    { data: orbAdaptations },
   ] = await Promise.all([
     visibleProjectsQuery(supabase, 'id, name, code, description, created_by'),
     auth.isAdmin ? supabase.from('projects').select('id, name, code').eq('is_dormant', true).order('sort_order') : Promise.resolve({ data: [] }),
@@ -128,6 +204,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
       : Promise.resolve({ data: [] }),
     supabase.from('knowledge_repo').select('title, content').contains('tags', ['orb-behavior']).order('created_at', { ascending: false }).limit(20),
     supabase.from('orb_memory').select('track, category, content, confidence, created_at').eq('user_id', auth.user.id).or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`).order('created_at', { ascending: false }).limit(30),
+    supabase.from('orb_adaptations').select('id, title, rule, category, activated_at').eq('user_id', auth.user.id).eq('status', 'active').order('activated_at', { ascending: false }).limit(20),
   ])
 
   const currentUserName = userProfile ? [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ') : ''
@@ -274,8 +351,9 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   const behaviorRuleList = (behaviorRules ?? []) as Array<{ title: string; content: string }>
 
   const memoryList = (orbMemories ?? []) as Array<{ track: string; category: string; content: string; confidence: number; created_at: string }>
+  const adaptationList = (orbAdaptations ?? []) as Array<{ id: string; title: string; rule: string; category: string; activated_at: string }>
 
-  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, urgencyThresholdHours, preferenceList, guidanceLevel, observations, behaviorRuleList, memoryList, contextString: byProduct + dormantSection + extraContext + ticketsSection }
+  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, urgencyThresholdHours, preferenceList, guidanceLevel, observations, behaviorRuleList, memoryList, adaptationList, contextString: byProduct + dormantSection + extraContext + ticketsSection }
 }
 
 
@@ -385,6 +463,7 @@ export async function orbConverse(req: OrbRequest) {
 
       let turnCount = 0
       const MAX_TURNS = 5
+      let repairedNoToolMutationClaim = false
 
       // Heartbeat to open the pipe
       stream.update({ speech: '', isStreaming: true })
@@ -436,8 +515,16 @@ export async function orbConverse(req: OrbRequest) {
               : '',
             ORB_SESSION_ADAPTATION,
             ORB_SELF_DIAGNOSTICS,
+            ORB_STRATEGIC_REASONING,
+            buildCoachingPrompt(openness),
             ORB_PREFERENCE_DISCOVERY,
             buildPreferencesPrompt(ctx.preferenceList),
+            buildAdaptationsPrompt(ctx.adaptationList),
+            ORB_ADAPTATION_BEHAVIOR,
+            `INSIGHT TAGGING:
+When you surface proactive observation, coaching, or strategic recommendation content, wrap only that sentence or short paragraph in one marker pair:
+[INSIGHT:observation]...[/INSIGHT], [INSIGHT:coaching]...[/INSIGHT], or [INSIGHT:strategic]...[/INSIGHT].
+Use observation for backlog facts worth noticing, coaching for work-rhythm guidance, and strategic for "what should I work on" recommendations. Do not wrap ordinary confirmations, errors, or direct answers with no proactive guidance.`,
             buildSurveyPrompt(req.uiContext?.daysActive, ctx.preferenceList),
             buildProactiveTonePrompt(openness),
             buildObservationsPrompt(ctx.observations, ctx.guidanceLevel),
@@ -449,19 +536,22 @@ export async function orbConverse(req: OrbRequest) {
             ORB_DEV_CHANNEL_PROMPT,
           ].filter(Boolean).join('\n\n'),
           messages,
-          tools: [...availableOrbTools, ...ORB_PREFERENCE_TOOLS, ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []), ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL],
+          tools: [...availableOrbTools, ...ORB_PREFERENCE_TOOLS, ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []), ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_ADAPTATION_TOOL],
           stream: true,
         }, { timeout: 60_000 })
 
         let currentTurnSpeech = ''
+        let currentInsight: OrbInsight | undefined
         const baseSpeech = accumulatedSpeech
         const toolCalls: any[] = []
 
         for await (const chunk of response) {
           if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
             currentTurnSpeech += chunk.delta.text
-            accumulatedSpeech = baseSpeech + currentTurnSpeech 
-            stream.update({ speech: accumulatedSpeech, isStreaming: true })
+            const parsed = extractInsight(baseSpeech + currentTurnSpeech)
+            accumulatedSpeech = parsed.speech
+            currentInsight = parsed.insight
+            stream.update({ speech: accumulatedSpeech, insight: currentInsight, isStreaming: true })
           } else if (chunk.type === 'content_block_start' && chunk.content_block.type === 'tool_use') {
              const label = ORB_TOOL_LABELS[chunk.content_block.name] || 'Thinking...'
              stream.update({ speech: accumulatedSpeech, thought: label, isStreaming: true })
@@ -484,7 +574,29 @@ export async function orbConverse(req: OrbRequest) {
             checkAndNotifyEscalation(auth.user.id, beforeUrgency, supabase)
               .catch(err => console.error('[orbConverse] Push check failed:', err))
           }
-          stream.done({ speech: accumulatedSpeech, isStreaming: false })
+          const parsed = extractInsight(accumulatedSpeech)
+          if (!hasMutated && looksLikeMutationRequest(req.input) && looksLikeMutationCompletionClaim(parsed.speech)) {
+            console.error('[orbConverse] Blocked no-tool mutation completion claim', {
+              input: req.input,
+              speech: parsed.speech.slice(0, 300),
+            })
+            if (!repairedNoToolMutationClaim && turnCount < MAX_TURNS) {
+              repairedNoToolMutationClaim = true
+              accumulatedSpeech = ''
+              messages.push({
+                role: 'user',
+                content: 'SYSTEM CORRECTION: Your previous message claimed a mutation succeeded, but no mutation tool call was made and nothing was written. You must now correct course. If approval is required, ask for confirmation without claiming completion. If approval is already present, call the correct mutation tool. Do not cite any new code unless a mutation tool returns it.',
+              })
+              stream.update({ speech: '', thought: 'Correcting mutation claim...', isStreaming: true })
+              continue
+            }
+            stream.done({
+              speech: 'I did not actually complete that — no mutation tool ran, so nothing was written. Please ask again and I will either request confirmation or run the correct tool.',
+              isStreaming: false,
+            })
+            return
+          }
+          stream.done({ speech: parsed.speech, insight: parsed.insight, isStreaming: false })
           return
         }
 
@@ -493,7 +605,27 @@ export async function orbConverse(req: OrbRequest) {
           'create_todo', 'update_todo', 'delete_todo', 'move_todo',
           'create_project', 'update_project', 'delete_project', 'set_dormancy',
           'create_ticket', 'add_knowledge', 'set_preference',
+          'send_to_developer', 'propose_adaptation',
         ])
+
+        const approvalMode = ctx.preferenceList.find(p => p.key === 'mutation_approval')?.value ?? 'ask'
+        const approvalNeeded = toolCalls
+          .filter(tc => APPROVAL_GATED_TOOLS.has(tc.name))
+          .map(tc => {
+            let parsed: any
+            try { parsed = JSON.parse(tc.input || '{}') } catch { parsed = {} }
+            return { name: tc.name, input: parsed }
+          })
+
+        if (
+          approvalMode !== 'allow'
+          && approvalNeeded.length > 0
+          && !(isAffirmativeApproval(req.input) && historyHasPendingMutationProposal(req.history))
+        ) {
+          const speech = buildApprovalPrompt(approvalNeeded)
+          stream.done({ speech, isStreaming: false })
+          return
+        }
 
         const toolOutputs: any[] = []
         for (const tc of toolCalls) {
@@ -1169,6 +1301,54 @@ export async function orbConverse(req: OrbRequest) {
               const { data: mems, error: memErr } = await query
               if (memErr) output = { error: memErr.message }
               else output = { memories: mems ?? [] }
+            }
+          } else if (tc.name === 'propose_adaptation') {
+            const allowedCategories = new Set(['communication', 'observation', 'coaching', 'workflow'])
+            if (!input.title || !input.rule || !input.rationale || !allowedCategories.has(input.category)) {
+              output = { error: 'title, rule, rationale, and a valid category are required' }
+            } else if (!auth.user.email) {
+              output = { error: 'current user has no email address for adaptation approval' }
+            } else {
+              const { data: adaptation, error: adaptationErr } = await auth.admin.from('orb_adaptations').insert({
+                user_id: auth.user.id,
+                title: input.title,
+                rule: input.rule,
+                rationale: input.rationale,
+                category: input.category,
+                status: 'proposed',
+              }).select('id, title, rule, rationale, category, status').single()
+
+              if (adaptationErr) {
+                output = { error: adaptationErr.message }
+              } else {
+                const emailResult = await sendAdaptationEmail({
+                  to: auth.user.email,
+                  adaptation,
+                  origin: await getRequestOrigin(),
+                })
+
+                if (emailResult.error) {
+                  output = { error: emailResult.error }
+                } else {
+                  output = { ok: true, id: adaptation.id, status: adaptation.status }
+                  stream.update({ speech: accumulatedSpeech, thought: 'Adaptation proposed' })
+                  await logAuditEvent({
+                    action: 'adaptation_proposed',
+                    table_name: 'orb_adaptations',
+                    record_id: adaptation.id,
+                    after: {
+                      title: adaptation.title,
+                      rule: adaptation.rule,
+                      rationale: adaptation.rationale,
+                      category: adaptation.category,
+                      status: adaptation.status,
+                    },
+                    actor: 'orb',
+                    user_id: auth.user.id,
+                    system_info: req.systemInfo,
+                  })
+                }
+              }
             }
           }
           } catch (toolErr: any) {

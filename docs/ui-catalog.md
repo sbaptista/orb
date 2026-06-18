@@ -252,6 +252,9 @@ The Orb command toolbar uses the same compact command model on Mac, iPad, and iP
 ### Orb Markdown (`oc-orb-md`)
 Prose container for Orb and dev-channel messages. Uses `remark-gfm` for GitHub-Flavored Markdown (tables, strikethrough, autolinks). Table styles: collapsed borders, `--fs-xs` font, `--bg3` header background, alternating `--bg2` row stripes.
 
+### Orb Insight Marker (`oc-insight`, `oc-insight-dot`)
+Full-width header strip rendered at the top of Orb responses that carry a structured insight (`Observation`, `Coaching read`, or `Strategic read`). Uses a subtle accent-tinted background, uppercase label, and small accent dot to distinguish proactive guidance from ordinary response text without creating a separate nested card.
+
 ### Developer Channel Message (`oc-dev-card`, `oc-dev-label`)
 Inbound messages from developer AI tools render as blue-tinted cards with the tool/model name above the message, visually distinct from both Stan's messages and Orb responses. The dashboard checks for pending messages on mount, focus, visibility return, BFCache restore, and every 15 seconds while the page is visible. Polling pauses while hidden, uses an in-flight guard to prevent duplicate processing, and does not use Supabase Realtime.
 

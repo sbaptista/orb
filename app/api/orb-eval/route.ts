@@ -6,7 +6,7 @@ import path from 'path'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
+import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { DB_SCHEMA } from '@/lib/db-schema'
@@ -25,6 +25,51 @@ function checkAuth(request: NextRequest): NextResponse | null {
   return null
 }
 
+const APPROVAL_GATED_TOOLS = new Set([
+  'create_todo', 'update_todo', 'delete_todo', 'move_todo',
+  'create_project', 'update_project', 'delete_project', 'set_dormancy',
+])
+
+function looksLikeMutationCompletionClaim(speech: string): boolean {
+  return /\b(done|created|added|filed|logged|made|updated|changed|renamed|closed|completed|deleted|removed|moved|archived|deferred|parked|saved)\b/i.test(speech)
+    || /\b[A-Z][A-Z0-9]{1,15}-\d+\b/.test(speech)
+}
+
+function looksLikeMutationRequest(input: string): boolean {
+  return /\b(create|add|file|log|make|update|change|rename|close|complete|delete|remove|move|archive|defer|park|wake|sleep)\b/i.test(input)
+}
+
+function isAffirmativeApproval(input: string): boolean {
+  return /^(yes|yep|yeah|ok|okay|sure|confirmed?|approved?|proceed|go ahead|do it|create it|create them|make it|make them)\b/i.test(input.trim())
+}
+
+function historyHasPendingMutationProposal(history?: Array<{ role: 'user' | 'assistant'; text: string }>): boolean {
+  const recentAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
+  if (!recentAssistant) return false
+  const asksApproval = /\b(go ahead|confirm|approve|proceed|want me to|should i|create (it|this|these|them)|make (it|this|these|them)|do it)\b/i.test(recentAssistant)
+  const namesMutation = /\b(create|add|file|log|make|update|change|rename|close|complete|delete|remove|move|archive|defer|park|wake|sleep)\b/i.test(recentAssistant)
+  const claimsDone = looksLikeMutationCompletionClaim(recentAssistant)
+  return asksApproval && namesMutation && !claimsDone
+}
+
+function mutationToolSummary(name: string, params: Record<string, any>): string {
+  if (name === 'create_todo') return `create a task${params.title ? `: "${params.title}"` : ''}${params.product_code ? ` in ${params.product_code}` : ''}`
+  if (name === 'update_todo') return `update ${params.code ?? 'the task'}`
+  if (name === 'delete_todo') return `delete ${params.code ?? 'the task'}`
+  if (name === 'move_todo') return `move ${params.code ?? 'the task'} to ${params.target_project_code ?? 'the target project'}`
+  if (name === 'create_project') return `create a project${params.name ? `: "${params.name}"` : ''}`
+  if (name === 'update_project') return `update ${params.project_code ?? 'the project'}`
+  if (name === 'delete_project') return `delete ${params.project_code ?? 'the project'}`
+  if (name === 'set_dormancy') return `${params.dormant ? 'put to sleep' : 'wake'} ${params.project_code ?? 'the project'}`
+  return `run ${name}`
+}
+
+function buildApprovalPrompt(toolCalls: Array<{ name: string; params: Record<string, any> }>): string {
+  const summaries = toolCalls.map(tc => mutationToolSummary(tc.name, tc.params))
+  if (summaries.length === 1) return `I'll ${summaries[0]}. Go ahead?`
+  return `I'll do ${summaries.length} changes:\n${summaries.map((s, i) => `${i + 1}. ${s}`).join('\n')}\nGo ahead?`
+}
+
 // ── POST /api/orb-eval ───────────────────────────────────────────────────
 // Non-streaming Orb call that returns speech + tool calls without executing them.
 // For the eval framework only. Disabled in production.
@@ -34,10 +79,11 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
-  const { input, productCode, history } = body as {
+  const { input, productCode, history, mutationApproval } = body as {
     input: string
     productCode?: string
     history?: Array<{ role: 'user' | 'assistant'; text: string }>
+    mutationApproval?: 'ask' | 'allow'
   }
 
   if (!input) {
@@ -112,12 +158,14 @@ export async function POST(request: NextRequest) {
   const priorityList = priorities ?? []
   const knowledgeList = knowledge ?? []
   const preferenceList = (orbPreferences ?? []) as Array<{ key: string; value: string }>
-  // Force mutation_approval to 'allow' in evaluation to test tool calls directly
+  // Force mutation_approval to allow by default in evaluation to test tool calls directly.
+  // Individual cases can opt into ask-mode to exercise the server-side approval gate.
+  const evalApprovalMode = mutationApproval ?? 'allow'
   const approvalPref = preferenceList.find(p => p.key === 'mutation_approval')
   if (approvalPref) {
-    approvalPref.value = 'allow'
+    approvalPref.value = evalApprovalMode
   } else {
-    preferenceList.push({ key: 'mutation_approval', value: 'allow' })
+    preferenceList.push({ key: 'mutation_approval', value: evalApprovalMode })
   }
   const behaviorRuleList = behaviorRules ?? []
 
@@ -212,8 +260,14 @@ export async function POST(request: NextRequest) {
       : '',
     ORB_SESSION_ADAPTATION,
     ORB_SELF_DIAGNOSTICS,
+    ORB_STRATEGIC_REASONING,
+    buildCoachingPrompt('natural'),
     ORB_PREFERENCE_DISCOVERY,
     buildPreferencesPrompt(preferenceList),
+    `INSIGHT TAGGING:
+When you surface proactive observation, coaching, or strategic recommendation content, wrap only that sentence or short paragraph in one marker pair:
+[INSIGHT:observation]...[/INSIGHT], [INSIGHT:coaching]...[/INSIGHT], or [INSIGHT:strategic]...[/INSIGHT].
+Use observation for backlog facts worth noticing, coaching for work-rhythm guidance, and strategic for "what should I work on" recommendations. Do not wrap ordinary confirmations, errors, or direct answers with no proactive guidance.`,
     buildProactiveTonePrompt('natural'),
     buildObservationsPrompt(observations, guidanceLevel),
     ORB_ATTRIBUTION,
@@ -249,6 +303,29 @@ export async function POST(request: NextRequest) {
       } else if (block.type === 'tool_use') {
         toolCalls.push({ name: block.name, params: block.input as Record<string, any> })
       }
+    }
+
+    const gatedToolCalls = toolCalls.filter(tc => APPROVAL_GATED_TOOLS.has(tc.name))
+    if (
+      evalApprovalMode !== 'allow'
+      && gatedToolCalls.length > 0
+      && !(isAffirmativeApproval(input) && historyHasPendingMutationProposal(history))
+    ) {
+      return NextResponse.json({
+        speech: buildApprovalPrompt(gatedToolCalls),
+        toolCalls: [],
+        stopReason: 'approval_gate',
+        tokenUsage: response.usage,
+      })
+    }
+
+    if (looksLikeMutationRequest(input) && gatedToolCalls.length === 0 && looksLikeMutationCompletionClaim(speech)) {
+      return NextResponse.json({
+        speech: 'I did not actually complete that — no mutation tool ran, so nothing was written.',
+        toolCalls: [],
+        stopReason: 'blocked_no_tool_mutation_claim',
+        tokenUsage: response.usage,
+      })
     }
 
     return NextResponse.json({

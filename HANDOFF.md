@@ -10,64 +10,64 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.1
+- **Version:** 0.6.6
 
 ---
 
 ### Last Session Completed
 
-**ORB-266: Ghost in the Machine — 2026-06-17 (Claude Code, Opus 4.6)**
+**ORB-266: Ghost in the Machine — 2026-06-18 (Codex, GPT-5)**
 
-Full implementation of cross-session memory and voice personality with adjustable openness.
+Closed ORB-266 after completing the cross-session memory/voice work, self-adaptation proposal flow, insight rendering, and a critical mutation-integrity fix.
 
 **What was done:**
 
-1. **Cross-session memory** — `orb_memory` table (migration already applied), `save_memory` and `recall_memories` tools wired into Orb conversation loop, memory loaded into system prompt context, behavioral protocol governing when/how memories are saved (autonomous vs offered tracks).
+1. **Cross-session memory and voice personality were retained from the prior slice work** — `orb_memory`, `save_memory`, `recall_memories`, `openness`, and `memory_level` remain wired into Orb conversation and Settings > Orb Memory.
 
-2. **Voice personality** — replaced static `ORB_VOICE`, `ORB_FEEDBACK_TONE`, `ORB_PROACTIVE_TONE` constants with `buildVoicePrompt(openness)`, `buildFeedbackTonePrompt(openness)`, `buildProactiveTonePrompt(openness)`. One personality at three volumes: reserved/natural/open.
+2. **Self-adaptation proposals** — added active adaptation loading into Orb context, `propose_adaptation` tool exposure/handler, `orb_adaptations` migration, signed approval/rejection email links, and audit logging.
 
-3. **New preference keys** — `openness` (reserved/natural/open) and `memory_level` (off/session/full) added to `VALID_PREFERENCE_KEYS`.
+3. **Insight rendering** — Orb responses can carry structured `observation`, `coaching`, or `strategic` insights. The conversation UI now renders them as a full-width header strip (`Observation`, `Coaching read`, `Strategic read`) at the top of the Orb card.
 
-4. **Settings > Orb Memory** — table UI using SettingsCrudList with `hideAdd` (new prop). Users can view, edit, search, and delete memories. Bulk delete supported.
+4. **Server-enforced mutation approval** — prompt-only approval was not enough. `orbConverse` now gates mutating tools when `mutation_approval=ask`, asks for confirmation first, and only executes after an affirmative response to a pending proposal or when `mutation_approval=allow`.
 
-5. **CrudList improvements** — `hideAdd` prop, `btn-danger-outline` CSS class for bulk delete, toolbar `maxWidth` constrained to `tableMinWidth` for narrower tables.
+5. **False-success guard** — Orb can no longer claim a mutation succeeded or cite a new task code when no mutation tool ran. No-tool mutation completion claims are blocked unless a mutation actually succeeded in the current request.
 
-6. **Eval cases** — 2 new Tier 1 cases (memory-save-offered, memory-recall). Full suite: **Tier 1: 10/10 green**.
+6. **Eval protection** — evals now support `mutationApproval: 'ask'`; added Tier 1 cases for false-success history and approved mutation follow-through. Full Tier 1: **12/12 green**.
 
-7. **Version bumped to v0.6.1** — changelog, version.ts, package.json.
+7. **Closeout** — closed ORB-266 with attributed resolution notes, added linked Knowledge Repo entry `cfd351a6`, created follow-up ORB-287 for dashboard background polling overhead, and bumped to v0.6.6.
 
 ### Uncommitted Changes
 
-- `lib/orb-prompt.ts` — voice functions, memory tools, memory prompt, preference keys
-- `lib/orb-contract.ts` — save_memory/recall_memories tool labels
-- `app/actions/orb-converse.ts` — memory loading, tool handlers, voice/memory wiring
-- `app/actions/dev-channel.ts` — updated ORB_VOICE → buildVoicePrompt import
-- `app/api/orb-eval/route.ts` — same import updates, memory tools/prompts added
-- `app/actions/get-memory-entries.ts` — NEW: server action for memory CRUD
-- `components/settings/SettingsMemory.tsx` — NEW: memory settings page
-- `app/settings/memory/page.tsx` — NEW: route
-- `components/settings/SettingsSidebar.tsx` — Orb Memory nav entry
-- `components/settings/SettingsCrudList.tsx` — hideAdd prop, btn-danger-outline, toolbar maxWidth
-- `app/globals.css` — btn-danger-outline class
-- `docs/ui-catalog.md` — btn-danger-outline documented
-- `scripts/eval-cases.ts` — 2 new Tier 1 cases
-- `scripts/migrations/20260617_orb_memory.sql` — NEW (already applied to DB)
-- `lib/changelog.ts` — v0.6.1 entry
-- `lib/version.ts` — v0.6.1
-- `package.json` — v0.6.1
-- `WIP.md` — detailed status file (delete at commit time)
+- `.claude/settings.local.json` — local settings change from this session
+- `app/actions/orb-converse.ts` — adaptation context/tool handler, insight extraction/streaming, server-side mutation approval gate, no-tool false-success guard
+- `app/api/orb-eval/route.ts` — matching prompt wiring plus eval approval-mode simulation and false-success guard behavior
+- `app/api/orb-adaptation/route.ts` — NEW signed approve/reject endpoint for adaptation emails
+- `app/globals.css` — `oc-insight` header-strip styles
+- `components/OrbConversation.tsx` — insight type and OrbCard header-strip rendering
+- `components/UnifiedDashboard.tsx` — preserves streamed insight metadata on Orb messages
+- `docs/ui-catalog.md` — documented Orb Insight Marker pattern
+- `lib/email.ts` — signed adaptation email helpers
+- `lib/orb-contract.ts` — `propose_adaptation` tool label
+- `lib/orb-prompt.ts` — strategic/coaching/adaptation prompts, expanded observations, approval integrity rules
+- `scripts/eval-cases.ts` — added approval/false-success Tier 1 cases
+- `scripts/orb-eval.ts` — passes eval-only `mutationApproval` override
+- `scripts/migrations/20260617_orb_adaptations.sql` — NEW adaptation persistence table
+- `lib/changelog.ts` — v0.6.6 release entry
+- `lib/version.ts` — v0.6.6
+- `package.json` — v0.6.6
 
 ---
 
 ### Key Lesson
 
-**CrudList table width alignment** — When a CrudList table uses pixel column widths and is narrower than the viewport, the toolbar (search + scroll controls) extends wider than the table. Fix: set `maxWidth` on the toolbar div to `tableMinWidth + selectionColumnWidth`. The table itself must keep `width` + `minWidth` + `tableLayout: fixed` (established in ORB-233) — removing `width` breaks the Audit Log table. Knowledge repo entry `93b80281` documents the original table width fix.
+**Prompt-only mutation safety is insufficient** — When a conversational agent can mutate production data, the server must enforce both permission and truthfulness. ORB-266 showed that Orb could call a mutating tool without asking even when `mutation_approval=ask`, and could also claim a new ORB code when no tool ran. The durable fix is server-side gating plus no-tool false-success blocking. Knowledge repo entry `cfd351a6` documents the lesson.
 
 ---
 
 ### Not started
 
-- **ORB-265:** Full Audit of Orb Instructions — Orb fabricates todo numbers and silently fails operations.
+- **ORB-287:** Investigate dashboard background polling overhead (`fetchPendingDevMessages()`, `/api/health`, `/api/version`).
+- **ORB-265:** Full Audit of Orb Instructions.
 - **ORB-254 remaining:** Blank User columns when filtering by date.
 
 ---
@@ -140,8 +140,8 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## Next Priorities
 
-1. **ORB-266 testing** — test memory + voice on all three platforms (Mac, iPad, iPhone). Verify Audit Log table not broken by toolbar maxWidth change.
-2. **ORB-265** — Full Audit of Orb Instructions.
+1. **ORB-287** — investigate dashboard background polling overhead observed during ORB-266 testing.
+2. **ORB-265** — full audit of Orb instructions, especially now that server-side mutation integrity has been strengthened.
 3. **ORB-254 remaining** — blank User columns when filtering by date.
 
 ---
@@ -155,7 +155,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-06-17 — Claude Code (Opus 4.6)`
+`2026-06-18 — Codex (GPT-5)`
 
 ---
 

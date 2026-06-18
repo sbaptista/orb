@@ -6,6 +6,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.6',
+    date: '2026-06-18',
+    changes: [
+      'ORB-266: Added server-side mutation approval enforcement so create/update/delete/move/project mutations are held for confirmation when mutation_approval is ask, rather than relying on prompt compliance alone.',
+      'ORB-266: Added a no-tool false-success guard so Orb cannot claim a mutation completed or cite a new task code unless a mutation actually succeeded in the current request.',
+      'ORB-266: Added structured insight streaming and conversation rendering for proactive guidance, with header-strip labels for Observation, Coaching read, and Strategic read.',
+      'ORB-266: Added user-approved self-adaptation proposals, including persistent active adaptations, signed approval/rejection email links, and audit logging.',
+      'ORB-266: Expanded strategic/coaching prompt behavior, proactive observations, mutation follow-through rules, and developer-channel explicit-send behavior.',
+      'Eval coverage: Added mutationApproval ask-mode support to the Orb eval endpoint and Tier 1 cases for false-success history and approved mutation follow-through. Full Tier 1 passed 12/12.',
+      'Created ORB-287 to track dashboard background polling overhead observed during testing.',
+    ]
+  },
+  {
     version: 'v0.6.5',
     date: '2026-06-17',
     changes: [

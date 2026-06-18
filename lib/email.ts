@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { createHmac } from 'crypto'
 
 let _resend: Resend | null = null
 export function getResend() {
@@ -669,6 +670,102 @@ export async function sendTicketDeclinedEmail({
   if (error) {
     console.error('[sendTicketDeclinedEmail] Resend error:', error)
     return { error: error.message }
+  }
+
+  return { ok: true, messageId: data?.id }
+}
+
+// ── Adaptation Emails (ORB-266) ────────────────────────────────────────
+
+export function signAdaptationAction(id: string, action: string): string {
+  const secret = process.env.SUPABASE_SECRET_KEY ?? ''
+  return createHmac('sha256', secret).update(`${id}:${action}`).digest('hex').slice(0, 16)
+}
+
+export async function sendAdaptationEmail({
+  to,
+  adaptation,
+  origin,
+}: {
+  to: string
+  adaptation: {
+    id: string
+    title: string
+    rule: string
+    rationale: string
+    category: string
+  }
+  origin?: string
+}) {
+  const siteUrl = origin ?? SITE_URL
+  const activateSig = signAdaptationAction(adaptation.id, 'activate')
+  const rejectSig = signAdaptationAction(adaptation.id, 'reject')
+  const activateUrl = `${siteUrl}/api/orb-adaptation?id=${adaptation.id}&action=activate&sig=${activateSig}`
+  const rejectUrl = `${siteUrl}/api/orb-adaptation?id=${adaptation.id}&action=reject&sig=${rejectSig}`
+
+  const categoryLabel = adaptation.category.charAt(0).toUpperCase() + adaptation.category.slice(1)
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; color: #2d3748; line-height: 1.6; background-color: #f7fafc;">
+  <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <img src="${ICON_URL}" alt="Orb" width="48" height="48" style="border-radius: 50%;" />
+      <h2 style="margin-top: 12px; margin-bottom: 4px; color: #1a202c; font-size: 20px; font-weight: 700;">Orb Proposed an Adaptation</h2>
+      <p style="margin: 0; color: #718096; font-size: 14px;">The Orb wants to improve how it works with you.</p>
+    </div>
+
+    <div style="border-top: 1px solid #edf2f7; border-bottom: 1px solid #edf2f7; padding: 20px 0; margin: 20px 0;">
+      <span style="display: inline-block; padding: 4px 10px; background-color: #5a3090; color: #ffffff; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px;">
+        ${escapeHtml(categoryLabel)}
+      </span>
+
+      <h3 style="margin: 0 0 12px 0; color: #2d3748; font-size: 18px; font-weight: 600; line-height: 1.4;">
+        ${escapeHtml(adaptation.title)}
+      </h3>
+
+      <div style="margin-bottom: 16px;">
+        <strong style="font-size: 14px; color: #4a5568; display: block; margin-bottom: 4px;">Rule:</strong>
+        <div style="background: #f7fafc; border-left: 4px solid #5a3090; border-radius: 0 6px 6px 0; padding: 12px; font-size: 14px; color: #2d3748; line-height: 1.5;">
+          ${escapeHtml(adaptation.rule)}
+        </div>
+      </div>
+
+      <div>
+        <strong style="font-size: 14px; color: #4a5568; display: block; margin-bottom: 4px;">Why:</strong>
+        <p style="margin: 0; font-size: 14px; color: #4a5568; font-style: italic;">
+          ${escapeHtml(adaptation.rationale)}
+        </p>
+      </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 28px;">
+      <a href="${activateUrl}" style="display: inline-block; padding: 12px 28px; background: #2d5a2d; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; margin-right: 12px;">
+        Activate
+      </a>
+      <a href="${rejectUrl}" style="display: inline-block; padding: 12px 28px; background: #e2e8f0; color: #4a5568; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
+        Reject
+      </a>
+    </div>
+  </div>
+  <p style="text-align: center; font-size: 12px; color: #a0aec0; margin-top: 20px;">
+    Sent automatically by Orb. Only activated adaptations influence the Orb's behavior.
+  </p>
+</body>
+</html>`
+
+  const { data, error: emailErr } = await getResend().emails.send({
+    from: FROM_EMAIL,
+    to,
+    subject: `[Orb] Adaptation proposed: ${adaptation.title}`,
+    html,
+  })
+
+  if (emailErr) {
+    console.error('[sendAdaptationEmail] Resend error:', emailErr)
+    return { error: emailErr.message }
   }
 
   return { ok: true, messageId: data?.id }

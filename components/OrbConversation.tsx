@@ -8,6 +8,7 @@ export type ConversationMessage = {
     id: string
     type: 'user' | 'orb' | 'dev'
     text: string
+    insight?: { type: 'observation' | 'coaching' | 'strategic'; summary: string }
     isStreaming?: boolean
     isServiceError?: boolean
     thoughts?: string[]
@@ -41,6 +42,13 @@ type Props = {
 function OrbCard({ msg, onDismissNudge }: { msg: ConversationMessage; onDismissNudge?: () => void }) {
     const [copied, setCopied] = useState(false)
     const [nudgeHandled, setNudgeHandled] = useState(false)
+    const insightLabel = msg.insight?.type === 'strategic'
+        ? 'Strategic read'
+        : msg.insight?.type === 'coaching'
+            ? 'Coaching read'
+            : msg.insight?.type === 'observation'
+                ? 'Observation'
+                : null
 
     function copy() {
         navigator.clipboard.writeText(msg.text).then(() => {
@@ -66,6 +74,12 @@ function OrbCard({ msg, onDismissNudge }: { msg: ConversationMessage; onDismissN
                     opacity: msg.isStreaming ? 0.8 : 1,
                     transition: 'opacity 0.2s',
                 }}>
+                    {insightLabel && (
+                        <div className="oc-insight">
+                            <span className="oc-insight-dot" aria-hidden="true" />
+                            <span>{insightLabel}</span>
+                        </div>
+                    )}
                     <Markdown remarkPlugins={[remarkGfm]} components={{
                         a: ({ href, children, ...rest }: ComponentPropsWithoutRef<'a'>) => (
                             <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>{children}</a>

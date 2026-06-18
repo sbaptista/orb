@@ -929,7 +929,14 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           if (m.id !== processingId) return m
           const newThoughts = m.thoughts ? [...m.thoughts] : []
           if (chunk.thought && !newThoughts.includes(chunk.thought)) newThoughts.push(chunk.thought)
-          return { ...m, text: chunk.speech || m.text, thoughts: newThoughts, isStreaming: chunk.isStreaming, isServiceError: chunk.isServiceError || m.isServiceError }
+          return {
+            ...m,
+            text: chunk.speech || m.text,
+            insight: chunk.insight || m.insight,
+            thoughts: newThoughts,
+            isStreaming: chunk.isStreaming,
+            isServiceError: chunk.isServiceError || m.isServiceError,
+          }
         }))
         if (chunk.refresh) {
           setPulse(true)

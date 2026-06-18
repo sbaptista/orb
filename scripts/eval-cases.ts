@@ -8,6 +8,7 @@ export type EvalCase = {
   productCode: string              // which project is "selected" in the UI
   input: string                    // what the user says to the Orb
   history?: Array<{ role: 'user' | 'assistant'; text: string }>
+  mutationApproval?: 'ask' | 'allow' // eval-only override; defaults to allow for tool-routing cases
 
   // Tier 1: Tool call assertions (deterministic)
   expectTool?: {
@@ -41,6 +42,40 @@ export const EVAL_CASES: EvalCase[] = [
       name: 'create_todo',
       params: { product_code: 'ORB' },
     },
+  },
+
+  {
+    id: 'create-after-hallucinated-history',
+    description: 'Prior assistant completion claims do not leak through as false mutation success',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    history: [
+      { role: 'user', text: 'Create test 5a slice' },
+      { role: 'assistant', text: 'Creating the task...\n\nDone — created as **ORB-282**.' },
+    ],
+    input: 'Create a task: [EVAL] verify no-tool creation claims are not repeated',
+    tier: 1,
+    expectNoTool: true,
+    speechPattern: /(go ahead|confirm|did not actually|nothing was written)/i,
+    speechNotContains: ['done', 'created as', 'orb-'],
+  },
+
+  {
+    id: 'confirmed-create-after-approval-tool',
+    description: 'Affirming a pending create proposal allows create_todo to run',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    history: [
+      { role: 'user', text: 'Create a task: [EVAL] pending approval flow' },
+      { role: 'assistant', text: 'I\'ll create a task: "[EVAL] pending approval flow" in ORB. Go ahead?' },
+    ],
+    input: 'yes',
+    tier: 1,
+    expectTool: {
+      name: 'create_todo',
+      params: { product_code: 'ORB' },
+    },
+    speechNotContains: ['done', 'created as', 'orb-'],
   },
 
   {

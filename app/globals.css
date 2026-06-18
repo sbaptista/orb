@@ -3061,6 +3061,31 @@ mark.crud-highlight {
   margin-bottom: 6px;
 }
 
+.oc-insight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -10px -14px 8px;
+  padding: 7px 14px;
+  color: var(--pill-active-color);
+  background: color-mix(in srgb, var(--pill-active-bg) 70%, #fff);
+  border-bottom: 1px solid var(--pill-active-border);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+}
+.oc-insight-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--pill-active-color);
+  flex: none;
+  opacity: 0.85;
+}
+
 /* ── Markdown rendering inside Orb responses ── */
 .oc-orb-md {
   font-size: var(--fs-sm);
