@@ -621,9 +621,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   useEffect(() => { fetchAllTodos() }, [fetchAllTodos])
   useVisibilityRefetch(fetchAllTodos)
 
-  // Dev channel — lightweight polling while the page is visible
+  // Dev channel — lightweight polling while the page is visible (admin-only)
   const devPollInFlightRef = useRef(false)
   const pollDevChannel = useCallback(async () => {
+    if (!isAdmin) return
     if (devPollInFlightRef.current) return
     devPollInFlightRef.current = true
     try {

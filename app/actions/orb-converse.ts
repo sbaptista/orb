@@ -47,13 +47,27 @@ export type OrbResponse = {
 
 type OrbInsight = NonNullable<OrbResponse['insight']>
 
-function looksLikeMutationRequest(input: string): boolean {
-  return /\b(create|add|file|log|make|update|change|rename|close|complete|delete|remove|move|archive|defer|park|wake|sleep)\b/i.test(input)
+// ── Structural mutation guard ──
+// Instead of guessing intent from user input (fragile regex), we check what
+// actually happened: did the model cite a task/project code that no tool
+// produced, or claim completion language when no mutation tool ran at all?
+// See ORB-288 and knowledge repo entry for the design rationale.
+
+function extractCitedCodes(speech: string): Set<string> {
+  const matches = speech.match(/\b[A-Z][A-Z0-9]{1,15}-\d+\b/g)
+  return new Set(matches ?? [])
 }
 
-function looksLikeMutationCompletionClaim(speech: string): boolean {
-  return /\b(done|created|added|filed|logged|made|updated|changed|renamed|closed|completed|deleted|removed|moved|archived|deferred|parked|saved)\b/i.test(speech)
-    || /\b[A-Z][A-Z0-9]{1,15}-\d+\b/.test(speech)
+function hasCompletionLanguage(speech: string): boolean {
+  return /\b(done —|done\.|created as|i'?ve (created|added|filed|updated|changed|closed|completed|deleted|removed|moved|archived|deferred|saved)|successfully (created|added|updated|deleted|moved))\b/i.test(speech)
+}
+
+function isFalseMutationClaim(speech: string, hasMutated: boolean, toolProducedCodes: Set<string>, historyCodes: Set<string>): boolean {
+  const cited = extractCitedCodes(speech)
+  const hasPhantomCode = [...cited].some(code => !toolProducedCodes.has(code) && !historyCodes.has(code))
+  if (hasPhantomCode) return true
+  if (!hasMutated && hasCompletionLanguage(speech)) return true
+  return false
 }
 
 const APPROVAL_GATED_TOOLS = new Set([
@@ -68,10 +82,9 @@ function isAffirmativeApproval(input: string): boolean {
 function historyHasPendingMutationProposal(history?: OrbRequest['history']): boolean {
   const recentAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
   if (!recentAssistant) return false
-  const asksApproval = /\b(go ahead|confirm|approve|proceed|want me to|should i|create (it|this|these|them)|make (it|this|these|them)|do it)\b/i.test(recentAssistant)
+  const asksApproval = /\b(go ahead\??|confirm|approve|proceed|want me to|should i|create (it|this|these|them)|make (it|this|these|them)|do it)\b/i.test(recentAssistant)
   const namesMutation = /\b(create|add|file|log|make|update|change|rename|close|complete|delete|remove|move|archive|defer|park|wake|sleep)\b/i.test(recentAssistant)
-  const claimsDone = looksLikeMutationCompletionClaim(recentAssistant)
-  return asksApproval && namesMutation && !claimsDone
+  return asksApproval && namesMutation
 }
 
 function mutationToolSummary(name: string, input: any): string {
@@ -464,6 +477,11 @@ export async function orbConverse(req: OrbRequest) {
       let turnCount = 0
       const MAX_TURNS = 5
       let repairedNoToolMutationClaim = false
+      const toolProducedCodes = new Set<string>()
+      const historyCodes = extractCitedCodes(
+        (req.history ?? []).map(h => h.text).join(' ')
+        + ' ' + ctx.todoList.map((t: any) => todoCode(t, ctx.productList)).join(' ')
+      )
 
       // Heartbeat to open the pipe
       stream.update({ speech: '', isStreaming: true })
@@ -575,9 +593,12 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               .catch(err => console.error('[orbConverse] Push check failed:', err))
           }
           const parsed = extractInsight(accumulatedSpeech)
-          if (!hasMutated && looksLikeMutationRequest(req.input) && looksLikeMutationCompletionClaim(parsed.speech)) {
-            console.error('[orbConverse] Blocked no-tool mutation completion claim', {
-              input: req.input,
+          if (isFalseMutationClaim(parsed.speech, hasMutated, toolProducedCodes, historyCodes)) {
+            console.error('[orbConverse] Blocked false mutation claim (structural guard)', {
+              hasMutated,
+              toolProducedCodes: [...toolProducedCodes],
+              citedCodes: [...extractCitedCodes(parsed.speech)],
+              hasCompletionLang: hasCompletionLanguage(parsed.speech),
               speech: parsed.speech.slice(0, 300),
             })
             if (!repairedNoToolMutationClaim && turnCount < MAX_TURNS) {
@@ -1384,6 +1405,9 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           }
 
           toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
+          if (output?.code) toolProducedCodes.add(output.code)
+          if (output?.old_code) toolProducedCodes.add(output.old_code)
+          if (output?.new_code) toolProducedCodes.add(output.new_code)
         }
         messages.push({ role: 'user', content: toolOutputs })
 

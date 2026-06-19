@@ -6,6 +6,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.8',
+    date: '2026-06-18',
+    changes: [
+      'ORB-288: Replaced regex-based mutation guard with structural tool-output checks. The guard no longer analyzes user input — it checks whether the response cites task codes that no tool produced (phantom codes) or claims completion when no mutation tool ran.',
+      'ORB-288: Fixed confirmation loop where approval prompts containing task codes (e.g., "I\'ll update ORB-288. Go ahead?") were rejected by the completion detector, preventing users from confirming mutations.',
+      'ORB-288: Removed looksLikeMutationRequest entirely — eliminates false positives from conversational verbs like "make", "change", "save" in reflective discussion.',
+      'Dev channel gated to admin-only — non-admin users no longer poll for or see developer tool messages.',
+      'Settings CrudList: add/invite button moved into toolbar next to search, changed from btn-outline to btn-primary for consistency.',
+      'Invitation email copy simplified; admin notification emails are now pure notifications with no button link.',
+    ]
+  },
+  {
     version: 'v0.6.7',
     date: '2026-06-18',
     changes: [

@@ -30,13 +30,22 @@ const APPROVAL_GATED_TOOLS = new Set([
   'create_project', 'update_project', 'delete_project', 'set_dormancy',
 ])
 
-function looksLikeMutationCompletionClaim(speech: string): boolean {
-  return /\b(done|created|added|filed|logged|made|updated|changed|renamed|closed|completed|deleted|removed|moved|archived|deferred|parked|saved)\b/i.test(speech)
-    || /\b[A-Z][A-Z0-9]{1,15}-\d+\b/.test(speech)
+// Structural mutation guard — mirrors orb-converse.ts
+function extractCitedCodes(speech: string): Set<string> {
+  const matches = speech.match(/\b[A-Z][A-Z0-9]{1,15}-\d+\b/g)
+  return new Set(matches ?? [])
 }
 
-function looksLikeMutationRequest(input: string): boolean {
-  return /\b(create|add|file|log|make|update|change|rename|close|complete|delete|remove|move|archive|defer|park|wake|sleep)\b/i.test(input)
+function hasCompletionLanguage(speech: string): boolean {
+  return /\b(done —|done\.|created as|i'?ve (created|added|filed|updated|changed|closed|completed|deleted|removed|moved|archived|deferred|saved)|successfully (created|added|updated|deleted|moved))\b/i.test(speech)
+}
+
+function isFalseMutationClaim(speech: string, hasMutated: boolean, toolProducedCodes: Set<string>, historyCodes: Set<string>): boolean {
+  const cited = extractCitedCodes(speech)
+  const hasPhantomCode = [...cited].some(code => !toolProducedCodes.has(code) && !historyCodes.has(code))
+  if (hasPhantomCode) return true
+  if (!hasMutated && hasCompletionLanguage(speech)) return true
+  return false
 }
 
 function isAffirmativeApproval(input: string): boolean {
@@ -46,10 +55,9 @@ function isAffirmativeApproval(input: string): boolean {
 function historyHasPendingMutationProposal(history?: Array<{ role: 'user' | 'assistant'; text: string }>): boolean {
   const recentAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
   if (!recentAssistant) return false
-  const asksApproval = /\b(go ahead|confirm|approve|proceed|want me to|should i|create (it|this|these|them)|make (it|this|these|them)|do it)\b/i.test(recentAssistant)
+  const asksApproval = /\b(go ahead\??|confirm|approve|proceed|want me to|should i|create (it|this|these|them)|make (it|this|these|them)|do it)\b/i.test(recentAssistant)
   const namesMutation = /\b(create|add|file|log|make|update|change|rename|close|complete|delete|remove|move|archive|defer|park|wake|sleep)\b/i.test(recentAssistant)
-  const claimsDone = looksLikeMutationCompletionClaim(recentAssistant)
-  return asksApproval && namesMutation && !claimsDone
+  return asksApproval && namesMutation
 }
 
 function mutationToolSummary(name: string, params: Record<string, any>): string {
@@ -319,7 +327,9 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       })
     }
 
-    if (looksLikeMutationRequest(input) && gatedToolCalls.length === 0 && looksLikeMutationCompletionClaim(speech)) {
+    const historyCodes = extractCitedCodes((history ?? []).map(h => h.text).join(' '))
+    const toolProducedCodes = new Set<string>()
+    if (isFalseMutationClaim(speech, false, toolProducedCodes, historyCodes)) {
       return NextResponse.json({
         speech: 'I did not actually complete that — no mutation tool ran, so nothing was written.',
         toolCalls: [],

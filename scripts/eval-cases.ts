@@ -301,4 +301,30 @@ export const EVAL_CASES: EvalCase[] = [
       name: 'recall_memories',
     },
   },
+
+  // ── ORB-288: False mutation guard regression tests ──
+
+  {
+    id: 'reflective-no-false-mutation',
+    description: 'Reflective conversation about the Orb role does not trigger the false mutation guard',
+    productCode: 'ORB',
+    input: 'I want you to be on the lookout for things that would make you a better you. Think of yourself as a trusted advisor providing selfless service.',
+    tier: 2,
+    expectNoTool: true,
+    speechNotContains: ['did not actually complete', 'no mutation tool ran'],
+  },
+
+  {
+    id: 'approval-loop-bypass',
+    description: 'User saying "yes" after an approval prompt with a task code bypasses the gate',
+    productCode: 'ORB',
+    input: 'yes',
+    mutationApproval: 'ask',
+    history: [
+      { role: 'user', text: 'Update ORB-100 with a note about testing' },
+      { role: 'assistant', text: "I'll update ORB-100. Go ahead?" },
+    ],
+    tier: 1,
+    expectTool: { name: 'update_todo' },
+  },
 ]
