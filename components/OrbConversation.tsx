@@ -33,6 +33,16 @@ type Props = {
     onStop?: () => void
     projectStrip?: React.ReactNode
     orbElement?: React.ReactNode
+    voiceActive?: boolean
+    voiceListening?: boolean
+    voiceSpeaking?: boolean
+    voiceTranscript?: string
+    voiceInterrupted?: boolean
+    supportsVoiceMode?: boolean
+    onStartVoiceMode?: () => void
+    onVoiceContinue?: () => void
+    onVoiceStop?: () => void
+    onExitVoiceMode?: () => void
 }
 
 function OrbCard({ msg }: { msg: ConversationMessage }) {
@@ -159,6 +169,16 @@ export default function OrbConversation({
     onStop,
     projectStrip,
     orbElement,
+    voiceActive = false,
+    voiceListening = false,
+    voiceSpeaking = false,
+    voiceTranscript = '',
+    voiceInterrupted = false,
+    supportsVoiceMode = false,
+    onStartVoiceMode,
+    onVoiceContinue,
+    onVoiceStop,
+    onExitVoiceMode,
 }: Props) {
     const threadRef             = useRef<HTMLDivElement>(null)
     const textareaRef           = useRef<HTMLTextAreaElement>(null)
@@ -434,272 +454,379 @@ export default function OrbConversation({
             )}
 
             <div className="oc-input-wrap" data-tour="conversation-input" style={{ position: 'relative' }}>
-                {showSlashMenu && (
-                    <div className="oc-slash-menu">
-                        {activeSlashCommands.map((c, i) => {
-                            const prevGroup = i > 0 ? activeSlashCommands[i - 1].group : null
-                            const showHeader = c.group !== prevGroup
-                            return (
-                                <div key={c.cmd}>
-                                    {showHeader && (
-                                        <div className="oc-slash-group-header">{c.group}</div>
-                                    )}
-                                    <div
-                                        className="oc-slash-item"
-                                        ref={slashIndex === i ? el => el?.scrollIntoView({ block: 'nearest' }) : undefined}
-                                        style={{ background: slashIndex === i ? 'var(--bg2)' : 'transparent' }}
-                                        onMouseDown={(e) => {
-                                            e.preventDefault()
-                                            fillCommand(c.cmd)
-                                        }}
-                                    >
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-xs)', color: 'var(--text)', fontWeight: slashIndex === i ? 'var(--fw-semibold)' : 'var(--fw-normal)' }}>{c.cmd}</span>
-                                        <span style={{ fontSize: 'var(--fs-version)', color: 'var(--muted)' }}>{c.desc}</span>
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </div>
-                )}
-
-                <div className="oc-input-border">
-                    <form onSubmit={handleFormSubmit}>
-                        {!input && !processing && (
-                            <div className="oc-placeholder">
-                                Type / or ask Orb anything...
-                            </div>
-                        )}
-
-                        <textarea
-                            ref={textareaRef}
-                            className="oc-textarea"
-                            rows={1}
-                            value={input}
-                            onChange={e => { setSlashMenuDismissed(false); onInputChange(e.target.value); autoResize() }}
-                            onKeyDown={e => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault()
-                                    if (showSlashMenu && activeSlashCommands[slashIndex]) {
-                                        fillCommand(activeSlashCommands[slashIndex].cmd)
-                                    } else if (input.trim() !== '/') {
-                                        handleFormSubmit()
-                                    }
-                                } else if (e.key === 'ArrowUp') {
-                                    e.preventDefault()
-                                    if (showSlashMenu) {
-                                        setSlashIndex(prev => Math.max(0, prev - 1))
-                                    } else {
-                                        handleHistoryUp()
-                                    }
-                                } else if (e.key === 'ArrowDown') {
-                                    e.preventDefault()
-                                    if (showSlashMenu) {
-                                        setSlashIndex(prev => Math.min(activeSlashCommands.length - 1, prev + 1))
-                                    } else {
-                                        handleHistoryDown()
-                                    }
-                                } else if (e.key === 'Escape') {
-                                    if (showSlashMenu) {
-                                        setSlashMenuDismissed(true)
-                                        setSlashIndex(0)
-                                    }
-                                }
-                            }}
-                            onFocus={() => setInputFocused(true)}
-                            onBlur={() => setInputFocused(false)}
-                            disabled={processing}
-                            placeholder=""
-                        />
-
-                        <div className="oc-toolbar">
-                            {/* Cmds — always visible */}
-                            <button
-                                type="button"
-                                className="oc-tool-btn"
-                                onClick={() => {
-                                    if (input.startsWith('/')) {
-                                        onInputChange('')
-                                    } else {
-                                        setSlashMenuDismissed(false)
-                                        onInputChange('/')
-                                    }
-                                    textareaRef.current?.focus()
-                                }}
-                                onMouseDown={(e) => e.preventDefault()}
-                                data-tooltip="Show commands (/)"
-                                aria-label="Show commands"
-                            >
-                                <span className="oc-tool-btn-icon" style={{ fontWeight: 'var(--fw-semibold)' }}>/</span>
-                                <span className="oc-tool-btn-label">Cmds</span>
-                            </button>
-
-                            {/* Voice — always visible */}
-                            <button
-                                type="button"
-                                className="oc-tool-btn"
-                                onClick={() => isListening ? stopListening() : startListening()}
-                                onMouseDown={(e) => e.preventDefault()}
-                                disabled={!supportsVoice || processing}
-                                data-tooltip={isListening ? 'Stop recording' : 'Voice input'}
-                                aria-label={isListening ? 'Stop recording' : 'Voice input'}
-                                style={{
-                                    color: isListening ? '#c00' : undefined,
-                                    background: isListening ? 'rgba(200,0,0,0.06)' : undefined,
-                                    opacity: !supportsVoice || processing ? 'var(--opacity-disabled)' : 1,
-                                }}
-                            >
-                                <span className="oc-tool-btn-icon">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={isListening ? { animation: 'voice-pulse 1s ease-in-out infinite' } : undefined}>
+                {voiceActive ? (
+                    <div className="oc-voice-bar">
+                        <div className="oc-voice-status">
+                            {voiceListening ? (
+                                <span className="oc-voice-indicator oc-voice-listening">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'voice-pulse 1s ease-in-out infinite' }}>
                                         <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
                                         <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
                                         <line x1="12" y1="19" x2="12" y2="23"/>
                                         <line x1="8" y1="23" x2="16" y2="23"/>
                                     </svg>
+                                    {voiceTranscript ? (
+                                        <span className="oc-voice-transcript">{voiceTranscript}</span>
+                                    ) : (
+                                        <span>Listening...</span>
+                                    )}
                                 </span>
-                                <span className="oc-tool-btn-label">Voice</span>
-                            </button>
-
-                            {/* Prev/Next — inline on desktop/iPad, hidden on iPhone (in More menu instead) */}
-                            <button
-                                type="button"
-                                className="oc-tool-btn oc-desktop-only"
-                                onClick={() => { handleHistoryUp(); textareaRef.current?.focus() }}
-                                onMouseDown={(e) => e.preventDefault()}
-                                disabled={history.length === 0}
-                                data-tooltip="Previous input"
-                                aria-label="Previous input"
-                            >
-                                <span className="oc-tool-btn-icon">↑</span>
-                                <span className="oc-tool-btn-label">Prev</span>
-                            </button>
-                            <button
-                                type="button"
-                                className="oc-tool-btn oc-desktop-only"
-                                onClick={() => { handleHistoryDown(); textareaRef.current?.focus() }}
-                                onMouseDown={(e) => e.preventDefault()}
-                                disabled={historyIndex === -1}
-                                data-tooltip="Next input"
-                                aria-label="Next input"
-                            >
-                                <span className="oc-tool-btn-icon">↓</span>
-                                <span className="oc-tool-btn-label">Next</span>
-                            </button>
-
-                            {/* Overflow menu for infrequent actions */}
-                            <div className="oc-toolbar-overflow" style={{ position: 'relative' }}>
-                                <button
-                                    type="button"
-                                    className="oc-tool-btn"
-                                    onClick={() => {
-                                        setMoreMenuOpen(o => !o)
-                                        textareaRef.current?.focus()
-                                    }}
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    aria-label="More actions"
-                                    aria-expanded={moreMenuOpen}
-                                >
-                                    <span className="oc-tool-btn-icon">⋮</span>
-                                    <span className="oc-tool-btn-label">More</span>
-                                </button>
-                                {moreMenuOpen && (
-                                    <>
-                                        <div className="dropdown-backdrop" onClick={() => setMoreMenuOpen(false)} />
-                                        <div className="oc-more-menu">
-                                            {/* Prev/Next in More menu — only visible on iPhone */}
-                                            <div className="oc-mobile-only">
-                                                <div className="oc-more-group-header">Input</div>
-                                                <button
-                                                    className="oc-more-item"
-                                                    onClick={() => { handleHistoryUp(); setMoreMenuOpen(false) }}
-                                                    disabled={history.length === 0}
-                                                >
-                                                    <span className="oc-more-label">↑ Previous</span>
-                                                    <span className="oc-more-desc">Recall last command</span>
-                                                </button>
-                                                <button
-                                                    className="oc-more-item"
-                                                    onClick={() => { handleHistoryDown(); setMoreMenuOpen(false) }}
-                                                    disabled={historyIndex === -1}
-                                                >
-                                                    <span className="oc-more-label">↓ Next</span>
-                                                    <span className="oc-more-desc">Forward in history</span>
-                                                </button>
-                                            </div>
-                                            <div className="oc-more-group-header">Transcript</div>
-                                            <button
-                                                className="oc-more-item"
-                                                onClick={() => {
-                                                    input.trim() && navigator.clipboard.writeText(input).then(() => {
-                                                        setCopiedInput(true)
-                                                        setTimeout(() => setCopiedInput(false), 1500)
-                                                    }).catch(() => {})
-                                                    setMoreMenuOpen(false)
-                                                }}
-                                                disabled={!input.trim()}
-                                            >
-                                                <span className="oc-more-label">{copiedInput ? '✓ Copied' : 'Copy'}</span>
-                                                <span className="oc-more-desc">Copy input text</span>
-                                            </button>
-                                            <button
-                                                className="oc-more-item"
-                                                onClick={() => { copyTranscript(); setMoreMenuOpen(false) }}
-                                                disabled={messages.length === 0}
-                                            >
-                                                <span className="oc-more-label">{copiedTranscript ? '✓ Copied' : 'Copy'}</span>
-                                                <span className="oc-more-desc">Copy full conversation</span>
-                                            </button>
-                                            <button
-                                                className="oc-more-item"
-                                                onClick={() => { exportTranscript(); setMoreMenuOpen(false) }}
-                                                disabled={messages.length === 0}
-                                            >
-                                                <span className="oc-more-label">Export</span>
-                                                <span className="oc-more-desc">Download as markdown</span>
-                                            </button>
-                                            {onClearTranscript && (
-                                                <button
-                                                    className="oc-more-item"
-                                                    onClick={() => { onClearTranscript(); setMoreMenuOpen(false) }}
-                                                    disabled={messages.length === 0 || processing}
-                                                >
-                                                    <span className="oc-more-label">Clear</span>
-                                                    <span className="oc-more-desc">Reset conversation</span>
-                                                </button>
-                                            )}
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-
-                            <div className="flex-1" />
-
-                            {processing ? (
-                                <button
-                                    type="button"
-                                    className="oc-action-circle oc-stop-btn"
-                                    onClick={onStop}
-                                    data-tooltip="Stop processing"
-                                    aria-label="Stop processing"
-                                >
-                                    <span />
-                                </button>
-                            ) : (
-                                <button
-                                    type="submit"
-                                    className="oc-action-circle oc-send-btn"
-                                    disabled={!input.trim()}
-                                    data-tooltip="Send (Enter)"
-                                    aria-label="Send"
-                                >
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="22" y1="2" x2="11" y2="13"/>
-                                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                            ) : voiceSpeaking ? (
+                                <span className="oc-voice-indicator oc-voice-speaking">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
                                     </svg>
-                                </button>
+                                    <span>Speaking...</span>
+                                </span>
+                            ) : processing ? (
+                                <span className="oc-voice-indicator">
+                                    <span>Thinking...</span>
+                                </span>
+                            ) : (
+                                <span className="oc-voice-indicator">
+                                    <span>{voiceInterrupted ? 'Paused' : 'Ready'}</span>
+                                </span>
                             )}
                         </div>
-                    </form>
-                </div>
+                        <div className="oc-voice-controls">
+                            <div className="oc-voice-btn-wrap">
+                                <button
+                                    type="button"
+                                    className="oc-voice-btn"
+                                    disabled={!voiceInterrupted}
+                                    onClick={onVoiceContinue}
+                                    data-tooltip="Continue conversation"
+                                    aria-label="Continue conversation"
+                                >
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="9 18 15 12 9 6"/>
+                                    </svg>
+                                </button>
+                                <span className="oc-voice-btn-label">Continue</span>
+                            </div>
+
+                            <div className="oc-voice-btn-wrap">
+                                <button
+                                    type="button"
+                                    className="oc-voice-btn oc-voice-btn-stop"
+                                    disabled={!voiceSpeaking}
+                                    onClick={onVoiceStop}
+                                    data-tooltip="Stop speaking"
+                                    aria-label="Stop speaking"
+                                >
+                                    <span style={{
+                                        display: 'block',
+                                        width: '10px',
+                                        height: '10px',
+                                        background: 'currentColor',
+                                        borderRadius: '1.5px',
+                                    }} />
+                                </button>
+                                <span className="oc-voice-btn-label">Stop</span>
+                            </div>
+
+                            <div className="oc-voice-btn-wrap">
+                                <button
+                                    type="button"
+                                    className="oc-voice-btn oc-voice-btn-end"
+                                    onClick={onExitVoiceMode}
+                                    data-tooltip="End voice conversation"
+                                    aria-label="End voice conversation"
+                                >
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"/>
+                                        <line x1="6" y1="6" x2="18" y2="18"/>
+                                    </svg>
+                                </button>
+                                <span className="oc-voice-btn-label">End</span>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        {showSlashMenu && (
+                            <div className="oc-slash-menu">
+                                {activeSlashCommands.map((c, i) => {
+                                    const prevGroup = i > 0 ? activeSlashCommands[i - 1].group : null
+                                    const showHeader = c.group !== prevGroup
+                                    return (
+                                        <div key={c.cmd}>
+                                            {showHeader && (
+                                                <div className="oc-slash-group-header">{c.group}</div>
+                                            )}
+                                            <div
+                                                className="oc-slash-item"
+                                                ref={slashIndex === i ? el => el?.scrollIntoView({ block: 'nearest' }) : undefined}
+                                                style={{ background: slashIndex === i ? 'var(--bg2)' : 'transparent' }}
+                                                onMouseDown={(e) => {
+                                                    e.preventDefault()
+                                                    fillCommand(c.cmd)
+                                                }}
+                                            >
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-xs)', color: 'var(--text)', fontWeight: slashIndex === i ? 'var(--fw-semibold)' : 'var(--fw-normal)' }}>{c.cmd}</span>
+                                                <span style={{ fontSize: 'var(--fs-version)', color: 'var(--muted)' }}>{c.desc}</span>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
+
+                        <div className="oc-input-border">
+                            <form onSubmit={handleFormSubmit}>
+                                {!input && !processing && (
+                                    <div className="oc-placeholder">
+                                        Type / or ask Orb anything...
+                                    </div>
+                                )}
+
+                                <textarea
+                                    ref={textareaRef}
+                                    className="oc-textarea"
+                                    rows={1}
+                                    value={input}
+                                    onChange={e => { setSlashMenuDismissed(false); onInputChange(e.target.value); autoResize() }}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault()
+                                            if (showSlashMenu && activeSlashCommands[slashIndex]) {
+                                                fillCommand(activeSlashCommands[slashIndex].cmd)
+                                            } else if (input.trim() !== '/') {
+                                                handleFormSubmit()
+                                            }
+                                        } else if (e.key === 'ArrowUp') {
+                                            e.preventDefault()
+                                            if (showSlashMenu) {
+                                                setSlashIndex(prev => Math.max(0, prev - 1))
+                                            } else {
+                                                handleHistoryUp()
+                                            }
+                                        } else if (e.key === 'ArrowDown') {
+                                            e.preventDefault()
+                                            if (showSlashMenu) {
+                                                setSlashIndex(prev => Math.min(activeSlashCommands.length - 1, prev + 1))
+                                            } else {
+                                                handleHistoryDown()
+                                            }
+                                        } else if (e.key === 'Escape') {
+                                            if (showSlashMenu) {
+                                                setSlashMenuDismissed(true)
+                                                setSlashIndex(0)
+                                            }
+                                        }
+                                    }}
+                                    onFocus={() => setInputFocused(true)}
+                                    onBlur={() => setInputFocused(false)}
+                                    disabled={processing}
+                                    placeholder=""
+                                />
+
+                                <div className="oc-toolbar">
+                                    {/* Cmds — always visible */}
+                                    <button
+                                        type="button"
+                                        className="oc-tool-btn"
+                                        onClick={() => {
+                                            if (input.startsWith('/')) {
+                                                onInputChange('')
+                                            } else {
+                                                setSlashMenuDismissed(false)
+                                                onInputChange('/')
+                                            }
+                                            textareaRef.current?.focus()
+                                        }}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        data-tooltip="Show commands (/)"
+                                        aria-label="Show commands"
+                                    >
+                                        <span className="oc-tool-btn-icon" style={{ fontWeight: 'var(--fw-semibold)' }}>/</span>
+                                        <span className="oc-tool-btn-label">Cmds</span>
+                                    </button>
+
+                                    {/* Voice — always visible */}
+                                    <button
+                                        type="button"
+                                        className="oc-tool-btn"
+                                        onClick={() => isListening ? stopListening() : startListening()}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        disabled={!supportsVoice || processing}
+                                        data-tooltip={isListening ? 'Stop recording' : 'Voice input'}
+                                        aria-label={isListening ? 'Stop recording' : 'Voice input'}
+                                        style={{
+                                            color: isListening ? '#c00' : undefined,
+                                            background: isListening ? 'rgba(200,0,0,0.06)' : undefined,
+                                            opacity: !supportsVoice || processing ? 'var(--opacity-disabled)' : 1,
+                                        }}
+                                    >
+                                        <span className="oc-tool-btn-icon">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={isListening ? { animation: 'voice-pulse 1s ease-in-out infinite' } : undefined}>
+                                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                                <line x1="12" y1="19" x2="12" y2="23"/>
+                                                <line x1="8" y1="23" x2="16" y2="23"/>
+                                            </svg>
+                                        </span>
+                                        <span className="oc-tool-btn-label">Voice</span>
+                                    </button>
+
+                                    {/* Prev/Next — inline on desktop/iPad, hidden on iPhone (in More menu instead) */}
+                                    <button
+                                        type="button"
+                                        className="oc-tool-btn oc-desktop-only"
+                                        onClick={() => { handleHistoryUp(); textareaRef.current?.focus() }}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        disabled={history.length === 0}
+                                        data-tooltip="Previous input"
+                                        aria-label="Previous input"
+                                    >
+                                        <span className="oc-tool-btn-icon">↑</span>
+                                        <span className="oc-tool-btn-label">Prev</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="oc-tool-btn oc-desktop-only"
+                                        onClick={() => { handleHistoryDown(); textareaRef.current?.focus() }}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        disabled={historyIndex === -1}
+                                        data-tooltip="Next input"
+                                        aria-label="Next input"
+                                    >
+                                        <span className="oc-tool-btn-icon">↓</span>
+                                        <span className="oc-tool-btn-label">Next</span>
+                                    </button>
+
+                                    {/* Overflow menu for infrequent actions */}
+                                    <div className="oc-toolbar-overflow" style={{ position: 'relative' }}>
+                                        <button
+                                            type="button"
+                                            className="oc-tool-btn"
+                                            onClick={() => {
+                                                setMoreMenuOpen(o => !o)
+                                                textareaRef.current?.focus()
+                                            }}
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            aria-label="More actions"
+                                            aria-expanded={moreMenuOpen}
+                                        >
+                                            <span className="oc-tool-btn-icon">⋮</span>
+                                            <span className="oc-tool-btn-label">More</span>
+                                        </button>
+                                        {moreMenuOpen && (
+                                            <>
+                                                <div className="dropdown-backdrop" onClick={() => setMoreMenuOpen(false)} />
+                                                <div className="oc-more-menu">
+                                                    {/* Prev/Next in More menu — only visible on iPhone */}
+                                                    <div className="oc-mobile-only">
+                                                        <div className="oc-more-group-header">Input</div>
+                                                        <button
+                                                            className="oc-more-item"
+                                                            onClick={() => { handleHistoryUp(); setMoreMenuOpen(false) }}
+                                                            disabled={history.length === 0}
+                                                        >
+                                                            <span className="oc-more-label">↑ Previous</span>
+                                                            <span className="oc-more-desc">Recall last command</span>
+                                                        </button>
+                                                        <button
+                                                            className="oc-more-item"
+                                                            onClick={() => { handleHistoryDown(); setMoreMenuOpen(false) }}
+                                                            disabled={historyIndex === -1}
+                                                        >
+                                                            <span className="oc-more-label">↓ Next</span>
+                                                            <span className="oc-more-desc">Forward in history</span>
+                                                        </button>
+                                                    </div>
+                                                    {supportsVoiceMode && onStartVoiceMode && (
+                                                        <>
+                                                            <div className="oc-more-group-header">Voice</div>
+                                                            <button
+                                                                className="oc-more-item"
+                                                                onClick={() => { onStartVoiceMode(); setMoreMenuOpen(false) }}
+                                                                disabled={processing}
+                                                            >
+                                                                <span className="oc-more-label">Talk to Orb</span>
+                                                                <span className="oc-more-desc">Start voice conversation</span>
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    <div className="oc-more-group-header">Transcript</div>
+                                                    <button
+                                                        className="oc-more-item"
+                                                        onClick={() => {
+                                                            input.trim() && navigator.clipboard.writeText(input).then(() => {
+                                                                setCopiedInput(true)
+                                                                setTimeout(() => setCopiedInput(false), 1500)
+                                                            }).catch(() => {})
+                                                            setMoreMenuOpen(false)
+                                                        }}
+                                                        disabled={!input.trim()}
+                                                    >
+                                                        <span className="oc-more-label">{copiedInput ? '✓ Copied' : 'Copy'}</span>
+                                                        <span className="oc-more-desc">Copy input text</span>
+                                                    </button>
+                                                    <button
+                                                        className="oc-more-item"
+                                                        onClick={() => { copyTranscript(); setMoreMenuOpen(false) }}
+                                                        disabled={messages.length === 0}
+                                                    >
+                                                        <span className="oc-more-label">{copiedTranscript ? '✓ Copied' : 'Copy'}</span>
+                                                        <span className="oc-more-desc">Copy full conversation</span>
+                                                    </button>
+                                                    <button
+                                                        className="oc-more-item"
+                                                        onClick={() => { exportTranscript(); setMoreMenuOpen(false) }}
+                                                        disabled={messages.length === 0}
+                                                    >
+                                                        <span className="oc-more-label">Export</span>
+                                                        <span className="oc-more-desc">Download as markdown</span>
+                                                    </button>
+                                                    {onClearTranscript && (
+                                                        <button
+                                                            className="oc-more-item"
+                                                            onClick={() => { onClearTranscript(); setMoreMenuOpen(false) }}
+                                                            disabled={messages.length === 0 || processing}
+                                                        >
+                                                            <span className="oc-more-label">Clear</span>
+                                                            <span className="oc-more-desc">Reset conversation</span>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    <div className="flex-1" />
+
+                                    {processing ? (
+                                        <button
+                                            type="button"
+                                            className="oc-action-circle oc-stop-btn"
+                                            onClick={onStop}
+                                            data-tooltip="Stop processing"
+                                            aria-label="Stop processing"
+                                        >
+                                            <span />
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="submit"
+                                            className="oc-action-circle oc-send-btn"
+                                            disabled={!input.trim()}
+                                            data-tooltip="Send (Enter)"
+                                            aria-label="Send"
+                                        >
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <line x1="22" y1="2" x2="11" y2="13"/>
+                                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                                            </svg>
+                                        </button>
+                                    )}
+                                </div>
+                            </form>
+                        </div>
+                    </>
+                )}
                 {projectStrip}
             </div>
 

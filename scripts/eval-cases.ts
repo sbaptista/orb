@@ -327,4 +327,23 @@ export const EVAL_CASES: EvalCase[] = [
     tier: 1,
     expectTool: { name: 'update_todo' },
   },
+
+  // Voice conversation cases
+  {
+    id: 'voice-list-voices',
+    description: 'User asks what voices are available in voice mode',
+    productCode: 'ORB',
+    input: 'What voices do you have?',
+    tier: 2,
+    speechContains: ['voice', 'available', 'switch'],
+  },
+
+  {
+    id: 'voice-exit-command',
+    description: 'User says "that\'s enough, let\'s stop" to exit voice mode',
+    productCode: 'ORB',
+    input: "That's enough, let's stop talking.",
+    tier: 1,
+    expectTool: { name: 'client_action', params: { action: 'exit_voice' } },
+  },
 ]

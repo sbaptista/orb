@@ -56,6 +56,36 @@ type TableColumn<T = any> = {
   hidden?: 'mobile'
 }
 
+type MobileCardField<T = any> = {
+  label: string
+  value: ReactNode
+  column: TableColumn<T>
+}
+
+function formatMobileCardValue(value: unknown, label: string): ReactNode {
+  if (value === undefined || value === null || value === '') return null
+  if (label.match(/date|created|updated|sent|expires|invited|responded/i)) {
+    const date = typeof value === 'number' ? new Date(value) : new Date(String(value))
+    if (!Number.isNaN(date.getTime())) return date.toLocaleDateString()
+  }
+  if (Array.isArray(value)) return value.join(', ')
+  if (typeof value === 'object' && !React.isValidElement(value)) return JSON.stringify(value)
+  return value as ReactNode
+}
+
+function tableColumnDataKey(label: string) {
+  const normalized = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+  const aliases: Record<string, string> = {
+    date: 'created_at',
+    created: 'created_at',
+    updated: 'updated_at',
+    invited: 'invited_at',
+    responded: 'responded_at',
+    record: 'record_id',
+  }
+  return aliases[normalized] ?? normalized
+}
+
 type PaginationRequest = {
   page: number
   pageSize: number
@@ -216,6 +246,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [cardSelectionMode, setCardSelectionMode] = useState(false)
   const [page, setPage] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
   const [canScrollTableLeft, setCanScrollTableLeft] = useState(false)
@@ -235,6 +266,19 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       ? 'iphone'
       : window.matchMedia('(pointer: coarse)').matches ? 'ipad' : 'mac',
     () => 'mac',
+  )
+  const cardRendererActive = useSyncExternalStore(
+    (onChange) => {
+      const pointerQuery = window.matchMedia('(pointer: coarse)')
+      window.addEventListener('resize', onChange)
+      pointerQuery.addEventListener('change', onChange)
+      return () => {
+        window.removeEventListener('resize', onChange)
+        pointerQuery.removeEventListener('change', onChange)
+      }
+    },
+    () => window.innerWidth <= 767 || (window.matchMedia('(pointer: coarse)').matches && window.innerWidth <= 900),
+    () => false,
   )
 
   const stickyCount = config.stickyColumnsByPlatform?.[tablePlatform] ?? config.stickyColumns ?? 0
@@ -264,6 +308,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const hasExternalSearch = config.externalSearchTerm !== undefined
   const pageSize = config.pagination?.pageSize
   const externalFilterKey = config.externalFilterKey
+  const hasBulk = !!config.bulkDelete
 
   // --- Debounce: search → debouncedSearch ---------------------------------
   useEffect(() => {
@@ -405,10 +450,11 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const selectableIds = displayed.filter(canSelect).map(config.getId)
   const allChecked = selectableIds.length > 0 && selectableIds.every(id => selectedIds.includes(id))
   const someChecked = selectedIds.length > 0
+  const showCardSelection = hasBulk && (cardSelectionMode || someChecked)
 
   const idCol = config.idColumn ?? 'id'
   const isTable = config.layout === 'table'
-  const hasMobileCards = isTable && !!config.renderMobileRow
+  const hasMobileCards = isTable
 
   const allScopes = config.scopeFilter
     ? [
@@ -570,7 +616,6 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
 
   if (loading) return <div className="s-loading"><SkeletonRows rows={3} /></div>
 
-  const hasBulk = !!config.bulkDelete
   const colCount = (config.tableColumns?.length ?? 1) + (hasBulk ? 1 : 0)
 
   function renderDeleteConfirm(item: T) {
@@ -638,25 +683,125 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   }
 
   function renderMobileCard(item: T, idx: number) {
-    if (!config.renderMobileRow) return null
     const id = config.getId(item)
     if (confirmDeleteId === id) return renderDeleteConfirmCard(item)
-    return config.renderMobileRow({
-      item,
-      index: idx,
-      items: displayed,
-      onEdit: (e?: React.MouseEvent) => {
-        if (e) {
-          const tag = (e.target as HTMLElement).tagName
-          if (['BUTTON', 'A', 'INPUT', 'SELECT', 'SVG', 'PATH'].includes(tag)) return
-          if ((e.target as HTMLElement).closest('button, a, input, select')) return
-        }
-        openEditModal(item)
-      },
-      onDelete: () => { setConfirmDeleteId(id); setModalMode(null); setEditingId(null) },
-      saving,
-      extra,
-    })
+    const onEdit = (e?: React.MouseEvent) => {
+      if (e) {
+        const tag = (e.target as HTMLElement).tagName
+        if (['BUTTON', 'A', 'INPUT', 'SELECT', 'SVG', 'PATH'].includes(tag)) return
+        if ((e.target as HTMLElement).closest('button, a, input, select')) return
+      }
+      openEditModal(item)
+    }
+    const onDelete = () => { setConfirmDeleteId(id); setModalMode(null); setEditingId(null) }
+    if (config.renderMobileRow) {
+      return config.renderMobileRow({
+        item,
+        index: idx,
+        items: displayed,
+        onEdit,
+        onDelete,
+        saving,
+        extra,
+      })
+    }
+    return renderDefaultMobileCard(item, idx, onEdit)
+  }
+
+  function renderDefaultMobileCard(item: T, idx: number, onEdit: (e?: React.MouseEvent) => void) {
+    const id = config.getId(item)
+    const columns = resolvedColumns ?? []
+    const visibleColumns = columns.filter(column => column.hidden !== 'mobile' && !/actions?/i.test(column.label))
+    const activeSearchTerm = hasExternalSearch ? (config.externalSearchTerm ?? '') : search
+    const fieldValues = visibleColumns.map(column => {
+      const dataKey = column.sortKey ?? tableColumnDataKey(column.label)
+      const raw = column.sortValue && !/date|created|updated|sent|expires|invited|responded/i.test(column.label)
+        ? column.sortValue(item, extra)
+        : (item as any)[dataKey] ?? column.sortValue?.(item, extra)
+      return {
+        label: column.label,
+        value: formatMobileCardValue(raw, column.label),
+        column,
+      }
+    }).filter(field => field.value !== undefined && field.value !== null && field.value !== '') as MobileCardField<T>[]
+    const titleField = fieldValues.find(field => /title|summary|name|label|email|category/i.test(field.label)) ?? fieldValues[0]
+    const codeField = fieldValues.find(field => /code|number|id|ticket|task/i.test(field.label) && field !== titleField)
+    const dateField = fieldValues.find(field => /date|created|updated|sent|expires/i.test(field.label) && field !== titleField)
+    const pillFields = fieldValues.filter(field => /status|type|role|priority|scope|project/i.test(field.label) && field !== titleField).slice(0, 3)
+    const metaFields = fieldValues.filter(field => field !== titleField && field !== codeField && field !== dateField && !pillFields.includes(field)).slice(0, 5)
+    const canEdit = !!config.renderForm || !!config.onRowClick
+    const actionLabel = config.onRowClick && !config.renderForm ? 'Open' : 'Edit'
+    const selectable = hasBulk && canSelect(item)
+    const title = titleField?.value ?? `${config.itemLabel} ${idx + 1}`
+    const titleText = typeof title === 'string' || typeof title === 'number' ? highlightText(title, activeSearchTerm) : title
+
+    return (
+      <div
+        key={id}
+        className="crud-card"
+        onClick={e => {
+          if (showCardSelection && selectable) {
+            toggleSelect(id)
+            return
+          }
+          if (config.onRowClick) {
+            const tag = (e.target as HTMLElement).tagName
+            if (['BUTTON', 'A', 'INPUT', 'SELECT', 'SVG', 'PATH'].includes(tag)) return
+            if ((e.target as HTMLElement).closest('button, a, input, select')) return
+            config.onRowClick(item)
+            return
+          }
+          onEdit(e)
+        }}
+      >
+        <div className="crud-card-header">
+          <div className="crud-card-header-left">
+            {showCardSelection && selectable && (
+              <input
+                type="checkbox"
+                checked={selectedIds.includes(id)}
+                onChange={() => toggleSelect(id)}
+                onClick={e => e.stopPropagation()}
+                aria-label={`Select ${config.itemLabel}`}
+              />
+            )}
+            {codeField && <span className="crud-card-code">{highlightText(codeField.value, activeSearchTerm)}</span>}
+          </div>
+          {dateField && <span className="crud-card-date">{highlightText(dateField.value, activeSearchTerm)}</span>}
+        </div>
+
+        <div className="crud-card-title">{titleText}</div>
+
+        {pillFields.length > 0 && (
+          <div className="crud-card-pills">
+            {pillFields.map(field => (
+              <span key={field.label} className="crud-card-pill">
+                {highlightText(field.value, activeSearchTerm)}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {metaFields.length > 0 && (
+          <div className="crud-card-meta">
+            {metaFields.map(field => (
+              <span key={field.label}>
+                <strong>{field.label}:</strong>{' '}
+                <span className="crud-card-meta-value">{highlightText(field.value, activeSearchTerm)}</span>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {canEdit && (
+          <div className="crud-card-actions">
+            <button className="text-btn btn-sm" onClick={onEdit}>
+              {actionLabel}
+            </button>
+          </div>
+        )}
+      </div>
+    )
   }
 
   function renderItemRow(item: T, idx: number) {
@@ -892,7 +1037,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
               </div>
             </label>
           ) : null}
-          {isTable && (
+          {isTable && !(hasMobileCards && cardRendererActive) && (
             <div className="crud-scroll-controls" aria-label="Table column navigation">
               <div className="crud-scroll-buttons">
                 <div className="nav-circle-control">
@@ -1100,9 +1245,78 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
 
             {/* Mobile cards */}
             {hasMobileCards && (
-              <div className="crud-mobile-cards">
-                {displayed.map((item, idx) => renderMobileCard(item, idx))}
-              </div>
+              <>
+                {hasBulk && (
+                  <div className="crud-mobile-select-bar">
+                    <button
+                      type="button"
+                      className="text-btn"
+                      onClick={() => {
+                        if (showCardSelection) {
+                          setCardSelectionMode(false)
+                          setSelectedIds([])
+                        } else {
+                          setCardSelectionMode(true)
+                        }
+                      }}
+                    >
+                      {showCardSelection ? 'Done' : 'Select'}
+                    </button>
+                    {showCardSelection && (
+                      <button type="button" className="text-btn" onClick={toggleSelectAll}>
+                        {allChecked ? 'Deselect all' : 'Select all'}
+                      </button>
+                    )}
+                  </div>
+                )}
+                <div className="crud-mobile-cards">
+                  {displayed.map((item, idx) => renderMobileCard(item, idx))}
+                </div>
+                {config.pagination && totalCount > config.pagination.pageSize && (() => {
+                  const lastPage = Math.max(0, Math.ceil(totalCount / config.pagination.pageSize) - 1)
+                  return (
+                    <div className="crud-mobile-pagination">
+                      <button
+                        className="nav-circle-btn"
+                        onClick={() => { if (page > 0) { setPage(0); setSelectedIds([]) } }}
+                        aria-disabled={page === 0}
+                        aria-label="First page"
+                        data-tooltip="First page"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+                      </button>
+                      <button
+                        className="nav-circle-btn"
+                        onClick={() => { if (page > 0) { setPage(p => Math.max(0, p - 1)); setSelectedIds([]) } }}
+                        aria-disabled={page === 0}
+                        aria-label="Previous page"
+                        data-tooltip="Previous page"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                      </button>
+                      <span className="text-xs text-muted">Page {page + 1} of {lastPage + 1}</span>
+                      <button
+                        className="nav-circle-btn"
+                        onClick={() => { if (page < lastPage) { setPage(p => p + 1); setSelectedIds([]) } }}
+                        aria-disabled={page >= lastPage}
+                        aria-label="Next page"
+                        data-tooltip="Next page"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      </button>
+                      <button
+                        className="nav-circle-btn"
+                        onClick={() => { if (page < lastPage) { setPage(lastPage); setSelectedIds([]) } }}
+                        aria-disabled={page >= lastPage}
+                        aria-label="Last page"
+                        data-tooltip="Last page"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+                      </button>
+                    </div>
+                  )
+                })()}
+              </>
             )}
           </>
         )

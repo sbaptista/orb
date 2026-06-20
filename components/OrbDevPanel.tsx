@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import type { ConversationMessage } from './OrbConversation'
@@ -42,45 +42,7 @@ const SPEECH_PRESETS: Record<string, Speech> = {
 }
 
 function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChange, onSpeak, onSubmit, dryRun, onDryRunChange, messages, onForceQuiet, onErrorTest, simulateError, onSimulateErrorChange }: Props) {
-  const hydrated = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
-  )
-  const [simulatedOffline, setSimulatedOffline] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('todos_dev_simulate_offline') === 'true'
-    }
-    return false
-  })
-  const [simulatedUpdate, setSimulatedUpdate] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('todos_dev_simulate_update') === 'true'
-    }
-    return false
-  })
-
-  const toggleSimulateOffline = () => {
-    const nextVal = !simulatedOffline
-    setSimulatedOffline(nextVal)
-    if (nextVal) {
-      localStorage.setItem('todos_dev_simulate_offline', 'true')
-    } else {
-      localStorage.removeItem('todos_dev_simulate_offline')
-    }
-    window.dispatchEvent(new Event('todos-dev-offline-change'))
-  }
-
-  const toggleSimulateUpdate = () => {
-    const nextVal = !simulatedUpdate
-    setSimulatedUpdate(nextVal)
-    if (nextVal) {
-      localStorage.setItem('todos_dev_simulate_update', 'true')
-    } else {
-      localStorage.removeItem('todos_dev_simulate_update')
-    }
-    window.dispatchEvent(new Event('todos-dev-update-change'))
-  }
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
 
   const copyTranscript = () => {
     const text = messages.map(m => `${m.type.toUpperCase()}: ${m.text}`).join('\n\n')
@@ -91,7 +53,14 @@ function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChan
     })
   }
 
-  const slot = hydrated ? document.getElementById(DEV_PANEL_SLOT_ID) : null
+  useEffect(() => {
+    const findSlot = () => setSlot(document.getElementById(DEV_PANEL_SLOT_ID))
+    findSlot()
+    const observer = new MutationObserver(findSlot)
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [])
+
   if (!slot) return null
 
   return createPortal(
@@ -153,14 +122,6 @@ function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChan
           </button>
           <button type="button" className="dev-btn" aria-pressed={roleOverride === 'Owner'} onClick={() => onRoleOverrideChange('Owner')}>
             Owner (read-only)
-          </button>
-
-          <div className="dev-section">Connectivity</div>
-          <button type="button" className="dev-btn" aria-pressed={simulatedOffline} onClick={toggleSimulateOffline}>
-            Simulate Offline {simulatedOffline ? '✓' : ''}
-          </button>
-          <button type="button" className="dev-btn" aria-pressed={simulatedUpdate} onClick={toggleSimulateUpdate}>
-            Simulate Update Available {simulatedUpdate ? '✓' : ''}
           </button>
 
           <div className="dev-section">Error boundaries</div>

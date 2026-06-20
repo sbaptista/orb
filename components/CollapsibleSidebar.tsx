@@ -1,9 +1,11 @@
 'use client'
 
 import NavLink from '@/components/settings/NavLink'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import HScrollNav from '@/components/ui/HScrollNav'
+import { useUnsavedChanges } from '@/lib/hooks/useUnsavedChanges'
 
 export type SidebarItem = {
   id: string
@@ -19,6 +21,39 @@ type Props = {
 
 export default function CollapsibleSidebar({ items, defaultOpen = true }: Props) {
   const [open, setOpen] = useState(defaultOpen)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const router = useRouter()
+  const { confirmNavigation } = useUnsavedChanges()
+  const activeItem = items.find(item => item.active) ?? items[0]
+  const mobilePickerRef = useRef<HTMLDivElement>(null)
+
+  function handleMobileSelect(value: string) {
+    const item = items.find(next => next.id === value)
+    setMobileMenuOpen(false)
+    if (!item || item.active) return
+    if ('href' in item && item.href) {
+      confirmNavigation(() => router.push(item.href))
+      return
+    }
+    if (typeof item.onClick === 'function') item.onClick()
+  }
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return
+
+    function handleOutside(event: MouseEvent | TouchEvent) {
+      const target = event.target as Node
+      if (mobilePickerRef.current?.contains(target)) return
+      setMobileMenuOpen(false)
+    }
+
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('touchstart', handleOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('touchstart', handleOutside)
+    }
+  }, [mobileMenuOpen])
 
   return (
     <div className="cs-sidebar" {...(!open ? { 'data-collapsed': '' } : {})}>
@@ -38,6 +73,49 @@ export default function CollapsibleSidebar({ items, defaultOpen = true }: Props)
           </svg>
         </button>
         {open && <OrbVersionLabel className="cs-version" />}
+      </div>
+
+      <div className="cs-mobile-picker" ref={mobilePickerRef}>
+        <button
+          type="button"
+          className="cs-mobile-trigger"
+          aria-haspopup="menu"
+          aria-expanded={mobileMenuOpen}
+          aria-label={`Settings section: ${activeItem?.label ?? 'Settings'}`}
+          onClick={() => setMobileMenuOpen(value => !value)}
+        >
+          <span className="cs-mobile-trigger-icon" aria-hidden="true">{activeItem?.icon ?? '⚙'}</span>
+          <span className="cs-mobile-trigger-arrow" aria-hidden="true">⌄</span>
+        </button>
+        <OrbVersionLabel className="cs-mobile-version" format="version" />
+        {mobileMenuOpen && (
+          <div className="cs-mobile-menu" role="menu" aria-label="Settings sections">
+            <div className="cs-mobile-menu-header">
+              <span>Settings sections</span>
+              <button
+                type="button"
+                className="cs-mobile-menu-close"
+                aria-label="Close settings menu"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            {items.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                className="cs-mobile-menu-item"
+                role="menuitem"
+                aria-current={item.active ? 'page' : undefined}
+                onClick={() => handleMobileSelect(item.id)}
+              >
+                <span className="cs-mobile-menu-icon" aria-hidden="true">{item.icon}</span>
+                <span className="cs-mobile-menu-label">{item.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <HScrollNav>

@@ -6,6 +6,46 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.17',
+    date: '2026-06-19',
+    changes: [
+      'ORB-251: Streaming TTS — Orb now starts speaking the first complete sentence while the LLM is still generating, instead of waiting for the full response. Dramatically reduces time from end-of-speech to first audible response.',
+      'ORB-251: Faster turn detection — silence timeout reduced from 2 seconds to 1.2 seconds for snappier conversation turns.',
+      'ORB-251: Live interim transcripts — partial speech recognition results now display in real time as you speak, instead of waiting for each phrase to finalize.',
+      'ORB-251: Prompt caching — stable system prompt blocks are now cached with Anthropic\'s ephemeral cache, reducing time-to-first-token on repeated voice turns within the same session.',
+    ]
+  },
+  {
+    version: 'v0.6.16',
+    date: '2026-06-18',
+    changes: [
+      'ORB-251: Voice conversation with the Orb. Tap the ambient Orb to start a voice conversation — speak naturally, and the Orb responds aloud via text-to-speech. Tap again to stop recording and send. Double-tap to interrupt the Orb mid-speech.',
+      'ORB-251: New Orb visual states for voice mode — teal/cyan glow while listening, warm gold glow while speaking, with a subtle voice-mode ring around the Orb sphere.',
+      'ORB-251: Text input and toolbar are disabled during voice exchanges; a "Switch to text" button provides an exit path.',
+      'ORB-251: Voice Settings page — choose preferred TTS voice from available system voices, adjust speech rate, preview voices with a sample phrase.',
+      'ORB-251: Conversational voice control — ask the Orb "what voices do you have?" for a rundown, or "switch to Daniel" to change voices mid-conversation. Say "that\'s enough" or "let\'s stop" to exit voice mode.',
+      'ORB-251: Keyboard shortcuts — Cmd+Space toggles voice listening, Cmd+Space+Space interrupts TTS.',
+      'Removed tap-to-add-project behavior on the Orb — that action lives in the navigation bar.',
+    ]
+  },
+  {
+    version: 'v0.6.15',
+    date: '2026-06-18',
+    changes: [
+      'ORB-270: Added catalog rules for responsive collections: tables remain for Mac/wide iPad scanning, while iPhone and narrow/coarse-pointer iPad render structured collections as stacked cards by default.',
+      'ORB-270: Added default mobile card rendering to SettingsCrudList so table-based settings pages get a shared card presentation without one-off renderers.',
+      'ORB-270: Preserved shared collection behavior across card mode, including text/date search highlighting, pagination, and explicit Select mode for bulk selection.',
+      'ORB-270: Documented mobile navigation direction: large navigation sets such as Settings should move to sheet/list pickers, and Kanban should use one lane at a time on narrow touch layouts.',
+      'DEV panel: Restored global development controls beyond Tables on non-dashboard routes by moving connectivity/update simulation into the global panel and clarifying when dashboard-only Orb tools are unavailable.',
+      'DEV panel: Added a Move panel control with four safe-area-aware fixed positions so the DEV launcher can get out of the way of covered action buttons on iPhone.',
+      'DEV panel: Restored original post-page layer order and added touch scroll containment so interacting with the fixed DEV panel does not drag the page underneath on iPhone.',
+      'Settings navigation: Replaced the iPhone/narrow-touch horizontal settings strip with a compact icon + down-arrow + version trigger that opens a vertical section menu and preserves unsaved-change confirmation.',
+      'Settings navigation: Added an explicit mobile menu header and close button so it is clear the icon trigger opens more settings and how to dismiss the menu.',
+      'Cards: Added the missing shared medium radius token used by card components so card corners render rounded consistently.',
+      'Settings navigation: Applied the strict circular button geometry contract to the mobile settings menu close button so it stays round in iOS Safari.',
+    ]
+  },
+  {
     version: 'v0.6.8',
     date: '2026-06-18',
     changes: [

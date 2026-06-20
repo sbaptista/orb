@@ -68,6 +68,16 @@ export function runOrbTour(env: TourEnv) {
       },
     },
     {
+      element: q('[data-tour="orb"]'),
+      popover: {
+        title: 'Or just talk',
+        description:
+          'Tap the Orb to start a voice conversation. Speak naturally — the Orb listens, responds aloud, and the mic comes back automatically. No buttons between turns. You can also find <em>Talk to Orb</em> in the More menu, or press <strong>⌘ Shift O</strong>.',
+        side: env.isMobile ? 'bottom' : 'right',
+        align: 'center',
+      },
+    },
+    {
       element: q('[data-tour="conversation-input"]'),
       popover: {
         title: 'It works for you',
@@ -127,7 +137,7 @@ export function runOrbTour(env: TourEnv) {
 
   const ensurePaneFor = (index: number) => {
     if (!env.isMobile) return
-    if (index === 4) env.showListPane()
+    if (index === 5) env.showListPane()
     else env.showOrbPane()
   }
 

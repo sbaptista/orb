@@ -10,65 +10,91 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.6
+- **Version:** 0.6.17
 
 ---
 
 ### Last Session Completed
 
-**ORB-266: Ghost in the Machine — 2026-06-18 (Codex, GPT-5)**
+**ORB-251: Voice mode build + latency optimization + debugging — 2026-06-19 (Claude Code, Opus 4.6)**
 
-Closed ORB-266 after completing the cross-session memory/voice work, self-adaptation proposal flow, insight rendering, and a critical mutation-integrity fix.
+Two sessions combined. First built the full voice conversation mode (v0.6.16), then attempted latency optimizations and debugged TTS failures (v0.6.17).
 
-**What was done:**
+**Voice mode (v0.6.16):**
+1. Voice mode hook (`lib/hooks/useVoiceMode.ts`) — recognition, TTS, silence detection, voice selection, auto-resume. iOS-specific: non-continuous recognition with auto-restart, TTS primer, sentence-chunked TTS, debounced transcript state.
+2. Continuous conversation flow — tap Orb to start, silence auto-submits, TTS auto-plays, mic auto-resumes.
+3. Voice bar (`OrbConversation.tsx`) — replaces text input during voice mode. Three 44px SVG icon buttons with labels: Continue, Stop, End.
+4. "Talk to Orb" in More menu — second entry point under Voice group header.
+5. Orb visual states — teal/cyan while listening, warm gold while speaking, voice-mode ring.
+6. Spoken acknowledgment — `speakBrief()` plays random phrase on submit before API response arrives.
+7. Long response handling — prompt brevity threshold + client-side 500-char truncation.
+8. Voice settings page (`app/settings/voice/`, `components/settings/SettingsVoice.tsx`).
+9. Conversational voice control — `set_voice`, `exit_voice` in `lib/orb-contract.ts`.
+10. Keyboard shortcut — ⌘ Shift O.
+11. Help page — Voice topic with SVG icons for controls.
+12. Guided tour — "Or just talk" step.
+13. Eval cases — `voice-list-voices` (Tier 2), `voice-exit-command` (Tier 1).
 
-1. **Cross-session memory and voice personality were retained from the prior slice work** — `orb_memory`, `save_memory`, `recall_memories`, `openness`, and `memory_level` remain wired into Orb conversation and Settings > Orb Memory.
+**Latency & debugging (v0.6.17):**
+1. Silence timeout reduced 2000ms → 1200ms.
+2. Interim transcripts enabled (`interimResults: true`) for live partial text while speaking.
+3. Prompt caching — system prompt split into stable (cached with `cache_control: ephemeral`) and dynamic blocks to reduce TTFT on consecutive turns.
+4. Fixed stale closure bug — `onSend` callback used `voiceSendRef` indirection so `handleSubmit` always has current `voice.voiceActive` (was always `false` before, causing Orb to not know it was in voice mode).
+5. Fixed Chrome cancel+speak bug — 80ms delay after `speechSynthesis.cancel()` before queuing new utterance.
+6. `speakStreaming()` method added to hook (streams TTS sentence-by-sentence during LLM streaming) but NOT wired up — reverted auto-TTS to proven transition-detection pattern after stability issues.
+7. Voice prototype page (`app/prototype/voice/page.tsx`) — minimal STT → API → TTS test page with debug logging, no hooks or Orb dependencies. Used to isolate browser-specific TTS issues.
 
-2. **Self-adaptation proposals** — added active adaptation loading into Orb context, `propose_adaptation` tool exposure/handler, `orb_adaptations` migration, signed approval/rejection email links, and audit logging.
+**Critical finding:** Comet browser does not work reliably for voice. Exact cause unknown. Chrome and Safari both work. Stan will use Chrome/Safari/Edge for voice testing going forward.
 
-3. **Insight rendering** — Orb responses can carry structured `observation`, `coaching`, or `strategic` insights. The conversation UI now renders them as a full-width header strip (`Observation`, `Coaching read`, `Strategic read`) at the top of the Orb card.
-
-4. **Server-enforced mutation approval** — prompt-only approval was not enough. `orbConverse` now gates mutating tools when `mutation_approval=ask`, asks for confirmation first, and only executes after an affirmative response to a pending proposal or when `mutation_approval=allow`.
-
-5. **False-success guard** — Orb can no longer claim a mutation succeeded or cite a new task code when no mutation tool ran. No-tool mutation completion claims are blocked unless a mutation actually succeeded in the current request.
-
-6. **Eval protection** — evals now support `mutationApproval: 'ask'`; added Tier 1 cases for false-success history and approved mutation follow-through. Full Tier 1: **12/12 green**.
-
-7. **Closeout** — closed ORB-266 with attributed resolution notes, added linked Knowledge Repo entry `cfd351a6`, created follow-up ORB-287 for dashboard background polling overhead, and bumped to v0.6.6.
+**Not yet validated:** The full conversational voice flow (Orb hearing, responding, mic resuming) has NOT been tested end-to-end on any working browser. The prototype's TTS-only test works on Chrome/Safari, but the complete dashboard voice experience is unvalidated.
 
 ### Uncommitted Changes
 
-- `.claude/settings.local.json` — local settings change from this session
-- `app/actions/orb-converse.ts` — adaptation context/tool handler, insight extraction/streaming, server-side mutation approval gate, no-tool false-success guard
-- `app/api/orb-eval/route.ts` — matching prompt wiring plus eval approval-mode simulation and false-success guard behavior
-- `app/api/orb-adaptation/route.ts` — NEW signed approve/reject endpoint for adaptation emails
-- `app/globals.css` — `oc-insight` header-strip styles
-- `components/OrbConversation.tsx` — insight type and OrbCard header-strip rendering
-- `components/UnifiedDashboard.tsx` — preserves streamed insight metadata on Orb messages
-- `docs/ui-catalog.md` — documented Orb Insight Marker pattern
-- `lib/email.ts` — signed adaptation email helpers
-- `lib/orb-contract.ts` — `propose_adaptation` tool label
-- `lib/orb-prompt.ts` — strategic/coaching/adaptation prompts, expanded observations, approval integrity rules
-- `scripts/eval-cases.ts` — added approval/false-success Tier 1 cases
-- `scripts/orb-eval.ts` — passes eval-only `mutationApproval` override
-- `scripts/migrations/20260617_orb_adaptations.sql` — NEW adaptation persistence table
-- `lib/changelog.ts` — v0.6.6 release entry
-- `lib/version.ts` — v0.6.6
-- `package.json` — v0.6.6
+- `app/actions/orb-converse.ts` — prompt caching refactor (stable/dynamic split with cache_control)
+- `app/globals.css` — voice bar CSS, Orb voice keyframes
+- `app/prototype/voice/page.tsx` — NEW voice prototype test page
+- `app/settings/voice/page.tsx` — NEW voice settings route
+- `components/CollapsibleSidebar.tsx` — (prior session)
+- `components/OrbConversation.tsx` — voice bar UI, voice props, "Talk to Orb" in More menu
+- `components/OrbDevPanel.tsx` — (prior session)
+- `components/OrbHelp.tsx` — Voice topic, ⌘ Shift O, SVG icons for voice controls
+- `components/OrbTour.tsx` — "Or just talk" tour step
+- `components/UnifiedDashboard.tsx` — voice mode integration, stale closure fix, auto-TTS effect
+- `components/dev/GlobalDevPanel.tsx` — (prior session)
+- `components/settings/SettingsCrudList.tsx` — (prior session)
+- `components/settings/SettingsSidebar.tsx` — voice nav entry
+- `components/settings/SettingsVoice.tsx` — NEW voice settings component
+- `docs/ui-catalog.md` — voice mode states documented
+- `lib/changelog.ts` — v0.6.16 + v0.6.17 entries
+- `lib/hooks/useDoubleTap.ts` — NEW (unused, can be removed)
+- `lib/hooks/useVoiceMode.ts` — NEW voice mode hook
+- `lib/orb-contract.ts` — set_voice, exit_voice in client_action enum
+- `lib/version.ts` — v0.6.17
+- `package.json` — v0.6.17
+- `scripts/eval-cases.ts` — voice eval cases
 
 ---
 
 ### Key Lesson
 
-**Prompt-only mutation safety is insufficient** — When a conversational agent can mutate production data, the server must enforce both permission and truthfulness. ORB-266 showed that Orb could call a mutating tool without asking even when `mutation_approval=ask`, and could also claim a new ORB code when no tool ran. The durable fix is server-side gating plus no-tool false-success blocking. Knowledge repo entry `cfd351a6` documents the lesson.
+**Browser-specific TTS failures waste debugging time.** The entire voice pipeline appeared broken but the root cause was Comet browser's unreliable `speechSynthesis`. A minimal prototype page (`/prototype/voice`) with "Test TTS Only" button would have caught this in minutes instead of hours. Always isolate the browser layer first.
+
+**Chrome cancel+speak bug:** `speechSynthesis.cancel()` followed immediately by `speechSynthesis.speak()` silently drops the new utterance. Must add a short delay (~80ms) between cancel and the next speak call.
+
+**Stale closures in React effects with `[]` deps:** If a callback registered in a mount-only effect calls functions that read React state, those functions capture the initial render's values forever. Use ref indirection (`ref.current = latestFn`) to ensure the callback always uses current state.
 
 ---
 
 ### Not started
 
-- **ORB-287:** Investigate dashboard background polling overhead (`fetchPendingDevMessages()`, `/api/health`, `/api/version`).
+- **ORB-287:** Investigate dashboard background polling overhead.
 - **ORB-265:** Full Audit of Orb Instructions.
 - **ORB-254 remaining:** Blank User columns when filtering by date.
+
+### Needs testing
+
+- **ORB-251 full voice flow:** Test on Chrome or Safari — tap Orb, speak, verify Orb responds aloud, mic resumes, multi-turn conversation works.
+- **Eval suite:** must run before production push — `NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts` — Tier 1 must be green.
 
 ---
 
@@ -96,6 +122,9 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## Earlier Sessions
 
+**ORB-266: Ghost in the Machine — 2026-06-18 (Codex, GPT-5)**
+- Cross-session memory/voice, self-adaptation proposals, insight rendering, mutation integrity fix. v0.6.6.
+
 **ORB-254: Audit the Audit Log — 2026-06-16 (Claude Code, Opus 4.6)**
 - Modal search, toolbar redesign, scroll nav fix, mobile version label. Bumped to v0.6.0.
 
@@ -104,12 +133,6 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 **ORB-260, ORB-261, ORB-262 — Auth & Settings overhaul — 2026-06-13 (Claude Code, Opus 4.6)**
 - Restored explicit passkey button on login. Stale passkey flows. Split compound Data page. Removed breadcrumbs. Passkey migration to Account page. Email change flow. v0.5.224.
-
-**ORB-255 global filtering + ORB-252 repository inspection — 2026-06-12 (Codex)**
-- Full-dataset filtering/sorting on Knowledge Repository and Audit Log. Repository access for Admin/Super Admin/Developer roles.
-
-**ORB-196: Unified Toolbar + Modal Conformity — 2026-06-10 (Session 76, Claude Code)**
-- Merged AppNav + CommandBar. SearchModal. Modal footer standardization. Empty states.
 
 ---
 
@@ -135,14 +158,19 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 - **Voice personality: one personality at three volumes** (reserved/natural/open), not three different characters. Adjustable via `openness` preference.
 - **Two-track memory model:** autonomous (Orb saves silently after 2+ observations) and offered (user confirms before saving). All memories visible in Settings > Orb Memory.
 - **CrudList toolbar maxWidth:** When table uses pixel column widths, toolbar maxWidth is constrained to tableMinWidth so controls align with the table edge.
+- **Voice mode: continuous conversation, not walkie-talkie.** Tap Orb to start, silence auto-submits, TTS auto-plays, mic auto-resumes. Voice bar has three explicit buttons (Continue/Stop/End). Two entry points: Orb tap and "Talk to Orb" in More menu ("second door to the same room"). ⌘ Shift O keyboard shortcut.
+- **Voice preferences in localStorage, not DB.** Browser voices differ per device — a DB column gives false portability.
+- **Voice testing: Chrome/Safari/Edge only.** Comet is unreliable for speechSynthesis. Cause unknown.
 
 ---
 
 ## Next Priorities
 
-1. **ORB-287** — investigate dashboard background polling overhead observed during ORB-266 testing.
-2. **ORB-265** — full audit of Orb instructions, especially now that server-side mutation integrity has been strengthened.
-3. **ORB-254 remaining** — blank User columns when filtering by date.
+1. **ORB-251 voice validation** — test full conversational flow on Chrome or Safari (untested).
+2. **Run eval suite** — Tier 1 must be green before production push.
+3. **ORB-287** — investigate dashboard background polling overhead.
+4. **ORB-265** — full audit of Orb instructions.
+5. **ORB-254 remaining** — blank User columns when filtering by date.
 
 ---
 
@@ -155,7 +183,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-06-18 — Codex (GPT-5)`
+`2026-06-19 — Claude Code (Opus 4.6)`
 
 ---
 

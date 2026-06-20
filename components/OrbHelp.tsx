@@ -121,6 +121,7 @@ const TOPICS: Topic[] = [
             ['Tab', 'Move between interactive elements'],
             ['Enter / Space', 'Activate the focused element'],
             ['← / →', 'Switch between projects on the orb screen'],
+            ['⌘ Shift O', 'Toggle voice conversation'],
             ['?', 'Open this help page'],
             ['Escape', 'Close any open panel or overlay'],
           ] as [string, string][]).map(([key, desc]) => (
@@ -175,6 +176,80 @@ const TOPICS: Topic[] = [
             <li className="help-li">Passkeys require Safari 16+, Chrome 108+, or Edge 108+.</li>
           </ul>
         </div>
+      </div>
+    ),
+  },
+  {
+    id: 'voice',
+    label: 'Voice',
+    icon: '🎙',
+    content: (
+      <div>
+        <p className="help-p">Talk to the Orb out loud. Everything you can type, you can say.</p>
+
+        <div className="help-section">
+          <h2 className="help-h2">Starting a voice conversation</h2>
+          <ul className="help-ul">
+            <li className="help-li"><strong>Tap the Orb</strong> — the mic activates and the Orb shifts to a listening state.</li>
+            <li className="help-li"><strong>More menu → Talk to Orb</strong> — same thing, from the input toolbar.</li>
+            <li className="help-li"><strong>⌘ Shift O</strong> — keyboard shortcut (when the text field is not focused).</li>
+          </ul>
+        </div>
+
+        <div className="help-section">
+          <h2 className="help-h2">How it flows</h2>
+          <p className="help-p">
+            Once voice mode is active, conversation flows naturally. Speak, pause, and the Orb responds — no buttons needed between turns. The mic re-activates automatically after the Orb finishes speaking.
+          </p>
+        </div>
+
+        <div className="help-section">
+          <h2 className="help-h2">Voice controls</h2>
+          <p className="help-p">A voice bar replaces the text input with three buttons:</p>
+          <div style={{ borderTop: '1px solid var(--border)' }}>
+            <div className="help-key-row">
+              <span className="help-key-cell" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--btn-primary-bg)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                Continue
+              </span>
+              <span className="help-desc-cell">Resume listening after you&apos;ve interrupted the Orb</span>
+            </div>
+            <div className="help-key-row">
+              <span className="help-key-cell" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#c00', borderRadius: '1.5px', flexShrink: 0 }} />
+                Stop
+              </span>
+              <span className="help-desc-cell">Interrupt the Orb while it&apos;s speaking</span>
+            </div>
+            <div className="help-key-row">
+              <span className="help-key-cell" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                End
+              </span>
+              <span className="help-desc-cell">Exit voice mode and return to text input</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="help-section">
+          <h2 className="help-h2">Voice settings</h2>
+          <p className="help-p">
+            Choose the Orb&apos;s voice and speaking rate in <strong>Settings → Voice</strong>. You can also ask the Orb conversationally: <em>&quot;What voices do you have?&quot;</em> or <em>&quot;Switch to Daniel.&quot;</em>
+          </p>
+        </div>
+
+        <div className="help-section">
+          <h2 className="help-h2">Ending a conversation</h2>
+          <ul className="help-ul">
+            <li className="help-li">Tap the <strong>End</strong> button in the voice bar.</li>
+            <li className="help-li">Press <strong>⌘ Shift O</strong> again.</li>
+            <li className="help-li">Say something like <em>&quot;That&apos;s enough&quot;</em> or <em>&quot;Let&apos;s stop&quot;</em> — the Orb understands exit phrases.</li>
+          </ul>
+        </div>
+
+        <p className="help-p text-sm text-muted" style={{ marginTop: '20px', marginBottom: 0 }}>
+          Voice requires a browser that supports the Web Speech API (Chrome, Edge, Safari 14.1+). Voice availability and quality vary by browser and device.
+        </p>
       </div>
     ),
   },

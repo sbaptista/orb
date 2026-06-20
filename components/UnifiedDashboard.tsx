@@ -35,6 +35,8 @@ import TodoForm from './TodoForm'
 import { logAudit } from '@/app/actions/log-audit'
 import { deleteProject } from '@/app/actions/manage-project'
 import DragDivider from './DragDivider'
+import { useVoiceMode } from '@/lib/hooks/useVoiceMode'
+// useDoubleTap no longer needed — voice bar has explicit controls
 import TaskListView from './views/TaskListView'
 import TaskChecklistView from './views/TaskChecklistView'
 import TaskKanbanView from './views/TaskKanbanView'
@@ -188,6 +190,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   if (devError) throw new DevTestError()
 
+  // ── Voice mode ──
+  const voice = useVoiceMode()
+
   // ── Project switcher state ──
   const [projectSearchOpen, setProjectSearchOpen] = useState(false)
   // projectSearchQuery removed — SearchModal handles its own query state
@@ -234,8 +239,13 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const noProject    = !selectedId
   const urgentValues = useMemo(() => new Set(priorities.filter(p => p.is_urgent).map(p => p.value)), [priorities])
   const urgency      = moodOverride ?? computeUrgency(orbTodos, urgentValues, urgencyThreshold)
-  const style        = ORB_STYLE[urgency]
-  const speed        = ORB_SPEED[urgency]
+  const voiceStyle   = voice.isListening
+    ? { orbMid: '#c8e8e8', orbLo: '#a0d0d0', glow: 'rgba(60,180,180,0.5)', countColor: '#1a6060', labelColor: '#5aa0a0' }
+    : voice.isSpeaking
+    ? { orbMid: '#f0e8d0', orbLo: '#e8d8b0', glow: 'rgba(200,170,80,0.5)', countColor: '#8a6a20', labelColor: '#b8a050' }
+    : null
+  const style        = voiceStyle ?? ORB_STYLE[urgency]
+  const speed        = voice.isListening ? '3s' : voice.isSpeaking ? '2.5s' : ORB_SPEED[urgency]
   const activeTodos  = orbTodos.filter(t => isActive(t.status))
 
   const closedNames  = useMemo(() => new Set(statuses.filter(s => s.is_closed).map(s => s.name)), [statuses])
@@ -386,6 +396,66 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     }))
     setSubmitting(false)
   }, [])
+
+  // ── Voice mode handlers ──
+  // Register the send callback so the hook can submit after recognition ends.
+  // Ref indirection ensures the callback always uses the latest handleSubmit
+  // and voice methods, not stale closures from the initial render.
+  const VOICE_ACKS = ['Let me look into that.', 'One moment.', 'Let me check.', 'On it.']
+  const voiceSendRef = useRef<(text: string) => void>(() => {})
+  voiceSendRef.current = (text: string) => {
+    voice.speakBrief(VOICE_ACKS[Math.floor(Math.random() * VOICE_ACKS.length)])
+    handleSubmit(text)
+  }
+  useEffect(() => {
+    voice.setOnSend((text: string) => voiceSendRef.current(text))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleOrbTap = useCallback(() => {
+    if (noProject) return
+    if (!voice.supportsVoice) return
+
+    if (voice.voiceActive) return
+
+    voice.startConversation()
+    setConversationActive(true)
+    resetInactivity()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noProject, voice.voiceActive, voice.supportsVoice])
+
+  // Auto-TTS: speak Orb responses when voice mode is active.
+  // Transition detection (wasStreaming→!nowStreaming) ensures old messages are ignored.
+  const prevStreamingRef = useRef(false)
+  useEffect(() => {
+    if (!voice.voiceActive) { prevStreamingRef.current = false; return }
+    const lastOrb = [...messages].reverse().find(m => m.type === 'orb')
+    if (!lastOrb) return
+
+    const wasStreaming = prevStreamingRef.current
+    const nowStreaming = !!lastOrb.isStreaming
+    prevStreamingRef.current = nowStreaming
+
+    if (wasStreaming && !nowStreaming && lastOrb.text && lastOrb.text !== 'Processing…' && lastOrb.text !== 'Stopped.') {
+      queueMicrotask(() => voice.speak(lastOrb.text))
+    }
+  }, [messages, voice])
+
+  // Keyboard shortcut: Cmd+Shift+O toggles voice mode
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'o' && (e.metaKey || e.ctrlKey) && e.shiftKey) {
+        e.preventDefault()
+        if (voice.voiceActive) {
+          voice.exitVoiceMode()
+        } else {
+          handleOrbTap()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleOrbTap, voice])
 
   // Restore conversation on mount
   useEffect(() => {
@@ -919,7 +989,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
     try {
       if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
-      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError, systemInfo: systemInfoRef.current, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive } })
+      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError, systemInfo: systemInfoRef.current, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive, voiceMode: voice.voiceActive, availableVoices: voice.voiceActive ? voice.availableVoices.map(v => v.name) : undefined, currentVoice: voice.voiceActive ? voice.selectedVoiceName || undefined : undefined } })
       for await (const chunk of readStreamableValue(stream)) {
         if (request.aborted) break
         if (!chunk) continue
@@ -984,6 +1054,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               navigator.serviceWorker.getRegistrations().then(regs => { for (const r of regs) r.update() })
             }
             window.location.reload()
+          } else if (action.action === 'set_voice' && action.target) {
+            voice.setVoice(action.target)
+          } else if (action.action === 'exit_voice') {
+            voice.exitVoiceMode()
           }
         }
         if (chunk.suggestedKnowledge) setDistillTodo(chunk.suggestedKnowledge)
@@ -1196,7 +1270,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           orbPressedRef.current = false
           orbLongPressRef.current = setTimeout(() => {
             orbPressedRef.current = true
-            if (conversationActive) {
+            if (voice.voiceActive) {
+              voice.exitVoiceMode()
+            } else if (conversationActive) {
               setConversationActive(false)
               if (inactivityRef.current) { clearTimeout(inactivityRef.current); inactivityRef.current = null }
             }
@@ -1206,19 +1282,15 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         onPointerCancel={() => { if (orbLongPressRef.current) { clearTimeout(orbLongPressRef.current); orbLongPressRef.current = null } }}
         onClick={() => {
           if (orbPressedRef.current) return
-          if (noProject) {
-            setShowAddProduct(true)
-          }
+          handleOrbTap()
         }}
         onKeyDown={e => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            if (noProject) {
-              setShowAddProduct(true)
-            }
+            handleOrbTap()
           }
         }}
-        data-tooltip={noProject ? 'Add a project to get started' : 'Hold to return to ambient'}
+        data-tooltip={voice.voiceActive ? (voice.isListening ? 'Listening...' : voice.isSpeaking ? 'Speaking...' : 'Voice active') : noProject ? 'Select a project first' : 'Tap to talk'}
         style={{
           position: 'relative',
           width: 'clamp(140px, 25vh, 200px)', height: 'clamp(140px, 25vh, 200px)',
@@ -1229,15 +1301,27 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           opacity: orbFading ? 0 : 1,
           WebkitTouchCallout: 'none', userSelect: 'none',
         }}
-        aria-label={noProject ? 'No project selected' : `${activeTodos.length} active todos`}
+        aria-label={voice.voiceActive ? 'Voice conversation active' : `${activeTodos.length} active todos`}
         role="button" tabIndex={0}
       >
         {/* Glow */}
+        {/* Voice mode ring */}
+        {voice.voiceActive && (
+          <div style={{
+            position: 'absolute', inset: '-6px', borderRadius: '50%',
+            border: `2px solid ${voice.isListening ? 'rgba(60,180,180,0.6)' : voice.isSpeaking ? 'rgba(200,170,80,0.6)' : 'rgba(120,160,120,0.3)'}`,
+            animation: voice.isListening || voice.isSpeaking ? `orb-voice-ring ${speed} ease-in-out infinite` : 'none',
+            transition: 'border-color 0.5s',
+            pointerEvents: 'none',
+          }} />
+        )}
+
+        {/* Glow */}
         <div style={{
-          position: 'absolute', inset: noProject ? '-18px' : ORB_GLOW[urgency].inset, borderRadius: '50%',
+          position: 'absolute', inset: noProject ? '-18px' : voice.isListening ? '-42px' : voice.isSpeaking ? '-48px' : ORB_GLOW[urgency].inset, borderRadius: '50%',
           background: `radial-gradient(circle at 40% 35%, ${noProject ? NO_PROJECT_STYLE.glow : style.glow}, transparent 70%)`,
-          filter: `blur(${noProject ? '20px' : ORB_GLOW[urgency].blur})`,
-          animation: noProject ? 'none' : `todos-glow-${urgency} ${speed} ease-in-out infinite`,
+          filter: `blur(${noProject ? '20px' : voice.isListening ? '32px' : voice.isSpeaking ? '36px' : ORB_GLOW[urgency].blur})`,
+          animation: noProject ? 'none' : voice.isListening ? `orb-glow-listening ${speed} ease-in-out infinite` : voice.isSpeaking ? `orb-glow-speaking ${speed} ease-in-out infinite` : `todos-glow-${urgency} ${speed} ease-in-out infinite`,
           transition: 'inset 0.8s, filter 0.8s, background 0.8s',
         }} />
 
@@ -1259,7 +1343,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           position: 'relative', width: '100%', height: '100%', borderRadius: '50%',
           background: `radial-gradient(circle at 36% 30%, #ffffff, ${noProject ? NO_PROJECT_STYLE.orbMid : style.orbMid} 45%, ${noProject ? NO_PROJECT_STYLE.orbLo : style.orbLo} 82%)`,
           boxShadow: `0 8px 32px ${noProject ? NO_PROJECT_STYLE.glow : style.glow}, 0 2px 8px rgba(0,0,0,0.06), inset 0 -4px 12px rgba(0,0,0,0.04), inset 0 2px 8px rgba(255,255,255,0.9)`,
-          animation: noProject ? 'none' : `${ORB_ANIMATION[urgency]} ${speed} ease-in-out infinite`,
+          animation: noProject ? 'none' : voice.isListening ? `orb-listening ${speed} ease-in-out infinite` : voice.isSpeaking ? `orb-speaking ${speed} ease-in-out infinite` : `${ORB_ANIMATION[urgency]} ${speed} ease-in-out infinite`,
           display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '2px',
           transition: 'background 0.8s, box-shadow 0.8s',
         }}>
@@ -1275,7 +1359,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             </text>
             <text fontFamily="var(--font-ui)" fontSize="11" fontWeight={600} letterSpacing="3" fill={noProject ? NO_PROJECT_STYLE.labelColor : style.labelColor} style={{ textTransform: 'uppercase', transition: 'fill 0.8s' }}>
               <textPath href="#ud-orb-state-arc" startOffset="50%" textAnchor="middle">
-                {noProject ? 'SET UP' : urgency.toUpperCase()}
+                {noProject ? 'SET UP' : voice.isListening ? 'LISTENING' : voice.isSpeaking ? 'SPEAKING' : urgency.toUpperCase()}
               </textPath>
             </text>
           </svg>
@@ -1379,6 +1463,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               selectedProjectId={selectedId}
               onShowEditProject={() => setShowEditProduct(true)}
               onShowAddProject={() => setShowAddProduct(true)}
+              voiceActive={voice.voiceActive}
+              voiceListening={voice.isListening}
+              voiceSpeaking={voice.isSpeaking}
+              voiceTranscript={voice.transcript}
+              voiceInterrupted={voice.wasInterrupted}
+              supportsVoiceMode={voice.supportsVoice && !noProject}
+              onStartVoiceMode={handleOrbTap}
+              onVoiceContinue={voice.resumeListening}
+              onVoiceStop={voice.cancelSpeech}
+              onExitVoiceMode={voice.exitVoiceMode}
             />
           </div>
           )}
@@ -1722,6 +1816,11 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         @keyframes todos-orb-urgent { 0%, 100% { transform: scale(1); border-radius: 50%; } 50% { transform: scale(1.045); border-radius: 50%; } }
         @keyframes todos-glow-urgent { 0%, 100% { transform: scale(1); opacity: 0.85; } 50% { transform: scale(1.18); opacity: 1; } }
         @keyframes todos-flare-rise { 0%, 55% { transform: scaleY(0) scaleX(0.5) skewX(0deg); opacity: 0; } 68% { transform: scaleY(0.5) scaleX(1) skewX(-2deg); opacity: 0.85; } 78% { transform: scaleY(1) scaleX(1.1) skewX(2deg); opacity: 1; } 88% { transform: scaleY(1.15) scaleX(0.7) skewX(-3deg); opacity: 0.55; } 96% { transform: scaleY(1.3) scaleX(0.3) skewX(3deg); opacity: 0.15; } 100% { transform: scaleY(1.4) scaleX(0.1) skewX(0deg); opacity: 0; } }
+        @keyframes orb-listening { 0%, 100% { transform: scale(1); border-radius: 50%; } 50% { transform: scale(1.03); border-radius: 50%; } }
+        @keyframes orb-glow-listening { 0%, 100% { transform: scale(1); opacity: 0.85; } 50% { transform: scale(1.15); opacity: 1; } }
+        @keyframes orb-speaking { 0%, 100% { transform: scale(1); border-radius: 50%; } 25% { transform: scale(1.02); border-radius: 49% 51% 50% 50%; } 50% { transform: scale(1.035); border-radius: 50%; } 75% { transform: scale(1.015); border-radius: 51% 49% 50% 50%; } }
+        @keyframes orb-glow-speaking { 0%, 100% { transform: scale(1); opacity: 0.88; } 30% { transform: scale(1.12); opacity: 1; } 60% { transform: scale(1.05); opacity: 0.95; } 80% { transform: scale(1.1); opacity: 1; } }
+        @keyframes orb-voice-ring { 0%, 100% { transform: scale(1); opacity: 0.6; } 50% { transform: scale(1.04); opacity: 1; } }
         @media (prefers-reduced-motion: reduce) { [data-todos-orb], [data-todos-glow], [data-todos-flare] { animation: none !important; } [data-todos-flare] { opacity: 0; } }
       `}</style>
     </>

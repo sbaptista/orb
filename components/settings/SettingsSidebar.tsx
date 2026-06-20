@@ -6,6 +6,7 @@ import CollapsibleSidebar, { type SidebarItem } from '@/components/CollapsibleSi
 const NAV: SidebarItem[] = [
   { id: 'urgency',    href: '/settings/urgency',    label: 'Urgency Threshold', icon: '⚡', active: false },
   { id: 'notifications', href: '/settings/notifications', label: 'Notifications', icon: '🔔', active: false },
+  { id: 'voice',         href: '/settings/voice',         label: 'Voice',         icon: '🔊', active: false },
   { id: 'memory',     href: '/settings/memory',     label: 'Orb Memory', icon: '🧠', active: false },
   { id: 'projects',   href: '/settings/projects',   label: 'Projects',   icon: '◈', active: false },
   { id: 'users',      href: '/settings/users',      label: 'Users',      icon: '◎', active: false },

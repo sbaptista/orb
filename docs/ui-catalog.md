@@ -29,7 +29,7 @@ The main app layout. Two equal-citizen panes (Orb + List) with a draggable divid
 - **MacBook:** Side-by-side (row), divider drags left/right
 - **iPad:** Side-by-side in wider layouts, with a 40px touch-friendly divider gutter and visible drag affordance
 - **iPhone:** Orb/List tab switching on narrow screens; divider is hidden
-- **Zero-Project State:** When no projects are loaded, clicking the Orb opens the project creation modal. The "+ New" todo button is disabled and triggers a friendly toast message requesting the user to create a project first.
+- **Zero-Project State:** When no projects are loaded, the "+ New" todo button is disabled and triggers a friendly toast message requesting the user to create a project first. Use the navigation bar to add a project.
 - Full-bleed `MuralCanvas` fractal at z:0 behind everything
 
 | Class | Purpose |
@@ -80,9 +80,21 @@ Standard settings layout with centered content card.
 
 ### Settings Navigation & Updates
 - **Settings Sidebar:** Houses navigation for general configuration. Priorities, Statuses, and Platforms pages removed in v0.5.207 (not user-changeable). Platform pill UI also removed from TodoPanel and TodoForm.
+- **Mobile Settings Picker:** On iPhone and narrow/coarse-pointer iPad, the settings sidebar becomes a compact icon trigger with a down arrow and version label. Tapping it opens a vertical section menu. This preserves unsaved-change confirmation and avoids long horizontal nav menus without duplicating the page title.
 - **Version Badge:** Located in the bottom corner of the Settings page sidebar (e.g. displaying `v0.5.127`). Non-clickable.
 - **What's New Screen:** Located under Settings. Displays recent release notes and contains:
   - **Check for Update Button:** A button labeled "Check for Update" that allows users to manually fetch and apply newer app versions.
+
+| Class | Purpose |
+|---|---|
+| `cs-mobile-picker` | Mobile-only settings picker trigger/menu container |
+| `cs-mobile-trigger` | Compact icon + down-arrow button that opens the section menu |
+| `cs-mobile-trigger-icon` / `cs-mobile-trigger-arrow` | Current section icon and decorative arrow inside the trigger |
+| `cs-mobile-version` | Compact version label beside the mobile picker |
+| `cs-mobile-menu` | Mobile-only vertical settings section menu |
+| `cs-mobile-menu-header` / `cs-mobile-menu-close` | Menu title and explicit close control so discoverability/dismissal are clear |
+| `cs-mobile-menu-item` | Individual section command inside the mobile menu |
+| `cs-mobile-menu-icon` / `cs-mobile-menu-label` | Icon and label inside a mobile menu item |
 
 ### Account Page (`account-*`)
 **Files:** `app/account/page.tsx`, `components/settings/SettingsAccount.tsx`, `components/settings/ChangeNameModal.tsx`, `components/settings/ChangeEmailModal.tsx`, `components/settings/SettingsPasskeys.tsx`
@@ -243,6 +255,25 @@ Small button for dev-only controls. Styled with standard primary button variable
 ### Pager Button (`btn-pager`)
 Pagination arrow button.
 
+### Orb Voice Mode States
+**Files:** `components/UnifiedDashboard.tsx` (inline styles + keyframes)
+
+The Orb sphere has two voice-specific visual states that temporarily override urgency colors:
+
+| State | Palette | Animation | Arc Label |
+|---|---|---|---|
+| **Listening** | Teal/cyan (`orbMid: #c8e8e8`, glow: `rgba(60,180,180,0.5)`) | `orb-listening` — gentle scale breath (1→1.03) at 3s | LISTENING |
+| **Speaking** | Warm gold (`orbMid: #f0e8d0`, glow: `rgba(200,170,80,0.5)`) | `orb-speaking` — rhythmic ripple pulse at 2.5s | SPEAKING |
+
+A thin `orb-voice-ring` animation pulses around the Orb sphere whenever voice mode is active, regardless of listening/speaking/idle state.
+
+**Interaction model:**
+- **Tap Orb** — toggle voice recording on/off
+- **Double-tap Orb** — interrupt TTS
+- **Long-press Orb** — exit voice mode (or conversation mode)
+- **Cmd+Space** — keyboard toggle for voice listening
+- Text input and toolbar are disabled during voice mode (opacity 0.5, pointer-events none), with a "Switch to text" button visible.
+
 ### Orb Conversation Tool Button (`oc-tool-btn`)
 Used for buttons below the input field in the Orb conversation view. Styled with standard primary button background (`var(--btn-primary-bg)`).
 
@@ -261,7 +292,11 @@ Inbound messages from developer AI tools render as blue-tinted cards with the to
 ### Global Developer Panel (`GlobalDevPanel`)
 **Files:** `components/dev/GlobalDevPanel.tsx`, `components/OrbDevPanel.tsx`
 
-The development-only `DEV` launcher is mounted globally through `Providers`, so authoring tools such as Table Tuning are available on every route. Dashboard-specific Orb simulation controls are portaled into the same panel when `UnifiedDashboard` is mounted; other routes show only global tools.
+The development-only `DEV` launcher is mounted globally through `Providers`, so authoring tools such as Table Tuning and global connectivity simulations are available on every route. Dashboard-specific Orb simulation controls are portaled into the same panel when `UnifiedDashboard` is mounted; other routes show a short Dashboard tools note rather than silently omitting those sections.
+
+The panel supports four fixed corners (`bottom-right`, `top-right`, `bottom-left`, `top-left`) through its **Move panel** control. Use this instead of dragging so the launcher can vacate covered action buttons on iPhone while staying predictable and safe-area-aware.
+
+On touch devices, the panel owns its own scroll surface and prevents scroll chaining into the page behind it. Keep DEV panel ordering after page children in `Providers`; `OrbDevPanel` observes for the global slot and portals dashboard controls into it when available.
 
 ### Orb Action Circle (`oc-action-circle`)
 32×32px circular button base for the Orb input bar. Flex-centered, no border, smooth transition. Used as a base class by:
@@ -279,6 +314,17 @@ Size modifier class. Combine with any button class (e.g., `btn-primary btn-sm`, 
 ---
 
 ## Tables
+
+### Responsive Collection Rule
+Tables are a desktop/iPad-landscape scanning tool; cards are the narrow touch renderer. Any collection that presents rows of structured data must keep filtering, text/date search, sorting, pagination, selection, and bulk actions in one collection controller, then switch only the renderer by platform.
+
+- **Mac:** Tables are appropriate when comparison, column scanning, sorting, or bulk operations matter.
+- **Wide iPad:** Tables remain acceptable when the layout has enough width and the task benefits from column comparison.
+- **iPhone and narrow/coarse-pointer iPad:** Stacked cards are the default. A table that remains a table on these platforms must be documented here with a reason.
+- **Selection:** Use an explicit Select/Edit mode for card collections. Avoid always-visible checkboxes on cards unless the collection is primarily a checklist.
+- **Navigation:** Small peer sets can use segmented or horizontal controls. Large navigation sets, such as Settings, should use a sheet/list picker on iPhone and narrow iPad rather than a long horizontal strip.
+- **Kanban:** On iPhone and narrow iPad, use one lane at a time with a lane selector plus an explicit move action. Full horizontal boards are reserved for wider layouts.
+- **No one-offs:** Prefer `SettingsCrudList` default mobile cards, explicit `renderMobileRow` only for rich exceptions, or a documented `tv-*` task-card pattern.
 
 ### Todo Table (`tv-table`)
 **File:** `components/TodoView.tsx`, `components/UnifiedDashboard.tsx`  
@@ -333,6 +379,7 @@ Development-only authoring tool available for every rendered HTML table on every
 ### CRUD List (`SettingsCrudList`)
 **File:** `components/settings/SettingsCrudList.tsx`  
 Reusable pattern for settings lists with add/edit/delete actions, column resize, search, scope filters, bulk delete, and server-side pagination.
+- **Mobile cards:** `layout: 'table'` collections render as cards on iPhone and narrow/coarse-pointer iPad. `SettingsCrudList` generates a default card from `tableColumns`; use `renderMobileRow` only for rich custom layouts such as Tickets. Search highlighting is applied to default card text, and pagination/search/sort state remains shared with the desktop table renderer.
 - **Pagination:** `config.pagination = { pageSize: N }`. When set, `load()` receives the current page criteria and must return `totalCount`. Renders First/Previous/Next/Last controls in a footer bar inside the card.
 - **Global paginated search/sort:** Set `serverSearch: true` and/or `serverSort: true` in `config.pagination`. The shared list debounces search, passes `{ search, sortKey, sortDir }` to `load()`, resets to page one when criteria change, and treats the returned count as the full filtered result count. Do not combine client-only filtering or sorting with server pagination when users expect full-dataset results.
 - **Header extras:** `config.headerExtra` — ReactNode rendered in the header beside the Add button (e.g. dev-only Diagnose button on Audit Log).
@@ -502,6 +549,8 @@ Global custom tooltip component triggered by `data-tooltip` attribute. Configure
 | Modals | 50 | `modal-center` |
 | Toast | 60 | Toast notifications |
 | Dropdowns | 100 | `admin-search-dropdown`, `up-switcher-dropdown` |
+| Full-screen offline/maintenance overlays | 99999 | `OfflinePage`, `MaintenancePage` |
+| Development tools | 100000 | `dev-panel`, `TableTuner` |
 
 ---
 

@@ -140,6 +140,9 @@ export type UIContext = {
   listPaneVisible?: boolean
   isMobile?: boolean
   daysActive?: number
+  voiceMode?: boolean
+  availableVoices?: string[]
+  currentVoice?: string
 }
 
 export type OrbRequest = {
@@ -488,30 +491,52 @@ export async function orbConverse(req: OrbRequest) {
 
       while (turnCount < MAX_TURNS) {
         turnCount++
-        const response = await anthropic.messages.create({
-          model: 'claude-sonnet-4-5-20250929',
-          max_tokens: 4096,
-          system: [
-            // Identity
-            `You are the voice of the orb — the conversational layer of Orb.`,
-            buildVoicePrompt(openness),
-            `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
-            ctx.currentUser ? `USER CONTEXT: You are talking to ${ctx.currentUser.email} (Name: ${ctx.currentUser.name || 'Unknown'}, Role: ${userRole || 'Unknown'}).` : '',
+        // Split system prompt into stable (cacheable) and dynamic blocks
+        const stablePrompt = [
+          `You are the voice of the orb — the conversational layer of Orb.`,
+          buildVoicePrompt(openness),
+          ORB_PRINCIPLES,
+          ORB_RESOLUTION_LAWS,
+          `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,
+          STATUS_VOCABULARY,
+          `The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering. When the user asks "how many tasks" or "my tasks" without specifying, report the ACTIVE count. If parked tasks exist, mention them separately.`,
+          buildUrgencyRules(ctx.urgencyThresholdHours),
+          ORB_QUERY_ROUTING,
+          repositoryAccessPrompt,
+          `DATABASE SCHEMA (for query_db):\n${DB_SCHEMA}`,
+          ORB_SCOPE_RULES,
+          ORB_SESSION_ADAPTATION,
+          ORB_SELF_DIAGNOSTICS,
+          ORB_STRATEGIC_REASONING,
+          buildCoachingPrompt(openness),
+          ORB_PREFERENCE_DISCOVERY,
+          ORB_ADAPTATION_BEHAVIOR,
+          `INSIGHT TAGGING:
+When you surface proactive observation, coaching, or strategic recommendation content, wrap only that sentence or short paragraph in one marker pair:
+[INSIGHT:observation]...[/INSIGHT], [INSIGHT:coaching]...[/INSIGHT], or [INSIGHT:strategic]...[/INSIGHT].
+Use observation for backlog facts worth noticing, coaching for work-rhythm guidance, and strategic for "what should I work on" recommendations. Do not wrap ordinary confirmations, errors, or direct answers with no proactive guidance.`,
+          buildProactiveTonePrompt(openness),
+          ORB_ATTRIBUTION,
+          ORB_MUTATION_VERIFICATION,
+          buildFeedbackTonePrompt(openness),
+          ORB_DEV_CHANNEL_PROMPT,
+        ].filter(Boolean).join('\n\n')
 
-            // Layer 1: Principles
-            ORB_PRINCIPLES,
-            ORB_RESOLUTION_LAWS,
-
-            // Layer 2: Domain Knowledge
-            `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,
-            STATUS_VOCABULARY,
-            `The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering. When the user asks "how many tasks" or "my tasks" without specifying, report the ACTIVE count. If parked tasks exist, mention them separately.`,
-            buildUrgencyRules(ctx.urgencyThresholdHours),
-            `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${ctx.current?.name}" (code: "${ctx.current?.code}") unless the user explicitly names a different project.\n- When calling tools (create_todo, query_todos, etc.), ALWAYS pass the project code — never omit it.\n- When speaking to the user, refer to projects by display name.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${ctx.current?.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${ctx.currentUser.name || ctx.currentUser.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
-            req.uiContext ? `UI STATE: The user is viewing: ${req.uiContext.viewMode ?? 'list'} view | filter: ${req.uiContext.filterStatus ?? 'active'} | priority filter: ${req.uiContext.filterPriority ?? 'all'} | sort: ${req.uiContext.sortAsc ? 'oldest first' : 'newest first'} | orb pane: ${req.uiContext.orbPaneVisible ? 'visible' : 'hidden'} | list pane: ${req.uiContext.listPaneVisible ? 'visible' : 'hidden'} | device: ${req.uiContext.isMobile ? 'mobile' : 'desktop'}. Use this to understand what the user sees when they say "this view", "the list", "that column", etc.` : '',
-            uiCatalog ? `UI CATALOG & NAVIGATION (the layout structure, buttons, views, and settings of the app):\n${uiCatalog}` : '',
-            `BACKLOG (includes DORMANT section if any exist — answer dormant project questions from here, do not query):\n${ctx.contextString}`,
-            `KNOWLEDGE BASE (Recent):\n${ctx.knowledgeList.slice(0, 5).map((k: any) => {
+        const dynamicPrompt = [
+          `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
+          ctx.currentUser ? `USER CONTEXT: You are talking to ${ctx.currentUser.email} (Name: ${ctx.currentUser.name || 'Unknown'}, Role: ${userRole || 'Unknown'}).` : '',
+          `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${ctx.current?.name}" (code: "${ctx.current?.code}") unless the user explicitly names a different project.\n- When calling tools (create_todo, query_todos, etc.), ALWAYS pass the project code — never omit it.\n- When speaking to the user, refer to projects by display name.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${ctx.current?.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${ctx.currentUser.name || ctx.currentUser.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
+          req.uiContext ? `UI STATE: The user is viewing: ${req.uiContext.viewMode ?? 'list'} view | filter: ${req.uiContext.filterStatus ?? 'active'} | priority filter: ${req.uiContext.filterPriority ?? 'all'} | sort: ${req.uiContext.sortAsc ? 'oldest first' : 'newest first'} | orb pane: ${req.uiContext.orbPaneVisible ? 'visible' : 'hidden'} | list pane: ${req.uiContext.listPaneVisible ? 'visible' : 'hidden'} | device: ${req.uiContext.isMobile ? 'mobile' : 'desktop'}. Use this to understand what the user sees when they say "this view", "the list", "that column", etc.` : '',
+          req.uiContext?.voiceMode ? `VOICE CONVERSATION: You are currently in voice mode — the user is speaking to you and hearing your responses aloud.
+VOICE RESPONSE RULES:
+- Keep responses concise and conversational — clear sentences, not markdown lists or tables.
+- Avoid complex formatting (tables, bullet lists, code blocks). Speak in natural prose.
+- BREVITY THRESHOLD: If your answer involves more than 3–4 sentences of content — task details, lists, summaries, lookups — give a brief 2–3 sentence spoken summary of the key point, then explicitly ask: "That's the summary. Want me to read the full details, or is that enough?" Wait for the user's answer before providing more. Do NOT read out long content unprompted.
+${req.uiContext.availableVoices?.length ? `Available voices on this device: ${req.uiContext.availableVoices.join(', ')}. Current voice: ${req.uiContext.currentVoice || 'system default'}.\nWhen the user asks about voices, describe the available options conversationally. When asked to switch, use client_action with action="set_voice" and target set to the exact voice name.` : ''}
+When the user signals they want to end the voice conversation — "that's enough", "let's stop", "stop talking", "end voice mode", or similar — use client_action with action="exit_voice". You may say a brief closing remark first.` : '',
+          uiCatalog ? `UI CATALOG & NAVIGATION (the layout structure, buttons, views, and settings of the app):\n${uiCatalog}` : '',
+          `BACKLOG (includes DORMANT section if any exist — answer dormant project questions from here, do not query):\n${ctx.contextString}`,
+          `KNOWLEDGE BASE (Recent):\n${ctx.knowledgeList.slice(0, 5).map((k: any) => {
               const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
               let origin = ''
               if (k.origin_todo_id) {
@@ -520,39 +545,26 @@ export async function orbConverse(req: OrbRequest) {
               }
               return `- [${k.projects?.name || k.projects?.code}] ${k.title}${tags}${origin}: ${k.content.slice(0, 100)}...`
             }).join('\n')}\n(Note: Use the 'search_knowledge' tool to query the full repository if the answer isn't here.)`,
-            ORB_QUERY_ROUTING,
-            repositoryAccessPrompt,
-            `DATABASE SCHEMA (for query_db):\n${DB_SCHEMA}`,
-            ORB_SCOPE_RULES,
-            `WHAT'S NEW (recent releases — use when the user asks "what's new?", "what changed?", or "what version is this?"):\n${CHANGELOG.slice(0, 3).map(r => `${r.version} (${r.date}):\n${r.changes.map(c => `  - ${c}`).join('\n')}`).join('\n\n')}`,
+          `WHAT'S NEW (recent releases — use when the user asks "what's new?", "what changed?", or "what version is this?"):\n${CHANGELOG.slice(0, 3).map(r => `${r.version} (${r.date}):\n${r.changes.map(c => `  - ${c}`).join('\n')}`).join('\n\n')}`,
+          buildMutationApprovalPrompt(ctx.preferenceList),
+          ctx.behaviorRuleList.length > 0
+            ? `BEHAVIORAL RULES (agreed with the user — always enforce):\n${ctx.behaviorRuleList.map((r: any) => `- **${r.title}:** ${r.content}`).join('\n')}`
+            : '',
+          buildPreferencesPrompt(ctx.preferenceList),
+          buildAdaptationsPrompt(ctx.adaptationList),
+          buildSurveyPrompt(req.uiContext?.daysActive, ctx.preferenceList),
+          buildObservationsPrompt(ctx.observations, ctx.guidanceLevel),
+          memoryLevel !== 'off' ? buildMemoryPrompt(ctx.memoryList, memoryLevel) : '',
+          memoryLevel !== 'off' ? ORB_MEMORY_BEHAVIOR : '',
+        ].filter(Boolean).join('\n\n')
 
-            // Layer 3: Behavioral Guidelines
-            buildMutationApprovalPrompt(ctx.preferenceList),
-            ctx.behaviorRuleList.length > 0
-              ? `BEHAVIORAL RULES (agreed with the user — always enforce):\n${ctx.behaviorRuleList.map((r: any) => `- **${r.title}:** ${r.content}`).join('\n')}`
-              : '',
-            ORB_SESSION_ADAPTATION,
-            ORB_SELF_DIAGNOSTICS,
-            ORB_STRATEGIC_REASONING,
-            buildCoachingPrompt(openness),
-            ORB_PREFERENCE_DISCOVERY,
-            buildPreferencesPrompt(ctx.preferenceList),
-            buildAdaptationsPrompt(ctx.adaptationList),
-            ORB_ADAPTATION_BEHAVIOR,
-            `INSIGHT TAGGING:
-When you surface proactive observation, coaching, or strategic recommendation content, wrap only that sentence or short paragraph in one marker pair:
-[INSIGHT:observation]...[/INSIGHT], [INSIGHT:coaching]...[/INSIGHT], or [INSIGHT:strategic]...[/INSIGHT].
-Use observation for backlog facts worth noticing, coaching for work-rhythm guidance, and strategic for "what should I work on" recommendations. Do not wrap ordinary confirmations, errors, or direct answers with no proactive guidance.`,
-            buildSurveyPrompt(req.uiContext?.daysActive, ctx.preferenceList),
-            buildProactiveTonePrompt(openness),
-            buildObservationsPrompt(ctx.observations, ctx.guidanceLevel),
-            ORB_ATTRIBUTION,
-            ORB_MUTATION_VERIFICATION,
-            buildFeedbackTonePrompt(openness),
-            memoryLevel !== 'off' ? buildMemoryPrompt(ctx.memoryList, memoryLevel) : '',
-            memoryLevel !== 'off' ? ORB_MEMORY_BEHAVIOR : '',
-            ORB_DEV_CHANNEL_PROMPT,
-          ].filter(Boolean).join('\n\n'),
+        const response = await anthropic.messages.create({
+          model: 'claude-sonnet-4-5-20250929',
+          max_tokens: 4096,
+          system: [
+            { type: 'text' as const, text: stablePrompt, cache_control: { type: 'ephemeral' as const } },
+            { type: 'text' as const, text: dynamicPrompt },
+          ],
           messages,
           tools: [...availableOrbTools, ...ORB_PREFERENCE_TOOLS, ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []), ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_ADAPTATION_TOOL],
           stream: true,

@@ -198,7 +198,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "client_action",
-    "description": "[Confidence: well-tested] Navigate or switch UI state. Use switch_project to change the active project, open_settings to go to settings, open_help for help.",
+    "description": "[Confidence: well-tested] Navigate or switch UI state. Use switch_project to change the active project, open_settings to go to settings, open_help for help. Use set_voice to change the TTS voice (target = voice name). Use exit_voice to end voice conversation mode when the user signals they want to stop.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -207,12 +207,14 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
           "enum": [
             "switch_project",
             "open_settings",
-            "open_help"
+            "open_help",
+            "set_voice",
+            "exit_voice"
           ]
         },
         "target": {
           "type": "string",
-          "description": "Project code for switch_project."
+          "description": "Project code for switch_project, voice name for set_voice."
         }
       },
       "required": [
