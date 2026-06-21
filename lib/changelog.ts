@@ -6,6 +6,84 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.27',
+    date: '2026-06-21',
+    changes: [
+      'Orb approvals: Extended deterministic confirmed-approval execution to pending creates, updates, deletes, and moves, so an affirmative response runs the approved operation rather than relying on model interpretation.',
+    ]
+  },
+  {
+    version: 'v0.6.26',
+    date: '2026-06-21',
+    changes: [
+      'Orb approvals: Confirmed task-code updates now force the already-approved `update_todo` tool for that turn, preventing Haiku from substituting a lookup.',
+    ]
+  },
+  {
+    version: 'v0.6.25',
+    date: '2026-06-21',
+    changes: [
+      'Orb approvals: Propagate the pending task code into confirmed-approval instructions, making approved todo updates execute directly instead of detouring through a lookup.',
+    ]
+  },
+  {
+    version: 'v0.6.24',
+    date: '2026-06-21',
+    changes: [
+      'Orb mutation integrity: Treat task codes named in the current user request as known to the structural guard, preventing false mutation corrections during ordinary task discussion.',
+      'Orb approvals: A confirmed approval now explicitly directs the model to execute the pending mutation rather than performing a redundant lookup or requesting approval again.',
+    ]
+  },
+  {
+    version: 'v0.6.23',
+    date: '2026-06-21',
+    changes: [
+      'Orb evaluation: corrected eval-runner pacing so the delay applies between every case, not only Tier 2 repeats, keeping full Tier 1 runs inside the endpoint rate limit.',
+    ]
+  },
+  {
+    version: 'v0.6.22',
+    date: '2026-06-21',
+    changes: [
+      'Orb evaluation: paced the local eval runner to respect the conversation endpoint\'s 10-calls-per-minute safety limit, preventing false regression failures caused by rate limiting.',
+    ]
+  },
+  {
+    version: 'v0.6.21',
+    date: '2026-06-20',
+    changes: [
+      'Audit Log mobile cards: Added a touch-friendly Sort menu with Date, Table, Action, and Actor ordering choices, using the same indexed server sorting as desktop headers.',
+      'Audit Log mobile search: Cards now show an expanded, highlighted Matches section for every matching field, including complete Before and After record context.',
+    ]
+  },
+  {
+    version: 'v0.6.20',
+    date: '2026-06-20',
+    changes: [
+      'Settings modals: Strengthened modal scroll locking to block both document and settings-surface scrolling while a modal is open.',
+      'Audit Log: Restored immediate full entry detail and exact Rows X–Y of Z counts while retaining cursor paging for fast page retrieval.',
+      'Audit Log: Added indexed Table, Action, and Actor sort paths, plus an independently loaded exact count so sorting and totals remain available without a count window in the page query.',
+    ]
+  },
+  {
+    version: 'v0.6.19',
+    date: '2026-06-20',
+    changes: [
+      'Settings modals: Kept the centered editing model and added shared settings-scroll locking so the page cannot move underneath an open edit, detail, text-search, or date-search modal.',
+      'Audit Log: Replaced count-heavy offset paging with cursor pagination, avoiding full-dataset counting during browsing and keeping older/newer navigation fast as the log grows.',
+      'Audit Log: Table browsing now returns compact Before/After previews; full JSON and environment detail load only when an entry is opened.',
+    ]
+  },
+  {
+    version: 'v0.6.18',
+    date: '2026-06-20',
+    changes: [
+      'Cost reduction: Switched the Orb\'s conversational AI model from Claude Sonnet 4.5 to Claude Haiku 4.5 — 5x cheaper on input tokens ($1 vs $5/MTok) and 3x cheaper on output ($5 vs $15/MTok). All three model references updated: main conversation, task distillation, and ambient opening.',
+      'Orb Metrics: New admin-only Settings page tracking daily Orb usage — call count, speech characters, voice characters, input characters, tool calls, and ambient greeting characters. Searchable by user and filterable by date range. Summary cards show totals for the selected range with estimated TTS API costs at multiple provider price points.',
+      'Prompt hardening: Explicit duplicate-search-first rule in query routing (Orb must search before asking about duplicates). Voice exit instruction strengthened for smaller models.',
+    ]
+  },
+  {
     version: 'v0.6.17',
     date: '2026-06-19',
     changes: [

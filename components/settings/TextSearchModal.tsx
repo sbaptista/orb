@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useModalScrollLock } from '@/lib/hooks/useModalScrollLock'
 
 export function SendIcon({ size = 14, strokeWidth = 2.5 }: { size?: number; strokeWidth?: number }) {
   return (
@@ -28,6 +29,7 @@ export default function TextSearchModal({
   placeholder?: string
   ariaLabel?: string
 }) {
+  useModalScrollLock(open)
   const [draft, setDraft] = useState('')
 
   useEffect(() => {

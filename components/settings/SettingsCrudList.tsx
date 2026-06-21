@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import SkeletonRows from '@/components/ui/SkeletonRows'
 import { useToast } from '@/components/ui/Toast'
+import { useModalScrollLock } from '@/lib/hooks/useModalScrollLock'
+import FilterKebab from '@/components/ui/FilterKebab'
 
 const PILL_THRESHOLD = 5
 
@@ -92,6 +94,7 @@ type PaginationRequest = {
   search: string
   sortKey: string | null
   sortDir: 'asc' | 'desc'
+  cursor?: string | null
 }
 
 type CrudConfig<T, F> = {
@@ -103,6 +106,8 @@ type CrudConfig<T, F> = {
   pageClass?: string
   idColumn?: string
   subtitle?: (items: T[], totalCount?: number, pageInfo?: { page: number; pageSize: number }) => string
+  /** Optional externally loaded exact count, used without delaying cursor page loads. */
+  totalCount?: number
 
   layout?: 'list' | 'table'
   tableColumns?: TableColumn<T>[]
@@ -115,9 +120,11 @@ type CrudConfig<T, F> = {
   /** Platform-specific bulk-selection widths. Falls back to selectionColumnWidth. */
   selectionColumnWidths?: Partial<Record<TablePlatform, number>>
 
-  load?: (supabase: any, pagination?: PaginationRequest) => Promise<{ items: T[]; extra?: any; totalCount?: number }>
+  load?: (supabase: any, pagination?: PaginationRequest) => Promise<{ items: T[]; extra?: any; totalCount?: number; nextCursor?: string | null }>
   /** Server-side pagination. Search and sorting stay local unless explicitly enabled. */
-  pagination?: { pageSize: number; serverSearch?: boolean; serverSort?: boolean }
+  pagination?: { pageSize: number; serverSearch?: boolean; serverSort?: boolean; mode?: 'offset' | 'cursor' }
+  /** Card-renderer sort choices. Rendered as a touch-friendly menu on narrow platforms. */
+  mobileSortOptions?: Array<{ sortKey: string; sortDir: 'asc' | 'desc'; label: string }>
   /** Extra ReactNode rendered in the header area (right side, before the Add button). */
   headerExtra?: ReactNode
   /** ReactNode rendered before the active search control, such as a compact search-mode selector. */
@@ -249,8 +256,12 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const [cardSelectionMode, setCardSelectionMode] = useState(false)
   const [page, setPage] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [cursorHistory, setCursorHistory] = useState<Array<string | null>>([null])
   const [canScrollTableLeft, setCanScrollTableLeft] = useState(false)
   const [canScrollTableRight, setCanScrollTableRight] = useState(false)
+  const modalOpen = modalMode !== null
+  useModalScrollLock(modalOpen)
   const scopeFilterId = useId()
   const tablePlatform = useSyncExternalStore<TablePlatform>(
     (onChange) => {
@@ -307,8 +318,10 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const serverSearchOnSubmit = !!config.serverSearchOnSubmit
   const hasExternalSearch = config.externalSearchTerm !== undefined
   const pageSize = config.pagination?.pageSize
+  const usesCursorPagination = config.pagination?.mode === 'cursor'
   const externalFilterKey = config.externalFilterKey
   const hasBulk = !!config.bulkDelete
+  const effectiveTotalCount = config.totalCount ?? totalCount
 
   // --- Debounce: search → debouncedSearch ---------------------------------
   useEffect(() => {
@@ -323,6 +336,8 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   function submitSearch() {
     setDebouncedSearch(search.trim())
     setPage(0)
+    setCursorHistory([null])
+    setNextCursor(null)
     setSelectedIds([])
   }
 
@@ -330,6 +345,8 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     setSearch('')
     setDebouncedSearch('')
     setPage(0)
+    setCursorHistory([null])
+    setNextCursor(null)
     setSelectedIds([])
     config.onResetFilters?.()
   }
@@ -353,13 +370,16 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     const filterChanged = (externalFilterKey ?? '') !== prevFilter
     if ((searchChanged || filterChanged) && !pageChanged) {
       setPage(0)
+      setCursorHistory([null])
+      setNextCursor(null)
       setSelectedIds([])
     }
   }, [serverSearchTerm, externalFilterKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Stable load function (reads params from refs/current values) -------
-  const loadParamsRef = useRef({ page, pageSize, serverSearchTerm, sortKey, sortDir, usesServerSearch, usesServerSort })
-  loadParamsRef.current = { page, pageSize, serverSearchTerm, sortKey, sortDir, usesServerSearch, usesServerSort }
+  const activeCursor = cursorHistory[page] ?? null
+  const loadParamsRef = useRef({ page, pageSize, serverSearchTerm, sortKey, sortDir, usesServerSearch, usesServerSort, activeCursor, usesCursorPagination })
+  loadParamsRef.current = { page, pageSize, serverSearchTerm, sortKey, sortDir, usesServerSearch, usesServerSort, activeCursor, usesCursorPagination }
 
   const load = useCallback(async () => {
     const requestId = ++loadRequestId.current
@@ -374,12 +394,14 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           search: p.serverSearchTerm,
           sortKey: p.usesServerSort ? p.sortKey : null,
           sortDir: p.sortDir,
+          cursor: p.usesCursorPagination ? p.activeCursor : null,
         } : undefined
         const result = await cfg.load(supabase, paginationArg)
         if (requestId !== loadRequestId.current) return
         setItems(result.items)
         if (result.extra) setExtra(result.extra)
         if (result.totalCount !== undefined) setTotalCount(result.totalCount)
+        if (p.usesCursorPagination) setNextCursor(result.nextCursor ?? null)
         setError('')
       } else {
         const { data, error: loadError } = await supabase.from(cfg.table).select('*').order(cfg.orderBy ?? 'sort_order')
@@ -455,6 +477,19 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const idCol = config.idColumn ?? 'id'
   const isTable = config.layout === 'table'
   const hasMobileCards = isTable
+  const mobileSortOptions = config.mobileSortOptions ?? []
+  const activeMobileSort = mobileSortOptions.find(option => option.sortKey === (sortKey ?? 'created_at') && option.sortDir === (sortKey ? sortDir : 'desc'))
+
+  function setMobileSort(value: string) {
+    const option = mobileSortOptions.find(item => `${item.sortKey}:${item.sortDir}` === value)
+    if (!option) return
+    setPage(0)
+    setCursorHistory([null])
+    setNextCursor(null)
+    setSelectedIds([])
+    setSortKey(option.sortKey)
+    setSortDir(option.sortDir)
+  }
 
   const allScopes = config.scopeFilter
     ? [
@@ -612,6 +647,62 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     toast.success(`${count} item${count > 1 ? 's' : ''} deleted.`)
     setSelectedIds([])
     load()
+  }
+
+  function resetPagination() {
+    setPage(0)
+    setCursorHistory([null])
+    setNextCursor(null)
+    setSelectedIds([])
+  }
+
+  function goToPreviousPage() {
+    if (page === 0) return
+    setPage(current => Math.max(0, current - 1))
+    setSelectedIds([])
+  }
+
+  function goToNextPage() {
+    if (usesCursorPagination) {
+      if (!nextCursor) return
+      setCursorHistory(history => [...history.slice(0, page + 1), nextCursor])
+      setPage(current => current + 1)
+      setSelectedIds([])
+      return
+    }
+    const lastPage = Math.max(0, Math.ceil(effectiveTotalCount / (config.pagination?.pageSize ?? 1)) - 1)
+    if (page >= lastPage) return
+    setPage(current => current + 1)
+    setSelectedIds([])
+  }
+
+  function renderPagination(className?: string) {
+    if (!config.pagination) return null
+    const lastPage = Math.max(0, Math.ceil(effectiveTotalCount / config.pagination.pageSize) - 1)
+    const hasPagination = usesCursorPagination
+      ? page > 0 || !!nextCursor
+      : effectiveTotalCount > config.pagination.pageSize
+    if (!hasPagination) return null
+
+    return (
+      <div className={className ?? 'flex-between'} style={className ? undefined : { padding: 'var(--sp-sm) var(--sp-lg)', borderTop: '1px solid var(--border)' }}>
+        <button className="nav-circle-btn" onClick={resetPagination} aria-disabled={page === 0} aria-label="First page" data-tooltip="First page">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+        </button>
+        <button className="nav-circle-btn" onClick={goToPreviousPage} aria-disabled={page === 0} aria-label="Previous page" data-tooltip="Previous page">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span className="text-xs text-muted">{usesCursorPagination ? `Page ${page + 1}` : `Page ${page + 1} of ${lastPage + 1}`}</span>
+        <button className="nav-circle-btn" onClick={goToNextPage} aria-disabled={usesCursorPagination ? !nextCursor : page >= lastPage} aria-label="Next page" data-tooltip="Next page">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        {!usesCursorPagination && (
+          <button className="nav-circle-btn" onClick={() => { if (page < lastPage) { setPage(lastPage); setSelectedIds([]) } }} aria-disabled={page >= lastPage} aria-label="Last page" data-tooltip="Last page">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 17 18 12 18 7"/><polyline points="6 17 11 12 6 7"/></svg>
+          </button>
+        )}
+      </div>
+    )
   }
 
   if (loading) return <div className="s-loading"><SkeletonRows rows={3} /></div>
@@ -880,7 +971,6 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   })
 
   // ── Modal ──
-  const modalOpen = modalMode !== null
   const modalTitle = modalMode === 'add'
     ? (config.addModalTitle ?? `Add ${config.itemLabel}`)
     : (config.editModalTitle ?? `Edit ${config.itemLabel}`)
@@ -903,7 +993,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           <h2 className="s-title">{config.title}</h2>
           <div className="flex-row gap-sm" style={{ alignItems: 'baseline' }}>
             {config.subtitle && (
-              <p className="text-sm text-muted">{config.subtitle(displayed, totalCount || undefined, { page, pageSize: pageSize ?? 0 })}</p>
+              <p className="text-sm text-muted">{config.subtitle(displayed, effectiveTotalCount || undefined, { page, pageSize: pageSize ?? 0 })}</p>
             )}
           </div>
         </div>
@@ -1037,6 +1127,16 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
               </div>
             </label>
           ) : null}
+          {hasMobileCards && cardRendererActive && mobileSortOptions.length > 0 && (
+            <div className="crud-mobile-sort">
+              <FilterKebab
+                value={activeMobileSort ? `${activeMobileSort.sortKey}:${activeMobileSort.sortDir}` : `${mobileSortOptions[0].sortKey}:${mobileSortOptions[0].sortDir}`}
+                options={mobileSortOptions.map(option => ({ value: `${option.sortKey}:${option.sortDir}`, label: `Sort: ${option.label}` }))}
+                onChange={setMobileSort}
+                ariaLabel={`Sort ${config.title}`}
+              />
+            </div>
+          )}
           {isTable && !(hasMobileCards && cardRendererActive) && (
             <div className="crud-scroll-controls" aria-label="Table column navigation">
               <div className="crud-scroll-buttons">
@@ -1161,6 +1261,8 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                                 onClick={() => {
                                   if (isSortable) {
                                     setPage(0)
+                                    setCursorHistory([null])
+                                    setNextCursor(null)
                                     setSelectedIds([])
                                     if (isActive) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
                                     else { setSortKey(col.sortKey!); setSortDir('asc') }
@@ -1192,8 +1294,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                       </tbody>
                     </table>
                   </div>
-                  {config.pagination && totalCount > config.pagination.pageSize && (() => {
-                    const lastPage = Math.max(0, Math.ceil(totalCount / config.pagination.pageSize) - 1)
+                  {usesCursorPagination && renderPagination()}
+                  {config.pagination && !usesCursorPagination && effectiveTotalCount > config.pagination.pageSize && (() => {
+                    const lastPage = Math.max(0, Math.ceil(effectiveTotalCount / config.pagination.pageSize) - 1)
                     return (
                       <div className="flex-between" style={{ padding: 'var(--sp-sm) var(--sp-lg)', borderTop: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', gap: 'var(--sp-sm)' }}>
@@ -1272,8 +1375,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                 <div className="crud-mobile-cards">
                   {displayed.map((item, idx) => renderMobileCard(item, idx))}
                 </div>
-                {config.pagination && totalCount > config.pagination.pageSize && (() => {
-                  const lastPage = Math.max(0, Math.ceil(totalCount / config.pagination.pageSize) - 1)
+                {usesCursorPagination && renderPagination('crud-mobile-pagination')}
+                {config.pagination && !usesCursorPagination && effectiveTotalCount > config.pagination.pageSize && (() => {
+                  const lastPage = Math.max(0, Math.ceil(effectiveTotalCount / config.pagination.pageSize) - 1)
                   return (
                     <div className="crud-mobile-pagination">
                       <button

@@ -1048,6 +1048,7 @@ a, button, [role="button"], input, select, textarea {
 .crud-mobile-cards { display: none !important; }
 .crud-mobile-select-bar { display: none; }
 .crud-mobile-pagination { display: none; }
+.crud-mobile-sort { display: none; }
 .crud-desktop-table { display: block; }
 @media (max-width: 767px), ((pointer: coarse) and (max-width: 900px)) {
   .crud-desktop-table { display: none !important; }
@@ -1066,6 +1067,11 @@ a, button, [role="button"], input, select, textarea {
     justify-content: center;
     gap: var(--sp-sm);
     margin: var(--sp-md) 0 0;
+  }
+  .crud-mobile-sort {
+    display: flex;
+    justify-content: flex-start;
+    margin-top: var(--sp-sm);
   }
 }
 
@@ -1159,6 +1165,24 @@ a, button, [role="button"], input, select, textarea {
   align-items: center;
   border-top: 1px solid var(--border);
   padding-top: 6px;
+}
+.audit-card-matches {
+  display: grid;
+  gap: var(--sp-sm);
+  margin: var(--sp-sm) 0;
+}
+.audit-card-match {
+  display: grid;
+  gap: 2px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+.audit-card-match strong {
+  color: var(--text2);
+  font-size: var(--fs-version);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
 }
 
 .color-swatch {
@@ -4862,6 +4886,17 @@ mark.crud-highlight {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
+}
+
+html[data-settings-modal-open],
+html[data-settings-modal-open] body {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+html[data-settings-modal-open] .sl-main {
+  overflow-y: hidden !important;
+  overscroll-behavior: none;
 }
 
 /* ══════════════════════════════════════════════════════════

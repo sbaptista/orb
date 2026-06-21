@@ -9,6 +9,7 @@ export type EvalCase = {
   input: string                    // what the user says to the Orb
   history?: Array<{ role: 'user' | 'assistant'; text: string }>
   mutationApproval?: 'ask' | 'allow' // eval-only override; defaults to allow for tool-routing cases
+  voiceMode?: boolean                // inject voice mode context into the system prompt
 
   // Tier 1: Tool call assertions (deterministic)
   expectTool?: {
@@ -343,6 +344,7 @@ export const EVAL_CASES: EvalCase[] = [
     description: 'User says "that\'s enough, let\'s stop" to exit voice mode',
     productCode: 'ORB',
     input: "That's enough, let's stop talking.",
+    voiceMode: true,
     tier: 1,
     expectTool: { name: 'client_action', params: { action: 'exit_voice' } },
   },

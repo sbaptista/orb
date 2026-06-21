@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
 import DateSearchModal, { type CreatedFilter } from './DateSearchModal'
-import { getAuditLogs } from '@/app/actions/get-audit-logs'
+import { getAuditLogCount, getAuditLogs } from '@/app/actions/get-audit-logs'
 import { deleteAuditLogs } from '@/app/actions/delete-audit-logs'
+import { useModalScrollLock } from '@/lib/hooks/useModalScrollLock'
 
 type AuditRow = {
   id: string
@@ -20,8 +21,10 @@ type AuditRow = {
   user_name_snapshot: string | null
   user_email_snapshot: string | null
   system_info: { browser: string; os: string; os_version: string; viewport: string } | null
-  users: { first_name: string | null; last_name: string | null; email: string } | null
+  users?: { first_name: string | null; last_name: string | null; email: string } | null
 }
+
+type AuditIdentity = Pick<AuditRow, 'user_name_snapshot' | 'user_email_snapshot' | 'user_id' | 'users'>
 
 type AuditForm = Record<string, never>
 
@@ -34,7 +37,7 @@ function formatCell(value: unknown): string {
   return String(value)
 }
 
-function formatUser(row: AuditRow): string {
+function formatUser(row: AuditIdentity): string {
   if (row.user_name_snapshot || row.user_email_snapshot) {
     return row.user_name_snapshot || row.user_email_snapshot || '—'
   }
@@ -63,15 +66,36 @@ function formatCreated(value: string, timeZone: string): string {
   return new Date(value).toLocaleString(undefined, { timeZone })
 }
 
+function highlightSearch(value: unknown, term: string): ReactNode {
+  const text = formatCell(value)
+  if (!term) return text
+  const lowerText = text.toLowerCase()
+  const lowerTerm = term.toLowerCase()
+  const parts: ReactNode[] = []
+  let cursor = 0
+  let match = lowerText.indexOf(lowerTerm)
+  while (match !== -1) {
+    if (match > cursor) parts.push(text.slice(cursor, match))
+    parts.push(<mark key={`${match}-${cursor}`} className="crud-highlight">{text.slice(match, match + term.length)}</mark>)
+    cursor = match + term.length
+    match = lowerText.indexOf(lowerTerm, cursor)
+  }
+  if (cursor < text.length) parts.push(text.slice(cursor))
+  return parts.length ? <>{parts}</> : text
+}
+
 
 export default function SettingsAudit() {
   const [viewingRow, setViewingRow] = useState<AuditRow | null>(null)
+  const [countResult, setCountResult] = useState<{ key: string; value: number } | null>(null)
+  useModalScrollLock(viewingRow !== null)
   const timeZone = useSyncExternalStore(subscribeToTimeZone, getBrowserTimeZone, () => 'UTC')
 
   const [showTextSearch, setShowTextSearch] = useState(false)
   const [textSearchTerm, setTextSearchTerm] = useState('')
   const [showCreatedFilter, setShowCreatedFilter] = useState(false)
   const [createdFilter, setCreatedFilter] = useState<CreatedFilter | null>(null)
+  const countKey = `${textSearchTerm}|${createdFilter?.from ?? ''}|${createdFilter?.to ?? ''}|${createdFilter?.before ?? ''}`
 
   function resetAll() {
     setTextSearchTerm('')
@@ -91,6 +115,23 @@ export default function SettingsAudit() {
     { key: 'created_at', label: 'Created' },
   ]
 
+  useEffect(() => {
+    let cancelled = false
+    void getAuditLogCount({
+      search: textSearchTerm,
+      createdFrom: createdFilter?.from,
+      createdTo: createdFilter?.to,
+      createdBefore: createdFilter?.before,
+    }).then(result => {
+      if (!cancelled && typeof result.count === 'number') setCountResult({ key: countKey, value: result.count })
+    })
+    return () => { cancelled = true }
+  }, [countKey, textSearchTerm, createdFilter])
+
+  function closeAuditEntry() {
+    setViewingRow(null)
+  }
+
   return (
     <>
       <SettingsCrudList<AuditRow, AuditForm>
@@ -101,20 +142,28 @@ export default function SettingsAudit() {
           emptyForm: EMPTY_FORM,
           pageClass: 'settings-page s-page-wide',
           layout: 'table',
-          pagination: { pageSize: PAGE_SIZE, serverSearch: true, serverSort: true },
-          subtitle: (_items, total, pageInfo) => {
-            if (!total) return 'No rows found.'
-            const ps = pageInfo?.pageSize ?? PAGE_SIZE
-            const pg = pageInfo?.page ?? 0
-            const start = pg * ps + 1
-            const end = Math.min(start + _items.length - 1, total)
-            if (start === end) return `Row ${start} of ${total}.`
-            return `Rows ${start}–${end} of ${total}.`
+          pagination: { pageSize: PAGE_SIZE, serverSearch: true, serverSort: true, mode: 'cursor' },
+          mobileSortOptions: [
+            { sortKey: 'created_at', sortDir: 'desc', label: 'Newest first' },
+            { sortKey: 'created_at', sortDir: 'asc', label: 'Oldest first' },
+            { sortKey: 'table_name', sortDir: 'asc', label: 'Table A–Z' },
+            { sortKey: 'table_name', sortDir: 'desc', label: 'Table Z–A' },
+            { sortKey: 'action', sortDir: 'asc', label: 'Action A–Z' },
+            { sortKey: 'action', sortDir: 'desc', label: 'Action Z–A' },
+            { sortKey: 'actor', sortDir: 'asc', label: 'Actor A–Z' },
+            { sortKey: 'actor', sortDir: 'desc', label: 'Actor Z–A' },
+          ],
+          totalCount: countResult?.key === countKey ? countResult.value : undefined,
+          subtitle: (items, count, pageInfo) => {
+            if (!items.length) return 'No rows found.'
+            const start = (pageInfo?.page ?? 0) * PAGE_SIZE + 1
+            const end = start + items.length - 1
+            return count === undefined ? `Rows ${start}–${end}.` : `Rows ${start}–${end} of ${count}.`
           },
           externalSearchTerm: textSearchTerm,
           searchCaption: 'Search by text, date, or both',
           tableNavCaption: 'prev/next columns',
-          onRowClick: (item) => setViewingRow(item),
+          onRowClick: setViewingRow,
           externalFilterKey: `${createdFilter?.from ?? ''}|${createdFilter?.to ?? ''}|${createdFilter?.before ?? ''}`,
           onResetFilters: resetAll,
           toolbarExtra: (
@@ -164,11 +213,11 @@ export default function SettingsAudit() {
 
           load: async (_supabase, pagination) => {
             const res = await getAuditLogs({
-              page: pagination?.page,
               pageSize: pagination?.pageSize,
               search: pagination?.search,
               sortKey: pagination?.sortKey,
               sortDir: pagination?.sortDir,
+              cursor: pagination?.cursor,
               createdFrom: createdFilter?.from,
               createdTo: createdFilter?.to,
               createdBefore: createdFilter?.before,
@@ -176,7 +225,7 @@ export default function SettingsAudit() {
             if (res.error) throw new Error(res.error)
             return {
               items: (res.data ?? []) as AuditRow[],
-              totalCount: res.count ?? 0,
+              nextCursor: res.nextCursor,
             }
           },
 
@@ -233,6 +282,54 @@ export default function SettingsAudit() {
               </td>
             </tr>
           ),
+
+          renderMobileRow: ({ item, onEdit }) => {
+            const term = textSearchTerm.trim()
+            const matchFields = term
+              ? [
+                  { label: 'User', value: formatUser(item) },
+                  { label: 'Table', value: item.table_name },
+                  { label: 'Action', value: item.action },
+                  { label: 'Actor', value: item.actor },
+                  { label: 'Record', value: item.record_id },
+                  { label: 'Before', value: item.before },
+                  { label: 'After', value: item.after },
+                ].filter(field => formatCell(field.value).toLowerCase().includes(term.toLowerCase()))
+              : []
+
+            return (
+              <div key={item.id} className="crud-card audit-card" onClick={onEdit}>
+                <div className="crud-card-header">
+                  <span className="crud-card-code">{item.table_name ?? 'Audit entry'}</span>
+                  <span className="crud-card-date">{formatCreated(item.created_at, timeZone)}</span>
+                </div>
+                <div className="crud-card-title">{formatUser(item)}</div>
+                <div className="crud-card-pills">
+                  <span className="crud-card-pill">{item.action ?? '—'}</span>
+                  {item.actor && <span className="crud-card-pill">{item.actor}</span>}
+                </div>
+                {matchFields.length > 0 ? (
+                  <div className="audit-card-matches">
+                    {matchFields.map(field => (
+                      <div key={field.label} className="audit-card-match">
+                        <strong>{field.label}</strong>
+                        <span>{highlightSearch(field.value, term)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="crud-card-meta">
+                    <span><strong>Record:</strong> <span className="crud-card-meta-value">{item.record_id ?? '—'}</span></span>
+                    <span><strong>Before:</strong> <span className="crud-card-meta-value">{formatCell(item.before)}</span></span>
+                    <span><strong>After:</strong> <span className="crud-card-meta-value">{formatCell(item.after)}</span></span>
+                  </div>
+                )}
+                <div className="crud-card-actions">
+                  <button type="button" className="text-btn btn-sm" onClick={() => onEdit()}>Open</button>
+                </div>
+              </div>
+            )
+          },
         }}
       />
 
@@ -257,7 +354,7 @@ export default function SettingsAudit() {
       {/* ── Audit row detail modal ── */}
       {viewingRow && (
         <>
-          <div className="modal-backdrop" onClick={() => setViewingRow(null)} />
+          <div className="modal-backdrop" onClick={closeAuditEntry} />
           <div
             className="modal-center"
             role="dialog"
@@ -269,7 +366,7 @@ export default function SettingsAudit() {
               <h3 id="audit-entry-dialog-title" style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
                 Audit Entry
               </h3>
-              <button className="close-btn" onClick={() => setViewingRow(null)} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              <button className="close-btn" onClick={closeAuditEntry} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div className="modal-body" style={{ padding: 'var(--sp-lg) var(--sp-xl)' }}>
               {viewingRow.system_info && (

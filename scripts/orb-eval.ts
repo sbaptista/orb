@@ -54,7 +54,9 @@ type TestResult = {
 
 // ── API Call ────────────────────────────────────────────────────────────────
 
-const INTER_RUN_DELAY_MS = 300
+// The dev endpoint shares Orb's 10-calls-per-minute safety limit. Keep the
+// deterministic suite under that ceiling so its results are meaningful.
+const INTER_REQUEST_DELAY_MS = 6500
 
 async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
   const res = await fetch(`${BASE_URL}/api/orb-eval`, {
@@ -68,6 +70,7 @@ async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
       productCode: testCase.productCode,
       history: testCase.history,
       mutationApproval: testCase.mutationApproval,
+      voiceMode: testCase.voiceMode,
     }),
   })
 
@@ -202,7 +205,7 @@ async function runCase(testCase: EvalCase): Promise<TestResult> {
       lastFailures = [`Error: ${err.message}`]
     }
 
-    if (i < runs - 1) await new Promise(r => setTimeout(r, INTER_RUN_DELAY_MS))
+    if (i < runs - 1) await new Promise(r => setTimeout(r, INTER_REQUEST_DELAY_MS))
   }
 
   // Tier 1: must pass 1/1. Tier 2: must pass 2/3.
@@ -327,8 +330,8 @@ async function main() {
       }
       completedRuns++
 
-      // Cool-off between runs to prevent socket exhaustion on the dev server
-      if (i < runs - 1) await new Promise(r => setTimeout(r, INTER_RUN_DELAY_MS))
+      // Cool-off between calls to respect the endpoint rate limit.
+      if (i < runs - 1) await new Promise(r => setTimeout(r, INTER_REQUEST_DELAY_MS))
     }
 
     // Tier 1: must pass 1/1. Tier 2: must pass majority of COMPLETED runs.
@@ -354,6 +357,10 @@ async function main() {
       durationMs: Math.round(totalMs / runs),
     }
     results.push(result)
+
+    if (testCase !== cases[cases.length - 1]) {
+      await new Promise(r => setTimeout(r, INTER_REQUEST_DELAY_MS))
+    }
   }
 
   // Clear the status bar

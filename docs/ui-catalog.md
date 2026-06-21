@@ -379,8 +379,8 @@ Development-only authoring tool available for every rendered HTML table on every
 ### CRUD List (`SettingsCrudList`)
 **File:** `components/settings/SettingsCrudList.tsx`  
 Reusable pattern for settings lists with add/edit/delete actions, column resize, search, scope filters, bulk delete, and server-side pagination.
-- **Mobile cards:** `layout: 'table'` collections render as cards on iPhone and narrow/coarse-pointer iPad. `SettingsCrudList` generates a default card from `tableColumns`; use `renderMobileRow` only for rich custom layouts such as Tickets. Search highlighting is applied to default card text, and pagination/search/sort state remains shared with the desktop table renderer.
-- **Pagination:** `config.pagination = { pageSize: N }`. When set, `load()` receives the current page criteria and must return `totalCount`. Renders First/Previous/Next/Last controls in a footer bar inside the card.
+- **Mobile cards:** `layout: 'table'` collections render as cards on iPhone and narrow/coarse-pointer iPad. `SettingsCrudList` generates a default card from `tableColumns`; use `renderMobileRow` only for rich exceptions such as Tickets and Audit Log search context. Card renderer sorting uses `mobileSortOptions`, which displays the existing accessible `FilterKebab` menu above cards. Search highlighting is applied to default card text, and pagination/search/sort state remains shared with the desktop table renderer.
+- **Pagination:** `config.pagination = { pageSize: N }`. Offset pagination returns `totalCount` and renders First/Previous/Next/Last controls. For log-style collections that must stay fast as data grows, set `mode: 'cursor'`: `load()` receives `cursor` and returns `nextCursor`; the shared footer renders First/Previous/Next. Supply an independently loaded exact `totalCount` when the collection should retain `Rows X–Y of Z` without delaying its page query.
 - **Global paginated search/sort:** Set `serverSearch: true` and/or `serverSort: true` in `config.pagination`. The shared list debounces search, passes `{ search, sortKey, sortDir }` to `load()`, resets to page one when criteria change, and treats the returned count as the full filtered result count. Do not combine client-only filtering or sorting with server pagination when users expect full-dataset results.
 - **Header extras:** `config.headerExtra` — ReactNode rendered in the header beside the Add button (e.g. dev-only Diagnose button on Audit Log).
 - **Toolbar extras:** `config.toolbarLeading` renders before the active search control, `config.toolbarExtra` renders after it. Use these for compact mode selectors and controls that belong beside search rather than in the page header. `config.searchEnabled` can hide and deactivate the text search input when another search mode is active; hidden text search is cleared so invisible filters do not remain active. `config.searchCaption` and `config.tableNavCaption` provide small caption text for the search field and column navigation group.
@@ -407,6 +407,9 @@ Tables with date columns (Audit Log, Orb Memory, Tickets) render both buttons. T
 ### Audit Created Filter
 Created timestamps display in the browser's IANA timezone. The dedicated **Created** filter supports On date, At or before, At or after, and Between. Local picker values are converted to UTC boundaries before the server query; general text search deliberately excludes Created so timestamp interpretation is never implicit or timezone-dependent. Audit details show both the browser-local timestamp and canonical UTC value.
 
+### Audit Log Mobile Cards
+Audit Log uses the documented rich-card exception on iPhone and narrow iPad. A `FilterKebab` Sort menu exposes the same Date, Table, Action, and Actor server sort choices as desktop headers. During text search, the card renders an expanded **Matches** section for every matching field, including complete Before and After JSON, so matches beyond the default five-line metadata clamp remain visible and highlighted.
+
 ### Action Cell Pattern (`action-cell`, `action-link`)
 **File:** `app/globals.css`  
 Standardized action column for all settings tables.
@@ -430,7 +433,7 @@ Do not use a gear icon for item-level actions. Do not use a kebab for page navig
 ## Modals & Panels
 
 ### Centered Modal (`modal-center`)
-**Canonical modal pattern.** Fixed center of viewport, resizable, max-height 85dvh.
+**Canonical modal pattern.** Fixed center of viewport, resizable, max-height 85dvh. Settings instances lock document and `.sl-main` scrolling while open; the modal body remains the only scrollable area.
 
 | Class | Purpose |
 |---|---|

@@ -10,11 +10,26 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.17
+- **Version:** 0.6.27
 
 ---
 
 ### Last Session Completed
+
+**ORB-270: Responsive iPhone cards + Audit Log performance — 2026-06-21 (Codex, GPT-5)**
+
+1. Standardized responsive collections: Mac/wide iPad retain tables; iPhone and narrow/coarse-pointer iPad use shared SettingsCrudList cards while preserving search, sorting, pagination, selection, and bulk actions.
+2. Kept centered settings edit modals and added a root-level lock that blocks document and settings-surface scrolling while a modal is open.
+3. Reworked Audit Log browsing to indexed cursor pagination with independent exact counts, immediate full-detail opening, and matching indexes for Created, Table, Action, and Actor sorts.
+4. Added the Audit mobile card exception: accessible Sort menu plus expanded highlighted Matches sections for all matching fields, including Before/After JSON.
+5. Closed ORB-270 with resolution notes and Knowledge Repo entry `1fb15978-b882-4ddf-9f72-3763b15207d9`.
+6. Included the existing v0.6.18 Orb metrics, Haiku model, and prompt-hardening work in this release; paced the local eval runner to respect the 10-calls-per-minute endpoint limit.
+
+### Uncommitted Changes
+
+None after this release commit.
+
+### Prior Session Context
 
 **ORB-251: Voice mode build + latency optimization + debugging — 2026-06-19 (Claude Code, Opus 4.6)**
 
@@ -47,33 +62,6 @@ Two sessions combined. First built the full voice conversation mode (v0.6.16), t
 **Critical finding:** Comet browser does not work reliably for voice. Exact cause unknown. Chrome and Safari both work. Stan will use Chrome/Safari/Edge for voice testing going forward.
 
 **Not yet validated:** The full conversational voice flow (Orb hearing, responding, mic resuming) has NOT been tested end-to-end on any working browser. The prototype's TTS-only test works on Chrome/Safari, but the complete dashboard voice experience is unvalidated.
-
-### Uncommitted Changes
-
-- `app/actions/orb-converse.ts` — prompt caching refactor (stable/dynamic split with cache_control)
-- `app/globals.css` — voice bar CSS, Orb voice keyframes
-- `app/prototype/voice/page.tsx` — NEW voice prototype test page
-- `app/settings/voice/page.tsx` — NEW voice settings route
-- `components/CollapsibleSidebar.tsx` — (prior session)
-- `components/OrbConversation.tsx` — voice bar UI, voice props, "Talk to Orb" in More menu
-- `components/OrbDevPanel.tsx` — (prior session)
-- `components/OrbHelp.tsx` — Voice topic, ⌘ Shift O, SVG icons for voice controls
-- `components/OrbTour.tsx` — "Or just talk" tour step
-- `components/UnifiedDashboard.tsx` — voice mode integration, stale closure fix, auto-TTS effect
-- `components/dev/GlobalDevPanel.tsx` — (prior session)
-- `components/settings/SettingsCrudList.tsx` — (prior session)
-- `components/settings/SettingsSidebar.tsx` — voice nav entry
-- `components/settings/SettingsVoice.tsx` — NEW voice settings component
-- `docs/ui-catalog.md` — voice mode states documented
-- `lib/changelog.ts` — v0.6.16 + v0.6.17 entries
-- `lib/hooks/useDoubleTap.ts` — NEW (unused, can be removed)
-- `lib/hooks/useVoiceMode.ts` — NEW voice mode hook
-- `lib/orb-contract.ts` — set_voice, exit_voice in client_action enum
-- `lib/version.ts` — v0.6.17
-- `package.json` — v0.6.17
-- `scripts/eval-cases.ts` — voice eval cases
-
----
 
 ### Key Lesson
 
@@ -183,7 +171,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-06-19 — Claude Code (Opus 4.6)`
+`2026-06-21 — Codex (GPT-5)`
 
 ---
 

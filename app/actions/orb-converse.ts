@@ -87,6 +87,20 @@ function historyHasPendingMutationProposal(history?: OrbRequest['history']): boo
   return asksApproval && namesMutation
 }
 
+function pendingApprovalCode(history?: OrbRequest['history']): string | null {
+  const recentAssistant = [...(history ?? []).reverse()].find(h => h.role === 'assistant')?.text ?? ''
+  return recentAssistant.match(/\b[A-Z][A-Z0-9]{1,15}-\d+\b/)?.[0] ?? null
+}
+
+function pendingApprovalTool(history?: OrbRequest['history']): 'create_todo' | 'update_todo' | 'delete_todo' | 'move_todo' | null {
+  const recentAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
+  if (/\bcreate (a |the )?(task|todo)\b/i.test(recentAssistant)) return 'create_todo'
+  if (/\bupdate\b/i.test(recentAssistant)) return 'update_todo'
+  if (/\bdelete\b/i.test(recentAssistant)) return 'delete_todo'
+  if (/\bmove\b/i.test(recentAssistant)) return 'move_todo'
+  return null
+}
+
 function mutationToolSummary(name: string, input: any): string {
   if (name === 'create_todo') {
     return `create a task${input.title ? `: "${input.title}"` : ''}${input.product_code ? ` in ${input.product_code}` : ''}`
@@ -431,8 +445,33 @@ export async function orbConverse(req: OrbRequest) {
 
   ;(async () => {
     let accumulatedSpeech = ''
+    let metricToolCalls = 0
+    const metricInputChars = req.input?.length ?? 0
+    const metricVoiceMode = !!req.uiContext?.voiceMode
+    let metricUserId: string | null = null
+    let metricInputTokens = 0
+    let metricOutputTokens = 0
+
+    function recordMetrics(speechChars: number) {
+      if (!metricUserId) return
+      const admin = createAdminClient()
+      admin.rpc('upsert_orb_metric', {
+        p_user_id: metricUserId,
+        p_speech_chars: speechChars,
+        p_voice_speech_chars: metricVoiceMode ? speechChars : 0,
+        p_input_chars: metricInputChars,
+        p_tool_call_count: metricToolCalls,
+        p_ambient_chars: 0,
+        p_input_tokens: metricInputTokens,
+        p_output_tokens: metricOutputTokens,
+      }).then(({ error }) => {
+        if (error) console.error('[orbConverse] Metric upsert failed:', error.message)
+      })
+    }
+
     try {
       const auth = await getAuthContext()
+      metricUserId = auth.user.id
 
       // DEV-only error simulation — throws synthetic errors to test error UX
       if (process.env.NODE_ENV === 'development' && req.simulateError) {
@@ -472,9 +511,18 @@ export async function orbConverse(req: OrbRequest) {
           : 'REPOSITORY ACCESS: You may inspect both the current local working tree (source="local") and the current Vercel deployment (source="production"). Use the source the user asks about; default to local for implementation questions asked on localhost.'
         : 'REPOSITORY ACCESS: This user is not an Admin, Super Admin, or Developer. You cannot inspect source code for them.'
 
+      const approvalConfirmed = isAffirmativeApproval(req.input) && historyHasPendingMutationProposal(req.history)
+      const approvedCode = pendingApprovalCode(req.history)
+      const approvedTool = pendingApprovalTool(req.history)
       const messages: any[] = [
         ...(req.history?.map(h => ({ role: h.role, content: h.text })) ?? []),
-        { role: 'user', content: req.input }
+        { role: 'user', content: req.input },
+        ...(approvalConfirmed ? [{
+          role: 'user',
+          content: approvedTool
+            ? `SYSTEM: The user has approved the immediately preceding mutation proposal. Call ${approvedTool} now${approvedCode ? ` for ${approvedCode}` : ''}. Do not query first or ask for approval again.`
+            : 'SYSTEM: The user has approved the immediately preceding mutation proposal. Execute that requested mutation now. Do not perform a preliminary lookup or ask for approval again.',
+        }] : []),
       ]
 
       let turnCount = 0
@@ -482,7 +530,7 @@ export async function orbConverse(req: OrbRequest) {
       let repairedNoToolMutationClaim = false
       const toolProducedCodes = new Set<string>()
       const historyCodes = extractCitedCodes(
-        (req.history ?? []).map(h => h.text).join(' ')
+        (req.history ?? []).map(h => h.text).join(' ') + ' ' + req.input
         + ' ' + ctx.todoList.map((t: any) => todoCode(t, ctx.productList)).join(' ')
       )
 
@@ -559,7 +607,7 @@ When the user signals they want to end the voice conversation — "that's enough
         ].filter(Boolean).join('\n\n')
 
         const response = await anthropic.messages.create({
-          model: 'claude-sonnet-4-5-20250929',
+          model: 'claude-haiku-4-5',
           max_tokens: 4096,
           system: [
             { type: 'text' as const, text: stablePrompt, cache_control: { type: 'ephemeral' as const } },
@@ -567,6 +615,7 @@ When the user signals they want to end the voice conversation — "that's enough
           ],
           messages,
           tools: [...availableOrbTools, ...ORB_PREFERENCE_TOOLS, ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []), ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_ADAPTATION_TOOL],
+          ...(approvalConfirmed && approvedTool ? { tool_choice: { type: 'tool' as const, name: approvedTool } } : {}),
           stream: true,
         }, { timeout: 60_000 })
 
@@ -588,9 +637,14 @@ When the user signals they want to end the voice conversation — "that's enough
              toolCalls.push({ id: chunk.content_block.id, name: chunk.content_block.name, input: '' })
           } else if (chunk.type === 'content_block_delta' && chunk.delta.type === 'input_json_delta') {
              toolCalls[toolCalls.length - 1].input += chunk.delta.partial_json
+          } else if (chunk.type === 'message_start' && chunk.message?.usage) {
+            metricInputTokens += chunk.message.usage.input_tokens ?? 0
+          } else if (chunk.type === 'message_delta' && (chunk as any).usage) {
+            metricOutputTokens += (chunk as any).usage.output_tokens ?? 0
           }
         }
 
+        metricToolCalls += toolCalls.length
         const assistantContent: any[] = []
         if (currentTurnSpeech) assistantContent.push({ type: 'text', text: currentTurnSpeech })
         for (const tc of toolCalls) {
@@ -623,12 +677,14 @@ When the user signals they want to end the voice conversation — "that's enough
               stream.update({ speech: '', thought: 'Correcting mutation claim...', isStreaming: true })
               continue
             }
+            recordMetrics('I did not actually complete that'.length)
             stream.done({
               speech: 'I did not actually complete that — no mutation tool ran, so nothing was written. Please ask again and I will either request confirmation or run the correct tool.',
               isStreaming: false,
             })
             return
           }
+          recordMetrics(parsed.speech.length)
           stream.done({ speech: parsed.speech, insight: parsed.insight, isStreaming: false })
           return
         }
@@ -656,6 +712,7 @@ When the user signals they want to end the voice conversation — "that's enough
           && !(isAffirmativeApproval(req.input) && historyHasPendingMutationProposal(req.history))
         ) {
           const speech = buildApprovalPrompt(approvalNeeded)
+          recordMetrics(speech.length)
           stream.done({ speech, isStreaming: false })
           return
         }
@@ -838,11 +895,13 @@ When the user signals they want to end the voice conversation — "that's enough
                     stream.update({ speech: accumulatedSpeech, thought: `Distilling insights (${notesLen} chars of notes)...` })
 
                     const distillation = await anthropic.messages.create({
-                        model: 'claude-sonnet-4-5-20250929',
+                        model: 'claude-haiku-4-5',
                         max_tokens: 500,
                         system: "Extract the 'Gold' (the key technical decision or lesson learned) from the task. Return a RAW JSON object with 'title' and 'content'. DO NOT use markdown or code blocks.",
                         messages: [{ role: 'user', content: `Task: ${data.title}\nDescription: ${data.description}\nResolution: ${data.resolution_notes}` }]
                     })
+                    metricInputTokens += distillation.usage?.input_tokens ?? 0
+                    metricOutputTokens += distillation.usage?.output_tokens ?? 0
                     try {
                         const text = (distillation.content[0] as any).text
                         const firstBrace = text.indexOf('{')
@@ -1434,8 +1493,10 @@ When the user signals they want to end the voice conversation — "that's enough
       // Reached MAX_TURNS without a no-tool-call response. Return an explicit
       // outcome so the client never preserves a silent "Processing…" state.
       const exhaustedMessage = 'I could not complete that inspection within the available tool steps. Try asking about a more specific screen, component, or file.'
+      const exhaustedSpeech = accumulatedSpeech ? `${accumulatedSpeech}\n\n${exhaustedMessage}` : exhaustedMessage
+      recordMetrics(exhaustedSpeech.length)
       stream.done({
-        speech: accumulatedSpeech ? `${accumulatedSpeech}\n\n${exhaustedMessage}` : exhaustedMessage,
+        speech: exhaustedSpeech,
         isStreaming: false,
       })
     } catch (err: any) {
@@ -1527,6 +1588,7 @@ When the user signals they want to end the voice conversation — "that's enough
       const finalSpeech = accumulatedSpeech
         ? `${accumulatedSpeech}\n\n*${userMessage}*`
         : userMessage
+      recordMetrics(finalSpeech.length)
       stream.done({ speech: finalSpeech, isServiceError: true, error: String(err) })
     }
   })()
@@ -1550,7 +1612,7 @@ export async function orbGreeting(productId: string | null): Promise<string | nu
       : ''
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'claude-haiku-4-5',
       max_tokens: 200,
       system: `You are the voice of the orb. Generate a brief, ambient opening observation (1-2 sentences) based on the backlog below. Plain text, no markdown. Factual tone — no cheerleading. Address the user directly ("you"). Do not greet them or say hello. SCOPE TRANSPARENCY: Every number you cite must state its scope — say "across all projects" or name the specific projects by their display names (e.g. "across Orb, Helm"). Never present a count without saying where it comes from. Only state facts visible in the backlog — do not infer patterns or compute statistics. If a proactive observation is provided, prefer weaving it into the opening naturally over generic backlog stats.\n\n${STATUS_VOCABULARY}${observationsSection}`,
       messages: [{
@@ -1560,6 +1622,21 @@ export async function orbGreeting(productId: string | null): Promise<string | nu
     })
 
     const text = (response.content[0] as any)?.text?.trim()
+    if (text) {
+      const admin = createAdminClient()
+      admin.rpc('upsert_orb_metric', {
+        p_user_id: auth.user.id,
+        p_speech_chars: 0,
+        p_voice_speech_chars: 0,
+        p_input_chars: 0,
+        p_tool_call_count: 0,
+        p_ambient_chars: text.length,
+        p_input_tokens: response.usage?.input_tokens ?? 0,
+        p_output_tokens: response.usage?.output_tokens ?? 0,
+      }).then(({ error }) => {
+        if (error) console.error('[orbGreeting] Metric upsert failed:', error.message)
+      })
+    }
     return text || null
   } catch (err) {
     console.error('[orbGreeting] Error:', err)

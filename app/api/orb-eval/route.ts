@@ -60,6 +60,20 @@ function historyHasPendingMutationProposal(history?: Array<{ role: 'user' | 'ass
   return asksApproval && namesMutation
 }
 
+function pendingApprovalCode(history?: Array<{ role: 'user' | 'assistant'; text: string }>): string | null {
+  const recentAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
+  return recentAssistant.match(/\b[A-Z][A-Z0-9]{1,15}-\d+\b/)?.[0] ?? null
+}
+
+function pendingApprovalTool(history?: Array<{ role: 'user' | 'assistant'; text: string }>): 'create_todo' | 'update_todo' | 'delete_todo' | 'move_todo' | null {
+  const recentAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
+  if (/\bcreate (a |the )?(task|todo)\b/i.test(recentAssistant)) return 'create_todo'
+  if (/\bupdate\b/i.test(recentAssistant)) return 'update_todo'
+  if (/\bdelete\b/i.test(recentAssistant)) return 'delete_todo'
+  if (/\bmove\b/i.test(recentAssistant)) return 'move_todo'
+  return null
+}
+
 function mutationToolSummary(name: string, params: Record<string, any>): string {
   if (name === 'create_todo') return `create a task${params.title ? `: "${params.title}"` : ''}${params.product_code ? ` in ${params.product_code}` : ''}`
   if (name === 'update_todo') return `update ${params.code ?? 'the task'}`
@@ -87,11 +101,12 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
-  const { input, productCode, history, mutationApproval } = body as {
+  const { input, productCode, history, mutationApproval, voiceMode } = body as {
     input: string
     productCode?: string
     history?: Array<{ role: 'user' | 'assistant'; text: string }>
     mutationApproval?: 'ask' | 'allow'
+    voiceMode?: boolean
   }
 
   if (!input) {
@@ -257,6 +272,11 @@ export async function POST(request: NextRequest) {
       const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
       return `- [${k.projects?.name || k.projects?.code}] ${k.title}${tags}: ${k.content.slice(0, 100)}...`
     }).join('\n')}`,
+    voiceMode ? `VOICE CONVERSATION: You are currently in voice mode — the user is speaking to you and hearing your responses aloud.
+VOICE RESPONSE RULES:
+- Keep responses concise and conversational — clear sentences, not markdown lists or tables.
+- Avoid complex formatting (tables, bullet lists, code blocks). Speak in natural prose.
+When the user signals they want to end the voice conversation — "that's enough", "let's stop", "stop talking", "end voice mode", or similar — you MUST call client_action with action="exit_voice". You may say a brief closing remark first.` : '',
     ORB_QUERY_ROUTING,
     `REPOSITORY ACCESS: You may inspect the local working tree with query_repository source="local", or the current Vercel deployment with source="production".`,
     `DATABASE SCHEMA (for query_db):\n${DB_SCHEMA}`,
@@ -286,19 +306,29 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     ORB_DEV_CHANNEL_PROMPT,
   ].filter(Boolean).join('\n\n')
 
+  const approvalConfirmed = isAffirmativeApproval(input) && historyHasPendingMutationProposal(history)
+  const approvedCode = pendingApprovalCode(history)
+  const approvedTool = pendingApprovalTool(history)
   const messages: any[] = [
     ...(history?.map(h => ({ role: h.role, content: h.text })) ?? []),
     { role: 'user', content: input },
+    ...(approvalConfirmed ? [{
+      role: 'user',
+      content: approvedTool
+        ? `SYSTEM: The user has approved the immediately preceding mutation proposal. Call ${approvedTool} now${approvedCode ? ` for ${approvedCode}` : ''}. Do not query first or ask for approval again.`
+        : 'SYSTEM: The user has approved the immediately preceding mutation proposal. Execute that requested mutation now. Do not perform a preliminary lookup or ask for approval again.',
+    }] : []),
   ]
 
   try {
     // Non-streaming call — capture the full response
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'claude-haiku-4-5',
       max_tokens: 4096,
       system: systemPrompt,
       messages,
       tools: [...ORB_TOOLS, ...ORB_PREFERENCE_TOOLS, ...ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL] as any,
+      ...(approvalConfirmed && approvedTool ? { tool_choice: { type: 'tool' as const, name: approvedTool } } : {}),
     })
 
     // Extract speech and tool calls
@@ -327,7 +357,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       })
     }
 
-    const historyCodes = extractCitedCodes((history ?? []).map(h => h.text).join(' '))
+    const historyCodes = extractCitedCodes(`${(history ?? []).map(h => h.text).join(' ')} ${input}`)
     const toolProducedCodes = new Set<string>()
     if (isFalseMutationClaim(speech, false, toolProducedCodes, historyCodes)) {
       return NextResponse.json({

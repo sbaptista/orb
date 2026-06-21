@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useId, useSyncExternalStore } from 'react'
 import { SendIcon } from './TextSearchModal'
+import { useModalScrollLock } from '@/lib/hooks/useModalScrollLock'
 
 export type CreatedFilter = {
   label: string
@@ -42,6 +43,7 @@ export default function DateSearchModal({
   onClear: () => void
   currentFilter: CreatedFilter | null
 }) {
+  useModalScrollLock(open)
   const [mode, setMode] = useState<'on' | 'before' | 'after' | 'between'>('on')
   const [dateValue, setDateValue] = useState('')
   const [fromDraft, setFromDraft] = useState('')

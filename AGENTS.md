@@ -161,7 +161,7 @@ The conversational Orb's behavior is protected by an **eval suite**, not unit te
 # Anthropic API — Claude Conversational Orb
 
 **Server action:** `app/actions/orb-converse.ts`
-**Model:** `claude-sonnet-4-6`
+**Model:** `claude-haiku-4-5`
 **Tools:** `create_todo`, `query_todos`, `update_todo`, `delete_todo`
 **Local key:** `ANTHROPIC_API_KEY` in `.env.local`
 **Production key:** same value set in Vercel project env vars
