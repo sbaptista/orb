@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.28',
+    date: '2026-06-21',
+    changes: [
+      'Typography: Bumped all navigation bar labels from fs-version (11px) to fs-base (15px) for legibility across all pages.',
+      'iPhone dashboard: Split navigation into two bars — top bar centers Change Project, +Project, Menu, and Account; second bar pins Orb (left) and List (right) so the larger label text does not crowd them off-screen.',
+      'UI catalog: Added Typography & Text Styling section documenting font families, size tokens with three-tier scaling, weights, text colors with contrast ratios, line height, letter spacing, opacity, and common text patterns.',
+      'Orb Metrics: Added input/output token columns and sortable headers to the metrics table. Editable $/MTok rate fields for LLM cost estimation persist in localStorage. Fixed database RPC sort alias bug (om. → f.) and removed stale function overload.',
+      'Closed ORB-251 (voice conversation mode) with resolution notes and knowledge repo entry.',
+    ]
+  },
+  {
     version: 'v0.6.27',
     date: '2026-06-21',
     changes: [

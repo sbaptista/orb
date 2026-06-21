@@ -1603,7 +1603,7 @@ mark.crud-highlight {
 }
 .appnav-btn-label {
   font-family: var(--font-ui);
-  font-size: var(--fs-version);
+  font-size: var(--fs-base);
   font-weight: var(--fw-medium);
   line-height: var(--lh-none);
   color: var(--muted);
@@ -1639,6 +1639,14 @@ mark.crud-highlight {
   font-size: var(--fs-version);
 }
 
+/* ── Desktop-only wrapper — hides Orb/List toggles from main bar on iPhone ── */
+.appnav-desktop-only { display: contents; }
+
+/* ── Mobile pane switcher bar — Orb (left) / List (right) below main nav ── */
+.appnav-mobile-panes {
+  display: none;
+}
+
 @media (max-width: 767px) {
   .appnav {
     padding: 2px 4px;
@@ -1651,6 +1659,23 @@ mark.crud-highlight {
   }
   /* Spacers shrink on mobile but keep minimal balance */
   .appnav-spacer { flex: 1; min-width: var(--sp-xs); }
+
+  /* Hide Orb/List from main bar on iPhone — they move to the pane bar */
+  .appnav-desktop-only { display: none; }
+
+  /* Show the mobile pane switcher bar */
+  .appnav-mobile-panes {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 2px 8px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    min-height: 40px;
+    flex-shrink: 0;
+  }
 }
 
 /* ── Search Modal ── */

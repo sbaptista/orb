@@ -73,9 +73,9 @@ export default function AppNav({ printContext, userInitial = '?', userName, orbT
   return (
     <>
       <nav className="appnav" aria-label="Global navigation">
-        {/* ── Left edge: Orb toggle (dashboard) or Back (other pages) ── */}
+        {/* ── Left edge: Orb toggle (dashboard, desktop only) or Back (other pages) ── */}
         {onDashboard && orbToggle ? (
-          orbToggle
+          <span className="appnav-desktop-only">{orbToggle}</span>
         ) : !onDashboard ? (
           <Link href="/dashboard" className="appnav-btn appnav-back" data-tooltip="Dashboard" aria-label="Back to Dashboard">
             <span className="appnav-btn-icon">{IconBack}</span>
@@ -115,9 +115,20 @@ export default function AppNav({ printContext, userInitial = '?', userName, orbT
         {/* ── Spacer (right) ── */}
         <div className="appnav-spacer" />
 
-        {/* ── Right edge: List toggle (dashboard) ── */}
-        {onDashboard && listToggle ? listToggle : null}
+        {/* ── Right edge: List toggle (dashboard, desktop only) ── */}
+        {onDashboard && listToggle ? (
+          <span className="appnav-desktop-only">{listToggle}</span>
+        ) : null}
       </nav>
+
+      {/* ── Mobile Orb/List bar (dashboard only, iPhone) ── */}
+      {onDashboard && (orbToggle || listToggle) && (
+        <div className="appnav-mobile-panes" aria-label="Pane switcher">
+          {orbToggle}
+          <div className="appnav-spacer" />
+          {listToggle}
+        </div>
+      )}
 
       {/* ── Print modal ── */}
       {showPrint && printContext && (

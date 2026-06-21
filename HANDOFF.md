@@ -10,26 +10,29 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.27
+- **Version:** 0.6.28
 
 ---
 
 ### Last Session Completed
 
-**ORB-270: Responsive iPhone cards + Audit Log performance — 2026-06-21 (Codex, GPT-5)**
+**ORB-251 close + typography + metrics tokens — 2026-06-21 (Claude Code, Opus 4.6)**
 
-1. Standardized responsive collections: Mac/wide iPad retain tables; iPhone and narrow/coarse-pointer iPad use shared SettingsCrudList cards while preserving search, sorting, pagination, selection, and bulk actions.
-2. Kept centered settings edit modals and added a root-level lock that blocks document and settings-surface scrolling while a modal is open.
-3. Reworked Audit Log browsing to indexed cursor pagination with independent exact counts, immediate full-detail opening, and matching indexes for Created, Table, Action, and Actor sorts.
-4. Added the Audit mobile card exception: accessible Sort menu plus expanded highlighted Matches sections for all matching fields, including Before/After JSON.
-5. Closed ORB-270 with resolution notes and Knowledge Repo entry `1fb15978-b882-4ddf-9f72-3763b15207d9`.
-6. Included the existing v0.6.18 Orb metrics, Haiku model, and prompt-hardening work in this release; paced the local eval runner to respect the 10-calls-per-minute endpoint limit.
+1. Bumped nav bar label font size from `--fs-version` (11px) to `--fs-base` (15px) across all pages.
+2. iPhone dashboard: two-bar nav — top bar centers Change Project, +Project, Menu, Account; second bar pins Orb (left) and List (right).
+3. Added Typography & Text Styling section to `docs/ui-catalog.md` — font families, size tokens, weights, colors, line height, letter spacing, opacity, common patterns.
+4. Orb Metrics: added input/output token columns, sortable headers, editable $/MTok rate fields with localStorage persistence, LLM cost estimate. Fixed DB RPC sort alias bug and removed stale overload.
+5. Closed ORB-251 with resolution notes and Knowledge Repo entry `3ee86b10-a148-4a7b-8aa7-0fd1faa11089`.
 
 ### Uncommitted Changes
 
 None after this release commit.
 
 ### Prior Session Context
+
+**ORB-270: Responsive iPhone cards + Audit Log performance — 2026-06-21 (Codex, GPT-5)**
+
+Standardized responsive collections, cursor pagination for Audit Log, mobile cards, modal scroll locking, Orb approval hardening (v0.6.19–v0.6.27).
 
 **ORB-251: Voice mode build + latency optimization + debugging — 2026-06-19 (Claude Code, Opus 4.6)**
 
@@ -81,8 +84,8 @@ Two sessions combined. First built the full voice conversation mode (v0.6.16), t
 
 ### Needs testing
 
-- **ORB-251 full voice flow:** Test on Chrome or Safari — tap Orb, speak, verify Orb responds aloud, mic resumes, multi-turn conversation works.
 - **Eval suite:** must run before production push — `NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts` — Tier 1 must be green.
+- **iPhone two-bar nav:** Verify Orb/List bar renders correctly below the main nav on iPhone, and that desktop/iPad layout is unchanged.
 
 ---
 
@@ -154,11 +157,10 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## Next Priorities
 
-1. **ORB-251 voice validation** — test full conversational flow on Chrome or Safari (untested).
-2. **Run eval suite** — Tier 1 must be green before production push.
-3. **ORB-287** — investigate dashboard background polling overhead.
-4. **ORB-265** — full audit of Orb instructions.
-5. **ORB-254 remaining** — blank User columns when filtering by date.
+1. **Run eval suite** — Tier 1 must be green before production push.
+2. **ORB-287** — investigate dashboard background polling overhead.
+3. **ORB-265** — full audit of Orb instructions.
+4. **ORB-254 remaining** — blank User columns when filtering by date.
 
 ---
 
@@ -171,7 +173,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-06-21 — Codex (GPT-5)`
+`2026-06-21 — Claude Code (Opus 4.6)`
 
 ---
 

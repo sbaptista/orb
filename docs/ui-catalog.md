@@ -490,6 +490,115 @@ Simpler form styling context for settings card rows.
 
 ---
 
+## Typography & Text Styling
+
+> **Source of truth:** `globals.css` `:root` block (lines 1–151) + font loading in `app/layout.tsx`.  
+> **Design constraint:** Stan is 74 — sizing is intentionally larger than platform defaults. See "Ageing eyes" in Responsive Rules.
+
+### Font Families
+
+| Variable | Value | Usage |
+|---|---|---|
+| `--font-ui` | DM Sans (300, 400, 500) | All UI text — set via Next.js CSS variable in `layout.tsx` |
+| `--font-display` | Cormorant Garamond (300, 400) | Orb count number only — `--fs-orb: 42px`, light weight |
+| `--font-mono` | `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace` | Code, numeric data columns, cost figures |
+
+**Rule:** `--font-ui` is the only body typeface. Do not introduce additional font families without Stan's approval.
+
+### Font Sizes — Three-Tier Scaling
+
+Type scales by **input device** (pointer query), not window width. Touch devices get a legibility boost.
+
+| Token | Mac (fine pointer) | Touch (coarse pointer) | Usage |
+|---|---|---|---|
+| `--fs-version` | 11px | 13px | Version labels — the absolute floor |
+| `--fs-xs` | 12px | 14px | Metadata, labels, badges, captions, table headers |
+| `--fs-sm` | 13px | 17px | Secondary content, muted descriptions, button text |
+| `--fs-base` | 15px | 16px | Body text, primary content — the default |
+| `--fs-input` | 16px | 17px | All form inputs (16px minimum prevents iOS auto-zoom on focus) |
+| `--fs-lg` | 18px | 20px | Section headings, summary card values |
+| `--fs-xl` | 22px | 24px | Page titles, modal headers |
+| `--fs-orb` | 42px | 42px | Orb count display only (Cormorant Garamond 300) |
+
+**Rules:**
+- Nothing rendered goes below `--fs-version` (11px on Mac, 13px on touch).
+- Prefer `--fs-sm` for readable secondary text — `--fs-xs` is for metadata only.
+- All `<input>`, `<select>`, `<textarea>` use `--fs-input` to prevent iOS zoom.
+- Always use the token, never a raw pixel value.
+
+### Font Weights
+
+| Token | Value | Usage |
+|---|---|---|
+| `--fw-light` | 300 | Display text (Cormorant Garamond orb count), DM Sans light |
+| `--fw-normal` | 400 | Body text default |
+| `--fw-medium` | 500 | Labels, nav buttons, table cell emphasis, button text |
+| `--fw-semibold` | 600 | Section headings, summary card values, modal titles |
+| `--fw-bold` | 700 | Strong emphasis — use sparingly |
+
+**Note:** DM Sans is loaded with weights 300, 400, 500 only. `--fw-semibold` (600) and `--fw-bold` (700) are synthesized by the browser — they work but are not hinted font files. Use `--fw-medium` (500) as the primary emphasis weight.
+
+### Text Colors
+
+| Token | Hex | Contrast on `--bg` | Usage |
+|---|---|---|---|
+| `--text` | `#2a332a` | ~12:1 | Primary text — headings, body, form values |
+| `--text2` | `#4a5a4a` | ~7:1 | Secondary text — subtitles, descriptions, user names |
+| `--text3` | `#4b6b4b` | ~5:1 | Tertiary text — supplementary metadata |
+| `--muted` | `#547054` | ~4.6:1 | De-emphasized text — timestamps, captions, labels. Meets WCAG AA |
+| `--accent` / `--pill-active-color` | `#2d5a2d` | — | Interactive emphasis — active filters, links within the green palette |
+| `--link` | `#1a6fa0` | — | External/navigation links |
+| `--error` | `#8b2020` | — | Error text, danger labels |
+| `--warning` | `#7a5010` | — | Warning text, amber badges |
+
+**Rules:**
+- `--muted` was darkened (from `#8a9e8a`) to meet WCAG AA (4.5:1) on `--bg`. Do not lighten it.
+- `--text3` was darkened (from `#6a7a6a`) for the same reason. Do not lighten it.
+- For zero-value data cells (e.g., metrics columns showing 0), use `color: var(--muted)` to de-emphasize.
+
+### Line Height
+
+| Token | Value | Usage |
+|---|---|---|
+| `--lh-none` | 1 | Icon buttons, single-line labels where vertical space is tight |
+| `--lh-tight` | 1.2 | Headings, display text |
+| `--lh-snug` | 1.4 | Compact lists, table cells |
+| `--lh-normal` | 1.5 | General prose |
+| `--lh-relaxed` | 1.6 | Body default — set on `<body>` |
+| `--lh-loose` | 1.8 | Spacious reading contexts |
+
+### Letter Spacing
+
+| Token | Value | Usage |
+|---|---|---|
+| `--ls-tight` | -0.02em | Large display text (tighten to improve readability at scale) |
+| `--ls-subtle` | 0.01em | Body text when slight openness helps |
+| `--ls-body` | 0.04em | Standard body tracking |
+| `--ls-caps` | 0.05em | Uppercase labels — summary card headers, section titles |
+| `--ls-wide` | 0.08em | Wide-spaced uppercase (status badges, version labels) |
+| `--ls-widest` | 0.12em | Maximum tracking — rarely used |
+
+### Opacity
+
+| Token | Value | Usage |
+|---|---|---|
+| `--opacity-disabled` | 0.7 | All disabled interactive elements — normalized app-wide |
+| `--opacity-muted` | 0.55 | Visually suppressed content (placeholder text, ghost elements) |
+
+### Common Text Patterns
+
+| Pattern | Tokens | Example |
+|---|---|---|
+| Page title | `--fs-xl`, `--fw-semibold`, `--text` | Settings page header |
+| Section heading | `--fs-lg`, `--fw-semibold`, `--text` | Summary card values |
+| Body text | `--fs-base`, `--fw-normal`, `--text`, `--lh-relaxed` | Descriptions, prose |
+| Secondary text | `--fs-sm`, `--fw-normal`, `--text2` | User names, subtitles |
+| Label / caption | `--fs-xs`, `--fw-medium`, `--muted`, `--ls-caps`, uppercase | Summary card labels, column headers |
+| Mono data | `--fs-sm` or `--fs-xs`, `--font-mono`, `--text` | Table numbers, token counts, costs |
+| Version string | `--fs-version`, `--fw-normal`, `--muted` | Sidebar version badge |
+
+---
+
 ## Feedback & Status
 
 ### Toast (`Toast`)
@@ -589,4 +698,4 @@ This catalog must stay in sync with `globals.css` and `components/`. Never leave
 
 ---
 
-*Last updated: 2026-06-10 — Session 75 (Antigravity) - Fix mobile More button dropdown backdrop stacking and touch interception
+*Last updated: 2026-06-21 — Added Typography & Text Styling section (Claude Code, Opus 4.6)
