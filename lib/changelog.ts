@@ -6,6 +6,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.29',
+    date: '2026-06-22',
+    changes: [
+      'ORB-290: Added a shared EditorModal and normalized dirty-form controller for editor-style modals. Save is disabled until a real edit, returns to disabled after a successful save, and Escape/backdrop/X request a consistent Save, Discard, or Keep Editing choice.',
+      'ORB-290: Shift+Return now saves and closes editor-style settings and todo modals without intercepting an ordinary Return as the first keystroke in a field. Ticket editing now uses the same save/close lifecycle instead of a custom footer path.',
+      'Projects: Clarified the project-code contract and now show invalid characters or over-length codes inline instead of silently stripping them; code changes use the project-specific authorization and uniqueness action.',
+      'Orb Metrics: Added cache creation/read token tracking and model-aware cost estimates. Summary cards now use full filtered totals rather than only the visible paginated page.',
+      'Database: Restored replay-safe Orb Metrics migration history, added an idempotent cache-token migration constraint update, and added the get_orb_metrics_summary RPC for compact filtered aggregates.',
+      'Orb evaluation: successful Tier 1 runs now exit cleanly after reporting results instead of lingering on HTTP keep-alive handles.',
+      'Orb task creation: Unqualified create requests now explicitly default to the selected project instead of asking the user to restate the scope before offering the approval prompt.',
+    ]
+  },
+  {
     version: 'v0.6.28',
     date: '2026-06-21',
     changes: [

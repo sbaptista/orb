@@ -280,13 +280,21 @@ export default function SettingsTickets() {
           emailMessageOverride: item.resolution_notes || getDefaultEmailMessage(item.status, item.summary, item.dismiss_reason || '', item.version || ''),
           sendEmail: true,
         }),
-        toRecord: () => ({
-          // We handle saving specifically in onSave override below
+        toRecord: (form) => ({
+          summary: form.summary.trim(),
+          type: form.type,
+          status: form.status,
+          dismiss_reason: form.status === 'dismissed' ? (form.dismissReason || null) : null,
+          resolution_notes: form.emailMessageOverride || null,
+          version: ['closed', 'pending_release'].includes(form.status) ? (form.version || null) : null,
+          emailMessageOverride: form.emailMessageOverride || undefined,
+          sendEmail: form.sendEmail,
         }),
         getId: item => item.id,
-        onSave: async () => {
-          // In standard flow, onSave receives our updated record, but we want to customize the parameters sent to updateTicket
-          // We intercept this by caching the modalForm state inside the custom form renderer
+        onSave: async (_supabase, id, record) => {
+          const res = await updateTicket(id, record)
+          if (res.error) throw new Error(res.error)
+          setRefresher(r => r + 1)
         },
         onDelete: async (supabase, item) => {
           const res = await deleteTicket(item.id)
@@ -297,34 +305,11 @@ export default function SettingsTickets() {
         modalClass: 'modal-compose',
         onClose: () => setEditingTicket(null),
 
-        renderForm: ({ form, onChange, onCancel, saving }) => {
+        renderForm: ({ form, onChange }) => {
           const isLinkedTodoClosed = editingTicket?.linked_todo?.status === 'closed'
           const needsAction = isLinkedTodoClosed && form.status !== 'closed' && form.status !== 'dismissed'
           const ref = editingTicket ? linkedRef(editingTicket) : null
 
-          const handleCustomSave = async () => {
-            if (!editingTicket) return
-            const res = await updateTicket(editingTicket.id, {
-              summary: form.summary.trim(),
-              type: form.type,
-              status: form.status,
-              dismiss_reason: form.status === 'dismissed' ? (form.dismissReason || null) : null,
-              resolution_notes: form.emailMessageOverride || null,
-              version: ['closed', 'pending_release'].includes(form.status) ? (form.version || null) : null,
-              emailMessageOverride: form.emailMessageOverride || undefined,
-              sendEmail: form.sendEmail,
-            })
-            if (res.error) {
-              toast.error(res.error)
-            } else {
-              toast.success('Ticket updated.')
-              onCancel()
-              setEditingTicket(null)
-              setRefresher(r => r + 1)
-            }
-          }
-
-          // We hijack renderForm to handle custom submit save
           return (
             <div className="compose-body">
               {/* Left Column: Form Controls */}
@@ -482,12 +467,6 @@ export default function SettingsTickets() {
                   )}
                 </div>
 
-                <div className="flex-row gap-sm" style={{ marginTop: 'var(--sp-sm)', justifyContent: 'flex-end' }}>
-                  <button className="btn-cancel" onClick={onCancel}>Cancel</button>
-                  <button className="btn-primary" onClick={handleCustomSave} disabled={saving}>
-                    {saving ? 'Saving…' : 'Save'}
-                  </button>
-                </div>
               </div>
 
               {/* Right Column: Live Email Preview */}

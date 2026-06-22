@@ -1702,7 +1702,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
       {/* ── Modals ── */}
       {selectedTodo && (
-        <TodoPanel todo={selectedTodo} products={products as any} priorities={priorities as any} statuses={statuses} isAll={false}
+        <TodoPanel key={selectedTodo.id} todo={selectedTodo} products={products as any} priorities={priorities as any} statuses={statuses} isAll={false}
           onClose={() => setSelectedTodo(null)}
           onSave={updated => { setTodos(prev => prev.map(t => t.id === updated.id ? updated : t)); setSelectedTodo(updated); fetchOrbTodos() }}
           onDelete={id => { setTodos(prev => prev.filter(t => t.id !== id)); setSelectedTodo(null); fetchOrbTodos() }}

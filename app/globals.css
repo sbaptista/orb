@@ -607,6 +607,67 @@ a, button, [role="button"], input, select, textarea {
   font-family: var(--font-ui);
 }
 
+/* ── Metrics summary (cards on desktop, list on phone) ── */
+.metrics-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--sp-md);
+}
+.metrics-summary-card {
+  padding: var(--sp-md) var(--sp-lg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  text-align: center;
+}
+.metrics-summary-label {
+  font-size: var(--fs-version);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.metrics-summary-card .metrics-summary-label { margin-bottom: 4px; }
+.metrics-summary-card .metrics-summary-value {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.metrics-summary-list { display: none; }
+.metrics-cost-bar {
+  padding: var(--sp-sm) var(--sp-lg);
+  margin-top: var(--sp-md);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  text-align: center;
+}
+@media (max-width: 767px) {
+  .metrics-summary-grid { display: none; }
+  .metrics-cost-bar { display: none; }
+  .metrics-summary-list {
+    display: block;
+    list-style: disc;
+    padding-left: var(--sp-lg);
+    margin: 0;
+    font-size: var(--fs-sm);
+    color: var(--text2);
+    line-height: 1.6;
+  }
+  .metrics-summary-list .metrics-summary-label {
+    font-size: inherit;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--muted);
+  }
+  .metrics-summary-list .metrics-summary-value {
+    font-family: var(--font-mono);
+    font-weight: var(--fw-semibold);
+    color: var(--text);
+  }
+}
+
 .s-header {
   display: flex;
   align-items: center;

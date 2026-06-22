@@ -994,6 +994,7 @@ export default function TodoView({ productId, isAdmin = false }: { productId: st
 
       {selectedTodo && (
         <TodoPanel
+          key={selectedTodo.id}
           todo={selectedTodo}
           products={products}
           priorities={priorities}

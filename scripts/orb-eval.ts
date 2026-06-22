@@ -404,10 +404,9 @@ async function main() {
   console.log(`  Elapsed:                   ${formatElapsed(elapsed)}`)
   console.log('═'.repeat(60) + '\n')
 
-  // Exit with error code if Tier 1 has any failures (regression)
-  if (tier1Pass < tier1.length) {
-    process.exit(1)
-  }
+  // The endpoint may leave HTTP keep-alive handles open after a completed run.
+  // Exit only after printing every result so the CLI gate is deterministic.
+  process.exit(tier1Pass < tier1.length ? 1 : 0)
 }
 
 main().catch(err => {

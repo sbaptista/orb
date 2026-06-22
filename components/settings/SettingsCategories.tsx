@@ -75,7 +75,7 @@ export default function SettingsCategories() {
           applyToForm: (form, scope) => ({ ...form, product_id: scope }),
         },
 
-        renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving, extra }) => (
+        renderForm: ({ form, onChange, extra }) => (
           <div className="s-form">
             <div className="grid-2col mb-md">
               <div>
@@ -113,12 +113,6 @@ export default function SettingsCategories() {
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
-            </div>
-            <div className="flex-row gap-sm">
-              <button className="btn-primary" onClick={onSubmit} disabled={saving}>
-                {saving ? 'Saving…' : submitLabel}
-              </button>
-              <button className="btn-cancel" onClick={onCancel}>Cancel</button>
             </div>
           </div>
         ),

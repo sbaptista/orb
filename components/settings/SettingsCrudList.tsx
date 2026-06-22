@@ -3,10 +3,11 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef, useId, useSyncExternalStore, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
+import { useDirtyForm } from '@/lib/hooks/useDirtyForm'
 import SkeletonRows from '@/components/ui/SkeletonRows'
 import { useToast } from '@/components/ui/Toast'
-import { useModalScrollLock } from '@/lib/hooks/useModalScrollLock'
 import FilterKebab from '@/components/ui/FilterKebab'
+import EditorModal from '@/components/ui/EditorModal'
 
 const PILL_THRESHOLD = 5
 
@@ -177,11 +178,8 @@ type CrudConfig<T, F> = {
   renderForm?: (props: {
     form: F
     onChange: (f: F) => void
-    onSubmit: () => void
-    onCancel: () => void
-    submitLabel: string
-    saving: boolean
     extra: any
+    mode: 'add' | 'edit'
   }) => ReactNode
 
   renderRow: (props: {
@@ -243,7 +241,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
 
   // Modal state: 'add' | 'edit' | null
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null)
-  const [modalForm, setModalForm] = useState<F>(config.emptyForm)
+  const editor = useDirtyForm<F>(config.emptyForm)
+  const modalForm = editor.form
+  const setModalForm = editor.setForm
   const [editingId, setEditingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
@@ -261,7 +261,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const [canScrollTableLeft, setCanScrollTableLeft] = useState(false)
   const [canScrollTableRight, setCanScrollTableRight] = useState(false)
   const modalOpen = modalMode !== null
-  useModalScrollLock(modalOpen)
+  const isDirty = modalOpen && editor.isDirty
   const scopeFilterId = useId()
   const tablePlatform = useSyncExternalStore<TablePlatform>(
     (onChange) => {
@@ -504,7 +504,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     if (config.scopeFilter?.applyToForm) {
       form = config.scopeFilter.applyToForm(form, scope)
     }
-    setModalForm(form)
+    editor.begin(form)
     setModalMode('add')
     setEditingId(null)
     setConfirmDeleteId(null)
@@ -513,8 +513,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
 
   function openEditModal(item: T) {
     if (!config.toForm || !config.renderForm) return
+    const form = config.toForm(item)
     setEditingId(config.getId(item))
-    setModalForm(config.toForm(item))
+    editor.begin(form)
     setModalMode('edit')
     setConfirmDeleteId(null)
     setError('')
@@ -527,10 +528,10 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     config.onClose?.()
   }
 
-  async function handleAdd() {
-    if (!config.toRecord) return
+  async function handleAdd(): Promise<boolean> {
+    if (!config.toRecord) return false
     const err = config.validate?.(modalForm, items, null)
-    if (err) { setError(err); return }
+    if (err) { setError(err); return false }
     setSaving(true)
     setError('')
     try {
@@ -544,7 +545,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           .insert(config.toRecord(modalForm, items))
           .select()
           .single()
-        if (dbErr) { setError(dbErr.message); setSaving(false); return }
+        if (dbErr) { setError(dbErr.message); setSaving(false); return false }
         if (data) {
           toast.success(`${config.itemLabel} added.`)
           setItems(prev => [...prev, data as T])
@@ -554,16 +555,17 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
       setSaving(false)
-      return
+      return false
     }
     setSaving(false)
     closeModal()
+    return true
   }
 
-  async function handleSave(id: string) {
-    if (!config.toRecord) return
+  async function handleSave(id: string, closeAfterSave: boolean): Promise<boolean> {
+    if (!config.toRecord) return false
     const err = config.validate?.(modalForm, items, id)
-    if (err) { setError(err); return }
+    if (err) { setError(err); return false }
     setSaving(true)
     setError('')
     try {
@@ -578,7 +580,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           .eq(idCol, id)
           .select()
           .single()
-        if (dbErr) { setError(dbErr.message); setSaving(false); return }
+        if (dbErr) { setError(dbErr.message); setSaving(false); return false }
         if (data) {
           toast.success(`${config.itemLabel} saved.`)
           setItems(prev => prev.map(item => config.getId(item) === id ? data as T : item))
@@ -587,10 +589,12 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     } catch (e: any) {
       setError(e.message)
       setSaving(false)
-      return
+      return false
     }
     setSaving(false)
-    closeModal()
+    if (closeAfterSave) closeModal()
+    else editor.markSaved()
+    return true
   }
 
   async function handleDelete(item: T) {
@@ -976,14 +980,16 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     : (config.editModalTitle ?? `Edit ${config.itemLabel}`)
 
   const hasForm = !!config.renderForm
+  const modalSubmit = (closeAfterSave: boolean) => modalMode === 'add'
+    ? handleAdd()
+    : handleSave(editingId!, closeAfterSave)
+  const modalSubmitLabel = modalMode === 'add' ? (config.addButtonLabel ?? `Add ${config.itemLabel}`) : 'Save'
+
   const modalFormNode = modalOpen && config.renderForm ? config.renderForm({
     form: modalForm,
     onChange: setModalForm,
-    onSubmit: modalMode === 'add' ? handleAdd : () => handleSave(editingId!),
-    onCancel: closeModal,
-    submitLabel: modalMode === 'add' ? (config.addButtonLabel ?? `Add ${config.itemLabel}`) : 'Save',
-    saving,
     extra,
+    mode: modalMode!,
   }) : null
 
   return (
@@ -998,7 +1004,6 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           </div>
         </div>
         <div className="flex-row gap-sm">
-          {config.headerExtra}
           {hasForm && !config.hideAdd && !((config.searchFilter || usesServerSearch || hasExternalSearch) || isTable) && (
             <button className="btn-primary" onClick={openAddModal}>
               + {config.addButtonLabel ?? `Add ${config.itemLabel}`}
@@ -1006,6 +1011,8 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           )}
         </div>
       </div>
+
+      {config.headerExtra}
 
       {config.scopeFilter && usePills && (
         <div style={{ marginBottom: 'var(--sp-xl)' }}>
@@ -1171,6 +1178,8 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         </div>
       )}
 
+      {renderPagination()}
+
       {hasBulk && someChecked && (
         <div className="crud-bulk-bar">
           <span className="text-sm" style={{ fontWeight: 'var(--fw-medium)' }}>
@@ -1294,55 +1303,6 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                       </tbody>
                     </table>
                   </div>
-                  {usesCursorPagination && renderPagination()}
-                  {config.pagination && !usesCursorPagination && effectiveTotalCount > config.pagination.pageSize && (() => {
-                    const lastPage = Math.max(0, Math.ceil(effectiveTotalCount / config.pagination.pageSize) - 1)
-                    return (
-                      <div className="flex-between" style={{ padding: 'var(--sp-sm) var(--sp-lg)', borderTop: '1px solid var(--border)' }}>
-                        <div style={{ display: 'flex', gap: 'var(--sp-sm)' }}>
-                          <button
-                            className="nav-circle-btn"
-                            onClick={() => { if (page > 0) { setPage(0); setSelectedIds([]) } }}
-                            aria-disabled={page === 0}
-                            aria-label="First page"
-                            data-tooltip="First page"
-                          >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
-                          </button>
-                          <button
-                            className="nav-circle-btn"
-                            onClick={() => { if (page > 0) { setPage(p => Math.max(0, p - 1)); setSelectedIds([]) } }}
-                            aria-disabled={page === 0}
-                            aria-label="Previous page"
-                            data-tooltip="Previous page"
-                          >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                          </button>
-                        </div>
-                        <span className="text-xs text-muted">Page {page + 1} of {lastPage + 1}</span>
-                        <div style={{ display: 'flex', gap: 'var(--sp-sm)' }}>
-                          <button
-                            className="nav-circle-btn"
-                            onClick={() => { if (page < lastPage) { setPage(p => p + 1); setSelectedIds([]) } }}
-                            aria-disabled={page >= lastPage}
-                            aria-label="Next page"
-                            data-tooltip="Next page"
-                          >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                          </button>
-                          <button
-                            className="nav-circle-btn"
-                            onClick={() => { if (page < lastPage) { setPage(lastPage); setSelectedIds([]) } }}
-                            aria-disabled={page >= lastPage}
-                            aria-label="Last page"
-                            data-tooltip="Last page"
-                          >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })()}
               </div>
             </div>
 
@@ -1375,51 +1335,6 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
                 <div className="crud-mobile-cards">
                   {displayed.map((item, idx) => renderMobileCard(item, idx))}
                 </div>
-                {usesCursorPagination && renderPagination('crud-mobile-pagination')}
-                {config.pagination && !usesCursorPagination && effectiveTotalCount > config.pagination.pageSize && (() => {
-                  const lastPage = Math.max(0, Math.ceil(effectiveTotalCount / config.pagination.pageSize) - 1)
-                  return (
-                    <div className="crud-mobile-pagination">
-                      <button
-                        className="nav-circle-btn"
-                        onClick={() => { if (page > 0) { setPage(0); setSelectedIds([]) } }}
-                        aria-disabled={page === 0}
-                        aria-label="First page"
-                        data-tooltip="First page"
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
-                      </button>
-                      <button
-                        className="nav-circle-btn"
-                        onClick={() => { if (page > 0) { setPage(p => Math.max(0, p - 1)); setSelectedIds([]) } }}
-                        aria-disabled={page === 0}
-                        aria-label="Previous page"
-                        data-tooltip="Previous page"
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                      </button>
-                      <span className="text-xs text-muted">Page {page + 1} of {lastPage + 1}</span>
-                      <button
-                        className="nav-circle-btn"
-                        onClick={() => { if (page < lastPage) { setPage(p => p + 1); setSelectedIds([]) } }}
-                        aria-disabled={page >= lastPage}
-                        aria-label="Next page"
-                        data-tooltip="Next page"
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                      </button>
-                      <button
-                        className="nav-circle-btn"
-                        onClick={() => { if (page < lastPage) { setPage(lastPage); setSelectedIds([]) } }}
-                        aria-disabled={page >= lastPage}
-                        aria-label="Last page"
-                        data-tooltip="Last page"
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
-                      </button>
-                    </div>
-                  )
-                })()}
               </>
             )}
           </>
@@ -1436,26 +1351,22 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
 
       {/* ── Floating modal for Add / Edit ── */}
       {modalOpen && (
-        <>
-          <div className="modal-backdrop" onClick={closeModal} />
-          <div
-            className={`modal-center ${config.modalClass ?? ''}`}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="settings-crud-dialog-title"
-          >
-            <div className="modal-header" style={{ justifyContent: 'space-between' }}>
-              <h3 id="settings-crud-dialog-title" style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
-                {modalTitle}
-              </h3>
-              <button className="close-btn" onClick={closeModal} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-            </div>
-            <div className="modal-body" style={{ padding: 'var(--sp-lg) var(--sp-xl)' }}>
-              {error && <p className="s-error" style={{ marginBottom: 'var(--sp-md)' }}>{error}</p>}
-              {modalFormNode}
-            </div>
+        <EditorModal
+          title={modalTitle}
+          titleId="settings-crud-dialog-title"
+          className={config.modalClass}
+          isDirty={isDirty}
+          isSaving={saving}
+          saveLabel={modalSubmitLabel}
+          onSave={modalSubmit}
+          onClose={closeModal}
+          lockSettingsScroll
+        >
+          <div className="modal-body" style={{ padding: 'var(--sp-lg) var(--sp-xl)' }}>
+            {error && <p className="s-error" style={{ marginBottom: 'var(--sp-md)' }}>{error}</p>}
+            {modalFormNode}
           </div>
-        </>
+        </EditorModal>
       )}
     </div>
   )

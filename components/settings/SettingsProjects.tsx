@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
 import { getAdminProjects, getUserProjects, createProject, deleteProject, deleteProjects, updateProject } from '@/app/actions/manage-project'
@@ -26,10 +26,67 @@ type ProjectForm = {
 
 const EMPTY_FORM: ProjectForm = { name: '', code: '', description: '', is_dormant: false, ownerId: '' }
 const PAGE_SIZE = 25
+const PROJECT_CODE_MAX_LENGTH = 10
+
+function getProjectCodeError(code: string, required: boolean): string | null {
+  if (!code) return required ? 'Code is required for an existing project' : null
+  if (code.length > PROJECT_CODE_MAX_LENGTH) return `Code must be ${PROJECT_CODE_MAX_LENGTH} characters or fewer`
+  if (!/^[A-Z0-9]+$/.test(code)) return 'Code may only use uppercase letters and numbers'
+  return null
+}
+
+function ProjectCodeInput({
+  value,
+  required,
+  describedBy,
+  onChange,
+}: {
+  value: string
+  required: boolean
+  describedBy: string
+  onChange: (value: string) => void
+}) {
+  const [attemptError, setAttemptError] = useState<string | null>(null)
+  const error = attemptError ?? getProjectCodeError(value, required)
+
+  function handleChange(rawValue: string) {
+    const uppercase = rawValue.toUpperCase()
+    const validCharacters = uppercase.replace(/[^A-Z0-9]/g, '')
+
+    if (uppercase !== validCharacters) {
+      setAttemptError('Code may only use uppercase letters and numbers')
+    } else if (validCharacters.length > PROJECT_CODE_MAX_LENGTH) {
+      setAttemptError(`Code must be ${PROJECT_CODE_MAX_LENGTH} characters or fewer`)
+    } else {
+      setAttemptError(null)
+    }
+
+    onChange(validCharacters.slice(0, PROJECT_CODE_MAX_LENGTH))
+  }
+
+  return (
+    <>
+      <input
+        className="input"
+        value={value}
+        onChange={e => handleChange(e.target.value)}
+        placeholder={required ? 'ORB' : 'Auto-generated'}
+        maxLength={PROJECT_CODE_MAX_LENGTH + 1}
+        aria-describedby={describedBy}
+        aria-invalid={!!error}
+        style={{ fontFamily: 'var(--font-mono)' }}
+      />
+      <p id={describedBy} className={error ? 'text-xs text-error' : 'text-xs text-muted'} role={error ? 'alert' : undefined} style={{ margin: 'var(--sp-xs) 0 0' }}>
+        {error ?? `Uppercase letters and numbers only, maximum ${PROJECT_CODE_MAX_LENGTH} characters. Used in task references.`}
+      </p>
+    </>
+  )
+}
 
 export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?: boolean; userId?: string }) {
   const [showTextSearch, setShowTextSearch] = useState(false)
   const [textSearchTerm, setTextSearchTerm] = useState('')
+  const projectCodeHelpId = useId()
 
   return (
     <>
@@ -99,7 +156,9 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
 
         validate: (form, items, editingId) => {
           if (!form.name.trim()) return 'Name is required'
-          const code = form.code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+          const code = form.code.toUpperCase()
+          const codeError = getProjectCodeError(code, !!editingId)
+          if (codeError) return codeError
           if (code) {
             // Scope conflict check to same owner (per-user uniqueness)
             const targetOwner = form.ownerId || userId
@@ -111,7 +170,7 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
 
         toRecord: (form) => ({
           name: form.name.trim(),
-          code: form.code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || null,
+          code: form.code || null,
           description: form.description.trim() || null,
           is_dormant: form.is_dormant,
           created_by: form.ownerId || null,
@@ -137,6 +196,17 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
           if (res.error) throw new Error(res.error)
         },
 
+        onSave: async (_supabase, id, record) => {
+          const res = await updateProject(id, {
+            name: record.name,
+            code: record.code,
+            description: record.description,
+            is_dormant: record.is_dormant,
+            created_by: record.created_by,
+          })
+          if (res.error) throw new Error(res.error)
+        },
+
         onDelete: async (_supabase, item) => {
           const res = await deleteProject(item.id)
           if (res.error) throw new Error(res.error)
@@ -155,7 +225,8 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
           },
         },
 
-        renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving, extra }) => (
+        renderForm: ({ form, onChange, extra, mode }) => {
+          return (
           <>
             <div className="grid-2col mb-md">
               <div>
@@ -169,14 +240,12 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
                 />
               </div>
               <div>
-                <label className="label">Code (Optional)</label>
-                <input
-                  className="input"
+                <label className="label">Code{mode === 'add' ? ' (Optional)' : ''}</label>
+                <ProjectCodeInput
                   value={form.code}
-                  onChange={e => onChange({ ...form, code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })}
-                  placeholder="Auto-generated"
-                  maxLength={10}
-                  style={{ fontFamily: 'var(--font-mono)' }}
+                  required={mode === 'edit'}
+                  describedBy={projectCodeHelpId}
+                  onChange={code => onChange({ ...form, code })}
                 />
               </div>
             </div>
@@ -219,14 +288,9 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
                 Dormant — hidden from project strip and insights
               </label>
             </div>
-            <div className="flex-row gap-sm">
-              <button className="btn-primary" onClick={onSubmit} disabled={saving}>
-                {saving ? 'Saving…' : submitLabel}
-              </button>
-              <button className="btn-cancel" onClick={onCancel}>Cancel</button>
-            </div>
           </>
-        ),
+          )
+        },
 
         renderRow: ({ item, onEdit, onDelete, extra, checkbox }) => (
           <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', opacity: item.is_dormant ? 'var(--opacity-muted)' : 1, cursor: 'pointer' }}>

@@ -166,7 +166,7 @@ export default function SettingsMemory() {
           },
         },
 
-        renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving }) => (
+        renderForm: ({ form, onChange }) => (
           <>
             <div className="mb-md">
               <label className="label">Content</label>
@@ -179,12 +179,6 @@ export default function SettingsMemory() {
                 autoFocus
                 style={{ resize: 'vertical', lineHeight: 'var(--lh-normal)' }}
               />
-            </div>
-            <div className="flex-row gap-sm">
-              <button className="btn-primary" onClick={onSubmit} disabled={saving}>
-                {saving ? 'Saving…' : submitLabel}
-              </button>
-              <button className="btn-cancel" onClick={onCancel}>Cancel</button>
             </div>
           </>
         ),

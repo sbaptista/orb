@@ -451,6 +451,9 @@ export async function orbConverse(req: OrbRequest) {
     let metricUserId: string | null = null
     let metricInputTokens = 0
     let metricOutputTokens = 0
+    let metricCacheCreationTokens = 0
+    let metricCacheReadTokens = 0
+    const metricModel = 'claude-haiku-4-5'
 
     function recordMetrics(speechChars: number) {
       if (!metricUserId) return
@@ -464,6 +467,9 @@ export async function orbConverse(req: OrbRequest) {
         p_ambient_chars: 0,
         p_input_tokens: metricInputTokens,
         p_output_tokens: metricOutputTokens,
+        p_cache_creation_input_tokens: metricCacheCreationTokens,
+        p_cache_read_input_tokens: metricCacheReadTokens,
+        p_model: metricModel,
       }).then(({ error }) => {
         if (error) console.error('[orbConverse] Metric upsert failed:', error.message)
       })
@@ -573,7 +579,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         const dynamicPrompt = [
           `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
           ctx.currentUser ? `USER CONTEXT: You are talking to ${ctx.currentUser.email} (Name: ${ctx.currentUser.name || 'Unknown'}, Role: ${userRole || 'Unknown'}).` : '',
-          `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${ctx.current?.name}" (code: "${ctx.current?.code}") unless the user explicitly names a different project.\n- When calling tools (create_todo, query_todos, etc.), ALWAYS pass the project code — never omit it.\n- When speaking to the user, refer to projects by display name.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${ctx.current?.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${ctx.currentUser.name || ctx.currentUser.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
+          `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${ctx.current?.name}" (code: "${ctx.current?.code}") unless the user explicitly names a different project.\n- An unqualified request to create a task already has a project: the currently selected project. Do not ask which project; propose the requested task there and request any required mutation approval.\n- When calling tools (create_todo, query_todos, etc.), ALWAYS pass the project code — never omit it.\n- When speaking to the user, refer to projects by display name.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${ctx.current?.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${ctx.currentUser.name || ctx.currentUser.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
           req.uiContext ? `UI STATE: The user is viewing: ${req.uiContext.viewMode ?? 'list'} view | filter: ${req.uiContext.filterStatus ?? 'active'} | priority filter: ${req.uiContext.filterPriority ?? 'all'} | sort: ${req.uiContext.sortAsc ? 'oldest first' : 'newest first'} | orb pane: ${req.uiContext.orbPaneVisible ? 'visible' : 'hidden'} | list pane: ${req.uiContext.listPaneVisible ? 'visible' : 'hidden'} | device: ${req.uiContext.isMobile ? 'mobile' : 'desktop'}. Use this to understand what the user sees when they say "this view", "the list", "that column", etc.` : '',
           req.uiContext?.voiceMode ? `VOICE CONVERSATION: You are currently in voice mode — the user is speaking to you and hearing your responses aloud.
 VOICE RESPONSE RULES:
@@ -639,6 +645,8 @@ When the user signals they want to end the voice conversation — "that's enough
              toolCalls[toolCalls.length - 1].input += chunk.delta.partial_json
           } else if (chunk.type === 'message_start' && chunk.message?.usage) {
             metricInputTokens += chunk.message.usage.input_tokens ?? 0
+            metricCacheCreationTokens += (chunk.message.usage as any).cache_creation_input_tokens ?? 0
+            metricCacheReadTokens += (chunk.message.usage as any).cache_read_input_tokens ?? 0
           } else if (chunk.type === 'message_delta' && (chunk as any).usage) {
             metricOutputTokens += (chunk as any).usage.output_tokens ?? 0
           }
@@ -902,6 +910,8 @@ When the user signals they want to end the voice conversation — "that's enough
                     })
                     metricInputTokens += distillation.usage?.input_tokens ?? 0
                     metricOutputTokens += distillation.usage?.output_tokens ?? 0
+                    metricCacheCreationTokens += (distillation.usage as any)?.cache_creation_input_tokens ?? 0
+                    metricCacheReadTokens += (distillation.usage as any)?.cache_read_input_tokens ?? 0
                     try {
                         const text = (distillation.content[0] as any).text
                         const firstBrace = text.indexOf('{')
@@ -1633,6 +1643,9 @@ export async function orbGreeting(productId: string | null): Promise<string | nu
         p_ambient_chars: text.length,
         p_input_tokens: response.usage?.input_tokens ?? 0,
         p_output_tokens: response.usage?.output_tokens ?? 0,
+        p_cache_creation_input_tokens: (response.usage as any)?.cache_creation_input_tokens ?? 0,
+        p_cache_read_input_tokens: (response.usage as any)?.cache_read_input_tokens ?? 0,
+        p_model: 'claude-haiku-4-5',
       }).then(({ error }) => {
         if (error) console.error('[orbGreeting] Metric upsert failed:', error.message)
       })

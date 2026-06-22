@@ -122,8 +122,9 @@ const TOPICS: Topic[] = [
             ['Enter / Space', 'Activate the focused element'],
             ['← / →', 'Switch between projects on the orb screen'],
             ['⌘ Shift O', 'Toggle voice conversation'],
+            ['Shift Return', 'Save and close the current modal'],
             ['?', 'Open this help page'],
-            ['Escape', 'Close any open panel or overlay'],
+            ['Escape', 'Close panel — prompts to save if you have unsaved changes'],
           ] as [string, string][]).map(([key, desc]) => (
             <div key={key} className="help-key-row">
               <span className="help-key-cell">{key}</span>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useId } from 'react'
+import { useState, useMemo, useId } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Todo, Product, Priority, StatusDef } from './TodoView'
 import DistillModal from './DistillModal'
@@ -9,6 +9,8 @@ import { collectSystemInfo } from '@/lib/system-info'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { useToast } from '@/components/ui/Toast'
 import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
+import { useDirtyForm } from '@/lib/hooks/useDirtyForm'
+import EditorModal from '@/components/ui/EditorModal'
 
 type Props = {
   todo: Todo
@@ -19,6 +21,28 @@ type Props = {
   onClose: () => void
   onSave: (updated: Todo) => void
   onDelete: (id: string) => void
+}
+
+type TodoEditorState = { todo: Todo; urlInput: string }
+
+function normalizedUrls(value: string): string[] {
+  return value.split('\n').map(url => url.trim()).filter(Boolean)
+}
+
+function normalizeTodoEditor(value: TodoEditorState) {
+  const { todo, urlInput } = value
+  return {
+    title: todo.title,
+    description: todo.description || null,
+    resolution_notes: todo.resolution_notes || null,
+    status: todo.status,
+    priority_value: todo.priority_value,
+    product_id: todo.product_id,
+    group_id: todo.group_id,
+    category_id: todo.category_id,
+    due_at: todo.due_at || null,
+    urls: normalizedUrls(urlInput),
+  }
 }
 
 export default function TodoPanel({
@@ -34,20 +58,25 @@ export default function TodoPanel({
   const deleteDescriptionId = useId()
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
-  const [form, setForm] = useState({ ...todo })
-  const [urlInput, setUrlInput] = useState((todo.urls ?? []).join('\n'))
+  const editor = useDirtyForm<TodoEditorState>(
+    { todo: { ...todo }, urlInput: (todo.urls ?? []).join('\n') },
+    normalizeTodoEditor,
+  )
+  const form = editor.form.todo
+  const urlInput = editor.form.urlInput
+  const setForm = (next: Todo | ((current: Todo) => Todo)) => {
+    editor.setForm(current => ({
+      ...current,
+      todo: typeof next === 'function' ? next(current.todo) : next,
+    }))
+  }
+  const setUrlInput = (value: string) => editor.setForm(current => ({ ...current, urlInput: value }))
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
   const [idCopied, setIdCopied] = useState(false)
   const [showDistill, setShowDistill] = useState(false)
-  useEffect(() => {
-    setForm({ ...todo })
-    setUrlInput((todo.urls ?? []).join('\n'))
-    setConfirmDelete(false)
-    setShowDetails(false)
-  }, [todo.id])
 
   const isDone             = statuses.find(s => s.name === form.status)?.is_closed ?? false
 
@@ -56,10 +85,10 @@ export default function TodoPanel({
     return code && todo.todo_number != null ? `${code}-${todo.todo_number}` : null
   })()
 
-  async function handleSave() {
+  async function handleSave(andClose = false): Promise<boolean> {
     setSaving(true)
     const beforeUrgency = await getUrgencySnapshot()
-    const urls = urlInput.split('\n').map(u => u.trim()).filter(Boolean)
+    const urls = normalizedUrls(urlInput)
     const { data, error: err } = await supabase
       .from('todos')
       .update({
@@ -85,14 +114,15 @@ export default function TodoPanel({
     // Fire-and-forget: check urgency escalation
     if (beforeUrgency) notifyIfEscalated(beforeUrgency)
     if (err) {
-      if (isAuthError(err.message)) { handleSessionExpired(toast); return }
+      if (isAuthError(err.message)) { handleSessionExpired(toast); return false }
       const isRLS = err.message?.includes('row-level security') || err.code === 'PGRST116'
       toast.error(isRLS ? 'You do not have permission to modify this item.' : 'Failed to save. Try again.')
-      return
+      return false
     }
     if (data) {
       const justClosed = isDone && !(statuses.find(s => s.name === todo.status)?.is_closed ?? false)
       toast.success(justClosed ? 'Todo closed.' : 'Todo saved.')
+      editor.markSaved({ todo: data as Todo, urlInput: urls.join('\n') })
       onSave(data as Todo)
       logAudit({
         action: justClosed ? 'todo_close' : 'todo_update',
@@ -104,10 +134,12 @@ export default function TodoPanel({
       })
       if (justClosed) {
         setShowDistill(true)
+      } else if (andClose) {
+        onClose()
       }
-
-
+      return true
     }
+    return false
   }
 
   async function handleDelete() {
@@ -139,46 +171,42 @@ export default function TodoPanel({
 
   return (
     <>
-      {/* Backdrop */}
-      <div className="modal-backdrop" onClick={onClose} />
-
-      {/* Panel */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Todo details"
-        className="modal-center"
-      >
-
-        {/* Header */}
-        <div className="modal-header" style={{ justifyContent: 'space-between' }}>
-          <div className="flex-row flex-center" style={{ gap: 'var(--sp-sm)' }}>
-            {todoRef && (
-              <button
-                onClick={copyId}
-                title="Copy ID"
-                className="text-btn"
-                style={{
-                  fontSize: 'var(--fs-xs)',
-                  color: idCopied ? 'var(--pill-active-color)' : 'var(--muted)',
-                  letterSpacing: 'var(--ls-body)',
-                  padding: 0,
-                }}
-              >
-                {idCopied ? 'Copied!' : todoRef}
-              </button>
-            )}
-          </div>
+      <EditorModal
+        title={todoRef ? (idCopied ? 'Copied!' : todoRef) : 'Todo details'}
+        titleId="todo-details-title"
+        isDirty={editor.isDirty}
+        isSaving={saving}
+        onSave={handleSave}
+        onClose={onClose}
+        headerStart={todoRef ? (
           <button
-            onClick={onClose}
-            className="close-btn"
-            aria-label="Close"
+            type="button"
+            onClick={copyId}
+            title="Copy ID"
+            className="text-btn"
+            style={{
+              fontSize: 'var(--fs-xs)',
+              color: idCopied ? 'var(--pill-active-color)' : 'var(--muted)',
+              letterSpacing: 'var(--ls-body)',
+              padding: 0,
+              marginRight: 'var(--sp-sm)',
+            }}
           >
-            <svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            {idCopied ? 'Copied!' : todoRef}
           </button>
-        </div>
-
-        {/* Scrollable body */}
+        ) : undefined}
+        footerStart={!confirmDelete ? (
+          <button type="button" className="btn-danger" onClick={() => setConfirmDelete(true)} style={{ marginRight: 'auto' }}>
+            Delete
+          </button>
+        ) : undefined}
+        destructiveConfirmation={confirmDelete ? {
+          description: <span id={deleteDescriptionId}>Delete this todo? This cannot be undone.</span>,
+          onCancel: () => setConfirmDelete(false),
+          onConfirm: handleDelete,
+          confirming: deleting,
+        } : undefined}
+      >
         <div className="modal-body" style={{
           padding: 'var(--sp-xl)',
           display: 'flex',
@@ -324,40 +352,7 @@ export default function TodoPanel({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="modal-footer">
-          {confirmDelete ? (
-            <>
-              <span id={deleteDescriptionId} className="text-sm text-error" style={{ marginRight: 'auto' }}>Delete this todo? This cannot be undone.</span>
-              <button className="btn-cancel" onClick={() => setConfirmDelete(false)}>
-                Cancel
-              </button>
-              <button
-                className="btn-danger"
-                onClick={handleDelete}
-                disabled={deleting}
-                aria-describedby={deleteDescriptionId}
-              >
-                {deleting ? 'Deleting…' : 'Confirm'}
-              </button>
-            </>
-          ) : (
-            <button className="btn-danger" onClick={() => setConfirmDelete(true)} style={{ marginRight: 'auto' }}>
-              Delete
-            </button>
-          )}
-
-          {!confirmDelete && (
-            <button
-              className="btn-primary"
-              onClick={handleSave}
-              disabled={saving}
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-          )}
-        </div>
-      </div>
+      </EditorModal>
 
       {showDistill && (
         <DistillModal

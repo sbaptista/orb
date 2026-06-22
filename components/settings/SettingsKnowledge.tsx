@@ -146,7 +146,7 @@ export default function SettingsKnowledge() {
           },
         },
 
-        renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving, extra }) => (
+        renderForm: ({ form, onChange, extra }) => (
           <>
             <div className="grid-2col mb-md">
               <div>
@@ -193,12 +193,6 @@ export default function SettingsKnowledge() {
                 onChange={e => onChange({ ...form, tags: e.target.value })}
                 placeholder="Comma-separated tags"
               />
-            </div>
-            <div className="flex-row gap-sm">
-              <button className="btn-primary" onClick={onSubmit} disabled={saving}>
-                {saving ? 'Saving…' : submitLabel}
-              </button>
-              <button className="btn-cancel" onClick={onCancel}>Cancel</button>
             </div>
           </>
         ),

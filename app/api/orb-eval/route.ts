@@ -265,7 +265,7 @@ export async function POST(request: NextRequest) {
     STATUS_VOCABULARY,
     `The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering.`,
     buildUrgencyRules(24),
-    `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${current.name}" (code: "${current.code}") unless the user explicitly names a different project.\n- When calling tools (create_todo, query_todos, etc.), ALWAYS pass the project code — never omit it.\n- When speaking to the user, refer to projects by display name.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${current.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${auth.user.name || auth.user.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
+    `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${current.name}" (code: "${current.code}") unless the user explicitly names a different project.\n- An unqualified request to create a task already has a project: the currently selected project. Do not ask which project; propose the requested task there and request any required mutation approval.\n- When calling tools (create_todo, query_todos, etc.), ALWAYS pass the project code — never omit it.\n- When speaking to the user, refer to projects by display name.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${current.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${auth.user.name || auth.user.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
     uiCatalog ? `UI CATALOG & NAVIGATION:\n${uiCatalog}` : '',
     `BACKLOG:\n${contextString}`,
     `KNOWLEDGE BASE (Recent):\n${knowledgeList.slice(0, 5).map((k: any) => {
@@ -330,6 +330,26 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       tools: [...ORB_TOOLS, ...ORB_PREFERENCE_TOOLS, ...ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL] as any,
       ...(approvalConfirmed && approvedTool ? { tool_choice: { type: 'tool' as const, name: approvedTool } } : {}),
     })
+
+    // Record metrics (fire-and-forget)
+    if (evalUser?.id) {
+      const metricAdmin = createAdminClient()
+      metricAdmin.rpc('upsert_orb_metric', {
+        p_user_id: evalUser.id,
+        p_speech_chars: 0,
+        p_voice_speech_chars: 0,
+        p_input_chars: 0,
+        p_tool_call_count: 0,
+        p_ambient_chars: 0,
+        p_input_tokens: response.usage?.input_tokens ?? 0,
+        p_output_tokens: response.usage?.output_tokens ?? 0,
+        p_cache_creation_input_tokens: (response.usage as any)?.cache_creation_input_tokens ?? 0,
+        p_cache_read_input_tokens: (response.usage as any)?.cache_read_input_tokens ?? 0,
+        p_model: 'claude-haiku-4-5',
+      }).then(({ error }) => {
+        if (error) console.error('[orbEval] Metric upsert failed:', error.message)
+      })
+    }
 
     // Extract speech and tool calls
     let speech = ''

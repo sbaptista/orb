@@ -179,7 +179,7 @@ export default function SettingsUsers() {
           },
         },
 
-        renderForm: ({ form, onChange, onSubmit, onCancel, submitLabel, saving, extra }) => {
+        renderForm: ({ form, onChange, extra }) => {
           const assignableRoles = (extra.roles ?? []).filter((r: RoleRow) => r.id !== SUPER_ADMIN_ROLE_ID)
           return (
             <>
@@ -229,12 +229,6 @@ export default function SettingsUsers() {
                     <option key={role.id} value={role.id}>{role.name}</option>
                   ))}
                 </select>
-              </div>
-              <div className="flex-row gap-sm">
-                <button className="btn-primary" onClick={onSubmit} disabled={saving}>
-                  {saving ? 'Saving…' : submitLabel}
-                </button>
-                <button className="btn-cancel" onClick={onCancel}>Cancel</button>
               </div>
             </>
           )

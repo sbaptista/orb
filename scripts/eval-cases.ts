@@ -47,7 +47,7 @@ export const EVAL_CASES: EvalCase[] = [
 
   {
     id: 'create-after-hallucinated-history',
-    description: 'Prior assistant completion claims do not leak through as false mutation success',
+    description: 'An unqualified create uses the selected project and does not leak prior completion claims',
     productCode: 'ORB',
     mutationApproval: 'ask',
     history: [

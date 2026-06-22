@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useSyncExternalStore, useEffect } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
 import DateSearchModal, { type CreatedFilter } from './DateSearchModal'
@@ -10,6 +10,7 @@ type MetricsRow = {
   id: string
   user_id: string
   date: string
+  model: string
   call_count: number
   speech_chars: number
   voice_speech_chars: number
@@ -18,20 +19,37 @@ type MetricsRow = {
   ambient_chars: number
   input_tokens: number
   output_tokens: number
+  cache_creation_input_tokens: number
+  cache_read_input_tokens: number
   created_at: string
   user_email: string | null
   user_name: string | null
 }
 
 type MetricsForm = Record<string, never>
+type MetricsSummaryRow = Pick<MetricsRow,
+  'model' | 'call_count' | 'speech_chars' | 'voice_speech_chars' | 'input_chars' |
+  'tool_call_count' | 'ambient_chars' | 'input_tokens' | 'output_tokens' |
+  'cache_creation_input_tokens' | 'cache_read_input_tokens'
+>
 
 const EMPTY_FORM: MetricsForm = {}
 const PAGE_SIZE = 50
 
-const LS_KEY_INPUT_RATE = 'orb_llm_input_rate'
-const LS_KEY_OUTPUT_RATE = 'orb_llm_output_rate'
-const DEFAULT_INPUT_RATE = 1.00
-const DEFAULT_OUTPUT_RATE = 5.00
+type ModelRates = { input: number; output: number; cacheCreate: number; cacheRead: number }
+
+const MODEL_RATES: Record<string, ModelRates> = {
+  'claude-haiku-4-5': { input: 1, output: 5, cacheCreate: 1.25, cacheRead: 0.10 },
+  'claude-sonnet-4-6': { input: 3, output: 15, cacheCreate: 3.75, cacheRead: 0.30 },
+  'claude-opus-4-6': { input: 5, output: 25, cacheCreate: 6.25, cacheRead: 0.50 },
+  'claude-opus-4-7': { input: 5, output: 25, cacheCreate: 6.25, cacheRead: 0.50 },
+  'claude-opus-4-8': { input: 5, output: 25, cacheCreate: 6.25, cacheRead: 0.50 },
+}
+const FALLBACK_RATES: ModelRates = { input: 1, output: 5, cacheCreate: 1.25, cacheRead: 0.10 }
+
+function getRates(model: string): ModelRates {
+  return MODEL_RATES[model] ?? FALLBACK_RATES
+}
 
 function subscribeToTimeZone() { return () => {} }
 function getBrowserTimeZone(): string { return Intl.DateTimeFormat().resolvedOptions().timeZone }
@@ -62,14 +80,6 @@ function formatCost(dollars: number): string {
   return '$' + dollars.toFixed(2)
 }
 
-function loadRate(key: string, fallback: number): number {
-  if (typeof window === 'undefined') return fallback
-  const stored = localStorage.getItem(key)
-  if (!stored) return fallback
-  const parsed = parseFloat(stored)
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
-}
-
 const TTS_RATES = [
   { label: 'OpenAI tts-1', perMChar: 15 },
   { label: 'ElevenLabs', perMChar: 66 },
@@ -83,18 +93,6 @@ function estimateTTSCost(chars: number): string {
   }).join(' · ')
 }
 
-const rateInputStyle: React.CSSProperties = {
-  width: '72px',
-  padding: '2px 6px',
-  fontSize: 'var(--fs-xs)',
-  fontFamily: 'var(--font-mono)',
-  background: 'var(--bg2)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--r-sm)',
-  color: 'var(--text)',
-  textAlign: 'right',
-}
-
 export default function SettingsMetrics() {
   const timeZone = useSyncExternalStore(subscribeToTimeZone, getBrowserTimeZone, () => 'UTC')
 
@@ -102,37 +100,7 @@ export default function SettingsMetrics() {
   const [textSearchTerm, setTextSearchTerm] = useState('')
   const [showDateFilter, setShowDateFilter] = useState(false)
   const [dateFilter, setDateFilter] = useState<CreatedFilter | null>(null)
-  const [summaryData, setSummaryData] = useState<MetricsRow[]>([])
-
-  const [inputRate, setInputRate] = useState(DEFAULT_INPUT_RATE)
-  const [outputRate, setOutputRate] = useState(DEFAULT_OUTPUT_RATE)
-
-  useEffect(() => {
-    setInputRate(loadRate(LS_KEY_INPUT_RATE, DEFAULT_INPUT_RATE))
-    setOutputRate(loadRate(LS_KEY_OUTPUT_RATE, DEFAULT_OUTPUT_RATE))
-  }, [])
-
-  function handleInputRateChange(value: string) {
-    const parsed = parseFloat(value)
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      setInputRate(parsed)
-      localStorage.setItem(LS_KEY_INPUT_RATE, String(parsed))
-    } else if (value === '') {
-      setInputRate(0)
-      localStorage.setItem(LS_KEY_INPUT_RATE, '0')
-    }
-  }
-
-  function handleOutputRateChange(value: string) {
-    const parsed = parseFloat(value)
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      setOutputRate(parsed)
-      localStorage.setItem(LS_KEY_OUTPUT_RATE, String(parsed))
-    } else if (value === '') {
-      setOutputRate(0)
-      localStorage.setItem(LS_KEY_OUTPUT_RATE, '0')
-    }
-  }
+  const [summaryData, setSummaryData] = useState<MetricsSummaryRow[]>([])
 
   function resetAll() {
     setTextSearchTerm('')
@@ -150,87 +118,71 @@ export default function SettingsMetrics() {
     ambient: acc.ambient + row.ambient_chars,
     inputTokens: acc.inputTokens + row.input_tokens,
     outputTokens: acc.outputTokens + row.output_tokens,
-  }), { calls: 0, speech: 0, voice: 0, input: 0, tools: 0, ambient: 0, inputTokens: 0, outputTokens: 0 })
+    cacheCreateTokens: acc.cacheCreateTokens + row.cache_creation_input_tokens,
+    cacheReadTokens: acc.cacheReadTokens + row.cache_read_input_tokens,
+  }), { calls: 0, speech: 0, voice: 0, input: 0, tools: 0, ambient: 0, inputTokens: 0, outputTokens: 0, cacheCreateTokens: 0, cacheReadTokens: 0 })
 
-  const llmInputCost = (totals.inputTokens / 1_000_000) * inputRate
-  const llmOutputCost = (totals.outputTokens / 1_000_000) * outputRate
-  const llmTotalCost = llmInputCost + llmOutputCost
+  const llmCost = summaryData.reduce((sum, row) => {
+    const r = getRates(row.model)
+    return sum
+      + (row.input_tokens / 1_000_000) * r.input
+      + (row.output_tokens / 1_000_000) * r.output
+      + (row.cache_creation_input_tokens / 1_000_000) * r.cacheCreate
+      + (row.cache_read_input_tokens / 1_000_000) * r.cacheRead
+  }, 0)
+
+  const summaryItems = [
+    { label: 'Calls', value: formatNumber(totals.calls) },
+    { label: 'Speech Chars', value: formatCharsAsK(totals.speech) },
+    { label: 'Voice Chars', value: formatCharsAsK(totals.voice) },
+    { label: 'Input Chars', value: formatCharsAsK(totals.input) },
+    { label: 'Tool Calls', value: formatNumber(totals.tools) },
+    { label: 'Ambient Chars', value: formatCharsAsK(totals.ambient) },
+    { label: 'In Tokens', value: formatTokensAsK(totals.inputTokens) },
+    { label: 'Out Tokens', value: formatTokensAsK(totals.outputTokens) },
+    { label: 'Cache Write', value: formatTokensAsK(totals.cacheCreateTokens) },
+    { label: 'Cache Read', value: formatTokensAsK(totals.cacheReadTokens) },
+  ]
 
   const summaryCards = summaryData.length > 0 ? (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 'var(--sp-md)', marginBottom: 'var(--sp-lg)' }}>
-      {[
-        { label: 'Calls', value: formatNumber(totals.calls) },
-        { label: 'Speech Chars', value: formatCharsAsK(totals.speech) },
-        { label: 'Voice Chars', value: formatCharsAsK(totals.voice) },
-        { label: 'Input Chars', value: formatCharsAsK(totals.input) },
-        { label: 'Tool Calls', value: formatNumber(totals.tools) },
-        { label: 'Ambient Chars', value: formatCharsAsK(totals.ambient) },
-        { label: 'Input Tokens', value: formatTokensAsK(totals.inputTokens) },
-        { label: 'Output Tokens', value: formatTokensAsK(totals.outputTokens) },
-      ].map(card => (
-        <div key={card.label} style={{
-          padding: 'var(--sp-md) var(--sp-lg)',
-          background: 'var(--bg)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--r)',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 'var(--fs-version)', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>{card.label}</div>
-          <div style={{ fontSize: 'var(--fs-lg)', fontWeight: 'var(--fw-semibold)', color: 'var(--text)' }}>{card.value}</div>
-        </div>
-      ))}
-
-      <div style={{
-        gridColumn: '1 / -1',
-        padding: 'var(--sp-md) var(--sp-lg)',
-        background: 'var(--bg)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--r)',
-        fontSize: 'var(--fs-xs)',
-        color: 'var(--muted)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--sp-lg)', flexWrap: 'wrap' }}>
-          <span style={{ fontWeight: 'var(--fw-semibold)', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>LLM Cost Estimate</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-            Input $/MTok
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={inputRate}
-              onChange={e => handleInputRateChange(e.target.value)}
-              style={rateInputStyle}
-              aria-label="LLM input cost per million tokens"
-            />
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-            Output $/MTok
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={outputRate}
-              onChange={e => handleOutputRateChange(e.target.value)}
-              style={rateInputStyle}
-              aria-label="LLM output cost per million tokens"
-            />
-          </span>
-          <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>
-            {formatCost(llmInputCost)} in + {formatCost(llmOutputCost)} out = <strong>{formatCost(llmTotalCost)}</strong>
-          </span>
-        </div>
+    <div className="metrics-summary" style={{ marginBottom: 'var(--sp-lg)' }}>
+      <div className="metrics-summary-grid">
+        {summaryItems.map(card => (
+          <div key={card.label} className="metrics-summary-card">
+            <div className="metrics-summary-label">{card.label}</div>
+            <div className="metrics-summary-value">{card.value}</div>
+          </div>
+        ))}
       </div>
 
-      <div style={{
-        gridColumn: '1 / -1',
-        padding: 'var(--sp-sm) var(--sp-lg)',
-        background: 'var(--bg)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--r)',
-        fontSize: 'var(--fs-xs)',
-        color: 'var(--muted)',
-        textAlign: 'center',
-      }}>
+      <ul className="metrics-summary-list">
+        {summaryItems.map(item => (
+          <li key={item.label}>
+            <span className="metrics-summary-label">{item.label}:</span>{' '}
+            <span className="metrics-summary-value">{item.value}</span>
+          </li>
+        ))}
+        <li>
+          <span className="metrics-summary-label">LLM Cost:</span>{' '}
+          <span className="metrics-summary-value">{formatCost(llmCost)}</span>
+        </li>
+        <li>
+          <span className="metrics-summary-label">TTS est:</span>{' '}
+          <span className="metrics-summary-value">{estimateTTSCost(totals.speech)}</span>
+        </li>
+      </ul>
+
+      <div className="metrics-cost-bar">
+        <span style={{ fontWeight: 'var(--fw-semibold)', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>LLM Cost Estimate</span>
+        {' · '}
+        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>
+          <strong>{formatCost(llmCost)}</strong>
+        </span>
+        {' · '}
+        <span>per-model rates</span>
+      </div>
+
+      <div className="metrics-cost-bar">
         TTS cost estimate (speech chars) · {estimateTTSCost(totals.speech)}
       </div>
     </div>
@@ -297,16 +249,19 @@ export default function SettingsMetrics() {
           selectionColumnWidth: 38,
           selectionColumnWidths: { ipad: 38, iphone: 38 },
           tableColumns: [
-            { label: 'Date',        width: '120px', platformWidths: { ipad: '120px', iphone: '120px' }, sortKey: 'date',              sortValue: (r: MetricsRow) => new Date(r.date).getTime() },
-            { label: 'User',        width: '140px', platformWidths: { ipad: '140px', iphone: '140px' } },
-            { label: 'Calls',       width: '80px',  platformWidths: { ipad: '80px',  iphone: '80px'  }, sortKey: 'call_count',        sortValue: (r: MetricsRow) => r.call_count },
-            { label: 'Speech',      width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'speech_chars',      sortValue: (r: MetricsRow) => r.speech_chars },
-            { label: 'Voice',       width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'voice_speech_chars', sortValue: (r: MetricsRow) => r.voice_speech_chars },
-            { label: 'Input',       width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'input_chars',       sortValue: (r: MetricsRow) => r.input_chars },
-            { label: 'Tools',       width: '80px',  platformWidths: { ipad: '80px',  iphone: '80px'  }, sortKey: 'tool_call_count',   sortValue: (r: MetricsRow) => r.tool_call_count },
-            { label: 'Ambient',     width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'ambient_chars',     sortValue: (r: MetricsRow) => r.ambient_chars },
-            { label: 'In Tokens',   width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'input_tokens',      sortValue: (r: MetricsRow) => r.input_tokens },
-            { label: 'Out Tokens',  width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'output_tokens',     sortValue: (r: MetricsRow) => r.output_tokens },
+            { label: 'Date',         width: '120px', platformWidths: { ipad: '120px', iphone: '120px' }, sortKey: 'date',              sortValue: (r: MetricsRow) => new Date(r.date).getTime() },
+            { label: 'Model',        width: '160px', platformWidths: { ipad: '160px', iphone: '140px' }, sortKey: 'model' },
+            { label: 'User',         width: '140px', platformWidths: { ipad: '140px', iphone: '140px' } },
+            { label: 'Calls',        width: '80px',  platformWidths: { ipad: '80px',  iphone: '80px'  }, sortKey: 'call_count',        sortValue: (r: MetricsRow) => r.call_count },
+            { label: 'Speech',       width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'speech_chars',      sortValue: (r: MetricsRow) => r.speech_chars },
+            { label: 'Voice',        width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'voice_speech_chars', sortValue: (r: MetricsRow) => r.voice_speech_chars },
+            { label: 'Input',        width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'input_chars',       sortValue: (r: MetricsRow) => r.input_chars },
+            { label: 'Tools',        width: '80px',  platformWidths: { ipad: '80px',  iphone: '80px'  }, sortKey: 'tool_call_count',   sortValue: (r: MetricsRow) => r.tool_call_count },
+            { label: 'Ambient',      width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'ambient_chars',     sortValue: (r: MetricsRow) => r.ambient_chars },
+            { label: 'In Tokens',    width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'input_tokens',      sortValue: (r: MetricsRow) => r.input_tokens },
+            { label: 'Out Tokens',   width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'output_tokens',     sortValue: (r: MetricsRow) => r.output_tokens },
+            { label: 'Cache Write',  width: '110px', platformWidths: { ipad: '110px', iphone: '100px' }, sortKey: 'cache_creation_input_tokens', sortValue: (r: MetricsRow) => r.cache_creation_input_tokens },
+            { label: 'Cache Read',   width: '110px', platformWidths: { ipad: '110px', iphone: '100px' }, sortKey: 'cache_read_input_tokens',     sortValue: (r: MetricsRow) => r.cache_read_input_tokens },
           ],
 
           load: async (_supabase, pagination) => {
@@ -322,7 +277,7 @@ export default function SettingsMetrics() {
             })
             if (res.error) throw new Error(res.error)
             const items = (res.data ?? []) as MetricsRow[]
-            setSummaryData(items)
+            setSummaryData((res.summary ?? []) as MetricsSummaryRow[])
             return {
               items,
               totalCount: res.count ?? 0,
@@ -336,6 +291,9 @@ export default function SettingsMetrics() {
               {checkbox}
               <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }}>
                 {formatDate(item.date, timeZone)}
+              </td>
+              <td className="audit-td" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text2)' }}>
+                {item.model.replace('claude-', '')}
               </td>
               <td className="audit-td" style={{ color: 'var(--text2)' }}>
                 {item.user_name || item.user_email || '—'}
@@ -363,6 +321,12 @@ export default function SettingsMetrics() {
               </td>
               <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
                 {formatTokensAsK(item.output_tokens)}
+              </td>
+              <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: item.cache_creation_input_tokens > 0 ? 'var(--text)' : 'var(--muted)' }}>
+                {formatTokensAsK(item.cache_creation_input_tokens)}
+              </td>
+              <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: item.cache_read_input_tokens > 0 ? 'var(--text)' : 'var(--muted)' }}>
+                {formatTokensAsK(item.cache_read_input_tokens)}
               </td>
             </tr>
           ),

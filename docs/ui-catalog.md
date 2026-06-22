@@ -379,6 +379,7 @@ Development-only authoring tool available for every rendered HTML table on every
 ### CRUD List (`SettingsCrudList`)
 **File:** `components/settings/SettingsCrudList.tsx`  
 Reusable pattern for settings lists with add/edit/delete actions, column resize, search, scope filters, bulk delete, and server-side pagination.
+- **Editor boundary:** CrudList owns the collection only. Its add/edit form is rendered through the shared `EditorModal`; do not add per-table modal markup, keyboard listeners, dirty prompts, or custom footer persistence paths to a CrudList consumer.
 - **Mobile cards:** `layout: 'table'` collections render as cards on iPhone and narrow/coarse-pointer iPad. `SettingsCrudList` generates a default card from `tableColumns`; use `renderMobileRow` only for rich exceptions such as Tickets and Audit Log search context. Card renderer sorting uses `mobileSortOptions`, which displays the existing accessible `FilterKebab` menu above cards. Search highlighting is applied to default card text, and pagination/search/sort state remains shared with the desktop table renderer.
 - **Pagination:** `config.pagination = { pageSize: N }`. Offset pagination returns `totalCount` and renders First/Previous/Next/Last controls. For log-style collections that must stay fast as data grows, set `mode: 'cursor'`: `load()` receives `cursor` and returns `nextCursor`; the shared footer renders First/Previous/Next. Supply an independently loaded exact `totalCount` when the collection should retain `Rows X–Y of Z` without delaying its page query.
 - **Global paginated search/sort:** Set `serverSearch: true` and/or `serverSort: true` in `config.pagination`. The shared list debounces search, passes `{ search, sortKey, sortDir }` to `load()`, resets to page one when criteria change, and treats the returned count as the full filtered result count. Do not combine client-only filtering or sorting with server pagination when users expect full-dataset results.
@@ -451,6 +452,16 @@ Do not use a gear icon for item-level actions. Do not use a kebab for page navig
 **Use for:** Todo edit, new project form, distill modal, any focused editing task.  
 **Use `modal-compose` for:** Compose/edit workflows with a live preview (e.g. ticket email editing).
 **Canonical examples:** `components/AddProductModal.tsx`, `components/TodoPanel.tsx`, `components/DistillModal.tsx`, `components/TodoForm.tsx`.
+
+### Editor Modal (`EditorModal`)
+**File:** `components/ui/EditorModal.tsx`, `lib/hooks/useDirtyForm.ts`
+Behavioral owner for focused editor dialogs. It composes the existing `modal-center` classes and does not introduce a parallel visual shell.
+
+- `useDirtyForm` holds the opening baseline and compares a normalized form value. Call `markSaved()` with normalized saved data after a successful persistence operation.
+- `EditorModal` owns backdrop/X/Escape dismissal requests, Shift+Return save-and-close, a single dirty-dismiss confirmation, focus placement, and default Save/Cancel footer behavior.
+- Standard editor contract: untouched form = Save disabled; a changed form = Save enabled; reverted or successfully saved form = Save disabled.
+- Use `headerStart`, `footerStart`, and `destructiveConfirmation` only for domain controls such as TodoPanel's task reference and delete action. Do not replace the save/close lifecycle with arbitrary footer code.
+- Search, filter, confirmation, and command dialogs are separate modal families and do not inherit Shift+Return.
 
 **Deprecated patterns (removed):** `.apm-modal`, `.dm-modal`, `.tf-*` — replaced by `modal-center` with width modifiers.
 
