@@ -109,19 +109,12 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
           return `Projects ${start}–${end} of ${total}.`
         },
         externalSearchTerm: textSearchTerm,
-        searchCaption: 'Search by text',
+        searchCaption: 'Actions',
         onResetFilters: () => setTextSearchTerm(''),
         toolbarExtra: (
-          <>
-            <button type="button" className="btn-primary" onClick={() => setShowTextSearch(true)}>
-              {textSearchTerm || 'Search by Text'}
-            </button>
-            {textSearchTerm && (
-              <button type="button" className="btn-primary" onClick={() => setTextSearchTerm('')}>
-                Reset
-              </button>
-            )}
-          </>
+          <button type="button" className={textSearchTerm ? 'btn-primary btn-primary-clamped' : 'btn-primary'} onClick={() => setShowTextSearch(true)}>
+            {textSearchTerm || 'Search by Text'}
+          </button>
         ),
         tableColumns: [
           { label: 'Code',        width: '90px',  sortKey: 'code',  sortValue: (p: Project) => p.code ?? '' },

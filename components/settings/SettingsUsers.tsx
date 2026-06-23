@@ -68,19 +68,12 @@ export default function SettingsUsers() {
           return `Users ${start}–${end} of ${total}.`
         },
         externalSearchTerm: textSearchTerm,
-        searchCaption: 'Search by text',
+        searchCaption: 'Actions',
         onResetFilters: () => setTextSearchTerm(''),
         toolbarExtra: (
-          <>
-            <button type="button" className="btn-primary" onClick={() => setShowTextSearch(true)}>
-              {textSearchTerm || 'Search by Text'}
-            </button>
-            {textSearchTerm && (
-              <button type="button" className="btn-primary" onClick={() => setTextSearchTerm('')}>
-                Reset
-              </button>
-            )}
-          </>
+          <button type="button" className={textSearchTerm ? 'btn-primary btn-primary-clamped' : 'btn-primary'} onClick={() => setShowTextSearch(true)}>
+            {textSearchTerm || 'Search by Text'}
+          </button>
         ),
         tableColumns: [
           { label: 'Name',    width: '220px', sortKey: 'name',  sortValue: (u: UserRow) => displayName(u) },

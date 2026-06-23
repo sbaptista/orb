@@ -12,8 +12,14 @@ type EditorModalProps = {
   isSaving?: boolean
   saveLabel?: string
   saveDisabled?: boolean
-  onSave: (closeAfterSave: boolean) => Promise<boolean> | boolean
+  onSave?: (closeAfterSave: boolean) => Promise<boolean> | boolean
   onClose: () => void
+  /** Read-only detail views share the shell but omit editor-only save controls. */
+  readOnly?: boolean
+  /** Shows a single Close command in a read-only detail footer. */
+  showCloseFooter?: boolean
+  /** Raises a detail view above its originating modal. */
+  stacked?: boolean
   headerStart?: ReactNode
   footerStart?: ReactNode
   destructiveConfirmation?: {
@@ -37,6 +43,9 @@ export default function EditorModal({
   saveDisabled = false,
   onSave,
   onClose,
+  readOnly = false,
+  showCloseFooter = false,
+  stacked = false,
   headerStart,
   footerStart,
   destructiveConfirmation,
@@ -60,7 +69,7 @@ export default function EditorModal({
   }, [busy, isDirty, onClose])
 
   const save = useCallback(async (closeAfterSave: boolean) => {
-    if (busy || !isDirty || saveDisabled) return false
+    if (readOnly || busy || !isDirty || saveDisabled || !onSave) return false
     setSubmitting(true)
     try {
       const saved = await onSave(closeAfterSave)
@@ -69,7 +78,7 @@ export default function EditorModal({
     } finally {
       setSubmitting(false)
     }
-  }, [busy, isDirty, onSave, saveDisabled])
+  }, [busy, isDirty, onSave, readOnly, saveDisabled])
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -103,7 +112,7 @@ export default function EditorModal({
       if (event.key === 'Escape') {
         event.preventDefault()
         requestClose()
-      } else if (event.key === 'Enter' && event.shiftKey && !event.metaKey && !event.ctrlKey) {
+      } else if (!readOnly && event.key === 'Enter' && event.shiftKey && !event.metaKey && !event.ctrlKey) {
         event.preventDefault()
         void save(true)
       }
@@ -111,14 +120,14 @@ export default function EditorModal({
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [requestClose, save, showDiscardPrompt])
+  }, [readOnly, requestClose, save, showDiscardPrompt])
 
   return (
     <>
-      <div className="modal-backdrop" onClick={requestClose} />
+      <div className={stacked ? 'modal-backdrop modal-backdrop--stacked' : 'modal-backdrop'} onClick={requestClose} />
       <div
         ref={dialogRef}
-        className={`modal-center ${className}`.trim()}
+        className={`modal-center${stacked ? ' modal-center--stacked' : ''} ${className}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -141,6 +150,10 @@ export default function EditorModal({
             <button type="button" className="btn-danger" onClick={destructiveConfirmation.onConfirm} disabled={destructiveConfirmation.confirming}>
               {destructiveConfirmation.confirming ? 'Deleting...' : 'Delete'}
             </button>
+          </div>
+        ) : readOnly ? showCloseFooter && (
+          <div className="modal-footer">
+            <button type="button" className="btn-primary" onClick={requestClose}>Close</button>
           </div>
         ) : (
           <div className="modal-footer">

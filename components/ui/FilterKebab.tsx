@@ -9,9 +9,13 @@ type Props = {
   options: Option[]
   onChange: (value: string) => void
   ariaLabel?: string
+  /** Override the trigger label. Useful for "More…" style kebabs that show extra options. */
+  triggerLabel?: string
+  /** Tooltip shown on hover over the trigger button. */
+  tooltip?: string
 }
 
-export default function FilterKebab({ value, options, onChange, ariaLabel }: Props) {
+export default function FilterKebab({ value, options, onChange, ariaLabel, triggerLabel, tooltip }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
@@ -84,8 +88,10 @@ export default function FilterKebab({ value, options, onChange, ariaLabel }: Pro
         aria-label={ariaLabel}
         aria-expanded={open}
         aria-haspopup="menu"
+        title={tooltip}
+        data-tooltip={tooltip}
       >
-        <span className="filter-kebab-label">{current?.label ?? value}</span>
+        <span className="filter-kebab-label">{triggerLabel ?? current?.label ?? value}</span>
         <svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden>
           <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>

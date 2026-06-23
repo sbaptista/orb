@@ -4,6 +4,7 @@ import { useState } from 'react'
 import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
 import DateSearchModal, { type CreatedFilter } from './DateSearchModal'
+import FilterKebab from '@/components/ui/FilterKebab'
 import { getTickets, createTodoFromTicket, dismissTicket, updateTicket, deleteTicket, type Ticket, type TicketType, type TicketStatus } from '@/app/actions/ticket-actions'
 import { getAdminProjects } from '@/app/actions/manage-project'
 import { useToast } from '@/components/ui/Toast'
@@ -110,19 +111,22 @@ const EMPTY_FORM: TicketForm = {
 
 const PAGE_SIZE = 25
 
-const SCOPES = [
+const PRIMARY_SCOPES = [
   { id: 'active', label: 'Active' },
   { id: 'all', label: 'All' },
   { id: 'open', label: 'Open' },
-  { id: 'in_progress', label: 'In Progress' },
-  { id: 'pending', label: 'Pending' },
-  { id: 'awaiting_input', label: 'Awaiting Input' },
-  { id: 'pending_release', label: 'Pending Release' },
-  { id: 'pending_verification', label: 'Pending Verification' },
-  { id: 'on_hold', label: 'On Hold' },
-  { id: 'deferred', label: 'Deferred' },
   { id: 'closed', label: 'Closed' },
-  { id: 'dismissed', label: 'Dismissed' },
+]
+
+const MORE_SCOPES = [
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'awaiting_input', label: 'Awaiting Input' },
+  { value: 'pending_release', label: 'Pending Release' },
+  { value: 'pending_verification', label: 'Pending Verification' },
+  { value: 'on_hold', label: 'On Hold' },
+  { value: 'deferred', label: 'Deferred' },
+  { value: 'dismissed', label: 'Dismissed' },
 ]
 
 export default function SettingsTickets() {
@@ -170,28 +174,35 @@ export default function SettingsTickets() {
           return `Tickets ${start}–${end} of ${total}.`
         },
         externalSearchTerm: textSearchTerm,
-        searchCaption: 'Search by text, date, or both',
+        searchCaption: 'Actions',
+        externalFilterActive: !!textSearchTerm || !!createdFilter,
         externalFilterKey: `${scope}|${createdFilter?.from ?? ''}|${createdFilter?.to ?? ''}|${createdFilter?.before ?? ''}`,
         onResetFilters: resetAll,
         toolbarLeading: (
-          <div style={{ marginBottom: 'var(--sp-sm)' }}>
-            <label className="label">Filters</label>
-            <div className="flex-row gap-sm" style={{ flexWrap: 'wrap' }}>
-              {SCOPES.map(s => (
-                <button
-                  key={s.id}
-                  className={`pill ${scope === s.id ? 'pill-active' : ''}`}
-                  onClick={() => setScope(s.id)}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          <>
+            {PRIMARY_SCOPES.map(s => (
+              <button
+                key={s.id}
+                className={`pill ${scope === s.id ? 'pill-active' : ''}`}
+                onClick={() => setScope(s.id)}
+              >
+                {s.label}
+              </button>
+            ))}
+            <FilterKebab
+              value={scope}
+              options={MORE_SCOPES}
+              onChange={setScope}
+              ariaLabel="More status filters"
+              triggerLabel={MORE_SCOPES.find(s => s.value === scope)?.label ?? 'More…'}
+              tooltip={MORE_SCOPES.map(s => s.label).join(', ')}
+            />
+            <span className="ctrl-divider" />
+          </>
         ),
         toolbarExtra: (
           <>
-            <button type="button" className="btn-primary" onClick={() => setShowTextSearch(true)}>
+            <button type="button" className={textSearchTerm ? 'btn-primary btn-primary-clamped' : 'btn-primary'} onClick={() => setShowTextSearch(true)}>
               {textSearchTerm || 'Search by Text'}
             </button>
             <button
@@ -209,11 +220,6 @@ export default function SettingsTickets() {
                 ) : createdFilter.label
               ) : 'Search by Date'}
             </button>
-            {hasAnyFilter && (
-              <button type="button" className="btn-primary" onClick={resetAll}>
-                Reset
-              </button>
-            )}
           </>
         ),
         tableColumns: [

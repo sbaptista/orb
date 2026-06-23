@@ -6,6 +6,41 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.39',
+    date: '2026-06-23',
+    changes: [
+      'Knowledge Repository search matches: Replaced inline snippets with an amber match notice and field-level markers. Every matching field opens a centered, scrollable read-only value view that highlights all matches and offers only X or Close.',
+    ]
+  },
+  {
+    version: 'v0.6.38',
+    date: '2026-06-23',
+    changes: [
+      'Knowledge Repository search matches: Added clear label/value spacing, limits dense Content matches to a three-line-scale context snippet around the result, and reliably opens long Titles from their first character.',
+    ]
+  },
+  {
+    version: 'v0.6.37',
+    date: '2026-06-23',
+    changes: [
+      'Audit Log: Replaced its bespoke read-only detail modal with the shared EditorModal shell. Audit entries retain immediate close behavior while now sharing modal focus, Escape, overlay, and settings scroll-lock behavior with every other editor.',
+    ]
+  },
+  {
+    version: 'v0.6.36',
+    date: '2026-06-23',
+    changes: [
+      'Knowledge Repository: Opening a text-search result now shows highlighted matching Title, Content, or Tags values above the editable form, while the Title input opens at its first character instead of its end.',
+    ]
+  },
+  {
+    version: 'v0.6.31',
+    date: '2026-06-23',
+    changes: [
+      'ORB-269: Info-only pagination controllers now keep their natural single-row height beside taller action/search controllers, eliminating the empty lower panel when a collection has only one page.',
+    ]
+  },
+  {
     version: 'v0.6.29',
     date: '2026-06-22',
     changes: [

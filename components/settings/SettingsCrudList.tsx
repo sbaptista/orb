@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useMemo, useCallback, useRef, useId, useSyncExternalStore, type ReactNode } from 'react'
+import React, { useEffect, useState, useMemo, useCallback, useRef, useSyncExternalStore, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import { useDirtyForm } from '@/lib/hooks/useDirtyForm'
@@ -8,10 +8,14 @@ import SkeletonRows from '@/components/ui/SkeletonRows'
 import { useToast } from '@/components/ui/Toast'
 import FilterKebab from '@/components/ui/FilterKebab'
 import EditorModal from '@/components/ui/EditorModal'
+import PaginationController from '@/components/ui/PaginationController'
+import SearchController from '@/components/ui/SearchController'
 
-const PILL_THRESHOLD = 5
+export type EditorSearchMatch = { label: string; value: string }
 
-function highlightText(node: React.ReactNode, term: string): React.ReactNode {
+const PILL_THRESHOLD = 4
+
+export function highlightText(node: React.ReactNode, term: string): React.ReactNode {
   if (!term) return node
   if (typeof node === 'string') {
     const lower = node.toLowerCase()
@@ -146,6 +150,10 @@ type CrudConfig<T, F> = {
   externalFilterKey?: string
   /** Called when the user clicks the Reset button. Use to clear external filters (e.g. date filter). */
   onResetFilters?: () => void
+  /** When true, indicates an external filter (beyond text search) is active. Controls Reset button visibility. */
+  externalFilterActive?: boolean
+  /** Matching editable values to show above an editor when a text search opened the item. */
+  searchMatchFields?: (form: F, searchTerm: string) => EditorSearchMatch[]
   /** Custom handler when a row is clicked. When provided, replaces the default edit-on-click behavior. */
   onRowClick?: (item: T) => void
   validate?: (form: F, items: T[], editingId: string | null) => string | null
@@ -180,6 +188,8 @@ type CrudConfig<T, F> = {
     onChange: (f: F) => void
     extra: any
     mode: 'add' | 'edit'
+    searchMatches: EditorSearchMatch[]
+    onOpenSearchMatch: (match: EditorSearchMatch) => void
   }) => ReactNode
 
   renderRow: (props: {
@@ -260,9 +270,11 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const [cursorHistory, setCursorHistory] = useState<Array<string | null>>([null])
   const [canScrollTableLeft, setCanScrollTableLeft] = useState(false)
   const [canScrollTableRight, setCanScrollTableRight] = useState(false)
+  const [tableOverflows, setTableOverflows] = useState(false)
+  const [openSearchMatch, setOpenSearchMatch] = useState<EditorSearchMatch | null>(null)
   const modalOpen = modalMode !== null
   const isDirty = modalOpen && editor.isDirty
-  const scopeFilterId = useId()
+
   const tablePlatform = useSyncExternalStore<TablePlatform>(
     (onChange) => {
       const pointerQuery = window.matchMedia('(pointer: coarse)')
@@ -320,6 +332,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const pageSize = config.pagination?.pageSize
   const usesCursorPagination = config.pagination?.mode === 'cursor'
   const externalFilterKey = config.externalFilterKey
+  const hasAnyExternalFilter = !!((config.externalSearchTerm && config.externalSearchTerm.trim()) || config.externalFilterActive)
   const hasBulk = !!config.bulkDelete
   const effectiveTotalCount = config.totalCount ?? totalCount
 
@@ -346,7 +359,6 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     setDebouncedSearch('')
     setPage(0)
     setCursorHistory([null])
-    setNextCursor(null)
     setSelectedIds([])
     config.onResetFilters?.()
   }
@@ -452,6 +464,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     const update = () => {
       setCanScrollTableLeft(element.scrollLeft > 2)
       setCanScrollTableRight(element.scrollLeft + element.clientWidth < element.scrollWidth - 2)
+      setTableOverflows(element.scrollWidth > element.clientWidth + 2)
     }
     requestAnimationFrame(update)
     element.addEventListener('scroll', update, { passive: true })
@@ -509,6 +522,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     setEditingId(null)
     setConfirmDeleteId(null)
     setError('')
+    setOpenSearchMatch(null)
   }
 
   function openEditModal(item: T) {
@@ -519,12 +533,14 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     setModalMode('edit')
     setConfirmDeleteId(null)
     setError('')
+    setOpenSearchMatch(null)
   }
 
   function closeModal() {
     setModalMode(null)
     setEditingId(null)
     setError('')
+    setOpenSearchMatch(null)
     config.onClose?.()
   }
 
@@ -656,7 +672,6 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   function resetPagination() {
     setPage(0)
     setCursorHistory([null])
-    setNextCursor(null)
     setSelectedIds([])
   }
 
@@ -680,36 +695,43 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     setSelectedIds([])
   }
 
-  function renderPagination(className?: string) {
+  function renderPaginationButtons() {
     if (!config.pagination) return null
     const lastPage = Math.max(0, Math.ceil(effectiveTotalCount / config.pagination.pageSize) - 1)
     const hasPagination = usesCursorPagination
-      ? page > 0 || !!nextCursor
+      ? page > 0 || !!nextCursor || effectiveTotalCount > config.pagination.pageSize
       : effectiveTotalCount > config.pagination.pageSize
-    if (!hasPagination) return null
+
+    const ps = config.pagination.pageSize
+    const start = page * ps + 1
+    const end = Math.min(start + ps - 1, effectiveTotalCount)
+    const info = usesCursorPagination
+      ? `p.${page + 1}`
+      : `p.${page + 1} · ${start.toLocaleString()}–${end.toLocaleString()} of ${effectiveTotalCount.toLocaleString()}`
+
+    const subtitleText = config.subtitle
+      ? config.subtitle(displayed, effectiveTotalCount || undefined, { page, pageSize: ps })
+      : info
 
     return (
-      <div className={className ?? 'flex-between'} style={className ? undefined : { padding: 'var(--sp-sm) var(--sp-lg)', borderTop: '1px solid var(--border)' }}>
+      <PaginationController info={subtitleText} infoOnly={!hasPagination}>
         <button className="nav-circle-btn" onClick={resetPagination} aria-disabled={page === 0} aria-label="First page" data-tooltip="First page">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
         </button>
         <button className="nav-circle-btn" onClick={goToPreviousPage} aria-disabled={page === 0} aria-label="Previous page" data-tooltip="Previous page">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <span className="text-xs text-muted">{usesCursorPagination ? `Page ${page + 1}` : `Page ${page + 1} of ${lastPage + 1}`}</span>
         <button className="nav-circle-btn" onClick={goToNextPage} aria-disabled={usesCursorPagination ? !nextCursor : page >= lastPage} aria-label="Next page" data-tooltip="Next page">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-        {!usesCursorPagination && (
-          <button className="nav-circle-btn" onClick={() => { if (page < lastPage) { setPage(lastPage); setSelectedIds([]) } }} aria-disabled={page >= lastPage} aria-label="Last page" data-tooltip="Last page">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 17 18 12 18 7"/><polyline points="6 17 11 12 6 7"/></svg>
-          </button>
-        )}
-      </div>
+        <button className="nav-circle-btn" onClick={() => { if (!usesCursorPagination && page < lastPage) { setPage(lastPage); setSelectedIds([]) } }} aria-disabled={usesCursorPagination || page >= lastPage} aria-label="Last page" data-tooltip="Last page">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+        </button>
+      </PaginationController>
     )
   }
 
-  if (loading) return <div className="s-loading"><SkeletonRows rows={3} /></div>
+  if (loading && items.length === 0) return <div className="s-loading"><SkeletonRows rows={3} /></div>
 
   const colCount = (config.tableColumns?.length ?? 1) + (hasBulk ? 1 : 0)
 
@@ -984,12 +1006,18 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     ? handleAdd()
     : handleSave(editingId!, closeAfterSave)
   const modalSubmitLabel = modalMode === 'add' ? (config.addButtonLabel ?? `Add ${config.itemLabel}`) : 'Save'
+  const modalSearchTerm = (hasExternalSearch ? config.externalSearchTerm ?? '' : search).trim()
+  const modalSearchMatches = modalOpen && modalMode === 'edit' && modalSearchTerm && config.searchMatchFields
+    ? config.searchMatchFields(modalForm, modalSearchTerm)
+    : []
 
   const modalFormNode = modalOpen && config.renderForm ? config.renderForm({
     form: modalForm,
     onChange: setModalForm,
     extra,
     mode: modalMode!,
+    searchMatches: modalSearchMatches,
+    onOpenSearchMatch: setOpenSearchMatch,
   }) : null
 
   return (
@@ -997,11 +1025,11 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       <div className="s-header">
         <div>
           <h2 className="s-title">{config.title}</h2>
-          <div className="flex-row gap-sm" style={{ alignItems: 'baseline' }}>
-            {config.subtitle && (
+          {config.subtitle && !config.pagination && (
+            <div className="flex-row gap-sm" style={{ alignItems: 'baseline' }}>
               <p className="text-sm text-muted">{config.subtitle(displayed, effectiveTotalCount || undefined, { page, pageSize: pageSize ?? 0 })}</p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
         <div className="flex-row gap-sm">
           {hasForm && !config.hideAdd && !((config.searchFilter || usesServerSearch || hasExternalSearch) || isTable) && (
@@ -1033,40 +1061,48 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
 
       {config.scopeFilter && !usePills && (
         <div style={{ marginBottom: 'var(--sp-xl)' }}>
-          <label htmlFor={scopeFilterId} className="label">Filters</label>
-          <select
-            id={scopeFilterId}
-            className="crud-scope-select"
+          <label className="label">Filters</label>
+          <FilterKebab
             value={scope}
-            onChange={e => setScope(e.target.value)}
-          >
-            {allScopes.map(s => (
-              <option key={s.id} value={s.id}>{s.label}</option>
-            ))}
-          </select>
+            options={allScopes.map(s => ({ value: s.id, label: s.label }))}
+            onChange={setScope}
+            ariaLabel={`Filter ${config.title}`}
+            tooltip={`${allScopes.length} filter options`}
+          />
         </div>
       )}
 
-      {((config.searchFilter || usesServerSearch || hasExternalSearch) || isTable) && (
+      {hasExternalSearch && (
+        <div className="ctrl-toolbar">
+          <SearchController
+            info={hasAnyExternalFilter ? (config.searchCaption ?? 'Filtered results') : (config.searchCaption ?? null)}
+            infoTrailing={hasAnyExternalFilter ? (
+              <button type="button" className="text-btn ctrl-reset-btn" onClick={resetAllFilters}>Reset search</button>
+            ) : undefined}
+          >
+            {config.toolbarLeading}
+            {config.toolbarExtra}
+            {hasMobileCards && cardRendererActive && mobileSortOptions.length > 0 && (
+              <FilterKebab
+                value={activeMobileSort ? `${activeMobileSort.sortKey}:${activeMobileSort.sortDir}` : `${mobileSortOptions[0].sortKey}:${mobileSortOptions[0].sortDir}`}
+                options={mobileSortOptions.map(option => ({ value: `${option.sortKey}:${option.sortDir}`, label: `Sort: ${option.label}` }))}
+                onChange={setMobileSort}
+                ariaLabel={`Sort ${config.title}`}
+              />
+            )}
+            {hasForm && !config.hideAdd && (
+              <button className="btn-primary" onClick={openAddModal}>
+                + {config.addButtonLabel ?? `Add ${config.itemLabel}`}
+              </button>
+            )}
+          </SearchController>
+          {renderPaginationButtons()}
+        </div>
+      )}
+
+      {!hasExternalSearch && ((config.searchFilter || usesServerSearch) || isTable) && (
         <div className="crud-table-toolbar" style={tableExactWidth ? { width: `${tableExactWidth}px`, maxWidth: '100%' } : undefined}>
-          {config.toolbarLeading && (
-            <div className="crud-toolbar-leading">
-              {config.toolbarLeading}
-            </div>
-          )}
-          {hasExternalSearch ? (
-            <div className="crud-toolbar-field">
-              {config.searchCaption && <span className="crud-toolbar-caption">{config.searchCaption}</span>}
-              <div className="crud-search-row">
-                {config.toolbarExtra}
-                {hasForm && !config.hideAdd && (
-                  <button className="btn-primary" onClick={openAddModal}>
-                    + {config.addButtonLabel ?? `Add ${config.itemLabel}`}
-                  </button>
-                )}
-              </div>
-            </div>
-          ) : (config.searchFilter || usesServerSearch) ? (
+          {(config.searchFilter || usesServerSearch) ? (
             <label className="crud-toolbar-field">
               {config.searchCaption && <span className="crud-toolbar-caption">{config.searchCaption}</span>}
               <div className="crud-search-row">
@@ -1144,41 +1180,34 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
               />
             </div>
           )}
-          {isTable && !(hasMobileCards && cardRendererActive) && (
-            <div className="crud-scroll-controls" aria-label="Table column navigation">
-              <div className="crud-scroll-buttons">
-                <div className="nav-circle-control">
-                  <button
-                    type="button"
-                    className="nav-circle-btn"
-                    onClick={() => { if (canScrollTableLeft) scrollTable(-1) }}
-                    aria-disabled={!canScrollTableLeft}
-                    aria-label="Previous table columns"
-                    data-tooltip="Previous table columns"
-                  >
-                    ‹
-                  </button>
-                </div>
-                <div className="nav-circle-control">
-                  <button
-                    type="button"
-                    className="nav-circle-btn"
-                    onClick={() => { if (canScrollTableRight) scrollTable(1) }}
-                    aria-disabled={!canScrollTableRight}
-                    aria-label="Next table columns"
-                    data-tooltip="Next table columns"
-                  >
-                    ›
-                  </button>
-                </div>
-              </div>
-              <span className="crud-scroll-controls-label">{config.tableNavCaption ?? 'Prev/Next Columns'}</span>
-            </div>
+          {isTable && !(hasMobileCards && cardRendererActive) && tableOverflows && (
+            <PaginationController info={config.tableNavCaption ?? 'Prev/Next Columns'}>
+              <button
+                type="button"
+                className="nav-circle-btn"
+                onClick={() => { if (canScrollTableLeft) scrollTable(-1) }}
+                aria-disabled={!canScrollTableLeft}
+                aria-label="Previous table columns"
+                data-tooltip="Previous table columns"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                className="nav-circle-btn"
+                onClick={() => { if (canScrollTableRight) scrollTable(1) }}
+                aria-disabled={!canScrollTableRight}
+                aria-label="Next table columns"
+                data-tooltip="Next table columns"
+              >
+                ›
+              </button>
+            </PaginationController>
           )}
         </div>
       )}
 
-      {renderPagination()}
+      {!hasExternalSearch && renderPaginationButtons()}
 
       {hasBulk && someChecked && (
         <div className="crud-bulk-bar">
@@ -1207,7 +1236,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       {isTable ? (
         displayed.length === 0 ? (
           <div className="s-card s-empty">
-            {search.trim() ? 'No matching entries.' : `No ${config.title.toLowerCase()} yet.`}
+            {(search.trim() || hasAnyExternalFilter) ? 'No matching entries.' : `No ${config.title.toLowerCase()} yet.`}
           </div>
         ) : (
           <>
@@ -1343,7 +1372,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         <div className="s-list">
           {displayed.length === 0 ? (
             <p className="s-empty">
-              {search.trim() ? 'No matching entries.' : `No ${config.title.toLowerCase()} yet.`}
+              {(search.trim() || hasAnyExternalFilter) ? 'No matching entries.' : `No ${config.title.toLowerCase()} yet.`}
             </p>
           ) : itemRows}
         </div>
@@ -1364,7 +1393,31 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         >
           <div className="modal-body" style={{ padding: 'var(--sp-lg) var(--sp-xl)' }}>
             {error && <p className="s-error" style={{ marginBottom: 'var(--sp-md)' }}>{error}</p>}
+            {modalSearchMatches.length > 0 && (
+              <div className="search-match-notice" role="status">
+                <span className="search-match-notice-swatch" aria-hidden="true" />
+                Found {modalSearchMatches.length} matching {modalSearchMatches.length === 1 ? 'field' : 'fields'} for "{modalSearchTerm}". Look for amber markers beside the field titles.
+              </div>
+            )}
             {modalFormNode}
+          </div>
+        </EditorModal>
+      )}
+      {openSearchMatch && (
+        <EditorModal
+          title={`${openSearchMatch.label} match`}
+          titleId="settings-search-match-dialog-title"
+          isDirty={false}
+          readOnly
+          showCloseFooter
+          stacked
+          onClose={() => setOpenSearchMatch(null)}
+          lockSettingsScroll
+        >
+          <div className="modal-body" style={{ padding: 'var(--sp-lg) var(--sp-xl)' }}>
+            <div className="search-match-detail">
+              {highlightText(openSearchMatch.value, modalSearchTerm)}
+            </div>
           </div>
         </EditorModal>
       )}

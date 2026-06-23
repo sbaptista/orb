@@ -10,41 +10,41 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.29
+- **Version:** 0.6.39
 
 ---
 
 ### Last Session Completed
 
-**ORB-290: Shared editor lifecycle + complete LLM metrics — 2026-06-22 (Codex, GPT-5)**
+**ORB-269: Standardized settings collection controls — 2026-06-23 (Codex, GPT-5)**
 
-1. Closed ORB-290 with resolution notes and Knowledge Repo entry `8e927954-42e3-47b2-9deb-3b1b64a886f6`.
-2. Replaced duplicated editor behavior with `EditorModal` + `useDirtyForm`, preserving the existing `modal-center` visual family. The shared shell owns Escape, Shift+Return, backdrop/X dismissal, dirty confirmation, focus, and the standard footer.
-3. Migrated SettingsCrudList, Tickets, and TodoPanel to the shared lifecycle. Save is disabled until a real edit, re-disables after successful normalized save, and Shift+Return saves and closes editor dialogs. Ticket editing no longer bypasses saving/close behavior through a custom footer.
-4. Preserved collection responsibilities in CrudList: loading, search, sort, pagination, desktop tables, mobile cards, and selection. Updated the UI catalog and added `docs/orb-290-modal-editor-architecture-plan.md`.
-5. Completed the existing LLM metrics work: model/cache token recording at conversation, distillation, greeting, and eval call sites; per-model cost estimates; responsive summaries; and a full-filter summary RPC so metrics totals no longer reflect only the visible page.
-6. Restored replay-safe metrics migration history. Applied `scripts/migrations/20260622_orb_metrics_summary.sql`, verified its totals (48 calls), and vacuumed `orb_metrics` from 44 dead rows to zero.
-7. Project codes remain editable identifiers. They now use the explicit project update action and visibly reject invalid characters and values over ten characters instead of silently storing invalid input.
-8. Made the eval runner explicitly exit after a successful full gate, preventing completed runs from lingering on open HTTP keep-alive handles.
-9. Strengthened selected-project defaulting for unqualified create requests after the Tier 1 gate exposed a Haiku scope-question regression.
-10. Eval verification: full Tier 1 passed 14/14 before the final selected-project prompt wording; the only affected case, `create-after-hallucinated-history`, passed after that wording change. The local terminal wrapper cannot sustain the full two-minute runner process.
+1. Closed ORB-269 with resolution notes and Knowledge Repo entry `ORB-269: Shared settings collection controls and search-match details`.
+2. Consolidated settings search/pagination into shared `SearchController` and `PaginationController`; single-page collections retain only their informational row.
+3. Completed the responsive filter/card pass across settings collections and documented the canonical patterns in `docs/ui-catalog.md`.
+4. Added a reusable editor search-match flow: an amber query notice, a marker beside every matching editable field, and a stacked read-only detail modal that highlights every occurrence in the full scrollable value.
+5. Moved Audit Log's bespoke read-only detail shell to `EditorModal` read-only mode, retaining immediate dismissal and adding shared focus, Escape, overlay, and scroll-lock behavior.
 
 ### Uncommitted Changes
 
-None after this release commit.
+Held back from this release: ORB-265 model-evaluation work only.
+
+- `app/api/orb-eval/route.ts`
+- `scripts/eval-cases.ts`, `scripts/orb-eval.ts`, `scripts/strategic-eval-cases.ts`
+- `lib/orb-model/`
+- `scripts/migrations/20260622_orb_model_requests.sql`
+- `docs/orb-265-model-strategy-audit-plan.md`
+- `WIP.md`
 
 ### Key Lesson
 
-**Editor behavior is a system boundary.** Dirty baseline, keyboard actions, persistence completion, and dismissal cannot be independently reimplemented in each modal. Keep `EditorModal` as the behavioral owner and `useDirtyForm` as the normalized baseline owner; preserve CrudList as a collection renderer.
-
-**Migration files are history, not snapshots.** Do not revise an earlier applied migration to include a later schema state. Add an idempotent later migration and keep a clean replay sequence valid.
+**Editable controls are not rich-text renderers.** Preserve normal native inputs and textareas; show search context through shared field markers and a separate read-only highlighted detail view.
 
 ---
 
 ### Not started
 
+- **ORB-265:** Resume the provider-neutral model evaluation from `WIP.md`.
 - **ORB-287:** Investigate dashboard background polling overhead.
-- **ORB-265:** Full Audit of Orb Instructions.
 - **ORB-254 remaining:** Blank User columns when filtering by date.
 
 ### Needs testing
@@ -136,8 +136,8 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## Next Priorities
 
-1. **ORB-287** — investigate dashboard background polling overhead.
-2. **ORB-265** — full audit of Orb instructions.
+1. **ORB-265** — resume provider-neutral model evaluation from `WIP.md`.
+2. **ORB-287** — investigate dashboard background polling overhead.
 3. **ORB-254 remaining** — blank User columns when filtering by date.
 
 ---
@@ -151,7 +151,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-06-22 — Codex (GPT-5)`
+`2026-06-23 — Codex (GPT-5)`
 
 ---
 

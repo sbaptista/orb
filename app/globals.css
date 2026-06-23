@@ -1227,23 +1227,81 @@ a, button, [role="button"], input, select, textarea {
   border-top: 1px solid var(--border);
   padding-top: 6px;
 }
-.audit-card-matches {
+.search-match-list {
   display: grid;
   gap: var(--sp-sm);
   margin: var(--sp-sm) 0;
 }
-.audit-card-match {
-  display: grid;
-  gap: 2px;
+.search-match {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-xs);
   color: var(--muted);
   font-size: var(--fs-sm);
   overflow-wrap: anywhere;
 }
-.audit-card-match strong {
+.search-match > span {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.search-match strong {
   color: var(--text2);
   font-size: var(--fs-version);
   text-transform: uppercase;
   letter-spacing: var(--ls-caps);
+}
+
+.field-label-with-match {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.search-match-indicator {
+  width: 44px;
+  height: 44px;
+  margin: -10px -10px -10px 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.search-match-indicator > span,
+.search-match-notice-swatch {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 3px;
+  background: color-mix(in srgb, #f59e0b 28%, transparent);
+  border: 1.5px solid #f59e0b;
+}
+.search-match-indicator:hover > span,
+.search-match-indicator:focus-visible > span {
+  background: color-mix(in srgb, #f59e0b 45%, transparent);
+}
+.search-match-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  margin-bottom: var(--sp-lg);
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid color-mix(in srgb, #f59e0b 50%, var(--border));
+  border-radius: var(--r);
+  background: color-mix(in srgb, #f59e0b 10%, var(--bg));
+  color: var(--text2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+.search-match-detail {
+  max-height: min(55dvh, 560px);
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
 }
 
 .color-swatch {
@@ -1465,7 +1523,6 @@ mark.crud-highlight {
   outline: 1.5px solid #f59e0b;
   outline-offset: 0px;
 }
-
 
 .knowledge-tag {
   font-size: var(--fs-version);
@@ -2684,6 +2741,107 @@ mark.crud-highlight {
   background: var(--pill-active-bg);
 }
 
+/* ── Search Controller ── */
+.search-ctrl {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  flex: 0 1 auto;
+}
+.search-ctrl-top {
+  background: var(--bg2);
+  padding: 8px 16px;
+  font-size: var(--fs-sm);
+  color: var(--text3);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.search-ctrl-info { flex: 1; text-align: center; }
+.search-ctrl-trailing { flex: none; }
+.search-ctrl-bottom {
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  flex-wrap: wrap;
+}
+.search-ctrl-bottom--solo { border-radius: var(--r-lg); }
+
+.search-ctrl--minimal { border: none; border-radius: 0; }
+.search-ctrl--minimal .search-ctrl-top {
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+}
+
+/* ── Pagination Controller ── */
+.pag-ctrl {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.pag-ctrl-top {
+  background: var(--bg2);
+  padding: 8px 16px;
+  font-size: var(--fs-sm);
+  color: var(--text3);
+  text-align: center;
+  white-space: nowrap;
+}
+.pag-ctrl-top:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+.pag-ctrl-bottom {
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-sm);
+}
+
+.pag-ctrl--minimal { border: none; border-radius: 0; }
+.pag-ctrl--minimal .pag-ctrl-top {
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+}
+
+/* ── Controller toolbar row (houses search + pagination side by side) ── */
+.ctrl-toolbar {
+  display: flex;
+  gap: var(--sp-lg);
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-xl);
+}
+
+/* ── Controller scope divider (vertical line between pill group and search buttons) ── */
+.ctrl-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  margin: 2px 0;
+}
+
+.ctrl-reset-btn {
+  font-size: var(--fs-version);
+  color: var(--accent);
+  letter-spacing: var(--ls-body);
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.btn-primary-clamped {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tv-list-wrap {
   max-width: var(--content-max);
   margin: 0 auto;
@@ -3884,6 +4042,7 @@ mark.crud-highlight {
   z-index: 40;
   background: rgba(42, 51, 42, 0.25);
 }
+.modal-backdrop--stacked { z-index: 60; }
 
 .slide-panel {
   position: fixed;
@@ -3941,6 +4100,7 @@ mark.crud-highlight {
   overflow: hidden;
   resize: both;
 }
+.modal-center--stacked { z-index: 70; resize: none; }
 .modal-center.modal-sm { max-width: 400px; resize: none; }
 .modal-center.modal-lg { max-width: 680px; }
 .modal-center.modal-compose {

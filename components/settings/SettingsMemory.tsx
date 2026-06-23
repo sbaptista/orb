@@ -71,12 +71,13 @@ export default function SettingsMemory() {
           return `Memories ${start}–${end} of ${total}.`
         },
         externalSearchTerm: textSearchTerm,
-        searchCaption: 'Search by text, date, or both',
+        searchCaption: 'Actions',
+        externalFilterActive: !!textSearchTerm || !!createdFilter,
         externalFilterKey: `${createdFilter?.from ?? ''}|${createdFilter?.to ?? ''}|${createdFilter?.before ?? ''}`,
         onResetFilters: resetAll,
         toolbarExtra: (
           <>
-            <button type="button" className="btn-primary" onClick={() => setShowTextSearch(true)}>
+            <button type="button" className={textSearchTerm ? 'btn-primary btn-primary-clamped' : 'btn-primary'} onClick={() => setShowTextSearch(true)}>
               {textSearchTerm || 'Search by Text'}
             </button>
             <button
@@ -94,11 +95,6 @@ export default function SettingsMemory() {
                 ) : createdFilter.label
               ) : 'Search by Date'}
             </button>
-            {hasAnyFilter && (
-              <button type="button" className="btn-primary" onClick={resetAll}>
-                Reset
-              </button>
-            )}
           </>
         ),
         tableColumns: [
@@ -183,7 +179,15 @@ export default function SettingsMemory() {
           </>
         ),
 
-        renderRow: ({ item, onEdit, checkbox }) => (
+        renderRow: ({ item, onEdit, checkbox }) => {
+          let contentSnippet: string = item.content
+          if (textSearchTerm) {
+            const idx = item.content.toLowerCase().indexOf(textSearchTerm.toLowerCase())
+            if (idx > 15) {
+              contentSnippet = '…' + item.content.slice(idx - 8)
+            }
+          }
+          return (
           <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
             {checkbox}
             <td className="audit-td">
@@ -202,7 +206,7 @@ export default function SettingsMemory() {
               {CATEGORY_LABELS[item.category] ?? item.category}
             </td>
             <td className="audit-td" style={{ color: 'var(--text)', maxWidth: '480px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {item.content}
+              {contentSnippet}
             </td>
             <td className="audit-td" style={{ color: 'var(--muted)' }}>
               {new Date(item.created_at).toLocaleDateString()}
@@ -213,7 +217,7 @@ export default function SettingsMemory() {
               )}
             </td>
           </tr>
-        ),
+        )},
       }}
     />
 

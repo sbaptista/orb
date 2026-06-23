@@ -197,6 +197,14 @@ Adds fade edges and circular previous/next controls to horizontally-scrollable c
 **File:** `components/ui/FilterKebab.tsx`  
 Used for compact status/priority filters in task list toolbars. The trigger is a button with a text label and chevron; the popover uses a `menu` / `menuitemradio` pattern so the active filter is announced and keyboard users can move with Arrow keys, Home/End, select with Enter/Space, and close with Escape.
 
+### Collection Controllers (`SearchController`, `PaginationController`)
+**Files:** `components/ui/SearchController.tsx`, `components/ui/PaginationController.tsx`, `components/settings/SettingsCrudList.tsx`
+Paired controls above collection content: a search/action controller and a pagination/status controller. Use `.ctrl-toolbar` to arrange them; it top-aligns its children so controllers keep their natural heights.
+
+- `SearchController` has an optional informational top row and a control row. Use `enclosed` for the bordered, shaded settings treatment or `minimal` when only a divider is appropriate.
+- `PaginationController` has a page-information top row and optional navigation row. Pass `infoOnly` for a single-page result; it renders only the information row, without an empty control area.
+- Collection owners decide whether pagination exists. The standard offset rule is `totalCount > pageSize`; do not render disabled First/Previous/Next/Last controls when all results fit on one page.
+
 ---
 
 ## Buttons
@@ -380,12 +388,14 @@ Development-only authoring tool available for every rendered HTML table on every
 **File:** `components/settings/SettingsCrudList.tsx`  
 Reusable pattern for settings lists with add/edit/delete actions, column resize, search, scope filters, bulk delete, and server-side pagination.
 - **Editor boundary:** CrudList owns the collection only. Its add/edit form is rendered through the shared `EditorModal`; do not add per-table modal markup, keyboard listeners, dirty prompts, or custom footer persistence paths to a CrudList consumer.
+- **Read-only details:** Use `EditorModal` with `readOnly` and `isDirty={false}` for inspectable records such as Audit Log. This reuses the overlay, focus, Escape, close, and scroll-lock behavior while omitting Save/Cancel controls and any discard confirmation.
 - **Mobile cards:** `layout: 'table'` collections render as cards on iPhone and narrow/coarse-pointer iPad. `SettingsCrudList` generates a default card from `tableColumns`; use `renderMobileRow` only for rich exceptions such as Tickets and Audit Log search context. Card renderer sorting uses `mobileSortOptions`, which displays the existing accessible `FilterKebab` menu above cards. Search highlighting is applied to default card text, and pagination/search/sort state remains shared with the desktop table renderer.
 - **Pagination:** `config.pagination = { pageSize: N }`. Offset pagination returns `totalCount` and renders First/Previous/Next/Last controls. For log-style collections that must stay fast as data grows, set `mode: 'cursor'`: `load()` receives `cursor` and returns `nextCursor`; the shared footer renders First/Previous/Next. Supply an independently loaded exact `totalCount` when the collection should retain `Rows X–Y of Z` without delaying its page query.
 - **Global paginated search/sort:** Set `serverSearch: true` and/or `serverSort: true` in `config.pagination`. The shared list debounces search, passes `{ search, sortKey, sortDir }` to `load()`, resets to page one when criteria change, and treats the returned count as the full filtered result count. Do not combine client-only filtering or sorting with server pagination when users expect full-dataset results.
 - **Header extras:** `config.headerExtra` — ReactNode rendered in the header beside the Add button (e.g. dev-only Diagnose button on Audit Log).
 - **Toolbar extras:** `config.toolbarLeading` renders before the active search control, `config.toolbarExtra` renders after it. Use these for compact mode selectors and controls that belong beside search rather than in the page header. `config.searchEnabled` can hide and deactivate the text search input when another search mode is active; hidden text search is cleared so invisible filters do not remain active. `config.searchCaption` and `config.tableNavCaption` provide small caption text for the search field and column navigation group.
 - **External server filters:** `config.externalFilterKey` — change this stable key when a custom server-side filter changes so pagination resets to page one without discarding the search term.
+- **Editor search matches:** `config.searchMatchFields(form, term)` returns every matching editable value. CrudList shows an amber notice naming the query; the form places `SearchMatchIndicator` beside every corresponding field title. Opening an indicator uses a stacked read-only `EditorModal` with the complete, scrollable value and every `crud-highlight` match. Native inputs and textareas remain plain editable controls.
 - **Custom row click:** `config.onRowClick` — replaces edit-on-click behavior (e.g. opens a detail modal instead of edit form).
 - **Selection column width:** `config.selectionColumnWidth` — optional pixel width for the bulk-selection checkbox column; defaults to `36`.
 - **Pixel table widths:** Settings tables that need fixed geometry use pixel column widths (`90px`, `180px`, etc.). When every configured column uses pixels, CrudList shrink-wraps the toolbar, Prev/Next Columns controls, table frame, and pagination footer to the exact sum of the columns plus the selection column.
@@ -458,7 +468,7 @@ Do not use a gear icon for item-level actions. Do not use a kebab for page navig
 Behavioral owner for focused editor dialogs. It composes the existing `modal-center` classes and does not introduce a parallel visual shell.
 
 - `useDirtyForm` holds the opening baseline and compares a normalized form value. Call `markSaved()` with normalized saved data after a successful persistence operation.
-- `EditorModal` owns backdrop/X/Escape dismissal requests, Shift+Return save-and-close, a single dirty-dismiss confirmation, focus placement, and default Save/Cancel footer behavior.
+- `EditorModal` owns backdrop/X/Escape dismissal requests, Shift+Return save-and-close, a single dirty-dismiss confirmation, focus placement, and default Save/Cancel footer behavior. `readOnly` supports inspection views; pair it with `showCloseFooter` for an X plus one Close command, and `stacked` when it opens above another modal.
 - Standard editor contract: untouched form = Save disabled; a changed form = Save enabled; reverted or successfully saved form = Save disabled.
 - Use `headerStart`, `footerStart`, and `destructiveConfirmation` only for domain controls such as TodoPanel's task reference and delete action. Do not replace the save/close lifecycle with arbitrary footer code.
 - Search, filter, confirmation, and command dialogs are separate modal families and do not inherit Shift+Return.

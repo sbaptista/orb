@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
+import SearchMatchIndicator from '@/components/ui/SearchMatchIndicator'
 import { getKnowledgeEntries } from '@/app/actions/get-knowledge-entries'
 import { logAudit } from '@/app/actions/log-audit'
 import { collectSystemInfo } from '@/lib/system-info'
@@ -32,6 +33,7 @@ const PAGE_SIZE = 25
 export default function SettingsKnowledge() {
   const [showTextSearch, setShowTextSearch] = useState(false)
   const [textSearchTerm, setTextSearchTerm] = useState('')
+  const placeTitleCaretAtStart = useRef(false)
 
   return (
     <>
@@ -54,19 +56,12 @@ export default function SettingsKnowledge() {
           return `Entries ${start}–${end} of ${total}.`
         },
         externalSearchTerm: textSearchTerm,
-        searchCaption: 'Search by text',
+        searchCaption: 'Actions',
         onResetFilters: () => setTextSearchTerm(''),
         toolbarExtra: (
-          <>
-            <button type="button" className="btn-primary" onClick={() => setShowTextSearch(true)}>
-              {textSearchTerm || 'Search by Text'}
-            </button>
-            {textSearchTerm && (
-              <button type="button" className="btn-primary" onClick={() => setTextSearchTerm('')}>
-                Reset
-              </button>
-            )}
-          </>
+          <button type="button" className={textSearchTerm ? 'btn-primary btn-primary-clamped' : 'btn-primary'} onClick={() => setShowTextSearch(true)}>
+            {textSearchTerm || 'Search by Text'}
+          </button>
         ),
         tableColumns: [
           { label: 'Project', width: '170px', sortKey: 'project', sortValue: (e: KnowledgeEntry) => e.projects?.code ?? '' },
@@ -105,12 +100,24 @@ export default function SettingsKnowledge() {
           product_id: form.product_id,
         }),
 
-        toForm: (item) => ({
-          title: item.title,
-          content: item.content,
-          tags: item.tags?.join(', ') ?? '',
-          product_id: item.product_id ?? '',
-        }),
+        toForm: (item) => {
+          placeTitleCaretAtStart.current = true
+          return {
+            title: item.title,
+            content: item.content,
+            tags: item.tags?.join(', ') ?? '',
+            product_id: item.product_id ?? '',
+          }
+        },
+
+        searchMatchFields: (form, term) => {
+          const normalizedTerm = term.toLowerCase()
+          return [
+            { label: 'Title', value: form.title },
+            { label: 'Content', value: form.content },
+            { label: 'Tags', value: form.tags },
+          ].filter(field => field.value.toLowerCase().includes(normalizedTerm))
+        },
 
         getId: (item) => item.id,
 
@@ -146,12 +153,24 @@ export default function SettingsKnowledge() {
           },
         },
 
-        renderForm: ({ form, onChange, extra }) => (
+        renderForm: ({ form, onChange, extra, searchMatches, onOpenSearchMatch }) => {
+          const titleMatch = searchMatches.find(match => match.label === 'Title')
+          const contentMatch = searchMatches.find(match => match.label === 'Content')
+          const tagsMatch = searchMatches.find(match => match.label === 'Tags')
+          return (
           <>
             <div className="grid-2col mb-md">
               <div>
-                <label className="label">Title *</label>
+                <label className="label field-label-with-match">Title * {titleMatch && <SearchMatchIndicator fieldLabel="Title" onOpen={() => onOpenSearchMatch(titleMatch)} />}</label>
                 <input
+                  ref={input => {
+                    if (!input || !placeTitleCaretAtStart.current) return
+                    placeTitleCaretAtStart.current = false
+                    requestAnimationFrame(() => {
+                      input.focus()
+                      input.setSelectionRange(0, 0)
+                    })
+                  }}
                   className="input"
                   value={form.title}
                   onChange={e => onChange({ ...form, title: e.target.value })}
@@ -175,7 +194,7 @@ export default function SettingsKnowledge() {
               </div>
             </div>
             <div className="mb-md">
-              <label className="label">Content *</label>
+              <label className="label field-label-with-match">Content * {contentMatch && <SearchMatchIndicator fieldLabel="Content" onOpen={() => onOpenSearchMatch(contentMatch)} />}</label>
               <textarea
                 className="input"
                 value={form.content}
@@ -186,7 +205,7 @@ export default function SettingsKnowledge() {
               />
             </div>
             <div className="mb-lg">
-              <label className="label">Tags</label>
+              <label className="label field-label-with-match">Tags {tagsMatch && <SearchMatchIndicator fieldLabel="Tags" onOpen={() => onOpenSearchMatch(tagsMatch)} />}</label>
               <input
                 className="input"
                 value={form.tags}
@@ -195,19 +214,35 @@ export default function SettingsKnowledge() {
               />
             </div>
           </>
-        ),
+          )
+        },
 
-        renderRow: ({ item, onEdit, onDelete, checkbox }) => (
+        renderRow: ({ item, onEdit, onDelete, checkbox }) => {
+          let contentSnippet: string = item.content
+          if (textSearchTerm) {
+            const idx = item.content.toLowerCase().indexOf(textSearchTerm.toLowerCase())
+            if (idx > 15) {
+              contentSnippet = '…' + item.content.slice(idx - 8)
+            }
+          }
+          return (
           <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
             {checkbox}
-            <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', fontWeight: 'var(--fw-semibold)', color: 'var(--text2)' }}>
-              {item.projects?.code ?? <span style={{ opacity: 'var(--opacity-muted)' }}>—</span>}
+            <td className="audit-td" style={{ fontWeight: 'var(--fw-semibold)', color: 'var(--text2)' }}>
+              {item.projects ? (
+                <>
+                  <span style={{ fontFamily: 'var(--font-mono)' }}>{item.projects.code}</span>
+                  {item.projects.name !== item.projects.code && (
+                    <span style={{ display: 'block', fontSize: 'var(--fs-xs)', color: 'var(--muted)', fontWeight: 'var(--fw-normal)', fontFamily: 'var(--font-body)' }}>{item.projects.name}</span>
+                  )}
+                </>
+              ) : <span style={{ opacity: 'var(--opacity-muted)' }}>—</span>}
             </td>
             <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }}>
               {item.title}
             </td>
             <td className="audit-td" style={{ color: 'var(--muted)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {item.content}
+              {contentSnippet}
             </td>
             <td className="audit-td">
               {item.tags?.length > 0 ? (
@@ -232,7 +267,7 @@ export default function SettingsKnowledge() {
               </div>
             </td>
           </tr>
-        ),
+        )},
       }}
     />
 

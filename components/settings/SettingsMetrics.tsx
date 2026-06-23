@@ -209,7 +209,8 @@ export default function SettingsMetrics() {
             return `Rows ${start}–${end} of ${total}.`
           },
           externalSearchTerm: textSearchTerm,
-          searchCaption: 'Search by user, date, or both',
+          searchCaption: 'Actions',
+          externalFilterActive: !!textSearchTerm || !!dateFilter,
           tableNavCaption: 'prev/next columns',
           externalFilterKey: `${dateFilter?.from ?? ''}|${dateFilter?.to ?? ''}|${dateFilter?.before ?? ''}`,
           onResetFilters: resetAll,
@@ -218,7 +219,7 @@ export default function SettingsMetrics() {
             <>
               <button
                 type="button"
-                className="btn-primary"
+                className={textSearchTerm ? 'btn-primary btn-primary-clamped' : 'btn-primary'}
                 onClick={() => setShowTextSearch(true)}
               >
                 {textSearchTerm || 'Search by User'}
@@ -238,11 +239,6 @@ export default function SettingsMetrics() {
                   ) : dateFilter.label
                 ) : 'Search by Date'}
               </button>
-              {hasAnyFilter && (
-                <button type="button" className="btn-primary" onClick={resetAll}>
-                  Reset
-                </button>
-              )}
             </>
           ),
 

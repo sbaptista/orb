@@ -6,7 +6,7 @@ import TextSearchModal from './TextSearchModal'
 import DateSearchModal, { type CreatedFilter } from './DateSearchModal'
 import { getAuditLogCount, getAuditLogs } from '@/app/actions/get-audit-logs'
 import { deleteAuditLogs } from '@/app/actions/delete-audit-logs'
-import { useModalScrollLock } from '@/lib/hooks/useModalScrollLock'
+import EditorModal from '@/components/ui/EditorModal'
 
 type AuditRow = {
   id: string
@@ -84,11 +84,9 @@ function highlightSearch(value: unknown, term: string): ReactNode {
   return parts.length ? <>{parts}</> : text
 }
 
-
 export default function SettingsAudit() {
   const [viewingRow, setViewingRow] = useState<AuditRow | null>(null)
   const [countResult, setCountResult] = useState<{ key: string; value: number } | null>(null)
-  useModalScrollLock(viewingRow !== null)
   const timeZone = useSyncExternalStore(subscribeToTimeZone, getBrowserTimeZone, () => 'UTC')
 
   const [showTextSearch, setShowTextSearch] = useState(false)
@@ -161,7 +159,8 @@ export default function SettingsAudit() {
             return count === undefined ? `Rows ${start}–${end}.` : `Rows ${start}–${end} of ${count}.`
           },
           externalSearchTerm: textSearchTerm,
-          searchCaption: 'Search by text, date, or both',
+          searchCaption: 'Actions',
+          externalFilterActive: !!textSearchTerm || !!createdFilter,
           tableNavCaption: 'prev/next columns',
           onRowClick: setViewingRow,
           externalFilterKey: `${createdFilter?.from ?? ''}|${createdFilter?.to ?? ''}|${createdFilter?.before ?? ''}`,
@@ -170,7 +169,7 @@ export default function SettingsAudit() {
             <>
               <button
                 type="button"
-                className="btn-primary"
+                className={textSearchTerm ? 'btn-primary btn-primary-clamped' : 'btn-primary'}
                 onClick={() => setShowTextSearch(true)}
               >
                 {textSearchTerm || 'Search by Text'}
@@ -190,11 +189,6 @@ export default function SettingsAudit() {
                   ) : createdFilter.label
                 ) : 'Search by Date'}
               </button>
-              {hasAnyFilter && (
-                <button type="button" className="btn-primary" onClick={resetAll}>
-                  Reset
-                </button>
-              )}
             </>
           ),
 
@@ -309,9 +303,9 @@ export default function SettingsAudit() {
                   {item.actor && <span className="crud-card-pill">{item.actor}</span>}
                 </div>
                 {matchFields.length > 0 ? (
-                  <div className="audit-card-matches">
+                  <div className="search-match-list">
                     {matchFields.map(field => (
-                      <div key={field.label} className="audit-card-match">
+                      <div key={field.label} className="search-match">
                         <strong>{field.label}</strong>
                         <span>{highlightSearch(field.value, term)}</span>
                       </div>
@@ -353,21 +347,14 @@ export default function SettingsAudit() {
 
       {/* ── Audit row detail modal ── */}
       {viewingRow && (
-        <>
-          <div className="modal-backdrop" onClick={closeAuditEntry} />
-          <div
-            className="modal-center"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="audit-entry-dialog-title"
-            style={{ maxWidth: '560px' }}
-          >
-            <div className="modal-header">
-              <h3 id="audit-entry-dialog-title" style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
-                Audit Entry
-              </h3>
-              <button className="close-btn" onClick={closeAuditEntry} aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-            </div>
+        <EditorModal
+          title="Audit Entry"
+          titleId="audit-entry-dialog-title"
+          isDirty={false}
+          readOnly
+          onClose={closeAuditEntry}
+          lockSettingsScroll
+        >
             <div className="modal-body" style={{ padding: 'var(--sp-lg) var(--sp-xl)' }}>
               {viewingRow.system_info && (
                 <div style={{
@@ -412,15 +399,14 @@ export default function SettingsAudit() {
                         })()
                       : col.key === 'created_at'
                         ? `${formatCreated(viewingRow.created_at, timeZone)} (${timeZone})\n${viewingRow.created_at} (UTC)`
-                      : typeof viewingRow[col.key as keyof AuditRow] === 'object' && viewingRow[col.key as keyof AuditRow] !== null
-                        ? JSON.stringify(viewingRow[col.key as keyof AuditRow], null, 2)
-                        : formatCell(viewingRow[col.key as keyof AuditRow])}
+                        : typeof viewingRow[col.key as keyof AuditRow] === 'object' && viewingRow[col.key as keyof AuditRow] !== null
+                          ? JSON.stringify(viewingRow[col.key as keyof AuditRow], null, 2)
+                          : formatCell(viewingRow[col.key as keyof AuditRow])}
                   </pre>
                 </div>
               ))}
             </div>
-          </div>
-        </>
+        </EditorModal>
       )}
     </>
   )
