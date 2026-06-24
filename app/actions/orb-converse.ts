@@ -15,7 +15,7 @@ import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { computeUrgency, type Urgency } from '@/lib/orb-state'
 import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
 import { createTicket } from '@/app/actions/ticket-actions'
-import { sendTicketNotificationEmail, sendAdaptationEmail, getResend, FROM_EMAIL, ICON_URL } from '@/lib/email'
+import { sendAdaptationEmail } from '@/lib/email'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 import { VERSION } from '@/lib/version'
@@ -24,6 +24,14 @@ import { DB_SCHEMA, ALLOWED_TABLES, SOFT_DELETE_TABLES, ALLOWED_OPS, COLUMN_NAME
 import { fuzzyMatch } from '@/lib/fuzzy-search'
 import { CHANGELOG } from '@/lib/changelog'
 import { queryRepository } from '@/lib/repository-reader'
+import { normalizeAnthropicUsage } from '@/lib/orb-model/anthropic'
+import { completeGeminiEvaluation } from '@/lib/orb-model/gemini'
+import { recordOrbModelRequest } from '@/lib/orb-model/record'
+import { getRuntimeOrbAiPolicy } from '@/lib/orb-model/runtime-policy'
+import { routeOrbRequest, type OrbRouteRole } from '@/lib/orb-model/routing'
+import { checkOrbBudget, budgetBlockMessage } from '@/lib/orb-model/budget'
+import { classifyProviderFailure, notifyOrbIncident } from '@/lib/orb-model/incidents'
+import type { OrbModelProviderId } from '@/lib/orb-model/types'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -453,7 +461,12 @@ export async function orbConverse(req: OrbRequest) {
     let metricOutputTokens = 0
     let metricCacheCreationTokens = 0
     let metricCacheReadTokens = 0
-    const metricModel = 'claude-haiku-4-5'
+    let metricModel = 'claude-haiku-4-5'
+    let metricProvider: OrbModelProviderId = 'anthropic'
+    let metricRouteRole: OrbRouteRole = 'operational'
+    const requestStartedAt = Date.now()
+    let requestRecorded = false
+    let providerInvocationStarted = false
 
     function recordMetrics(speechChars: number) {
       if (!metricUserId) return
@@ -475,6 +488,30 @@ export async function orbConverse(req: OrbRequest) {
       })
     }
 
+    function recordModelRequest(responseText: string) {
+      if (!metricUserId || requestRecorded) return
+      requestRecorded = true
+      const usage = normalizeAnthropicUsage({
+        input_tokens: metricInputTokens,
+        output_tokens: metricOutputTokens,
+        cache_creation_input_tokens: metricCacheCreationTokens,
+        cache_read_input_tokens: metricCacheReadTokens,
+      } as any, {
+        model: metricModel,
+        source: 'conversation',
+        latencyMs: Date.now() - requestStartedAt,
+        clientToolCalls: metricToolCalls,
+      })
+      recordOrbModelRequest(createAdminClient(), {
+        userId: metricUserId,
+        usage,
+        routeRole: metricRouteRole,
+        promptVersion: 'orb-system-v0.6.49',
+        contextPacketVersion: 'live-context-v1',
+        responseText,
+      }).catch(error => console.error('[orbConverse] Model request ledger insert failed:', error))
+    }
+
     try {
       const auth = await getAuthContext()
       metricUserId = auth.user.id
@@ -486,11 +523,15 @@ export async function orbConverse(req: OrbRequest) {
           overloaded: { type: 'overloaded_error', message: 'Overloaded' },
         }
         const err = syntheticErrors[req.simulateError]
-        if (err) throw Object.assign(new Error(err.message), { type: err.type })
+        if (err) {
+          providerInvocationStarted = true
+          throw Object.assign(new Error(err.message), { type: err.type })
+        }
       }
 
       const supabase = auth.supabase
       const ctx = await buildContext(supabase, auth, req.productId)
+      const aiPolicy = await getRuntimeOrbAiPolicy()
 
       let uiCatalog = ''
       try {
@@ -530,6 +571,31 @@ export async function orbConverse(req: OrbRequest) {
             : 'SYSTEM: The user has approved the immediately preceding mutation proposal. Execute that requested mutation now. Do not perform a preliminary lookup or ask for approval again.',
         }] : []),
       ]
+
+      const routeRole = routeOrbRequest(req.input, aiPolicy.routingEnabled, aiPolicy.strategicReadsEnabled)
+      metricRouteRole = routeRole
+      metricProvider = routeRole === 'strategic' ? aiPolicy.strategicProvider : aiPolicy.operationalProvider
+      metricModel = routeRole === 'strategic' ? aiPolicy.strategicModel : aiPolicy.operationalModel
+      const budgetCheck = await checkOrbBudget(auth.admin, aiPolicy, routeRole)
+      if (!budgetCheck.allowed) {
+        const speech = budgetBlockMessage(budgetCheck)
+        const month = new Date().toISOString().slice(0, 7)
+        notifyOrbIncident({
+          summary: `Orb ${budgetCheck.scope} budget reached — ${month}`,
+          provider: null,
+          role: budgetCheck.scope === 'monthly' ? null : routeRole,
+          reason: `${budgetCheck.scope === 'monthly' ? 'monthly' : routeRole} budget reached`,
+          detail: {
+            spent_usd: budgetCheck.spentUsd,
+            limit_usd: budgetCheck.limitUsd,
+            total_spent_usd: budgetCheck.totalSpentUsd,
+            total_limit_usd: budgetCheck.totalLimitUsd,
+            total_source: budgetCheck.totalSource,
+          },
+        }).catch(error => console.error('[orbConverse] Budget incident notification failed:', error))
+        stream.done({ speech, isServiceError: true, isStreaming: false })
+        return
+      }
 
       let turnCount = 0
       const MAX_TURNS = 5
@@ -610,18 +676,65 @@ When the user signals they want to end the voice conversation — "that's enough
           buildObservationsPrompt(ctx.observations, ctx.guidanceLevel),
           memoryLevel !== 'off' ? buildMemoryPrompt(ctx.memoryList, memoryLevel) : '',
           memoryLevel !== 'off' ? ORB_MEMORY_BEHAVIOR : '',
+          routeRole === 'strategic'
+            ? `STRATEGIC READ MODE: The user explicitly asked for strategic guidance. You have no tools and cannot create, update, delete, or otherwise change anything. Base recommendations only on the supplied context, state uncertainty when evidence is incomplete, and wrap the core recommendation in [INSIGHT:strategic]...[/INSIGHT].`
+            : '',
         ].filter(Boolean).join('\n\n')
 
+        if (turnCount === 1 && routeRole === 'strategic' && metricProvider === 'google') {
+          stream.update({ speech: '', thought: 'Preparing strategic read...', isStreaming: true })
+
+          providerInvocationStarted = true
+          const strategicResult = await completeGeminiEvaluation({
+            model: aiPolicy.strategicModel,
+            source: 'strategic_review',
+            systemPrompt: [
+              stablePrompt,
+              dynamicPrompt,
+              `STRATEGIC READ MODE: The user explicitly asked for strategic guidance. You have no tools and cannot create, update, delete, or otherwise change anything. Base your recommendations only on the supplied context. State uncertainty when the evidence is incomplete. Give a clear recommendation and briefly explain the trade-off. Wrap the core recommendation in [INSIGHT:strategic]...[/INSIGHT].`,
+            ].join('\n\n'),
+            messages,
+            tools: [],
+          })
+
+          if (strategicResult.toolCalls.length > 0) {
+            throw new Error('Strategic adviser attempted a tool call despite a no-tools route.')
+          }
+
+          metricInputTokens = strategicResult.modelUsage.inputTokens
+          metricOutputTokens = strategicResult.modelUsage.outputTokens
+          metricCacheCreationTokens = strategicResult.modelUsage.cacheWriteTokens ?? 0
+          metricCacheReadTokens = strategicResult.modelUsage.cachedInputTokens ?? 0
+          const parsed = extractInsight(strategicResult.speech)
+          const insight = parsed.insight ?? { type: 'strategic' as const, summary: parsed.speech }
+
+          requestRecorded = true
+          recordOrbModelRequest(createAdminClient(), {
+            userId: auth.user.id,
+            usage: strategicResult.modelUsage,
+            routeRole: 'strategic',
+            promptVersion: 'orb-system-v0.6.49',
+            contextPacketVersion: 'live-context-v1',
+            responseText: parsed.speech,
+          }).catch(error => console.error('[orbConverse] Model request ledger insert failed:', error))
+          recordMetrics(parsed.speech.length)
+          stream.done({ speech: parsed.speech, insight, isStreaming: false })
+          return
+        }
+
+        providerInvocationStarted = true
         const response = await anthropic.messages.create({
-          model: 'claude-haiku-4-5',
+          model: metricModel,
           max_tokens: 4096,
           system: [
             { type: 'text' as const, text: stablePrompt, cache_control: { type: 'ephemeral' as const } },
             { type: 'text' as const, text: dynamicPrompt },
           ],
           messages,
-          tools: [...availableOrbTools, ...ORB_PREFERENCE_TOOLS, ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []), ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_ADAPTATION_TOOL],
-          ...(approvalConfirmed && approvedTool ? { tool_choice: { type: 'tool' as const, name: approvedTool } } : {}),
+          tools: routeRole === 'strategic'
+            ? []
+            : [...availableOrbTools, ...ORB_PREFERENCE_TOOLS, ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []), ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_ADAPTATION_TOOL],
+          ...(routeRole !== 'strategic' && approvalConfirmed && approvedTool ? { tool_choice: { type: 'tool' as const, name: approvedTool } } : {}),
           stream: true,
         }, { timeout: 60_000 })
 
@@ -685,6 +798,7 @@ When the user signals they want to end the voice conversation — "that's enough
               stream.update({ speech: '', thought: 'Correcting mutation claim...', isStreaming: true })
               continue
             }
+            recordModelRequest('I did not actually complete that')
             recordMetrics('I did not actually complete that'.length)
             stream.done({
               speech: 'I did not actually complete that — no mutation tool ran, so nothing was written. Please ask again and I will either request confirmation or run the correct tool.',
@@ -692,8 +806,12 @@ When the user signals they want to end the voice conversation — "that's enough
             })
             return
           }
+          recordModelRequest(parsed.speech)
           recordMetrics(parsed.speech.length)
-          stream.done({ speech: parsed.speech, insight: parsed.insight, isStreaming: false })
+          const insight = routeRole === 'strategic'
+            ? parsed.insight ?? { type: 'strategic' as const, summary: parsed.speech }
+            : parsed.insight
+          stream.done({ speech: parsed.speech, insight, isStreaming: false })
           return
         }
 
@@ -720,6 +838,7 @@ When the user signals they want to end the voice conversation — "that's enough
           && !(isAffirmativeApproval(req.input) && historyHasPendingMutationProposal(req.history))
         ) {
           const speech = buildApprovalPrompt(approvalNeeded)
+          recordModelRequest(speech)
           recordMetrics(speech.length)
           stream.done({ speech, isStreaming: false })
           return
@@ -1504,6 +1623,7 @@ When the user signals they want to end the voice conversation — "that's enough
       // outcome so the client never preserves a silent "Processing…" state.
       const exhaustedMessage = 'I could not complete that inspection within the available tool steps. Try asking about a more specific screen, component, or file.'
       const exhaustedSpeech = accumulatedSpeech ? `${accumulatedSpeech}\n\n${exhaustedMessage}` : exhaustedMessage
+      recordModelRequest(exhaustedSpeech)
       recordMetrics(exhaustedSpeech.length)
       stream.done({
         speech: exhaustedSpeech,
@@ -1511,93 +1631,25 @@ When the user signals they want to end the voice conversation — "that's enough
       })
     } catch (err: any) {
       console.error('[orbConverse] Error:', err)
-      // Surface a human-readable message instead of "System error."
-      const errType = err?.type || err?.error?.type || ''
-      const errMsg = err?.message || err?.error?.message || ''
-      let userMessage: string
-      let isBillingError = false
-      if (errType === 'overloaded_error' || errMsg.includes('Overloaded')) {
-        userMessage = 'The AI service is momentarily overloaded. Try again in a few seconds.'
-      } else if (errType === 'rate_limit_error' || errMsg.includes('rate_limit')) {
-        userMessage = 'Rate limit reached. Give it a moment and try again.'
-      } else if (errMsg.includes('credit balance') || errMsg.includes('billing') || errMsg.includes('usage limits')) {
-        isBillingError = true
-        userMessage = 'The AI service is temporarily unavailable. Stan has been notified and will restore service as soon as possible.'
-      } else if (errMsg.includes('ECONNREFUSED') || errMsg.includes('ETIMEDOUT') || errMsg.includes('fetch failed')) {
-        userMessage = 'Could not reach the AI service. Check your connection and try again.'
-      } else {
-        userMessage = 'Something went wrong. Try again — if it persists, let Stan know.'
-      }
-
-      // Auto-file a ticket for non-billing service errors (overloaded, rate limit, network, unknown)
-      if (!isBillingError) {
-        createTicket({
-          source: 'orb-auto',
-          type: 'bug',
-          summary: `Orb service error: ${errType || 'unknown'}`,
-          detail: { error: errMsg, type: errType, timestamp: new Date().toISOString() },
-          conversation_snippet: req.input,
-          systemInfo: req.systemInfo,
-        }).catch(e => console.error('[orbConverse] Failed to auto-file service error ticket:', e))
-      }
-
-      // Auto-file a ticket AND email admins on billing errors
-      if (isBillingError) {
-        const ticketDetail = { error: errMsg, type: errType, timestamp: new Date().toISOString() }
-        const ticketSummary = 'Anthropic API credits exhausted — Orb conversations unavailable'
-        // File ticket (fire-and-forget)
-        createTicket({
-          source: 'orb-auto',
-          type: 'bug',
-          summary: ticketSummary,
-          detail: ticketDetail,
-          systemInfo: req.systemInfo,
-        }).catch(ticketErr => console.error('[orbConverse] Failed to auto-file billing ticket:', ticketErr))
-        // Email all admins immediately (fire-and-forget) — urgent, includes specific reason
-        try {
-          const adminClient = createAdminClient()
-          const { data: admins } = await adminClient.from('users').select('email').in('role_id', [1, 3])
-          if (admins && admins.length > 0) {
-            const resend = getResend()
-            for (const adm of admins) {
-              if (adm.email) {
-                resend.emails.send({
-                  from: FROM_EMAIL,
-                  to: adm.email,
-                  subject: `[URGENT] Orb AI service down — API credits exhausted`,
-                  html: `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8" /></head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; color: #2d3748; line-height: 1.6; background-color: #f7fafc;">
-  <div style="background-color: #ffffff; border: 2px solid #e53e3e; border-radius: 12px; padding: 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-    <div style="text-align: center; margin-bottom: 24px;">
-      <img src="${ICON_URL}" alt="Orb" width="48" height="48" style="border-radius: 50%;" />
-      <h2 style="margin-top: 12px; margin-bottom: 4px; color: #e53e3e; font-size: 20px; font-weight: 700;">URGENT: AI Service Unavailable</h2>
-    </div>
-    <div style="border-top: 1px solid #edf2f7; padding: 20px 0; margin: 20px 0;">
-      <p style="margin: 0 0 12px 0; font-size: 15px;"><strong>Reason:</strong> The Anthropic API has reached its spend cap. All Orb conversations are returning errors until the limit is raised.</p>
-      <p style="margin: 0 0 12px 0; font-size: 15px;"><strong>Error:</strong> ${errMsg}</p>
-      <p style="margin: 0 0 12px 0; font-size: 15px;"><strong>Time:</strong> ${new Date().toLocaleString('en-US', { timeZone: 'Pacific/Honolulu', dateStyle: 'medium', timeStyle: 'short' })} HST</p>
-      <p style="margin: 0; font-size: 15px;"><strong>Action required:</strong> Raise the spend cap in the <a href="https://console.anthropic.com" style="color: #3182ce;">Anthropic console</a>.</p>
-    </div>
-  </div>
-  <p style="text-align: center; font-size: 12px; color: #a0aec0; margin-top: 20px;">Sent automatically by Orb.</p>
-</body>
-</html>`,
-                }).catch(emailErr => console.error('[orbConverse] Admin billing email failed:', emailErr))
-              }
-            }
-          }
-        } catch (adminErr) {
-          console.error('[orbConverse] Failed to email admins about billing error:', adminErr)
-        }
+      const failure = classifyProviderFailure(err, metricProvider, metricRouteRole)
+      if (providerInvocationStarted) {
+        notifyOrbIncident({
+          summary: failure.summary,
+          provider: metricProvider,
+          role: metricRouteRole,
+          reason: failure.reason,
+          detail: { error: failure.message, type: failure.type, input: req.input.slice(0, 500) },
+          consoleUrl: failure.consoleUrl,
+        }).catch(error => console.error('[orbConverse] Provider incident notification failed:', error))
       }
 
       // If we had partial speech before the error, preserve it
+      const errorMessage = providerInvocationStarted
+        ? failure.userMessage
+        : 'Something went wrong before Orb could reach the AI service. Try again — if it persists, let Stan know.'
       const finalSpeech = accumulatedSpeech
-        ? `${accumulatedSpeech}\n\n*${userMessage}*`
-        : userMessage
+        ? `${accumulatedSpeech}\n\n*${errorMessage}*`
+        : errorMessage
       recordMetrics(finalSpeech.length)
       stream.done({ speech: finalSpeech, isServiceError: true, error: String(err) })
     }

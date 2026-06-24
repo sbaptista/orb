@@ -11,6 +11,14 @@ import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { DB_SCHEMA } from '@/lib/db-schema'
 import { CHANGELOG } from '@/lib/changelog'
+import { ANTHROPIC_HAIKU_REFERENCE_MODEL, normalizeAnthropicUsage } from '@/lib/orb-model/anthropic'
+import { recordOrbModelRequest } from '@/lib/orb-model/record'
+import { completeGeminiEvaluation, GEMINI_STRATEGIC_EVAL_MODEL } from '@/lib/orb-model/gemini'
+import { completeMistralEvaluation, MISTRAL_STRATEGIC_EVAL_MODEL } from '@/lib/orb-model/mistral'
+import { STRATEGIC_CONTEXT_PACKETS } from '@/lib/orb-model/strategic-eval-packets'
+import type { OrbModelUsage } from '@/lib/orb-model/types'
+import { routeOrbRequest } from '@/lib/orb-model/routing'
+import { budgetBlockMessage, type OrbBudgetCheck } from '@/lib/orb-model/budget'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 
@@ -101,31 +109,43 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
-  const { input, productCode, history, mutationApproval, voiceMode } = body as {
+  const { input, productCode, history, mutationApproval, voiceMode, provider, model, userEmail, evaluationMode, contextPacketId, autoRoute, budgetOverride, evaluationCaseId } = body as {
     input: string
     productCode?: string
     history?: Array<{ role: 'user' | 'assistant'; text: string }>
     mutationApproval?: 'ask' | 'allow'
     voiceMode?: boolean
+    provider?: 'anthropic' | 'gemini' | 'mistral'
+    model?: string
+    userEmail?: string
+    evaluationMode?: 'standard' | 'strategic'
+    contextPacketId?: string
+    autoRoute?: boolean
+    budgetOverride?: 'monthly' | 'role'
+    evaluationCaseId?: string
   }
 
   if (!input) {
     return NextResponse.json({ error: 'input is required' }, { status: 400 })
+  }
+  const contextPacket = contextPacketId ? STRATEGIC_CONTEXT_PACKETS[contextPacketId] : null
+  if (contextPacketId && !contextPacket) {
+    return NextResponse.json({ error: `Unknown strategic context packet: ${contextPacketId}` }, { status: 400 })
   }
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
   const admin = createAdminClient()
 
   // Resolve the eval user (first admin found)
-  const { data: evalUser } = await admin
+  let evalUserQuery = admin
     .from('users')
     .select('id, email, first_name, last_name, role_id, roles(name)')
     .in('role_id', [1, 3])
-    .limit(1)
-    .single()
+  if (userEmail) evalUserQuery = evalUserQuery.eq('email', userEmail)
+  const { data: evalUser } = await evalUserQuery.limit(1).maybeSingle()
 
   if (!evalUser) {
-    return NextResponse.json({ error: 'No admin user found for eval' }, { status: 500 })
+    return NextResponse.json({ error: userEmail ? `No admin user found for ${userEmail}` : 'No admin user found for eval' }, { status: 500 })
   }
 
   const evalUserName = evalUser ? [evalUser.first_name, evalUser.last_name].filter(Boolean).join(' ') : ''
@@ -321,45 +341,146 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
   ]
 
   try {
-    // Non-streaming call — capture the full response
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages,
-      tools: [...ORB_TOOLS, ...ORB_PREFERENCE_TOOLS, ...ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL] as any,
-      ...(approvalConfirmed && approvedTool ? { tool_choice: { type: 'tool' as const, name: approvedTool } } : {}),
-    })
-
-    // Record metrics (fire-and-forget)
-    if (evalUser?.id) {
-      const metricAdmin = createAdminClient()
-      metricAdmin.rpc('upsert_orb_metric', {
-        p_user_id: evalUser.id,
-        p_speech_chars: 0,
-        p_voice_speech_chars: 0,
-        p_input_chars: 0,
-        p_tool_call_count: 0,
-        p_ambient_chars: 0,
-        p_input_tokens: response.usage?.input_tokens ?? 0,
-        p_output_tokens: response.usage?.output_tokens ?? 0,
-        p_cache_creation_input_tokens: (response.usage as any)?.cache_creation_input_tokens ?? 0,
-        p_cache_read_input_tokens: (response.usage as any)?.cache_read_input_tokens ?? 0,
-        p_model: 'claude-haiku-4-5',
-      }).then(({ error }) => {
-        if (error) console.error('[orbEval] Metric upsert failed:', error.message)
+    const routeRole = autoRoute
+      ? routeOrbRequest(input, true, true)
+      : 'operational'
+    if (budgetOverride) {
+      const budgetCheck: OrbBudgetCheck = {
+        allowed: false,
+        scope: budgetOverride === 'monthly' ? 'monthly' : routeRole,
+        role: routeRole,
+        spentUsd: 40,
+        limitUsd: 40,
+        totalSpentUsd: 40,
+        totalLimitUsd: 40,
+        totalSource: 'ledger',
+      }
+      return NextResponse.json({
+        speech: budgetBlockMessage(budgetCheck),
+        toolCalls: [],
+        stopReason: 'budget_blocked',
+        tokenUsage: { input_tokens: 0, output_tokens: 0 },
+        routeRole,
       })
     }
-
-    // Extract speech and tool calls
+    const isStrategicEvaluation = evaluationMode === 'strategic' || routeRole === 'strategic'
+    const frozenStrategicPrompt = contextPacket ? [
+      'You are the voice of the Orb - the conversational layer of Orb.',
+      ORB_PRINCIPLES,
+      ORB_RESOLUTION_LAWS,
+      ORB_STRATEGIC_REASONING,
+      buildCoachingPrompt('natural'),
+      `EVALUATION MODE: This is a strategic-quality comparison. The supplied packet is complete and is the only dynamic evidence for this answer. Do not use or infer live backlog, knowledge, memory, preferences, or audit data. Do not call tools. State uncertainty when the packet lacks evidence.`,
+      `CURRENT DATE: ${contextPacket.currentDate}. USER: ${contextPacket.userName}. CURRENT PROJECT: ${contextPacket.currentProject}.`,
+      `BACKLOG:\n${contextPacket.backlog}`,
+      `RELEVANT KNOWLEDGE:\n${contextPacket.knowledge}`,
+      `PREFERENCES:\n${contextPacket.preferences}`,
+      `OBSERVATIONS:\n${contextPacket.observations}`,
+    ].join('\n\n') : null
+    const evalSystemPrompt = isStrategicEvaluation
+      ? frozenStrategicPrompt ?? `${systemPrompt}\n\nEVALUATION MODE: This is a strategic-quality comparison. The supplied BACKLOG, audit context, memories, and preferences are complete for this answer. Do not call tools. Analyze the supplied evidence directly, state uncertainty when warranted, and give your best strategic response.`
+      : systemPrompt
+    const tools = isStrategicEvaluation
+      ? []
+      : [...ORB_TOOLS, ...ORB_PREFERENCE_TOOLS, ...ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL] as any[]
+    const requestedProvider = autoRoute
+      ? provider ?? (routeRole === 'strategic' ? 'gemini' : 'anthropic')
+      : provider ?? 'anthropic'
     let speech = ''
-    const toolCalls: Array<{ name: string; params: Record<string, any> }> = []
+    let toolCalls: Array<{ name: string; params: Record<string, any> }> = []
+    let tokenUsage: { input_tokens: number; output_tokens: number }
+    let stopReason: string
+    let modelUsage: OrbModelUsage
 
-    for (const block of response.content) {
-      if (block.type === 'text') {
-        speech += block.text
-      } else if (block.type === 'tool_use') {
-        toolCalls.push({ name: block.name, params: block.input as Record<string, any> })
+    if (requestedProvider === 'gemini') {
+      const result = await completeGeminiEvaluation({
+        model: model ?? GEMINI_STRATEGIC_EVAL_MODEL,
+        source: 'eval',
+        systemPrompt: evalSystemPrompt,
+        messages,
+        tools,
+        forcedTool: isStrategicEvaluation || !approvalConfirmed ? null : approvedTool,
+      })
+      speech = result.speech
+      toolCalls = result.toolCalls
+      tokenUsage = result.tokenUsage
+      stopReason = result.stopReason
+      modelUsage = result.modelUsage
+    } else if (requestedProvider === 'mistral') {
+      const result = await completeMistralEvaluation({
+        model: model ?? MISTRAL_STRATEGIC_EVAL_MODEL,
+        systemPrompt: evalSystemPrompt,
+        messages,
+        tools,
+        forcedTool: isStrategicEvaluation || !approvalConfirmed ? null : approvedTool,
+        strategic: isStrategicEvaluation,
+      })
+      speech = result.speech
+      toolCalls = result.toolCalls
+      tokenUsage = result.tokenUsage
+      stopReason = result.stopReason
+      modelUsage = result.modelUsage
+    } else if (requestedProvider === 'anthropic') {
+      const requestStartedAt = Date.now()
+      const response = await anthropic.messages.create({
+        model: model ?? ANTHROPIC_HAIKU_REFERENCE_MODEL,
+        max_tokens: 4096,
+        system: evalSystemPrompt,
+        messages,
+        tools,
+        ...(!isStrategicEvaluation && approvalConfirmed && approvedTool ? { tool_choice: { type: 'tool' as const, name: approvedTool } } : {}),
+      })
+      for (const block of response.content) {
+        if (block.type === 'text') speech += block.text
+        else if (block.type === 'tool_use') toolCalls.push({ name: block.name, params: block.input as Record<string, any> })
+      }
+      tokenUsage = {
+        input_tokens: response.usage.input_tokens,
+        output_tokens: response.usage.output_tokens,
+      }
+      stopReason = response.stop_reason ?? 'unknown'
+      modelUsage = normalizeAnthropicUsage(response.usage, {
+        model: model ?? ANTHROPIC_HAIKU_REFERENCE_MODEL,
+        source: 'eval',
+        latencyMs: Date.now() - requestStartedAt,
+        clientToolCalls: toolCalls.length,
+      })
+    } else {
+      return NextResponse.json({ error: `Unsupported eval provider: ${requestedProvider}` }, { status: 400 })
+    }
+
+    // Eval records are awaited so every comparison result has a durable usage row.
+    if (evalUser?.id) {
+      const metricAdmin = createAdminClient()
+      const [metricsResult, requestResult] = await Promise.allSettled([
+        metricAdmin.rpc('upsert_orb_metric', {
+          p_user_id: evalUser.id,
+          p_speech_chars: 0,
+          p_voice_speech_chars: 0,
+          p_input_chars: 0,
+          p_tool_call_count: modelUsage.clientToolCalls,
+          p_ambient_chars: 0,
+          p_input_tokens: modelUsage.inputTokens,
+          p_output_tokens: modelUsage.outputTokens,
+          p_cache_creation_input_tokens: modelUsage.cacheWriteTokens ?? 0,
+          p_cache_read_input_tokens: modelUsage.cachedInputTokens ?? 0,
+          p_model: modelUsage.model,
+        }),
+        recordOrbModelRequest(metricAdmin, {
+          userId: evalUser.id,
+          usage: modelUsage,
+          promptVersion: 'orb-system-v0.6.30',
+          contextPacketVersion: contextPacket ? 'strategic-packets-v1' : 'live-context-v1',
+          responseText: speech,
+          routeRole,
+          evaluationCaseId,
+        }),
+      ])
+      if (metricsResult.status === 'fulfilled' && metricsResult.value.error) {
+        console.error('[orbEval] Metric upsert failed:', metricsResult.value.error.message)
+      }
+      if (requestResult.status === 'rejected') {
+        console.error('[orbEval] Request ledger insert failed:', requestResult.reason)
       }
     }
 
@@ -373,26 +494,34 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         speech: buildApprovalPrompt(gatedToolCalls),
         toolCalls: [],
         stopReason: 'approval_gate',
-        tokenUsage: response.usage,
+        tokenUsage,
+        modelUsage,
+        routeRole,
       })
     }
 
-    const historyCodes = extractCitedCodes(`${(history ?? []).map(h => h.text).join(' ')} ${input}`)
+    const historyCodes = extractCitedCodes(
+      `${(history ?? []).map(h => h.text).join(' ')} ${input} ${todoList.map(todoCode).join(' ')} ${contextPacket?.backlog ?? ''}`,
+    )
     const toolProducedCodes = new Set<string>()
     if (isFalseMutationClaim(speech, false, toolProducedCodes, historyCodes)) {
       return NextResponse.json({
         speech: 'I did not actually complete that — no mutation tool ran, so nothing was written.',
         toolCalls: [],
         stopReason: 'blocked_no_tool_mutation_claim',
-        tokenUsage: response.usage,
+        tokenUsage,
+        modelUsage,
+        routeRole,
       })
     }
 
     return NextResponse.json({
       speech,
       toolCalls,
-      stopReason: response.stop_reason,
-      tokenUsage: response.usage,
+      stopReason,
+      tokenUsage,
+      modelUsage,
+      routeRole,
     })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })

@@ -17,11 +17,16 @@
 import { EVAL_CASES, type EvalCase } from './eval-cases'
 import * as dotenv from 'dotenv'
 import * as path from 'path'
+import type { OrbModelUsage } from '../lib/orb-model/types'
 
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') })
 
 const BASE_URL = process.env.EVAL_BASE_URL || 'https://192.168.86.90:3001'
 const API_SECRET = process.env.ORB_API_SECRET
+const EVAL_PROVIDER = process.env.EVAL_PROVIDER
+const EVAL_MODEL = process.env.EVAL_MODEL
+const EVAL_USER_EMAIL = process.env.EVAL_USER_EMAIL
+const EVAL_CONTEXT_PACKET_ID = process.env.EVAL_CONTEXT_PACKET_ID
 
 if (!API_SECRET) {
   console.error('❌ ORB_API_SECRET not found in .env.local')
@@ -35,6 +40,8 @@ type EvalResponse = {
   toolCalls: Array<{ name: string; params: Record<string, any> }>
   stopReason: string
   tokenUsage: { input_tokens: number; output_tokens: number }
+  modelUsage?: OrbModelUsage
+  routeRole?: 'operational' | 'strategic'
   error?: string
 }
 
@@ -49,6 +56,8 @@ type TestResult = {
   speech?: string
   toolCalls?: Array<{ name: string; params: Record<string, any> }>
   tokens?: number
+  modelUsage?: OrbModelUsage
+  modelUsages?: OrbModelUsage[]
   durationMs?: number
 }
 
@@ -59,6 +68,8 @@ type TestResult = {
 const INTER_REQUEST_DELAY_MS = 6500
 
 async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
+  const provider = testCase.provider ?? EVAL_PROVIDER
+  const model = testCase.model ?? EVAL_MODEL
   const res = await fetch(`${BASE_URL}/api/orb-eval`, {
     method: 'POST',
     headers: {
@@ -71,6 +82,14 @@ async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
       history: testCase.history,
       mutationApproval: testCase.mutationApproval,
       voiceMode: testCase.voiceMode,
+      evaluationMode: testCase.evaluationMode,
+      autoRoute: testCase.autoRoute,
+      budgetOverride: testCase.budgetOverride,
+      evaluationCaseId: testCase.id,
+      ...(provider ? { provider } : {}),
+      ...(model ? { model } : {}),
+      ...(testCase.userEmail || EVAL_USER_EMAIL ? { userEmail: testCase.userEmail ?? EVAL_USER_EMAIL } : {}),
+      ...(EVAL_CONTEXT_PACKET_ID ? { contextPacketId: EVAL_CONTEXT_PACKET_ID } : {}),
     }),
   })
 
@@ -175,6 +194,17 @@ function assertSpeech(response: EvalResponse, testCase: EvalCase): string[] {
   return failures
 }
 
+function assertRouting(response: EvalResponse, testCase: EvalCase): string[] {
+  const failures: string[] = []
+  if (testCase.expectProvider && response.modelUsage?.provider !== testCase.expectProvider) {
+    failures.push(`Expected provider "${testCase.expectProvider}", got "${response.modelUsage?.provider ?? 'none'}"`)
+  }
+  if (testCase.expectRouteRole && response.routeRole !== testCase.expectRouteRole) {
+    failures.push(`Expected route role "${testCase.expectRouteRole}", got "${response.routeRole ?? 'none'}"`)
+  }
+  return failures
+}
+
 // ── Runner ─────────────────────────────────────────────────────────────────
 
 async function runCase(testCase: EvalCase): Promise<TestResult> {
@@ -182,6 +212,7 @@ async function runCase(testCase: EvalCase): Promise<TestResult> {
   let passCount = 0
   let lastFailures: string[] = []
   let lastResponse: EvalResponse | null = null
+  const modelUsages: OrbModelUsage[] = []
   let totalMs = 0
 
   for (let i = 0; i < runs; i++) {
@@ -190,10 +221,12 @@ async function runCase(testCase: EvalCase): Promise<TestResult> {
       const response = await callOrbWithRetry(testCase)
       totalMs += Date.now() - start
       lastResponse = response
+      if (response.modelUsage) modelUsages.push(response.modelUsage)
 
       const toolFailures = assertToolCall(response, testCase)
       const speechFailures = assertSpeech(response, testCase)
-      const allFailures = [...toolFailures, ...speechFailures]
+      const routingFailures = assertRouting(response, testCase)
+      const allFailures = [...toolFailures, ...speechFailures, ...routingFailures]
 
       if (allFailures.length === 0) {
         passCount++
@@ -225,6 +258,8 @@ async function runCase(testCase: EvalCase): Promise<TestResult> {
     tokens: lastResponse?.tokenUsage
       ? lastResponse.tokenUsage.input_tokens + lastResponse.tokenUsage.output_tokens
       : undefined,
+    modelUsage: lastResponse?.modelUsage,
+    modelUsages,
     durationMs: Math.round(totalMs / runs),
   }
 }
@@ -293,6 +328,7 @@ async function main() {
     let passCount = 0
     let lastFailures: string[] = []
     let lastResponse: EvalResponse | null = null
+    const modelUsages: OrbModelUsage[] = []
     let totalMs = 0
 
     for (let i = 0; i < runs; i++) {
@@ -308,10 +344,12 @@ async function main() {
         const response = await callOrbWithRetry(testCase)
         totalMs += Date.now() - runStart
         lastResponse = response
+        if (response.modelUsage) modelUsages.push(response.modelUsage)
 
         const toolFailures = assertToolCall(response, testCase)
         const speechFailures = assertSpeech(response, testCase)
-        const allFailures = [...toolFailures, ...speechFailures]
+        const routingFailures = assertRouting(response, testCase)
+        const allFailures = [...toolFailures, ...speechFailures, ...routingFailures]
 
         if (allFailures.length === 0) {
           passCount++
@@ -354,6 +392,8 @@ async function main() {
       tokens: lastResponse?.tokenUsage
         ? lastResponse.tokenUsage.input_tokens + lastResponse.tokenUsage.output_tokens
         : undefined,
+      modelUsage: lastResponse?.modelUsage,
+      modelUsages,
       durationMs: Math.round(totalMs / runs),
     }
     results.push(result)
@@ -390,7 +430,28 @@ async function main() {
   const tier2 = results.filter(r => r.tier === 2)
   const tier1Pass = tier1.filter(r => r.passed).length
   const tier2Pass = tier2.filter(r => r.passed).length
-  const totalTokens = results.reduce((sum, r) => sum + (r.tokens ?? 0), 0)
+  const allUsages = results.flatMap(result => result.modelUsages ?? (result.modelUsage ? [result.modelUsage] : []))
+  const totalTokens = allUsages.length > 0
+    ? allUsages.reduce((sum, usage) => sum + (usage.totalTokens ?? 0), 0)
+    : results.reduce((sum, result) => sum + (result.tokens ?? 0), 0)
+  const totalEstimatedCost = allUsages.reduce((sum, usage) => sum + (usage.estimatedCostUsd ?? 0), 0)
+  const usageByModel = new Map<string, OrbModelUsage>()
+  for (const usage of allUsages) {
+    const key = `${usage.provider}:${usage.model}`
+    const existing = usageByModel.get(key)
+    if (existing) {
+      existing.inputTokens += usage.inputTokens
+      existing.outputTokens += usage.outputTokens
+      existing.cachedInputTokens = (existing.cachedInputTokens ?? 0) + (usage.cachedInputTokens ?? 0)
+      existing.cacheWriteTokens = (existing.cacheWriteTokens ?? 0) + (usage.cacheWriteTokens ?? 0)
+      existing.totalTokens = (existing.totalTokens ?? 0) + (usage.totalTokens ?? 0)
+      existing.clientToolCalls += usage.clientToolCalls
+      existing.latencyMs += usage.latencyMs
+      existing.estimatedCostUsd = (existing.estimatedCostUsd ?? 0) + (usage.estimatedCostUsd ?? 0)
+    } else {
+      usageByModel.set(key, { ...usage })
+    }
+  }
   const elapsed = Date.now() - startTime
 
   if (tier1.length > 0) {
@@ -400,7 +461,17 @@ async function main() {
     console.log(`  Tier 2 (behavioral):       ${tier2Pass}/${tier2.length} passed${tier2Pass < tier2.length ? ' ⚠️' : ' ✅'}`)
   }
   console.log(`  Total tokens used:         ~${totalTokens.toLocaleString()}`)
-  console.log(`  Estimated cost:            ~$${(totalTokens * 0.000004).toFixed(3)}`)
+  if (usageByModel.size > 0) {
+    console.log(`  Estimated cost:            ~$${totalEstimatedCost.toFixed(4)}`)
+    for (const usage of usageByModel.values()) {
+      const cacheRead = usage.cachedInputTokens == null ? 'n/a' : usage.cachedInputTokens.toLocaleString()
+      const cacheWrite = usage.cacheWriteTokens == null ? 'n/a' : usage.cacheWriteTokens.toLocaleString()
+      const modelRuns = allUsages.filter(candidate => candidate.provider === usage.provider && candidate.model === usage.model).length
+      console.log(`  Usage ${usage.provider}/${usage.model}: in ${usage.inputTokens.toLocaleString()} | out ${usage.outputTokens.toLocaleString()} | cache read ${cacheRead} | cache write ${cacheWrite} | tools ${usage.clientToolCalls} | avg latency ${Math.round(usage.latencyMs / modelRuns)}ms`)
+    }
+  } else {
+    console.log('  Estimated cost:            unavailable (endpoint returned legacy usage only)')
+  }
   console.log(`  Elapsed:                   ${formatElapsed(elapsed)}`)
   console.log('═'.repeat(60) + '\n')
 

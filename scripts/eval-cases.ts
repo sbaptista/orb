@@ -7,9 +7,15 @@ export type EvalCase = {
   description: string
   productCode: string              // which project is "selected" in the UI
   input: string                    // what the user says to the Orb
+  userEmail?: string               // optional admin context for strategic evaluations
   history?: Array<{ role: 'user' | 'assistant'; text: string }>
   mutationApproval?: 'ask' | 'allow' // eval-only override; defaults to allow for tool-routing cases
   voiceMode?: boolean                // inject voice mode context into the system prompt
+  evaluationMode?: 'standard' | 'strategic'
+  autoRoute?: boolean               // exercise the same explicit-strategy router used in orbConverse
+  budgetOverride?: 'monthly' | 'role' // eval-only budget gate; performs no provider call
+  provider?: 'anthropic' | 'gemini' | 'mistral'
+  model?: string
 
   // Tier 1: Tool call assertions (deterministic)
   expectTool?: {
@@ -17,6 +23,8 @@ export type EvalCase = {
     params?: Record<string, any>   // partial match — every key must match
   }
   expectNoTool?: boolean           // assert that no tool was called
+  expectProvider?: 'anthropic' | 'google'
+  expectRouteRole?: 'operational' | 'strategic'
 
   // Tier 2: Speech assertions (statistical — run multiple times, majority pass)
   speechContains?: string[]        // all must appear (case-insensitive)
@@ -54,7 +62,9 @@ export const EVAL_CASES: EvalCase[] = [
       { role: 'user', text: 'Create test 5a slice' },
       { role: 'assistant', text: 'Creating the task...\n\nDone — created as **ORB-282**.' },
     ],
-    input: 'Create a task: [EVAL] verify no-tool creation claims are not repeated',
+    // Keep the fixture out of the duplicate-search vocabulary. This case is
+    // specifically about rejecting a historical no-tool completion claim.
+    input: 'Create a task: [EVAL] verify historical completion claim protection',
     tier: 1,
     expectNoTool: true,
     speechPattern: /(go ahead|confirm|did not actually|nothing was written)/i,
@@ -128,6 +138,57 @@ export const EVAL_CASES: EvalCase[] = [
       name: 'query_repository',
       params: { source: 'local' },
     },
+  },
+
+  {
+    id: 'explicit-strategic-read-routes-to-gemini',
+    description: 'A direct strategic read uses the adviser route with no mutation tools',
+    productCode: 'ORB',
+    input: 'Give me a strategic read: what should I focus on next, and why?',
+    autoRoute: true,
+    tier: 1,
+    expectNoTool: true,
+    expectProvider: 'google',
+    expectRouteRole: 'strategic',
+  },
+
+  {
+    id: 'mutation-stays-on-operational-route',
+    description: 'A create request remains on Haiku even while automatic routing is evaluated',
+    productCode: 'ORB',
+    input: 'Create a task: [EVAL] operational routing safety',
+    autoRoute: true,
+    tier: 1,
+    expectTool: { name: 'create_todo', params: { product_code: 'ORB' } },
+    expectProvider: 'anthropic',
+    expectRouteRole: 'operational',
+  },
+
+  {
+    id: 'strategic-budget-preserves-operations',
+    description: 'A strategic allowance block is explicit and does not call a model or tool',
+    productCode: 'ORB',
+    input: 'Give me a strategic read: what should I focus on next?',
+    autoRoute: true,
+    budgetOverride: 'role',
+    tier: 1,
+    expectNoTool: true,
+    expectRouteRole: 'strategic',
+    speechContains: ['Strategic reads', 'Everyday task help'],
+  },
+
+  {
+    id: 'one-model-strategic-route-stays-tool-free',
+    description: 'Haiku can serve the strategic role without gaining mutation authority',
+    productCode: 'ORB',
+    input: 'Give me a strategic read: what should I focus on next, and why?',
+    autoRoute: true,
+    provider: 'anthropic',
+    model: 'claude-haiku-4-5',
+    tier: 1,
+    expectNoTool: true,
+    expectProvider: 'anthropic',
+    expectRouteRole: 'strategic',
   },
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -207,6 +268,16 @@ export const EVAL_CASES: EvalCase[] = [
     input: 'what should I do next?',
     tier: 2,
     speechNotContains: ['PROJ-', 'TRAVEL-', 'PERSONAL-'],
+  },
+  {
+    id: 'strategic-guidance-known-code',
+    description: 'Strategic guidance may cite a known backlog code without being blocked as a false mutation claim',
+    productCode: 'ORB',
+    userEmail: 'stan.baptista@gmail.com',
+    evaluationMode: 'strategic',
+    input: 'What should I work on next? Give me your top one or two recommendations and explain the evidence from my current work.',
+    tier: 2,
+    speechNotContains: ['I did not actually complete that', 'nothing was written'],
   },
 
   // ── ORB-205: Judgment-Driven Resolution ────────────────────────────────

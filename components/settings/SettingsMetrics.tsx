@@ -5,6 +5,7 @@ import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
 import DateSearchModal, { type CreatedFilter } from './DateSearchModal'
 import { getOrbMetrics } from '@/app/actions/get-orb-metrics'
+import SettingsCostReconciliation from './SettingsCostReconciliation'
 
 type MetricsRow = {
   id: string
@@ -346,6 +347,7 @@ export default function SettingsMetrics() {
         onClear={() => { setDateFilter(null); setShowDateFilter(false) }}
         currentFilter={dateFilter}
       />
+      <SettingsCostReconciliation />
     </>
   )
 }

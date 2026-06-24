@@ -6,6 +6,112 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.53',
+    date: '2026-06-24',
+    changes: [
+      'Orb Eval: Kept the historical completion-claim regression case focused on mutation integrity rather than accidentally invoking the separate duplicate-search policy.',
+    ]
+  },
+  {
+    version: 'v0.6.52',
+    date: '2026-06-24',
+    changes: [
+      'Orb AI: Fixed a failed-settings-load loop that could repeatedly retry a server action and flood the UI with the same error toast. Toast context is now stable across toast renders.',
+    ]
+  },
+  {
+    version: 'v0.6.51',
+    date: '2026-06-24',
+    changes: [
+      'ORB-265: Added a deterministic one-model strategic-route gate, proving Claude Haiku can provide a tool-free strategic read when assigned to both roles.',
+    ]
+  },
+  {
+    version: 'v0.6.50',
+    date: '2026-06-24',
+    changes: [
+      'Orb AI: Made Model Roles clearly interactive with established select styling and visible chevrons, and marked the live budget-stop behavior with the standard amber warning notice.',
+    ]
+  },
+  {
+    version: 'v0.6.49',
+    date: '2026-06-24',
+    changes: [
+      'ORB-265: Enforced the configurable monthly, strategic, and operational AI allowances before a provider call. Evaluation traffic is excluded from budget accounting; reconciled provider costs override the global provider total when they cover the active period.',
+      'ORB-265: Replaced the fixed two-model assumption with a capability catalog. A compatible model can now serve both strategic and operational roles, while future models appear only after their adapter, telemetry, and evaluation decision are in place.',
+      'ORB-265: Replaced Anthropic-only billing alerts with deduplicated provider-and-role incidents. Strategic-provider failures preserve operational help, operational-provider failures preserve manual task management, and an open ticket suppresses repeated alert storms.',
+      'Orb AI: Configured rate cards now apply to future request records and budget accounting; actual provider costs remain reconciled in Orb Metrics without rewriting history.',
+    ]
+  },
+  {
+    version: 'v0.6.48',
+    date: '2026-06-24',
+    changes: [
+      'Orb Metrics: Actual Provider Cost now supports Mistral alongside Anthropic and Google, including saved-record labels and server-side validation.',
+    ]
+  },
+  {
+    version: 'v0.6.47',
+    date: '2026-06-24',
+    changes: [
+      'ORB-265: Activated the administrator-controlled two-model route. Direct, non-mutating strategic reads can use Gemini with the same live backlog context but no tools; operational conversations, approvals, and all mutations remain on Claude Haiku.',
+      'ORB-265: Added durable request-level route records for live Haiku conversations and Gemini strategic reads, including role, provider/model, token/cache usage, latency, estimated cost, and response text.',
+      'ORB-265: Added Tier 1 route-gate coverage proving an explicit strategic read selects Gemini without tools while a create request remains on the Haiku operational route.',
+      'Orb AI: Clarified that saved budgets and rate cards are configuration for the upcoming budget-enforcement phase; provider-reported actual costs continue to be reconciled in Orb Metrics.',
+    ]
+  },
+  {
+    version: 'v0.6.46',
+    date: '2026-06-23',
+    changes: [
+      'Settings navigation: documented the Orb-related group so Orb Memory, Orb Metrics, and the forthcoming Orb AI page remain adjacent across sidebar and mobile navigation.',
+    ]
+  },
+  {
+    version: 'v0.6.45',
+    date: '2026-06-23',
+    changes: [
+      'ORB-265: Added a dev-only Mistral strategic-evaluation adapter with normalized token, cache, latency, cost, and native tool-call records.',
+      'ORB-265: Hardened the strategic runner with provider-busy retries, durable per-response checkpoints, named output packets, and safe resume behavior that preserves earlier evidence.',
+      'ORB-265: Raised Mistral strategic reasoning output capacity to prevent reasoning tokens from exhausting the response before a final answer is emitted; operational evaluation remains tightly capped.',
+    ]
+  },
+  {
+    version: 'v0.6.44',
+    date: '2026-06-23',
+    changes: [
+      'ORB-265: Added the frozen-packet exploratory runner. It executes the 30-response Haiku/Gemini matrix through the dev evaluator and writes a provider-blind review packet separate from private cost and latency metrics.',
+    ]
+  },
+  {
+    version: 'v0.6.43',
+    date: '2026-06-23',
+    changes: [
+      'ORB-265: Strategic dev evaluation can now select a sanitized frozen context packet, which replaces live dynamic evidence and is recorded as strategic-packets-v1 in the request ledger.',
+    ]
+  },
+  {
+    version: 'v0.6.42',
+    date: '2026-06-23',
+    changes: [
+      'ORB-265: Added five sanitized, versioned strategic context packets covering urgent choice, urgency versus momentum, stale work, preference-aware advice, and uncertainty without invention.',
+    ]
+  },
+  {
+    version: 'v0.6.41',
+    date: '2026-06-23',
+    changes: [
+      'ORB-265: Added the dated five-scenario exploratory evaluation manifest, locking the Haiku reference, Gemini challenger, three-run comparison design, rubric, and $40 feasibility envelope before packet execution.',
+    ]
+  },
+  {
+    version: 'v0.6.40',
+    date: '2026-06-23',
+    changes: [
+      'ORB-265: Set the model-evaluation feasibility envelope at a $40 total monthly Orb AI cap, 300 strategic interactions per month, and a provisional $0.08 per accepted strategic answer.',
+    ]
+  },
+  {
     version: 'v0.6.39',
     date: '2026-06-23',
     changes: [

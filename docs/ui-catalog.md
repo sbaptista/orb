@@ -80,6 +80,9 @@ Standard settings layout with centered content card.
 
 ### Settings Navigation & Updates
 - **Settings Sidebar:** Houses navigation for general configuration. Priorities, Statuses, and Platforms pages removed in v0.5.207 (not user-changeable). Platform pill UI also removed from TodoPanel and TodoForm.
+- **Orb Settings Group:** Keep every Orb-related page adjacent in the sidebar: `Orb Memory`, `Orb Metrics`, and `Orb AI` (when added). Do not scatter these among unrelated project or account settings.
+- **Orb AI:** Admin-only policy page for model roles, live routing activation, monthly limits, and provider rate cards. Model choices come from the production-ready model catalog; one compatible model may serve both roles. Use the standard `s-page`, `s-header`, `s-card`, and `s-form` settings assembly; actual-cost reconciliation belongs to Orb Metrics.
+- **Orb Metrics Cost Reconciliation:** The Metrics page owns manual entry of actual Orb-attributable provider costs by provider and billing period. It uses the existing `s-card` and `s-form` assembly below the collection, not a separate settings shell.
 - **Mobile Settings Picker:** On iPhone and narrow/coarse-pointer iPad, the settings sidebar becomes a compact icon trigger with a down arrow and version label. Tapping it opens a vertical section menu. This preserves unsaved-change confirmation and avoids long horizontal nav menus without duplicating the page title.
 - **Version Badge:** Located in the bottom corner of the Settings page sidebar (e.g. displaying `v0.5.127`). Non-clickable.
 - **What's New Screen:** Located under Settings. Displays recent release notes and contains:

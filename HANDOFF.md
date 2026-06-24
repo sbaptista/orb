@@ -10,40 +10,37 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.39
+- **Version:** 0.6.53
 
 ---
 
 ### Last Session Completed
 
-**ORB-269: Standardized settings collection controls — 2026-06-23 (Codex, GPT-5)**
+**ORB-265: Configurable AI model routing and cost controls — 2026-06-24 (Codex, GPT-5)**
 
-1. Closed ORB-269 with resolution notes and Knowledge Repo entry `ORB-269: Shared settings collection controls and search-match details`.
-2. Consolidated settings search/pagination into shared `SearchController` and `PaginationController`; single-page collections retain only their informational row.
-3. Completed the responsive filter/card pass across settings collections and documented the canonical patterns in `docs/ui-catalog.md`.
-4. Added a reusable editor search-match flow: an amber query notice, a marker beside every matching editable field, and a stacked read-only detail modal that highlights every occurrence in the full scrollable value.
-5. Moved Audit Log's bespoke read-only detail shell to `EditorModal` read-only mode, retaining immediate dismissal and adding shared focus, Escape, overlay, and scroll-lock behavior.
+1. Completed the Haiku, Gemini, and Mistral evidence set. Gemini 3.1 Pro Preview qualified for explicit strategic reads; Haiku remains the operational baseline; Mistral did not qualify for either production role.
+2. Added administrator-configurable role routing in Settings > Orb AI, model catalog choices, rate cards, actual provider-cost reconciliation, monthly/role budget gates, and provider-and-role incident handling. The architecture is role-based, not permanently two-model.
+3. Added durable request-level telemetry for provider, model, role, token/cache usage, latency, estimated cost, and response text. Evaluation traffic is excluded from live budget accounting.
+4. Verified live Gemini strategic routing and Haiku operational/one-model routing. The final Tier 1 Orb evaluation passed **18/18** on 2026-06-24; TypeScript passed.
+5. Fixed a Settings > Orb AI failed-action retry loop that could flood the UI with repeated error messages. Closed ORB-265 with resolution notes and Knowledge Repository entry `54590c36-111c-4023-ba6f-06768db71ebc`.
+6. Corrected the historical-completion-claim evaluation fixture so it does not accidentally test the independent duplicate-search policy; the mutation-integrity assertion remains unchanged.
+7. Created ORB-292 for future user-facing AI modes and Orb-proposed tuning, with explicit user consent required for changes.
 
 ### Uncommitted Changes
 
-Held back from this release: ORB-265 model-evaluation work only.
-
-- `app/api/orb-eval/route.ts`
-- `scripts/eval-cases.ts`, `scripts/orb-eval.ts`, `scripts/strategic-eval-cases.ts`
-- `lib/orb-model/`
-- `scripts/migrations/20260622_orb_model_requests.sql`
-- `docs/orb-265-model-strategy-audit-plan.md`
-- `WIP.md`
+ORB-265 work is ready for the requested commit and push. The commit includes the routing, ledger, settings, evaluator, migrations, release notes, and this handoff. `WIP.md` is removed at final staging.
 
 ### Key Lesson
 
-**Editable controls are not rich-text renderers.** Preserve normal native inputs and textareas; show search context through shared field markers and a separate read-only highlighted detail view.
+**Evaluate the complete integration, not model prose alone.** Model quality, native tool behavior, response-cap configuration, cost, latency, and checkpoint integrity are separate gates. Route by role rather than model name; the catalog can grow or collapse to one model without changing safety boundaries.
+
+**Settings grouping:** Keep Orb-related pages together: Orb Memory, Orb Metrics, and Orb AI.
 
 ---
 
 ### Not started
 
-- **ORB-265:** Resume the provider-neutral model evaluation from `WIP.md`.
+- **ORB-292:** Design user-facing Value/Balanced/Deep Thinking modes, per-user allowances, and consent-based Orb tuning proposals.
 - **ORB-287:** Investigate dashboard background polling overhead.
 - **ORB-254 remaining:** Blank User columns when filtering by date.
 
@@ -136,7 +133,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## Next Priorities
 
-1. **ORB-265** — resume provider-neutral model evaluation from `WIP.md`.
+1. **ORB-292** — design user-facing Value/Balanced/Deep Thinking modes, per-user allowances, and consent-based Orb tuning proposals.
 2. **ORB-287** — investigate dashboard background polling overhead.
 3. **ORB-254 remaining** — blank User columns when filtering by date.
 
@@ -151,7 +148,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-06-23 — Codex (GPT-5)`
+`2026-06-24 — Codex (GPT-5)`
 
 ---
 

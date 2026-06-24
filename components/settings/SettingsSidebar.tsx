@@ -8,13 +8,14 @@ const NAV: SidebarItem[] = [
   { id: 'notifications', href: '/settings/notifications', label: 'Notifications', icon: '🔔', active: false },
   { id: 'voice',         href: '/settings/voice',         label: 'Voice',         icon: '🔊', active: false },
   { id: 'memory',     href: '/settings/memory',     label: 'Orb Memory', icon: '🧠', active: false },
+  { id: 'metrics',   href: '/settings/metrics',   label: 'Orb Metrics', icon: '📊', active: false },
+  { id: 'ai',        href: '/settings/ai',        label: 'Orb AI',      icon: '◉', active: false },
   { id: 'projects',   href: '/settings/projects',   label: 'Projects',   icon: '◈', active: false },
   { id: 'users',      href: '/settings/users',      label: 'Users',      icon: '◎', active: false },
   { id: 'invitations', href: '/settings/invitations', label: 'Invitations', icon: '✉', active: false },
   { id: 'tickets',    href: '/settings/tickets',    label: 'Tickets',    icon: '⊙', active: false },
   { id: 'maintenance', href: '/settings/maintenance', label: 'Maintenance Mode', icon: '🛠', active: false },
   { id: 'knowledge', href: '/settings/knowledge', label: 'Knowledge', icon: '📚', active: false },
-  { id: 'metrics',   href: '/settings/metrics',   label: 'Orb Metrics', icon: '📊', active: false },
   { id: 'audit',     href: '/settings/audit',     label: 'Audit Log', icon: '📋', active: false },
   { id: 'backup',     href: '/settings/backup',     label: 'Backup',     icon: '⬡', active: false },
   { id: 'archive',    href: '/settings/archive',    label: 'Archive',    icon: '⧖', active: false },
@@ -25,10 +26,9 @@ export default function SettingsSidebar({ isAdmin }: { isAdmin?: boolean }) {
   const pathname = usePathname()
   const items = NAV
     .filter(item => {
-      if (['users', 'invitations', 'tickets', 'maintenance', 'knowledge', 'metrics', 'audit'].includes(item.id)) return !!isAdmin
+      if (['users', 'invitations', 'tickets', 'maintenance', 'knowledge', 'metrics', 'ai', 'audit'].includes(item.id)) return !!isAdmin
       return true
     })
     .map(item => ({ ...item, active: pathname === item.href || pathname.startsWith(item.href + '/') }))
   return <CollapsibleSidebar items={items} />
 }
-
