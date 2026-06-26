@@ -251,7 +251,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   const currentUserName = userProfile ? [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ') : ''
   const currentUser = { id: auth.user.id, email: auth.user.email, name: currentUserName || null, roles: { name: auth.role } }
 
-  const productList  = (products   ?? [])
+  const productList  = (products   ?? []).filter((p: any) => auth.isAdmin || p.created_by === auth.user.id)
   const dormantList  = (dormantProducts ?? [])
   const visibleProductIds = new Set(productList.map((p: any) => p.id))
   const todoList     = (todos      ?? []).filter((t: any) => visibleProductIds.has(t.product_id))
@@ -1186,12 +1186,22 @@ When the user signals they want to end the voice conversation — "that's enough
               }
             }
           } else if (tc.name === 'client_action') {
-            const label = input.action === 'switch_project' ? `Switched to ${input.target}`
-              : input.action === 'check_update' ? 'Checking for updates…'
-              : input.action === 'apply_update' ? 'Updating…'
-              : 'Navigating...'
-            stream.update({ speech: accumulatedSpeech, thought: label, clientAction: { action: input.action, target: input.target } })
-            output = { ok: true }
+            if (input.action === 'switch_project' && input.target) {
+              const targetUpper = String(input.target).toUpperCase()
+              const match = ctx.productList.find((p: any) => p.code?.toUpperCase() === targetUpper || p.name?.toUpperCase() === targetUpper)
+              if (!match) {
+                output = { ok: false, error: `Project "${input.target}" not found or you don't have access to it.` }
+              } else {
+                stream.update({ speech: accumulatedSpeech, thought: `Switched to ${match.name}`, clientAction: { action: input.action, target: input.target } })
+                output = { ok: true }
+              }
+            } else {
+              const label = input.action === 'check_update' ? 'Checking for updates…'
+                : input.action === 'apply_update' ? 'Updating…'
+                : 'Navigating...'
+              stream.update({ speech: accumulatedSpeech, thought: label, clientAction: { action: input.action, target: input.target } })
+              output = { ok: true }
+            }
           } else if (tc.name === 'search_knowledge') {
             let results = ctx.knowledgeList.slice()
             if (input.product_code) {

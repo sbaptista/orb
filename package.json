@@ -1,6 +1,6 @@
 {
   "name": "orb",
-  "version": "0.6.65",
+  "version": "0.6.66",
   "private": true,
   "scripts": {
     "prebuild": "node scripts/generate-repository-bundle.mjs",
@@ -8,7 +8,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint && node scripts/verify-ui-catalog.js",
-    "generate-contract": "ts-node scripts/generate-orb-contract.ts"
+    "generate-contract": "ts-node scripts/generate-orb-contract.ts",
+    "eval": "NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts",
+    "eval:t1": "NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts --tier 1",
+    "eval:t2": "NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts --tier 2"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.1.9",

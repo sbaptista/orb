@@ -1,6 +1,7 @@
 'use server'
 
 import { requireAdmin } from '@/lib/auth'
+import { createClient as createAuthClient } from '@/lib/supabase/server'
 import { logAuditEvent } from '@/lib/audit'
 import { DEFAULT_ORB_AI_POLICY, type OrbAiPolicy, type OrbModelRateCard } from '@/lib/orb-model/policy'
 import { supportsOrbRole } from '@/lib/orb-model/catalog'
@@ -61,8 +62,10 @@ function mapRateCard(row: any): OrbModelRateCard {
 }
 
 export async function getTtsConfig(): Promise<TtsConfigResult> {
-  const ctx = await requireAdmin()
-  const { data } = await ctx.admin.from('orb_ai_policy').select('tts_provider, tts_model, tts_voice_id').eq('id', true).maybeSingle()
+  const supabase = await createAuthClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { provider: 'browser', model: null, voiceId: null }
+  const { data } = await supabase.from('users').select('tts_provider, tts_model, tts_voice_id').eq('id', user.id).single()
   return {
     provider: (data?.tts_provider as TtsProvider) ?? 'browser',
     model: data?.tts_model ?? null,
@@ -71,15 +74,15 @@ export async function getTtsConfig(): Promise<TtsConfigResult> {
 }
 
 export async function saveTtsConfig(config: TtsConfigResult) {
-  const ctx = await requireAdmin()
-  const { error } = await ctx.admin.from('orb_ai_policy').upsert({
-    id: true,
+  const supabase = await createAuthClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+  const { error } = await supabase.from('users').update({
     tts_provider: config.provider,
     tts_model: config.model,
     tts_voice_id: config.voiceId,
     updated_at: new Date().toISOString(),
-    updated_by: ctx.user.id,
-  })
+  }).eq('id', user.id)
   if (error) throw error
   return { ok: true }
 }

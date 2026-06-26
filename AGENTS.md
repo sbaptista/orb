@@ -19,7 +19,7 @@ This app is a piece of art. Art and technique are inseparable — great art requ
 - **Never build/implement changes without explicit permission/confirmation from Stan.**
 - **Never `git push` without Stan's explicit in-chat approval.** Commit locally when asked. Never push. Push triggers a production deploy — that is always Stan's call. See shared AGENTS.md "Git — Commits and Pushes" for the full rule.
 - **Repeat verbatim the release documentation rule at the start of every session:** Before any code push/release, the agent must document all changes in `lib/changelog.ts` by adding a new `Release` entry with the bumped version, release date, and details of changes, and bump the patch version in both `package.json` and `lib/version.ts`.
-- **Orb eval suite is mandatory:** When you add or change any Orb-conversation capability (a tool, a tool param, a routing rule, or a defined speech/policy behavior), add or update a matching case in `scripts/eval-cases.ts` in the same change. Run the suite and confirm Tier 1 is green before any production push. See the **Orb Eval Suite** section below.
+- **Orb eval suite is mandatory:** When you add or change any Orb-conversation capability (a tool, a tool param, a routing rule, or a defined speech/policy behavior), add or update a matching case in `scripts/eval-cases.ts` in the same change. Do not run the eval suite yourself — tell Stan to run `npm run eval:t1` from the terminal. If it fails, Stan will paste the output for you to fix. See the **Orb Eval Suite** section below.
 - **Knowledge Repository Access:** The knowledgebase is stored in the database (`knowledge_repo` table). Always query it at the start of a task using the `SUPABASE_SECRET_KEY` (service role) to bypass Row Level Security (RLS) constraints. See the **Knowledge Repository Access** section below for connection details and query examples.
 - Your very first response back to the user must be the numbered list answering all questions. You must use read-only tools (such as `view_file` and `run_command` for `git status`) in your first turn to read `HANDOFF.md`, `package.json`, and check git state to answer these questions accurately.
 - Do not perform any write/mutating tool calls, compile code, or propose implementation plans until you have answered all questions and the user has approved them.
@@ -152,14 +152,19 @@ The conversational Orb's behavior is protected by an **eval suite**, not unit te
 - **Cases:** `scripts/eval-cases.ts` — append new cases to the `EVAL_CASES` array.
   - **Tier 1 — tool correctness:** deterministic, one run, must pass 1/1. Asserts the Orb calls the right tool with the right params (`expectTool` / `expectNoTool`).
   - **Tier 2 — behavioral:** statistical, three runs, must pass 2/3. Asserts speech via `speechContains` / `speechNotContains` / `speechPattern`.
-- **Runner:** `NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts` (needs the dev server on :3001). Filters: `--tier 1`, `--tier 2`, `--id <case-id>`. A Tier 1 failure exits non-zero and prints **"REGRESSION"** — that is the hard gate.
+- **Runner (npm scripts — requires dev server on :3001):**
+  - `npm run eval` — run all tiers
+  - `npm run eval:t1` — Tier 1 only (tool correctness)
+  - `npm run eval:t2` — Tier 2 only (behavioral)
+  - Single case: `npm run eval -- --id <case-id>`
+  - A Tier 1 failure exits non-zero and prints **"REGRESSION"** — that is the hard gate.
 - **Endpoint:** `app/api/orb-eval/route.ts` (dev-only, non-streaming) — the surface the runner hits.
 
 **Rule — extend the suite as you build (Orb-conversation only):** When you add or change any Orb-conversation capability — a tool, a tool parameter, a routing rule, or a defined speech/policy behavior — you must add or update a matching case in `scripts/eval-cases.ts` in the **same change**. New tool or param → Tier 1 case. New or changed speech/policy behavior → Tier 2 case. Do not defer this to a later session.
 
 **`speechContains` quirk:** if the array has **more than 3 items it is treated as "any-of"** (a synonym list — at least one must match); **3 or fewer items means "all must match."** Size the array to the intent you want.
 
-**Before any production push:** run the suite and confirm **Tier 1 is green**. Record the result (e.g. `Tier 1 N/N, Tier 2 N/N`) in the handoff.
+**Before any production push:** Stan runs the eval suite from the terminal (`npm run eval:t1`). AI tools do not run evals themselves — they consume too many tokens for a task Stan can do in seconds. If evals fail, Stan pastes the output and the AI diagnoses and fixes the failing cases. Record the result (e.g. `Tier 1 N/N, Tier 2 N/N`) in the handoff.
 
 ---
 

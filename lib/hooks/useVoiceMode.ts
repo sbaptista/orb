@@ -10,6 +10,8 @@ export type TtsConfig = {
   voiceId: string | null
 }
 
+// ── Text utilities ──────────────────────────────────────────────────
+
 function stripMarkdown(text: string): string {
   return text
     .replace(/#{1,6}\s+/g, '')
@@ -29,74 +31,47 @@ function stripMarkdown(text: string): string {
     .trim()
 }
 
-function splitIntoSentences(text: string): string[] {
-  const chunks = text.match(/[^.!?]+[.!?]+[\s]*/g)
-  if (!chunks) return [text]
-  const result: string[] = []
-  let current = ''
-  for (const chunk of chunks) {
-    if ((current + chunk).length > 200 && current) {
-      result.push(current.trim())
-      current = chunk
-    } else {
-      current += chunk
-    }
-  }
-  if (current.trim()) result.push(current.trim())
-  return result
-}
+const MAX_CHUNK = 240
+const LONG_RESPONSE = 500
 
-const LONG_RESPONSE_CHARS = 500
-const MAX_TTS_CHUNK_CHARS = 240
-
-function splitLongSpeechChunk(text: string): string[] {
-  const cleaned = text.trim()
-  if (!cleaned) return []
-  if (cleaned.length <= MAX_TTS_CHUNK_CHARS) return [cleaned]
+function chunkText(text: string): string[] {
+  const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g)
+  if (!sentences) return text.length > MAX_CHUNK ? splitAtBoundaries(text) : [text]
 
   const chunks: string[] = []
-  const pieces = cleaned.split(/(?<=[,;:—–])\s+|\n+/)
-  let current = ''
-
-  for (const piece of pieces) {
-    const part = piece.trim()
-    if (!part) continue
-
-    if (part.length > MAX_TTS_CHUNK_CHARS) {
-      if (current) {
-        chunks.push(current)
-        current = ''
-      }
-
-      let wordChunk = ''
-      for (const word of part.split(/\s+/)) {
-        const next = wordChunk ? `${wordChunk} ${word}` : word
-        if (next.length > MAX_TTS_CHUNK_CHARS && wordChunk) {
-          chunks.push(wordChunk)
-          wordChunk = word
-        } else {
-          wordChunk = next
-        }
-      }
-      if (wordChunk) chunks.push(wordChunk)
-      continue
-    }
-
-    const next = current ? `${current} ${part}` : part
-    if (next.length > MAX_TTS_CHUNK_CHARS && current) {
-      chunks.push(current)
-      current = part
-    } else {
-      current = next
-    }
+  let buf = ''
+  for (const s of sentences) {
+    if ((buf + s).length > MAX_CHUNK && buf) { chunks.push(buf.trim()); buf = s }
+    else buf += s
   }
-
-  if (current) chunks.push(current)
-  return chunks
+  if (buf.trim()) chunks.push(buf.trim())
+  return chunks.flatMap(c => c.length > MAX_CHUNK ? splitAtBoundaries(c) : [c])
 }
 
-function splitIntoSpeechChunks(text: string): string[] {
-  return splitIntoSentences(text).flatMap(splitLongSpeechChunk)
+function splitAtBoundaries(text: string): string[] {
+  const chunks: string[] = []
+  const pieces = text.split(/(?<=[,;:—–])\s+|\n+/)
+  let buf = ''
+  for (const p of pieces) {
+    const part = p.trim()
+    if (!part) continue
+    if (part.length > MAX_CHUNK) {
+      if (buf) { chunks.push(buf); buf = '' }
+      let word = ''
+      for (const w of part.split(/\s+/)) {
+        const next = word ? `${word} ${w}` : w
+        if (next.length > MAX_CHUNK && word) { chunks.push(word); word = w }
+        else word = next
+      }
+      if (word) chunks.push(word)
+      continue
+    }
+    const next = buf ? `${buf} ${part}` : part
+    if (next.length > MAX_CHUNK && buf) { chunks.push(buf); buf = part }
+    else buf = next
+  }
+  if (buf) chunks.push(buf)
+  return chunks
 }
 
 function truncateForSpeech(text: string): string {
@@ -104,18 +79,22 @@ function truncateForSpeech(text: string): string {
   if (!sentences) return text
   let result = ''
   for (const s of sentences) {
-    if ((result + s).length > LONG_RESPONSE_CHARS) break
+    if ((result + s).length > LONG_RESPONSE) break
     result += s
   }
   return (result.trim() || sentences[0].trim()) + ' Check the transcript for the full details.'
 }
 
+// ── Constants ───────────────────────────────────────────────────────
+
 const LS_VOICE_KEY = 'orb_preferred_voice'
 const LS_RATE_KEY = 'orb_voice_rate'
-const SILENCE_TIMEOUT_MS = 2000
+const SILENCE_MS = 2000
 const TRANSCRIPT_DEBOUNCE_MS = 150
 
 const isIOS = () => typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)
+
+// ── Types ───────────────────────────────────────────────────────────
 
 export type VoiceState = {
   voiceActive: boolean
@@ -142,13 +121,30 @@ export type VoiceActions = {
   setOnSend: (cb: (text: string) => void) => void
 }
 
-export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
-  const ttsConfigRef = useRef(ttsConfig)
-  ttsConfigRef.current = ttsConfig
+// ── Queue state ─────────────────────────────────────────────────────
 
+type SpeechQueue = {
+  chunks: string[]
+  playing: boolean
+  spokenChars: number
+  done: boolean
+  autoResume: boolean
+}
+
+const EMPTY_QUEUE: SpeechQueue = { chunks: [], playing: false, spokenChars: 0, done: false, autoResume: true }
+
+// ── Hook ────────────────────────────────────────────────────────────
+
+export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
+  const cfgRef = useRef(ttsConfig)
+  cfgRef.current = ttsConfig
+
+  // ── State ───────────────────────────────────────────────────────
   const [voiceActive, setVoiceActive] = useState(false)
   const [isListening, setIsListening] = useState(false)
-  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [isSpeaking, _setIsSpeaking] = useState(false)
+  const speakingRef = useRef(false)
+  const setSpeaking = useCallback((v: boolean) => { speakingRef.current = v; _setIsSpeaking(v) }, [])
   const [transcript, setTranscript] = useState('')
   const [supportsVoice, setSupportsVoice] = useState(false)
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
@@ -156,602 +152,431 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   const [voiceRate, setVoiceRate] = useState(1.0)
   const [wasInterrupted, setWasInterrupted] = useState(false)
 
-  const recognitionRef = useRef<any>(null)
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const activeAudiosRef = useRef<Set<HTMLAudioElement>>(new Set())
+  // ── Refs ─────────────────────────────────────────────────────────
+  const recRef = useRef<any>(null)
   const transcriptRef = useRef('')
-  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const transcriptDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const silenceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onSendRef = useRef<((text: string) => void) | null>(null)
   const autoResumeRef = useRef(false)
   const cancelledRef = useRef(false)
-  const speechGenerationRef = useRef(0)
+  const genRef = useRef(0)
+  const queueRef = useRef<SpeechQueue>({ ...EMPTY_QUEUE })
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const activeSourceRef = useRef<AudioBufferSourceNode | null>(null)
+  const prefetchRef = useRef<Promise<{ audioBase64: string; contentType: string }> | null>(null)
 
-  const stopAudioElement = useCallback((audio: HTMLAudioElement) => {
-    try { audio.pause() } catch {}
-    audio.onended = null
-    audio.onerror = null
-    try {
-      audio.removeAttribute('src')
-      audio.load()
-    } catch {}
+  const isApi = useCallback(() => {
+    const c = cfgRef.current
+    return !!(c && c.provider !== 'browser')
   }, [])
 
-  const stopAllPlayback = useCallback(() => {
-    activeAudiosRef.current.forEach(stopAudioElement)
-    activeAudiosRef.current.clear()
-    if (audioRef.current) {
-      stopAudioElement(audioRef.current)
-      audioRef.current = null
-    }
-    if ('speechSynthesis' in window) speechSynthesis.cancel()
-    utteranceRef.current = null
-  }, [stopAudioElement])
-
-  const isApiTts = useCallback(() => {
-    const cfg = ttsConfigRef.current
-    return !!(cfg && cfg.provider !== 'browser')
-  }, [])
-
-  // eslint-disable-next-line react-compiler/react-compiler
+  // ── Init ────────────────────────────────────────────────────────
   useEffect(() => {
-    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const hasTTS = typeof window !== 'undefined' && 'speechSynthesis' in window
-    setSupportsVoice(!!SpeechRecognitionAPI && (hasTTS || isApiTts()))
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    const hasTTS = 'speechSynthesis' in window
+    setSupportsVoice(!!SR && (hasTTS || isApi()))
 
     if (hasTTS) {
-      const loadVoices = () => {
-        const voices = speechSynthesis.getVoices()
-        if (voices.length > 0) setAvailableVoices(voices)
-      }
-      loadVoices()
-      speechSynthesis.onvoiceschanged = loadVoices
+      const load = () => { const v = speechSynthesis.getVoices(); if (v.length) setAvailableVoices(v) }
+      load()
+      speechSynthesis.onvoiceschanged = load
     }
 
     try {
-      const saved = localStorage.getItem(LS_VOICE_KEY)
-      if (saved) setSelectedVoiceName(saved)
-      const savedRate = localStorage.getItem(LS_RATE_KEY)
-      if (savedRate) setVoiceRate(parseFloat(savedRate) || 1.0)
+      const s = localStorage.getItem(LS_VOICE_KEY)
+      if (s) setSelectedVoiceName(s)
+      const r = localStorage.getItem(LS_RATE_KEY)
+      if (r) setVoiceRate(parseFloat(r) || 1.0)
     } catch {}
-  }, [isApiTts])
+  }, [isApi])
 
-  const clearSilenceTimer = useCallback(() => {
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current)
-      silenceTimerRef.current = null
-    }
+  // ── Timers ──────────────────────────────────────────────────────
+  const clearSilence = useCallback(() => {
+    if (silenceRef.current) { clearTimeout(silenceRef.current); silenceRef.current = null }
   }, [])
 
-  const debouncedSetTranscript = useCallback((text: string) => {
-    if (transcriptDebounceRef.current) clearTimeout(transcriptDebounceRef.current)
-    transcriptDebounceRef.current = setTimeout(() => setTranscript(text), TRANSCRIPT_DEBOUNCE_MS)
+  const debouncedTranscript = useCallback((text: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => setTranscript(text), TRANSCRIPT_DEBOUNCE_MS)
   }, [])
 
-  // ── Recognition (shared by both TTS paths) ──────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // LAYER 3: Recognition — single instance per session
+  // ═══════════════════════════════════════════════════════════════
 
-  const beginRecognition = useCallback(() => {
-    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SpeechRecognitionAPI) return
+  const createRecognition = useCallback(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) return
 
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch {}
-      recognitionRef.current = null
-    }
+    const rec = new SR()
+    rec.continuous = !isIOS()
+    rec.interimResults = true
+    rec.lang = 'en-US'
 
-    try {
-      const recognition = new SpeechRecognitionAPI()
-      recognition.continuous = !isIOS()
-      recognition.interimResults = true
-      recognition.lang = 'en-US'
+    let accumulated = ''
 
-      let accumulated = ''
+    rec.onresult = (e: any) => {
       let interim = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          accumulated += e.results[i][0].transcript
+          transcriptRef.current = accumulated
+          debouncedTranscript(accumulated)
 
-      recognition.onresult = (event: any) => {
-        interim = ''
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            accumulated += event.results[i][0].transcript
-            transcriptRef.current = accumulated
-            debouncedSetTranscript(accumulated)
-
-            clearSilenceTimer()
-            silenceTimerRef.current = setTimeout(() => {
-              const text = transcriptRef.current.trim()
-              if (text && onSendRef.current) {
-                onSendRef.current(text)
-                transcriptRef.current = ''
-                accumulated = ''
-                setTranscript('')
-              }
-              if (recognitionRef.current) {
-                try { recognitionRef.current.stop() } catch {}
-                recognitionRef.current = null
-              }
-            }, SILENCE_TIMEOUT_MS)
-          } else {
-            interim += event.results[i][0].transcript
-          }
-        }
-        if (interim) {
-          debouncedSetTranscript(accumulated + interim)
-        }
-      }
-
-      recognition.onerror = (e: any) => {
-        if (e.error !== 'aborted' && e.error !== 'no-speech') {
-          console.error('[voice] recognition error:', e.error)
-        }
-        setIsListening(false)
-      }
-
-      recognition.onend = () => {
-        setIsListening(false)
-        if (isIOS() && autoResumeRef.current && !silenceTimerRef.current) {
-          const text = transcriptRef.current.trim()
-          if (text) {
-            if (onSendRef.current) {
+          clearSilence()
+          silenceRef.current = setTimeout(() => {
+            const text = transcriptRef.current.trim()
+            if (text && onSendRef.current) {
               onSendRef.current(text)
               transcriptRef.current = ''
               accumulated = ''
               setTranscript('')
             }
-          } else {
-            setTimeout(() => {
-              if (autoResumeRef.current && !cancelledRef.current) {
-                beginRecognition()
-              }
-            }, 100)
-          }
+            stopRecognition()
+          }, SILENCE_MS)
+        } else {
+          interim += e.results[i][0].transcript
         }
       }
+      if (interim) debouncedTranscript(accumulated + interim)
+    }
 
-      recognitionRef.current = recognition
+    rec.onerror = (e: any) => {
+      if (e.error !== 'aborted' && e.error !== 'no-speech') {
+        console.error('[voice] recognition error:', e.error)
+      }
+      setIsListening(false)
+    }
+
+    rec.onend = () => {
+      setIsListening(false)
+      if (!isIOS()) return
+
+      // iOS: continuous=false, so onend fires after each pause.
+      // Reuse the same instance to avoid "Microphone access allowed" toasts.
+      if (!autoResumeRef.current || silenceRef.current || speakingRef.current || cancelledRef.current) return
+      const text = transcriptRef.current.trim()
+      if (text) {
+        if (onSendRef.current) {
+          onSendRef.current(text)
+          transcriptRef.current = ''
+          accumulated = ''
+          setTranscript('')
+        }
+        return
+      }
+      setTimeout(() => {
+        if (autoResumeRef.current && !cancelledRef.current && !speakingRef.current) {
+          try { rec.start(); setIsListening(true) } catch {}
+        }
+      }, 800)
+    }
+
+    recRef.current = rec
+  }, [clearSilence, debouncedTranscript])
+
+  const startRecognition = useCallback(() => {
+    if (!recRef.current) createRecognition()
+    if (!recRef.current) return
+    try {
+      recRef.current.start()
+      setIsListening(true)
       transcriptRef.current = ''
       setTranscript('')
       cancelledRef.current = false
-      recognition.start()
-      setIsListening(true)
       setWasInterrupted(false)
-    } catch (err) {
-      console.error('[voice] start failed:', err)
-      setIsListening(false)
+    } catch {}
+  }, [createRecognition])
+
+  const stopRecognition = useCallback(() => {
+    if (recRef.current) try { recRef.current.stop() } catch {}
+    setIsListening(false)
+  }, [])
+
+  const teardownRecognition = useCallback(() => {
+    stopRecognition()
+    recRef.current = null
+  }, [stopRecognition])
+
+  // ═══════════════════════════════════════════════════════════════
+  // LAYER 1: Output — playChunk(text): Promise<void>
+  // ═══════════════════════════════════════════════════════════════
+
+  const stopPlayback = useCallback(() => {
+    if (activeSourceRef.current) {
+      try { activeSourceRef.current.stop() } catch {}
+      activeSourceRef.current = null
     }
-  }, [clearSilenceTimer, debouncedSetTranscript])
+    if ('speechSynthesis' in window) speechSynthesis.cancel()
+  }, [])
 
-  // ── API TTS (OpenAI, ElevenLabs, any non-browser provider) ──────────
+  const playChunk = useCallback((text: string, gen: number): Promise<void> => {
+    if (cancelledRef.current || gen !== genRef.current) return Promise.resolve()
 
-  const apiSpeakChunk = useCallback(async (text: string, onDone: () => void) => {
-    const cfg = ttsConfigRef.current
-    if (!cfg || cfg.provider === 'browser') { onDone(); return }
-    const generation = speechGenerationRef.current
-
-    try {
-      const result = await synthesizeSpeech({
-        text,
-        provider: cfg.provider,
-        model: cfg.model || 'tts-1',
-        voiceId: cfg.voiceId || 'nova',
-      })
-
-      if (cancelledRef.current || generation !== speechGenerationRef.current) return
-
-      const audio = new Audio(`data:${result.contentType};base64,${result.audioBase64}`)
-      audioRef.current = audio
-      activeAudiosRef.current.add(audio)
-      audio.playbackRate = voiceRate
-      const finish = () => {
-        audioRef.current = null
-        activeAudiosRef.current.delete(audio)
-        if (!cancelledRef.current && generation === speechGenerationRef.current) onDone()
-      }
-      audio.onended = finish
-      audio.onerror = finish
-      await audio.play()
-    } catch (err) {
-      console.error('[voice] API TTS failed:', err)
-      if (!cancelledRef.current && generation === speechGenerationRef.current) onDone()
-    }
-  }, [voiceRate])
-
-  const apiStreamQueueRef = useRef<string[]>([])
-  const apiStreamPlayingRef = useRef(false)
-  const apiStreamDoneRef = useRef(false)
-  const apiStreamSpokenRef = useRef(0)
-
-  const apiDrainQueue = useCallback(() => {
-    if (cancelledRef.current || apiStreamQueueRef.current.length === 0) {
-      apiStreamPlayingRef.current = false
-      if (apiStreamDoneRef.current) {
-        apiStreamSpokenRef.current = 0
-        apiStreamDoneRef.current = false
-        setIsSpeaking(false)
-        if (!cancelledRef.current && autoResumeRef.current) {
-          beginRecognition()
+    const cfg = cfgRef.current
+    if (cfg && cfg.provider !== 'browser') {
+      // API TTS path
+      return (async () => {
+        // Use prefetched result if available
+        let result: { audioBase64: string; contentType: string }
+        if (prefetchRef.current) {
+          result = await prefetchRef.current
+          prefetchRef.current = null
+        } else {
+          result = await synthesizeSpeech({
+            text,
+            provider: cfg.provider,
+            model: cfg.model || 'tts-1',
+            voiceId: cfg.voiceId || 'nova',
+          })
         }
-      }
-      return
+
+        if (cancelledRef.current || gen !== genRef.current) return
+
+        const ctx = audioCtxRef.current
+        if (!ctx) return
+
+        const raw = atob(result.audioBase64)
+        const arr = new Uint8Array(raw.length)
+        for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i)
+        const decoded = await ctx.decodeAudioData(arr.buffer.slice(0))
+        if (cancelledRef.current || gen !== genRef.current) return
+
+        return new Promise<void>(resolve => {
+          const source = ctx.createBufferSource()
+          source.buffer = decoded
+          source.playbackRate.value = voiceRate
+          source.connect(ctx.destination)
+          source.onended = () => { activeSourceRef.current = null; resolve() }
+          activeSourceRef.current = source
+          source.start()
+        })
+      })()
     }
 
-    apiStreamPlayingRef.current = true
-    const chunk = apiStreamQueueRef.current.shift()!
-    apiSpeakChunk(chunk, () => apiDrainQueue())
-  }, [apiSpeakChunk, beginRecognition])
+    // Browser TTS path
+    if (!('speechSynthesis' in window)) return Promise.resolve()
 
-  // ── Browser TTS (speechSynthesis) ───────────────────────────────────
-
-  const browserSpeak = useCallback((text: string) => {
-    if (!('speechSynthesis' in window)) return
-
-    const needsCancel = speechSynthesis.speaking || speechSynthesis.pending
-    if (needsCancel) speechSynthesis.cancel()
-
-    const sentences = splitIntoSentences(text)
-    let currentIndex = 0
-
-    const selectedVoice = selectedVoiceName && availableVoices.length > 0
-      ? availableVoices.find(v => v.name === selectedVoiceName) ?? null
-      : null
-
-    function speakNext() {
-      if (cancelledRef.current || currentIndex >= sentences.length) {
-        setIsSpeaking(false)
-        if (!cancelledRef.current && autoResumeRef.current) {
-          beginRecognition()
-        }
-        return
-      }
-
-      const utterance = new SpeechSynthesisUtterance(sentences[currentIndex])
+    return new Promise<void>(resolve => {
+      const utterance = new SpeechSynthesisUtterance(text)
       utterance.rate = voiceRate
-      if (selectedVoice) utterance.voice = selectedVoice
-      utterance.onend = () => { currentIndex++; speakNext() }
-      utterance.onerror = () => setIsSpeaking(false)
-      utteranceRef.current = utterance
-      speechSynthesis.speak(utterance)
-    }
-
-    if (needsCancel) {
-      setTimeout(speakNext, 80)
-    } else {
-      speakNext()
-    }
-  }, [selectedVoiceName, availableVoices, voiceRate, beginRecognition])
-
-  const browserSpeakStatus = useCallback((text: string) => {
-    if (!('speechSynthesis' in window)) return
-
-    if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel()
-
-    const selectedVoice = selectedVoiceName && availableVoices.length > 0
-      ? availableVoices.find(v => v.name === selectedVoiceName) ?? null
-      : null
-
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.rate = voiceRate
-    if (selectedVoice) utterance.voice = selectedVoice
-    utterance.onend = () => setIsSpeaking(false)
-    utterance.onerror = () => setIsSpeaking(false)
-    utteranceRef.current = utterance
-    speechSynthesis.speak(utterance)
-  }, [selectedVoiceName, availableVoices, voiceRate])
-
-  const browserStreamSpokenRef = useRef(0)
-  const browserStreamSpeakingRef = useRef(false)
-  const browserStreamQueueRef = useRef<string[]>([])
-  const browserStreamDoneRef = useRef(false)
-
-  const browserSpeakStreaming = useCallback((text: string, done: boolean) => {
-    if (!('speechSynthesis' in window)) return
-    if (cancelledRef.current) return
-
-    const cleaned = stripMarkdown(text)
-    if (!cleaned) return
-
-    browserStreamDoneRef.current = done
-
-    if (browserStreamSpokenRef.current === 0 && !browserStreamSpeakingRef.current) {
-      if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel()
-      clearSilenceTimer()
-      cancelledRef.current = false
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop() } catch {}
-        recognitionRef.current = null
-      }
-      setIsSpeaking(true)
-      setIsListening(false)
-    }
-
-    const alreadySpoken = browserStreamSpokenRef.current
-
-    if (cleaned.length > LONG_RESPONSE_CHARS && alreadySpoken === 0) {
-      const truncated = truncateForSpeech(cleaned)
-      browserStreamSpokenRef.current = cleaned.length
-      browserStreamQueueRef.current = splitIntoSentences(truncated)
-      if (!browserStreamSpeakingRef.current) browserDrainQueue()
-      return
-    }
-    if (alreadySpoken >= LONG_RESPONSE_CHARS) {
-      if (done) browserFinishStreaming()
-      return
-    }
-
-    const unspoken = cleaned.slice(alreadySpoken)
-    const sentenceMatches = unspoken.match(/[^.!?]+[.!?]+[\s]*/g)
-
-    if (sentenceMatches) {
-      let consumed = 0
-      for (const s of sentenceMatches) {
-        consumed += s.length
-        browserStreamQueueRef.current.push(s.trim())
-      }
-      browserStreamSpokenRef.current = alreadySpoken + consumed
-      if (!browserStreamSpeakingRef.current) browserDrainQueue()
-    }
-
-    if (done) {
-      const finalUnspoken = cleaned.slice(browserStreamSpokenRef.current).trim()
-      if (finalUnspoken) {
-        browserStreamQueueRef.current.push(finalUnspoken)
-        browserStreamSpokenRef.current = cleaned.length
-      }
-      if (!browserStreamSpeakingRef.current && browserStreamQueueRef.current.length > 0) {
-        browserDrainQueue()
-      } else if (!browserStreamSpeakingRef.current) {
-        browserFinishStreaming()
-      }
-    }
-
-    function browserDrainQueue() {
-      if (cancelledRef.current || browserStreamQueueRef.current.length === 0) {
-        browserStreamSpeakingRef.current = false
-        if (browserStreamDoneRef.current) browserFinishStreaming()
-        return
-      }
-
-      browserStreamSpeakingRef.current = true
-      const chunk = browserStreamQueueRef.current.shift()!
-      const selectedVoice = selectedVoiceName && availableVoices.length > 0
+      const voice = selectedVoiceName && availableVoices.length > 0
         ? availableVoices.find(v => v.name === selectedVoiceName) ?? null
         : null
-
-      const utterance = new SpeechSynthesisUtterance(chunk)
-      utterance.rate = voiceRate
-      if (selectedVoice) utterance.voice = selectedVoice
-      utterance.onend = () => browserDrainQueue()
-      utterance.onerror = () => { browserStreamSpeakingRef.current = false; browserFinishStreaming() }
-      utteranceRef.current = utterance
+      if (voice) utterance.voice = voice
+      utterance.onend = () => resolve()
+      utterance.onerror = () => resolve()
       speechSynthesis.speak(utterance)
-    }
+    })
+  }, [voiceRate, selectedVoiceName, availableVoices])
 
-    function browserFinishStreaming() {
-      browserStreamSpokenRef.current = 0
-      browserStreamSpeakingRef.current = false
-      browserStreamQueueRef.current = []
-      browserStreamDoneRef.current = false
-      setIsSpeaking(false)
-      if (!cancelledRef.current && autoResumeRef.current) {
-        beginRecognition()
+  // ═══════════════════════════════════════════════════════════════
+  // LAYER 2: Speech Queue — single queue, single drain loop
+  // ═══════════════════════════════════════════════════════════════
+
+  const drain = useCallback(async () => {
+    const q = queueRef.current
+    if (q.playing) return
+    q.playing = true
+    const gen = genRef.current
+
+    while (q.chunks.length > 0) {
+      if (cancelledRef.current || gen !== genRef.current) break
+      const chunk = q.chunks.shift()!
+
+      // Prefetch next chunk for API TTS while current plays
+      if (cfgRef.current && cfgRef.current.provider !== 'browser' && q.chunks.length > 0 && !prefetchRef.current) {
+        const next = q.chunks[0]
+        prefetchRef.current = synthesizeSpeech({
+          text: next,
+          provider: cfgRef.current.provider,
+          model: cfgRef.current.model || 'tts-1',
+          voiceId: cfgRef.current.voiceId || 'nova',
+        }).catch(() => null as any)
       }
-    }
-  }, [selectedVoiceName, availableVoices, voiceRate, clearSilenceTimer, beginRecognition])
 
-  // ── Public API (delegates to the active TTS path) ───────────────────
+      await playChunk(chunk, gen)
+
+      // If more chunks arrived while playing (streaming), keep going
+      if (cancelledRef.current || gen !== genRef.current) break
+    }
+
+    q.playing = false
+    prefetchRef.current = null
+
+    if (cancelledRef.current || gen !== genRef.current) return
+
+    if (q.done && q.chunks.length === 0) {
+      q.done = false
+      setSpeaking(false)
+      if (q.autoResume && autoResumeRef.current) startRecognition()
+    }
+  }, [playChunk, setSpeaking, startRecognition])
+
+  const beginSpeaking = useCallback(() => {
+    clearSilence()
+    cancelledRef.current = false
+    stopPlayback()
+    stopRecognition()
+    setSpeaking(true)
+    queueRef.current.spokenChars = 0
+  }, [clearSilence, stopPlayback, stopRecognition, setSpeaking])
+
+  // ═══════════════════════════════════════════════════════════════
+  // PUBLIC API
+  // ═══════════════════════════════════════════════════════════════
 
   const startConversation = useCallback(() => {
     setVoiceActive(true)
     autoResumeRef.current = true
 
-    if (!isApiTts()) {
-      // Browser TTS only: prime speechSynthesis within user gesture
+    if (isApi()) {
+      // Unlock AudioContext within user gesture — stays unlocked for the session
+      try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+        const buf = ctx.createBuffer(1, 1, 22050)
+        const src = ctx.createBufferSource()
+        src.buffer = buf
+        src.connect(ctx.destination)
+        src.start()
+        ctx.resume()
+        audioCtxRef.current = ctx
+      } catch {}
+    } else {
       if ('speechSynthesis' in window) {
         const primer = new SpeechSynthesisUtterance('')
         primer.volume = 0
         speechSynthesis.speak(primer)
       }
     }
-
-    beginRecognition()
-  }, [beginRecognition, isApiTts])
+  }, [isApi])
 
   const resumeListening = useCallback(() => {
     autoResumeRef.current = true
     setWasInterrupted(false)
-    beginRecognition()
-  }, [beginRecognition])
+    startRecognition()
+  }, [startRecognition])
 
   const speak = useCallback((text: string) => {
     const cleaned = stripMarkdown(text)
     if (!cleaned) return
 
-    clearSilenceTimer()
-    cancelledRef.current = false
-    stopAllPlayback()
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch {}
-      recognitionRef.current = null
-    }
-    setIsSpeaking(true)
-    setIsListening(false)
-
-    const spokenText = cleaned.length > LONG_RESPONSE_CHARS ? truncateForSpeech(cleaned) : cleaned
-
-    if (isApiTts()) {
-      apiSpeakChunk(spokenText, () => {
-        setIsSpeaking(false)
-        if (!cancelledRef.current && autoResumeRef.current) beginRecognition()
-      })
-    } else {
-      browserSpeak(spokenText)
-    }
-  }, [clearSilenceTimer, stopAllPlayback, isApiTts, apiSpeakChunk, browserSpeak, beginRecognition])
+    beginSpeaking()
+    const spoken = cleaned.length > LONG_RESPONSE ? truncateForSpeech(cleaned) : cleaned
+    const q = queueRef.current
+    q.chunks = chunkText(spoken)
+    q.spokenChars = 0
+    q.done = true
+    q.autoResume = true
+    drain()
+  }, [beginSpeaking, drain])
 
   const speakStatus = useCallback((text: string) => {
     const cleaned = stripMarkdown(text)
     if (!cleaned) return
 
-    clearSilenceTimer()
-    cancelledRef.current = false
-    stopAllPlayback()
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch {}
-      recognitionRef.current = null
-    }
-    setIsSpeaking(true)
-    setIsListening(false)
-
-    const spokenText = cleaned.length > 120 ? `${cleaned.slice(0, 117)}...` : cleaned
-
-    if (isApiTts()) {
-      apiSpeakChunk(spokenText, () => {
-        setIsSpeaking(false)
-      })
-    } else {
-      browserSpeakStatus(spokenText)
-    }
-  }, [clearSilenceTimer, stopAllPlayback, isApiTts, apiSpeakChunk, browserSpeakStatus])
+    beginSpeaking()
+    const spoken = cleaned.length > 120 ? `${cleaned.slice(0, 117)}...` : cleaned
+    const q = queueRef.current
+    q.chunks = [spoken]
+    q.spokenChars = 0
+    q.done = true
+    q.autoResume = false
+    drain()
+  }, [beginSpeaking, drain])
 
   const speakStreaming = useCallback((text: string, done: boolean) => {
     if (cancelledRef.current) return
+    const cleaned = stripMarkdown(text)
+    if (!cleaned) return
 
-    if (isApiTts()) {
-      const cleaned = stripMarkdown(text)
-      if (!cleaned) return
+    const q = queueRef.current
+    q.done = done
 
-      apiStreamDoneRef.current = done
-
-      if (apiStreamSpokenRef.current === 0 && !apiStreamPlayingRef.current) {
-        clearSilenceTimer()
-        cancelledRef.current = false
-        stopAllPlayback()
-        if (recognitionRef.current) {
-          try { recognitionRef.current.stop() } catch {}
-          recognitionRef.current = null
-        }
-        setIsSpeaking(true)
-        setIsListening(false)
-      }
-
-      const alreadySpoken = apiStreamSpokenRef.current
-
-      if (cleaned.length > LONG_RESPONSE_CHARS && alreadySpoken === 0) {
-        const truncated = truncateForSpeech(cleaned)
-        apiStreamSpokenRef.current = cleaned.length
-        apiStreamQueueRef.current = splitIntoSpeechChunks(truncated)
-        if (!apiStreamPlayingRef.current) apiDrainQueue()
-        return
-      }
-      if (alreadySpoken >= LONG_RESPONSE_CHARS) {
-        if (done) {
-          apiStreamSpokenRef.current = 0
-          apiStreamDoneRef.current = false
-          if (!apiStreamPlayingRef.current) {
-            setIsSpeaking(false)
-            if (!cancelledRef.current && autoResumeRef.current) beginRecognition()
-          }
-        }
-        return
-      }
-
-      const unspoken = cleaned.slice(alreadySpoken)
-      const sentenceMatches = unspoken.match(/[^.!?]+[.!?]+[\s]*/g)
-
-      if (sentenceMatches) {
-        let consumed = 0
-        for (const s of sentenceMatches) {
-          consumed += s.length
-          apiStreamQueueRef.current.push(...splitIntoSpeechChunks(s.trim()))
-        }
-        apiStreamSpokenRef.current = alreadySpoken + consumed
-        if (!apiStreamPlayingRef.current) apiDrainQueue()
-      } else if (alreadySpoken === 0 && unspoken.split(/\s+/).length >= 8) {
-        const clauseMatch = unspoken.match(/^.+?[,;:—–]\s*/)?.[0]
-        if (clauseMatch) {
-          apiStreamQueueRef.current.push(...splitIntoSpeechChunks(clauseMatch.trim()))
-          apiStreamSpokenRef.current = alreadySpoken + clauseMatch.length
-          if (!apiStreamPlayingRef.current) apiDrainQueue()
-        }
-      }
-
-      if (done) {
-        const finalUnspoken = cleaned.slice(apiStreamSpokenRef.current).trim()
-        if (finalUnspoken) {
-          apiStreamQueueRef.current.push(...splitIntoSpeechChunks(finalUnspoken))
-          apiStreamSpokenRef.current = cleaned.length
-        }
-        if (!apiStreamPlayingRef.current && apiStreamQueueRef.current.length > 0) {
-          apiDrainQueue()
-        } else if (!apiStreamPlayingRef.current) {
-          apiStreamSpokenRef.current = 0
-          apiStreamDoneRef.current = false
-          setIsSpeaking(false)
-          if (!cancelledRef.current && autoResumeRef.current) beginRecognition()
-        }
-      }
-    } else {
-      browserSpeakStreaming(text, done)
+    // First call — set up state
+    if (q.spokenChars === 0 && !q.playing) {
+      beginSpeaking()
+      q.autoResume = true
     }
-  }, [isApiTts, clearSilenceTimer, stopAllPlayback, apiDrainQueue, browserSpeakStreaming, beginRecognition])
+
+    const already = q.spokenChars
+
+    // Long response truncation
+    if (cleaned.length > LONG_RESPONSE && already === 0) {
+      const truncated = truncateForSpeech(cleaned)
+      q.spokenChars = cleaned.length
+      q.chunks.push(...chunkText(truncated))
+      if (!q.playing) drain()
+      return
+    }
+    if (already >= LONG_RESPONSE) {
+      if (done && !q.playing) drain()
+      return
+    }
+
+    // Extract new complete sentences
+    const unspoken = cleaned.slice(already)
+    const sentences = unspoken.match(/[^.!?]+[.!?]+[\s]*/g)
+
+    if (sentences) {
+      let consumed = 0
+      for (const s of sentences) {
+        consumed += s.length
+        q.chunks.push(...chunkText(s.trim()))
+      }
+      q.spokenChars = already + consumed
+      if (!q.playing) drain()
+    } else if (already === 0 && unspoken.split(/\s+/).length >= 8) {
+      // Early clause trigger for faster first speech
+      const clause = unspoken.match(/^.+?[,;:—–]\s*/)?.[0]
+      if (clause) {
+        q.chunks.push(...chunkText(clause.trim()))
+        q.spokenChars = already + clause.length
+        if (!q.playing) drain()
+      }
+    }
+
+    if (done) {
+      const remaining = cleaned.slice(q.spokenChars).trim()
+      if (remaining) {
+        q.chunks.push(...chunkText(remaining))
+        q.spokenChars = cleaned.length
+      }
+      if (!q.playing) drain()
+    }
+  }, [beginSpeaking, drain])
+
+  // ── Reset (shared by cancel + exit) ─────────────────────────────
+
+  const reset = useCallback((keepActive: boolean) => {
+    genRef.current++
+    cancelledRef.current = true
+    autoResumeRef.current = false
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null }
+    clearSilence()
+    if (keepActive) stopRecognition()
+    else teardownRecognition()
+    stopPlayback()
+    prefetchRef.current = null
+    queueRef.current = { ...EMPTY_QUEUE }
+    setSpeaking(false)
+    setIsListening(false)
+    setTranscript('')
+    transcriptRef.current = ''
+    if (!keepActive) { setVoiceActive(false); setWasInterrupted(false) }
+  }, [clearSilence, teardownRecognition, stopPlayback, setSpeaking])
 
   const cancelSpeech = useCallback(() => {
-    clearSilenceTimer()
-    speechGenerationRef.current += 1
-    autoResumeRef.current = false
-    cancelledRef.current = true
-    if (transcriptDebounceRef.current) {
-      clearTimeout(transcriptDebounceRef.current)
-      transcriptDebounceRef.current = null
-    }
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch {}
-      recognitionRef.current = null
-    }
-    stopAllPlayback()
-    setIsListening(false)
-    setIsSpeaking(false)
+    reset(true)
     setWasInterrupted(true)
-    transcriptRef.current = ''
-    setTranscript('')
-    utteranceRef.current = null
-    apiStreamSpokenRef.current = 0
-    apiStreamPlayingRef.current = false
-    apiStreamQueueRef.current = []
-    apiStreamDoneRef.current = false
-    browserStreamSpokenRef.current = 0
-    browserStreamSpeakingRef.current = false
-    browserStreamQueueRef.current = []
-    browserStreamDoneRef.current = false
-  }, [clearSilenceTimer, stopAllPlayback])
+  }, [reset])
 
   const exitVoiceMode = useCallback(() => {
-    clearSilenceTimer()
-    speechGenerationRef.current += 1
-    autoResumeRef.current = false
-    cancelledRef.current = true
-    if (transcriptDebounceRef.current) clearTimeout(transcriptDebounceRef.current)
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch {}
-      recognitionRef.current = null
-    }
-    stopAllPlayback()
-    setVoiceActive(false)
-    setIsListening(false)
-    setIsSpeaking(false)
-    setWasInterrupted(false)
-    transcriptRef.current = ''
-    setTranscript('')
-    utteranceRef.current = null
-    apiStreamSpokenRef.current = 0
-    apiStreamPlayingRef.current = false
-    apiStreamQueueRef.current = []
-    apiStreamDoneRef.current = false
-    browserStreamSpokenRef.current = 0
-    browserStreamSpeakingRef.current = false
-    browserStreamQueueRef.current = []
-    browserStreamDoneRef.current = false
-  }, [clearSilenceTimer, stopAllPlayback])
+    reset(false)
+  }, [reset])
+
+  // ── Voice preferences ───────────────────────────────────────────
 
   const setVoice = useCallback((name: string) => {
     setSelectedVoiceName(name)

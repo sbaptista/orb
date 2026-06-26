@@ -26,7 +26,7 @@ export default function SettingsSidebar({ isAdmin }: { isAdmin?: boolean }) {
   const pathname = usePathname()
   const items = NAV
     .filter(item => {
-      if (['users', 'invitations', 'tickets', 'maintenance', 'knowledge', 'metrics', 'ai', 'audit'].includes(item.id)) return !!isAdmin
+      if (['users', 'invitations', 'tickets', 'maintenance', 'knowledge', 'memory', 'metrics', 'ai', 'audit'].includes(item.id)) return !!isAdmin
       return true
     })
     .map(item => ({ ...item, active: pathname === item.href || pathname.startsWith(item.href + '/') }))

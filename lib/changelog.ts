@@ -6,6 +6,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.66',
+    date: '2026-06-26',
+    changes: [
+      'Voice mode rewrite: Collapsed 6 TTS code paths into a 3-layer architecture (Output, Speech Queue, Recognition) — 829→600 lines, single drain loop, single playChunk function for both browser and API TTS.',
+      'Voice mode: Fixed iOS/iPadOS audio playback by routing API TTS through an unlocked AudioContext instead of HTMLMediaElement, and eliminated "Microphone access allowed" toasts by reusing a single SpeechRecognition instance per session.',
+      'Voice mode: Added TTS chunk prefetching — next chunk fetches while current plays, reducing inter-sentence silence.',
+      'Voice mode: Lightweight auth in synthesizeSpeech (single getUser call instead of full getAuthContext DB join), fire-and-forget usage recording.',
+      'Non-admin access: Orb project switch now validates target exists in user accessible list (ORB-296). AI-related settings hidden from non-admins in sidebar (ORB-297). Voice preferences stored per-user in users table instead of shared admin policy (ORB-298).',
+      'Dev login bypass: One-click login buttons for Stan, Otto Owner, and Adele Admin in development mode.',
+      'AGENTS.md: Documented schema constraints (product_id not project_id, valid statuses, users table), eval npm scripts, and sandbox limitations.',
+    ]
+  },
+  {
     version: 'v0.6.65',
     date: '2026-06-25',
     changes: [
