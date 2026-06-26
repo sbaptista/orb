@@ -59,6 +59,10 @@ The Knowledge Repo stores distilled lessons, decisions, and resolution notes acr
 - **API URL:** `https://livwkbnkdlrbmzgythys.supabase.co`
 - **Key:** `SUPABASE_SECRET_KEY` (service role) located in `/Users/stanleybaptista/Projects/orb/.env.local`
 - **Rule:** Bypasses RLS to guarantee complete results. Never query using the publishable/anon key.
+- **Schema:** Columns are `id`, `product_id`, `origin_todo_id`, `title`, `content`, `tags` (text[]), `created_at`, `updated_at`. There is no `project_id` column — use `product_id`.
+
+**Database table names:**
+- User data is in `public.users` (not `profiles`). Columns include `id`, `first_name`, `last_name` — there is no `role` column on this table (role is in `auth.users` metadata only).
 
 ### Query all entries:
 ```bash
@@ -125,6 +129,7 @@ In addition to the shared integrity rules, these are specific to the Orb API:
 - PATCH does not accept `todo_number` or `created_at` — these are immutable.
 - DELETE is a soft delete (`deleted_at` timestamp). There is no hard delete.
 - `closed_at` is managed automatically by the server based on `status`. Do not try to set it directly.
+- **Valid `status` values:** `open`, `in progress`, `deferred`, `on hold`, `closed`. There is no `done` — use `closed`. The column is a foreign key to the `statuses` table.
 
 **Full spec:** `docs/api-spec.yaml` — consult before attempting unfamiliar operations.
 
