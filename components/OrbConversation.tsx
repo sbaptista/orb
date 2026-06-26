@@ -416,7 +416,7 @@ export default function OrbConversation({
     }
 
     return (
-        <div className="oc-wrap" data-mode={conversationActive ? 'dialogue' : 'ambient'}>
+        <div className="oc-wrap" data-mode={voiceActive ? 'voice' : conversationActive ? 'dialogue' : 'ambient'}>
             {orbElement}
             {conversationActive ? (
                 <div ref={threadRef} className="oc-thread">
@@ -455,94 +455,77 @@ export default function OrbConversation({
 
             <div className="oc-input-wrap" data-tour="conversation-input" style={{ position: 'relative' }}>
                 {voiceActive ? (
-                    <div className="oc-voice-bar">
-                        <div className="oc-voice-status">
-                            {voiceListening ? (
-                                <span className="oc-voice-indicator oc-voice-listening">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'voice-pulse 1s ease-in-out infinite' }}>
+                    <div className="oc-voice-box">
+                        {/* STT transcript field — top */}
+                        <div className="oc-voice-stt">
+                            {voiceTranscript || (voiceListening ? 'Listening…' : voiceInterrupted ? 'Returning to listening…' : ' ')}
+                        </div>
+
+                        {/* Traffic-light indicators + stop button */}
+                        <div className="oc-voice-indicators">
+                            {/* Green — Speaking (user is talking) */}
+                            <div className="oc-voice-ind-wrap">
+                                <div
+                                    className={`oc-voice-ind oc-voice-ind-green${voiceListening ? ' oc-voice-ind-active' : ''}`}
+                                    data-tooltip="You are speaking"
+                                    aria-label="Speaking mode"
+                                >
+                                    {/* Microphone icon */}
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
                                         <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
                                         <line x1="12" y1="19" x2="12" y2="23"/>
                                         <line x1="8" y1="23" x2="16" y2="23"/>
                                     </svg>
-                                    {voiceTranscript ? (
-                                        <span className="oc-voice-transcript">{voiceTranscript}</span>
-                                    ) : (
-                                        <span>Listening...</span>
-                                    )}
-                                </span>
-                            ) : voiceSpeaking ? (
-                                <span className="oc-voice-indicator oc-voice-speaking">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-                                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
-                                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-                                    </svg>
-                                    <span>Speaking...</span>
-                                </span>
-                            ) : processing ? (
-                                <span className="oc-voice-indicator">
-                                    <span>Thinking...</span>
-                                </span>
-                            ) : (
-                                <span className="oc-voice-indicator">
-                                    <span>{voiceInterrupted ? 'Paused' : 'Ready'}</span>
-                                </span>
-                            )}
-                        </div>
-                        <div className="oc-voice-controls">
-                            <div className="oc-voice-btn-wrap">
-                                <button
-                                    type="button"
-                                    className="oc-voice-btn"
-                                    disabled={!voiceInterrupted}
-                                    onClick={onVoiceContinue}
-                                    data-tooltip="Continue conversation"
-                                    aria-label="Continue conversation"
-                                >
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <polyline points="9 18 15 12 9 6"/>
-                                    </svg>
-                                </button>
-                                <span className="oc-voice-btn-label">Continue</span>
+                                </div>
+                                <span className="oc-voice-ind-label">Speak</span>
                             </div>
 
-                            <div className="oc-voice-btn-wrap">
+                            {/* Yellow — Listening (user listens, Orb acts) */}
+                            <div className="oc-voice-ind-wrap">
+                                <div
+                                    className={`oc-voice-ind oc-voice-ind-yellow${!voiceListening && !voiceInterrupted ? ' oc-voice-ind-active' : ''}`}
+                                    data-tooltip="Orb is responding"
+                                    aria-label="Listen mode"
+                                >
+                                    {/* Headphones icon */}
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+                                        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/>
+                                        <path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+                                    </svg>
+                                </div>
+                                <span className="oc-voice-ind-label">Listen</span>
+                            </div>
+
+                            {/* Red — Stop Orb (always enabled) */}
+                            <div className="oc-voice-ind-wrap">
                                 <button
                                     type="button"
-                                    className="oc-voice-btn oc-voice-btn-stop"
-                                    disabled={!voiceSpeaking}
+                                    className="oc-voice-ind oc-voice-ind-red"
                                     onClick={onVoiceStop}
-                                    data-tooltip="Stop speaking"
-                                    aria-label="Stop speaking"
+                                    data-tooltip="Stop Orb"
+                                    aria-label="Stop Orb"
                                 >
-                                    <span style={{
-                                        display: 'block',
-                                        width: '10px',
-                                        height: '10px',
-                                        background: 'currentColor',
-                                        borderRadius: '1.5px',
-                                    }} />
+                                    <span className="oc-voice-stop-square" />
                                 </button>
-                                <span className="oc-voice-btn-label">Stop</span>
-                            </div>
-
-                            <div className="oc-voice-btn-wrap">
-                                <button
-                                    type="button"
-                                    className="oc-voice-btn oc-voice-btn-end"
-                                    onClick={onExitVoiceMode}
-                                    data-tooltip="End voice conversation"
-                                    aria-label="End voice conversation"
-                                >
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="18" y1="6" x2="6" y2="18"/>
-                                        <line x1="6" y1="6" x2="18" y2="18"/>
-                                    </svg>
-                                </button>
-                                <span className="oc-voice-btn-label">End</span>
+                                <span className="oc-voice-ind-label">Stop</span>
                             </div>
                         </div>
+
+                        {/* Exit button — far right */}
+                        <button
+                            type="button"
+                            className="oc-voice-exit"
+                            onClick={onExitVoiceMode}
+                            data-tooltip="End voice mode"
+                            aria-label="End voice mode"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                        </button>
                     </div>
                 ) : (
                     <>
@@ -645,15 +628,15 @@ export default function OrbConversation({
                                         <span className="oc-tool-btn-label">Cmds</span>
                                     </button>
 
-                                    {/* Voice — always visible */}
+                                    {/* Dictate — always visible */}
                                     <button
                                         type="button"
                                         className="oc-tool-btn"
                                         onClick={() => isListening ? stopListening() : startListening()}
                                         onMouseDown={(e) => e.preventDefault()}
                                         disabled={!supportsVoice || processing}
-                                        data-tooltip={isListening ? 'Stop recording' : 'Voice input'}
-                                        aria-label={isListening ? 'Stop recording' : 'Voice input'}
+                                        data-tooltip={isListening ? 'Stop dictation' : 'Dictate into the text field'}
+                                        aria-label={isListening ? 'Stop dictation' : 'Dictate into the text field'}
                                         style={{
                                             color: isListening ? '#c00' : undefined,
                                             background: isListening ? 'rgba(200,0,0,0.06)' : undefined,
@@ -668,7 +651,7 @@ export default function OrbConversation({
                                                 <line x1="8" y1="23" x2="16" y2="23"/>
                                             </svg>
                                         </span>
-                                        <span className="oc-tool-btn-label">Voice</span>
+                                        <span className="oc-tool-btn-label">Dictate</span>
                                     </button>
 
                                     {/* Prev/Next — inline on desktop/iPad, hidden on iPhone (in More menu instead) */}
@@ -721,6 +704,7 @@ export default function OrbConversation({
                                                     <div className="oc-mobile-only">
                                                         <div className="oc-more-group-header">Input</div>
                                                         <button
+                                                            type="button"
                                                             className="oc-more-item"
                                                             onClick={() => { handleHistoryUp(); setMoreMenuOpen(false) }}
                                                             disabled={history.length === 0}
@@ -729,6 +713,7 @@ export default function OrbConversation({
                                                             <span className="oc-more-desc">Recall last command</span>
                                                         </button>
                                                         <button
+                                                            type="button"
                                                             className="oc-more-item"
                                                             onClick={() => { handleHistoryDown(); setMoreMenuOpen(false) }}
                                                             disabled={historyIndex === -1}
@@ -741,6 +726,7 @@ export default function OrbConversation({
                                                         <>
                                                             <div className="oc-more-group-header">Voice</div>
                                                             <button
+                                                                type="button"
                                                                 className="oc-more-item"
                                                                 onClick={() => { onStartVoiceMode(); setMoreMenuOpen(false) }}
                                                                 disabled={processing}
@@ -752,6 +738,7 @@ export default function OrbConversation({
                                                     )}
                                                     <div className="oc-more-group-header">Transcript</div>
                                                     <button
+                                                        type="button"
                                                         className="oc-more-item"
                                                         onClick={() => {
                                                             input.trim() && navigator.clipboard.writeText(input).then(() => {
@@ -766,6 +753,7 @@ export default function OrbConversation({
                                                         <span className="oc-more-desc">Copy input text</span>
                                                     </button>
                                                     <button
+                                                        type="button"
                                                         className="oc-more-item"
                                                         onClick={() => { copyTranscript(); setMoreMenuOpen(false) }}
                                                         disabled={messages.length === 0}
@@ -774,6 +762,7 @@ export default function OrbConversation({
                                                         <span className="oc-more-desc">Copy full conversation</span>
                                                     </button>
                                                     <button
+                                                        type="button"
                                                         className="oc-more-item"
                                                         onClick={() => { exportTranscript(); setMoreMenuOpen(false) }}
                                                         disabled={messages.length === 0}
@@ -783,6 +772,7 @@ export default function OrbConversation({
                                                     </button>
                                                     {onClearTranscript && (
                                                         <button
+                                                            type="button"
                                                             className="oc-more-item"
                                                             onClick={() => { onClearTranscript(); setMoreMenuOpen(false) }}
                                                             disabled={messages.length === 0 || processing}

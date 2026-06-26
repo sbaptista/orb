@@ -1,4 +1,4 @@
-export type OrbModelProviderId = 'anthropic' | 'openai' | 'google' | 'mistral' | 'local'
+export type OrbModelProviderId = 'anthropic' | 'openai' | 'google' | 'mistral' | 'elevenlabs' | 'local'
 
 export type OrbModelInvocationSource =
   | 'conversation'
@@ -8,6 +8,7 @@ export type OrbModelInvocationSource =
   | 'strategic_review'
   | 'proactive_observation'
   | 'adaptation_proposal'
+  | 'voice_tts'
 
 export type OrbModelRateSnapshot = {
   version: string

@@ -11,6 +11,9 @@ export type EvalCase = {
   history?: Array<{ role: 'user' | 'assistant'; text: string }>
   mutationApproval?: 'ask' | 'allow' // eval-only override; defaults to allow for tool-routing cases
   voiceMode?: boolean                // inject voice mode context into the system prompt
+  ttsProvider?: string                // eval-only voice output config
+  ttsModel?: string | null
+  ttsVoiceId?: string | null
   evaluationMode?: 'standard' | 'strategic'
   autoRoute?: boolean               // exercise the same explicit-strategy router used in orbConverse
   budgetOverride?: 'monthly' | 'role' // eval-only budget gate; performs no provider call
@@ -165,6 +168,32 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
+    id: 'voice-status-question-stays-operational',
+    description: 'Voice mode affects response style, not routing; ordinary status questions stay operational',
+    productCode: 'ORB',
+    input: 'How is the Orb project doing?',
+    voiceMode: true,
+    autoRoute: true,
+    tier: 1,
+    expectProvider: 'anthropic',
+    expectRouteRole: 'operational',
+  },
+
+  {
+    id: 'voice-provider-uses-context',
+    description: 'Voice mode reports the configured TTS provider from context instead of guessing',
+    productCode: 'ORB',
+    input: 'What voice provider are you using right now?',
+    voiceMode: true,
+    ttsProvider: 'elevenlabs',
+    ttsModel: 'eleven_turbo_v2_5',
+    ttsVoiceId: 'Rachel',
+    tier: 1,
+    expectNoTool: true,
+    speechContains: ['eleven'],
+  },
+
+  {
     id: 'strategic-budget-preserves-operations',
     description: 'A strategic allowance block is explicit and does not call a model or tool',
     productCode: 'ORB',
@@ -202,6 +231,15 @@ export const EVAL_CASES: EvalCase[] = [
     input: 'How many open tasks do I have in Orb?',
     tier: 2,
     speechContains: ['orb'],
+  },
+
+  {
+    id: 'project-health-count-status-definitions',
+    description: 'Project health answers include canonical status definitions beside active and parked counts',
+    productCode: 'ORB',
+    input: 'How is the Orb project doing?',
+    tier: 2,
+    speechContains: ['active', 'open + in progress', 'parked'],
   },
 
   {
@@ -298,6 +336,16 @@ export const EVAL_CASES: EvalCase[] = [
     input: 'which task covers the kanban work?',
     tier: 2,
     speechNotContains: ['are you referring to', 'did you mean', 'which one do you mean'],
+  },
+
+  {
+    id: 'exact-task-read-no-invented-blockers',
+    description: 'Exact task reads use task data and do not invent dependency blockers',
+    productCode: 'ORB',
+    input: 'Open up ORB-294 and read exactly what it says. What is it asking for?',
+    tier: 1,
+    expectTool: { name: 'query_todos', params: { code: 'ORB-294' } },
+    speechNotContains: ['privacy model', 'blocked by', 'depends on', 'can’t finalize', 'cannot finalize', 'gating'],
   },
 
   // ── ORB-225: Mutation Verification ─────────────────────────────────────
@@ -418,5 +466,16 @@ export const EVAL_CASES: EvalCase[] = [
     voiceMode: true,
     tier: 1,
     expectTool: { name: 'client_action', params: { action: 'exit_voice' } },
+  },
+
+  {
+    id: 'voice-garbled-input-clarifies',
+    description: 'Voice mode asks for clarification when transcription is fragmentary',
+    productCode: 'ORB',
+    input: 'the reason the loud is you go would be interesting',
+    voiceMode: true,
+    tier: 2,
+    expectNoTool: true,
+    speechContains: ['say again', 'repeat', 'didn’t catch', "didn't catch", 'clarify', 'rephrase', 'trouble parsing'],
   },
 ]

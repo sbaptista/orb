@@ -4,6 +4,13 @@ import { requireAdmin } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import { DEFAULT_ORB_AI_POLICY, type OrbAiPolicy, type OrbModelRateCard } from '@/lib/orb-model/policy'
 import { supportsOrbRole } from '@/lib/orb-model/catalog'
+import type { TtsProvider } from '@/lib/orb-model/tts'
+
+export type TtsConfigResult = {
+  provider: TtsProvider
+  model: string | null
+  voiceId: string | null
+}
 
 export type OrbCostReconciliation = {
   id: string
@@ -33,6 +40,9 @@ function mapPolicy(row: any): OrbAiPolicy {
     monthlyBudgetUsd: Number(row.monthly_budget_usd),
     strategicBudgetUsd: Number(row.strategic_budget_usd),
     operationalBudgetUsd: Number(row.operational_budget_usd),
+    ttsProvider: row.tts_provider ?? 'browser',
+    ttsModel: row.tts_model ?? null,
+    ttsVoiceId: row.tts_voice_id ?? null,
   }
 }
 
@@ -48,6 +58,30 @@ function mapRateCard(row: any): OrbModelRateCard {
     cacheWritePerMillion: row.cache_write_per_million == null ? null : Number(row.cache_write_per_million),
     notes: row.notes ?? null,
   }
+}
+
+export async function getTtsConfig(): Promise<TtsConfigResult> {
+  const ctx = await requireAdmin()
+  const { data } = await ctx.admin.from('orb_ai_policy').select('tts_provider, tts_model, tts_voice_id').eq('id', true).maybeSingle()
+  return {
+    provider: (data?.tts_provider as TtsProvider) ?? 'browser',
+    model: data?.tts_model ?? null,
+    voiceId: data?.tts_voice_id ?? null,
+  }
+}
+
+export async function saveTtsConfig(config: TtsConfigResult) {
+  const ctx = await requireAdmin()
+  const { error } = await ctx.admin.from('orb_ai_policy').upsert({
+    id: true,
+    tts_provider: config.provider,
+    tts_model: config.model,
+    tts_voice_id: config.voiceId,
+    updated_at: new Date().toISOString(),
+    updated_by: ctx.user.id,
+  })
+  if (error) throw error
+  return { ok: true }
 }
 
 export async function getOrbAiSettings() {
@@ -83,6 +117,9 @@ export async function saveOrbAiPolicy(next: OrbAiPolicy) {
     monthly_budget_usd: monthlyBudgetUsd,
     strategic_budget_usd: strategicBudgetUsd,
     operational_budget_usd: operationalBudgetUsd,
+    tts_provider: next.ttsProvider || 'browser',
+    tts_model: next.ttsModel || null,
+    tts_voice_id: next.ttsVoiceId || null,
     updated_at: new Date().toISOString(),
     updated_by: ctx.user.id,
   })
@@ -137,7 +174,7 @@ export async function getOrbCostReconciliations() {
 
 export async function saveOrbCostReconciliation(input: Omit<OrbCostReconciliation, 'id' | 'createdAt'> & { id?: string }) {
   const ctx = await requireAdmin()
-  if (!['anthropic', 'google', 'mistral'].includes(input.provider)) throw new Error('Unsupported provider.')
+  if (!['anthropic', 'google', 'mistral', 'openai', 'elevenlabs'].includes(input.provider)) throw new Error('Unsupported provider.')
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.periodStart) || !/^\d{4}-\d{2}-\d{2}$/.test(input.periodEnd)) throw new Error('A valid billing period is required.')
   if (input.periodEnd < input.periodStart) throw new Error('Period end must follow period start.')
   const payload = {

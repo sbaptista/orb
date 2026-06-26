@@ -22,6 +22,7 @@ const PROVIDER_LABELS: Record<OrbModelProviderId, string> = {
   google: 'Google Gemini',
   mistral: 'Mistral',
   openai: 'OpenAI',
+  elevenlabs: 'ElevenLabs',
   local: 'Local model',
 }
 
@@ -30,6 +31,7 @@ const PROVIDER_CONSOLES: Partial<Record<OrbModelProviderId, string>> = {
   google: 'https://aistudio.google.com',
   mistral: 'https://console.mistral.ai',
   openai: 'https://platform.openai.com/settings/organization/billing/overview',
+  elevenlabs: 'https://elevenlabs.io/app/billing',
 }
 
 function escapeHtml(value: string) {

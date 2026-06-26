@@ -8,7 +8,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
 import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 import { visibleProjectsQuery } from '@/lib/projects'
-import { isActive, STATUS_VOCABULARY } from '@/lib/status-groups'
+import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { DB_SCHEMA } from '@/lib/db-schema'
 import { CHANGELOG } from '@/lib/changelog'
 import { ANTHROPIC_HAIKU_REFERENCE_MODEL, normalizeAnthropicUsage } from '@/lib/orb-model/anthropic'
@@ -109,12 +109,15 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
-  const { input, productCode, history, mutationApproval, voiceMode, provider, model, userEmail, evaluationMode, contextPacketId, autoRoute, budgetOverride, evaluationCaseId } = body as {
+  const { input, productCode, history, mutationApproval, voiceMode, ttsProvider, ttsModel, ttsVoiceId, provider, model, userEmail, evaluationMode, contextPacketId, autoRoute, budgetOverride, evaluationCaseId } = body as {
     input: string
     productCode?: string
     history?: Array<{ role: 'user' | 'assistant'; text: string }>
     mutationApproval?: 'ask' | 'allow'
     voiceMode?: boolean
+    ttsProvider?: string
+    ttsModel?: string | null
+    ttsVoiceId?: string | null
     provider?: 'anthropic' | 'gemini' | 'mistral'
     model?: string
     userEmail?: string
@@ -243,13 +246,21 @@ export async function POST(request: NextRequest) {
     const ownerName = userMap.get(p.created_by)
     const ownerTag = ownerName ? ` [Owner: ${ownerName}]` : ''
     const header = `${p.code ?? p.name}${p.description ? ` (${p.description})` : ''}${ownerTag}`
-    const pTodos = todoList.filter((t: any) => t.product_id === p.id && !statusList.find((s: any) => s.name === t.status)?.is_closed)
-    const activeLine = pTodos.filter((t: any) => isActive(t.status)).map(todoLine).join('\n')
-    const parkedLine = pTodos.filter((t: any) => !isActive(t.status)).map(todoLine).join('\n')
-    let body = ''
-    if (activeLine) body += `  ACTIVE:\n${activeLine}`
-    if (parkedLine) body += `${activeLine ? '\n' : ''}  PARKED (on hold/deferred):\n${parkedLine}`
-    return `${header}:\n${body || '  (none active)'}`
+    const projectTodos = todoList.filter((t: any) => t.product_id === p.id)
+    const nonClosedTodos = projectTodos.filter((t: any) => !statusList.find((s: any) => s.name === t.status)?.is_closed)
+    const activeTodos = nonClosedTodos.filter((t: any) => isActive(t.status))
+    const parkedTodos = nonClosedTodos.filter((t: any) => isParked(t.status))
+    const otherNonClosedTodos = nonClosedTodos.filter((t: any) => !isActive(t.status) && !isParked(t.status))
+    const closedCount = projectTodos.length - nonClosedTodos.length
+    const summary = `  SUMMARY: active_count=${activeTodos.length} (open + in progress); parked_count=${parkedTodos.length} (deferred + on hold); closed_count=${closedCount} (excluded)`
+    const activeLine = activeTodos.map(todoLine).join('\n')
+    const parkedLine = parkedTodos.map(todoLine).join('\n')
+    const otherLine = otherNonClosedTodos.map(todoLine).join('\n')
+    const sections = [summary]
+    if (activeLine) sections.push(`  ACTIVE:\n${activeLine}`)
+    if (parkedLine) sections.push(`  PARKED (on hold/deferred):\n${parkedLine}`)
+    if (otherLine) sections.push(`  OTHER NON-CLOSED:\n${otherLine}`)
+    return `${header}:\n${sections.join('\n')}`
   }).join('\n\n')
 
   const dormantSection = dormantList.length > 0
@@ -283,7 +294,7 @@ export async function POST(request: NextRequest) {
     ORB_RESOLUTION_LAWS,
     `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,
     STATUS_VOCABULARY,
-    `The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering.`,
+    `The BACKLOG below gives a SUMMARY line for each project and then separates ACTIVE from PARKED. When answering counts or project-health questions, copy the SUMMARY counts exactly; do not recalculate by counting visible lines. When the user asks "how many tasks" or "my tasks" without specifying, report the active_count. If parked_count is above zero, mention it separately. If you list tasks, make sure the number you claim matches the number of listed items, or say "including" instead of implying a complete list.`,
     buildUrgencyRules(24),
     `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${current.name}" (code: "${current.code}") unless the user explicitly names a different project.\n- An unqualified request to create a task already has a project: the currently selected project. Do not ask which project; propose the requested task there and request any required mutation approval.\n- When calling tools (create_todo, query_todos, etc.), ALWAYS pass the project code — never omit it.\n- When speaking to the user, refer to projects by display name.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${current.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${auth.user.name || auth.user.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
     uiCatalog ? `UI CATALOG & NAVIGATION:\n${uiCatalog}` : '',
@@ -293,9 +304,15 @@ export async function POST(request: NextRequest) {
       return `- [${k.projects?.name || k.projects?.code}] ${k.title}${tags}: ${k.content.slice(0, 100)}...`
     }).join('\n')}`,
     voiceMode ? `VOICE CONVERSATION: You are currently in voice mode — the user is speaking to you and hearing your responses aloud.
+CURRENT VOICE OUTPUT CONFIG:
+- TTS provider: ${ttsProvider || 'unknown'}
+- TTS model: ${ttsModel || 'not specified'}
+- TTS voice ID/name: ${ttsVoiceId || 'not specified'}
+Use this config when the user asks what voice provider, model, or voice is active. Do not infer the active voice provider from release notes, device voices, or the user's guess. If the provider is "unknown", say you do not have that setting in context.
 VOICE RESPONSE RULES:
 - Keep responses concise and conversational — clear sentences, not markdown lists or tables.
 - Avoid complex formatting (tables, bullet lists, code blocks). Speak in natural prose.
+- Voice transcripts may be imperfect. If the user input is fragmentary, garbled, or hinges on a missing word, ask one concise clarification instead of filling in the blank from prior context.
 When the user signals they want to end the voice conversation — "that's enough", "let's stop", "stop talking", "end voice mode", or similar — you MUST call client_action with action="exit_voice". You may say a brief closing remark first.` : '',
     ORB_QUERY_ROUTING,
     `REPOSITORY ACCESS: You may inspect the local working tree with query_repository source="local", or the current Vercel deployment with source="production".`,

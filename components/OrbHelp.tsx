@@ -195,6 +195,9 @@ const TOPICS: Topic[] = [
             <li className="help-li"><strong>More menu → Talk to Orb</strong> — same thing, from the input toolbar.</li>
             <li className="help-li"><strong>⌘ Shift O</strong> — keyboard shortcut (when the text field is not focused).</li>
           </ul>
+          <p className="help-p text-sm text-muted">
+            The <strong>Dictate</strong> toolbar button is different: it only inserts spoken words into the text field.
+          </p>
         </div>
 
         <div className="help-section">

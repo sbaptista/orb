@@ -1,5 +1,6 @@
 import type { OrbModelProviderId } from './types'
 import { getOrbModelOptions } from './catalog'
+import type { TtsProvider } from './tts'
 
 export type { OrbModelRole } from './catalog'
 
@@ -13,6 +14,9 @@ export type OrbAiPolicy = {
   monthlyBudgetUsd: number
   strategicBudgetUsd: number
   operationalBudgetUsd: number
+  ttsProvider: TtsProvider
+  ttsModel: string | null
+  ttsVoiceId: string | null
 }
 
 export type OrbModelRateCard = {
@@ -37,6 +41,9 @@ export const DEFAULT_ORB_AI_POLICY: OrbAiPolicy = {
   monthlyBudgetUsd: 40,
   strategicBudgetUsd: 24,
   operationalBudgetUsd: 16,
+  ttsProvider: 'browser',
+  ttsModel: null,
+  ttsVoiceId: null,
 }
 
 export const ORB_MODEL_OPTIONS = {

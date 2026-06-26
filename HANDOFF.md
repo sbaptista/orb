@@ -10,31 +10,40 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.53
+- **Version:** 0.6.64
 
 ---
 
 ### Last Session Completed
 
-**ORB-265: Configurable AI model routing and cost controls — 2026-06-24 (Codex, GPT-5)**
+**ORB-293 closed — Voice Mode v2 + API TTS + Stop Reliability — 2026-06-25/26 (Codex, GPT-5)**
 
-1. Completed the Haiku, Gemini, and Mistral evidence set. Gemini 3.1 Pro Preview qualified for explicit strategic reads; Haiku remains the operational baseline; Mistral did not qualify for either production role.
-2. Added administrator-configurable role routing in Settings > Orb AI, model catalog choices, rate cards, actual provider-cost reconciliation, monthly/role budget gates, and provider-and-role incident handling. The architecture is role-based, not permanently two-model.
-3. Added durable request-level telemetry for provider, model, role, token/cache usage, latency, estimated cost, and response text. Evaluation traffic is excluded from live budget accounting.
-4. Verified live Gemini strategic routing and Haiku operational/one-model routing. The final Tier 1 Orb evaluation passed **18/18** on 2026-06-24; TypeScript passed.
-5. Fixed a Settings > Orb AI failed-action retry loop that could flood the UI with repeated error messages. Closed ORB-265 with resolution notes and Knowledge Repository entry `54590c36-111c-4023-ba6f-06768db71ebc`.
-6. Corrected the historical-completion-claim evaluation fixture so it does not accidentally test the independent duplicate-search policy; the mutation-integrity assertion remains unchanged.
-7. Created ORB-292 for future user-facing AI modes and Orb-proposed tuning, with explicit user consent required for changes.
+Completed and closed ORB-293. The final implementation is v0.6.64.
+
+1. **TTS provider stack:** Voice settings now support browser, OpenAI, and ElevenLabs TTS through `orb_ai_policy`. TTS calls are recorded in the model request ledger with `voice_tts` source and rate-card cost estimates.
+2. **Voice interaction model:** `Dictate` remains one-shot speech-to-text. `Talk to Orb` starts hands-free voice conversation. Green/yellow traffic lights are state indicators, red Stop is the escape key, and X exits voice mode.
+3. **Streaming voice playback:** API TTS now speaks bounded sentence/chunk queues instead of waiting on long final synthesis. Long or lightly punctuated responses are split to keep latency tolerable.
+4. **Stop reliability:** Stop uses `cancelSpeechRef`, `activeAudiosRef`, `speechGenerationRef`, `cancelledConversationRequestIdsRef`, and hard audio teardown. This prevents stale closures, in-flight API TTS replay, late stream chunks, and "green while old audio keeps talking" failures.
+5. **Voice routing and accuracy:** Voice no longer forces the strategic/no-tools route. Project health answers get deterministic active/parked/closed summaries. TTS provider/model/voice are passed into Orb context so provider answers come from settings, not guesses.
+6. **Voice epistemics:** Garbled transcripts now ask for clarification instead of filling in missing words. Strategic blocker/dependency language now requires explicit evidence; plausible sequencing remains allowed but must be labeled as judgment.
+7. **Progress cues:** Slow voice responses can speak delayed progress cues from actual streamed work labels, not invented chain-of-thought.
+8. **UI polish:** Removed the confusing pause-bars Orb state; the transient ready state uses the existing listening motif.
 
 ### Uncommitted Changes
 
-ORB-265 work is ready for the requested commit and push. The commit includes the routing, ledger, settings, evaluator, migrations, release notes, and this handoff. `WIP.md` is removed at final staging.
+Pending commit includes the ORB-293 voice work, AI settings/metrics work from ORB-265/294, dev-only login bypass, version/changelog updates through v0.6.64, and this handoff update.
+
+### Known Issues
+
+1. **Safari API TTS** — earlier primer approaches failed with NotAllowedError. If Safari still cannot play API TTS, use an AudioContext/decodeAudioData approach.
+2. **Safari SpeechRecognition** — separate microphone permission issue may remain.
+3. **Voice progress cues** — newly added and should be watched for helpfulness vs chatty behavior.
 
 ### Key Lesson
 
-**Evaluate the complete integration, not model prose alone.** Model quality, native tool behavior, response-cap configuration, cost, latency, and checkpoint integrity are separate gates. Route by role rather than model name; the catalog can grow or collapse to one model without changing safety boundaries.
+Voice mode needs an explicit state machine. Stop must invalidate audio generations, stream requests, queued speech, pending transcript timers, and UI streaming flags. Pausing the current audio element alone is not enough because API TTS can finish after Stop and replay into a green/listening microphone.
 
-**Settings grouping:** Keep Orb-related pages together: Orb Memory, Orb Metrics, and Orb AI.
+Strategic voice responses also need epistemic labels. Orb may make judgment calls, but dependencies/blockers require explicit task, audit, or knowledge evidence.
 
 ---
 
@@ -44,21 +53,27 @@ ORB-265 work is ready for the requested commit and push. The commit includes the
 - **ORB-287:** Investigate dashboard background polling overhead.
 - **ORB-254 remaining:** Blank User columns when filtering by date.
 
-### Needs testing
-
-- **Full lint:** currently blocked by pre-existing errors in `app/prototype/voice/page.tsx` and the missing `react-compiler/react-compiler` rule referenced by `lib/hooks/useVoiceMode.ts`. Targeted lint for v0.6.29 changes passes.
-
 ---
 
 ### Prior Session Context
 
+**ORB-293: TTS Provider Integration (OpenAI + ElevenLabs) — 2026-06-24 (Claude Code, Opus 4.6)**
+
+1. Added TTS provider abstraction: browser (free), OpenAI ($15/1M chars), ElevenLabs ($66/1M chars). Provider/model/voice stored in `orb_ai_policy` DB singleton.
+2. Created `lib/orb-model/tts.ts` with voice catalogs, API synthesis functions, and usage builder. Created `app/actions/orb-tts.ts` server action calling OpenAI/ElevenLabs APIs with cost instrumentation via `recordOrbModelRequest()`.
+3. Extended `OrbAiPolicy` with `tts_provider`, `tts_model`, `tts_voice_id` columns. Migration `20260624_orb_tts.sql` ran successfully.
+4. Rewrote `SettingsVoice.tsx` with card layout, 3 provider buttons opening modals, speed slider.
+5. Bumped to v0.6.55 with changelog entry.
+
+**ORB-265: Configurable AI model routing and cost controls — 2026-06-24 (Codex, GPT-5)**
+
+1. Completed Haiku, Gemini, and Mistral evidence set. Added administrator-configurable role routing, rate cards, cost reconciliation, monthly/role budget gates, provider-and-role incident handling.
+2. Added durable request-level telemetry. Final Tier 1 Orb evaluation passed 18/18.
+3. Created ORB-292 for future user-facing AI modes.
+
 **ORB-251 close + typography + metrics tokens — 2026-06-21 (Claude Code, Opus 4.6)**
 
-1. Bumped nav bar label font size from `--fs-version` (11px) to `--fs-base` (15px) across all pages.
-2. iPhone dashboard: two-bar nav — top bar centers Change Project, +Project, Menu, Account; second bar pins Orb (left) and List (right).
-3. Added Typography & Text Styling section to `docs/ui-catalog.md` — font families, size tokens, weights, colors, line height, letter spacing, opacity, common patterns.
-4. Orb Metrics: added input/output token columns, sortable headers, editable $/MTok rate fields with localStorage persistence, LLM cost estimate. Fixed DB RPC sort alias bug and removed stale overload.
-5. Closed ORB-251 with resolution notes and Knowledge Repo entry `3ee86b10-a148-4a7b-8aa7-0fd1faa11089`.
+1. Nav bar font size bump. iPhone two-bar nav. Typography catalog. Orb Metrics token columns. Closed ORB-251.
 
 **ORB-270: Responsive iPhone cards + Audit Log performance — 2026-06-21 (Codex, GPT-5)**
 
@@ -67,12 +82,6 @@ Standardized responsive collections, cursor pagination for Audit Log, mobile car
 ## Panel Transitions — Design Notes for Next AI
 
 The orb panel and list panel currently use **conditional rendering** (mount/unmount) to show/hide. This means CSS transitions can't animate them — the element doesn't exist in the DOM before it appears.
-
-**Current pattern** (UnifiedDashboard.tsx):
-```
-{showOrb && <OrbConversation ... />}
-{showList && <div className="ud-list-content">...</div>}
-```
 
 **To add transitions, the next AI needs to:**
 1. Keep both panels always mounted in the DOM
@@ -125,17 +134,19 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 - **Voice personality: one personality at three volumes** (reserved/natural/open), not three different characters. Adjustable via `openness` preference.
 - **Two-track memory model:** autonomous (Orb saves silently after 2+ observations) and offered (user confirms before saving). All memories visible in Settings > Orb Memory.
 - **CrudList toolbar maxWidth:** When table uses pixel column widths, toolbar maxWidth is constrained to tableMinWidth so controls align with the table edge.
-- **Voice mode: continuous conversation, not walkie-talkie.** Tap Orb to start, silence auto-submits, TTS auto-plays, mic auto-resumes. Voice bar has three explicit buttons (Continue/Stop/End). Two entry points: Orb tap and "Talk to Orb" in More menu ("second door to the same room"). ⌘ Shift O keyboard shortcut.
-- **Voice preferences in localStorage, not DB.** Browser voices differ per device — a DB column gives false portability.
+- **Voice mode v2: traffic-light UI.** Green/Yellow are state indicators (not buttons). Red is always-interactive Stop. X exits voice mode. Voice input box matches text input dimensions. Orb shows state icons (sound waves, lightbulb) + thought progress. Blurred transcript behind. Client-side greeting on start. Single TTS path — zero speechSynthesis when API TTS configured.
+- **Voice preferences in localStorage, not DB.** Browser voices differ per device — a DB column gives false portability. API TTS provider/model/voice stored in `orb_ai_policy` DB table.
 - **Voice testing: Chrome/Safari/Edge only.** Comet is unreliable for speechSynthesis. Cause unknown.
 
 ---
 
 ## Next Priorities
 
-1. **ORB-292** — design user-facing Value/Balanced/Deep Thinking modes, per-user allowances, and consent-based Orb tuning proposals.
-2. **ORB-287** — investigate dashboard background polling overhead.
-3. **ORB-254 remaining** — blank User columns when filtering by date.
+1. **Test production voice mode after deploy** — Stop while speaking/thinking, green/listening recovery, provider answer, garbled transcript clarification, and progress cue feel.
+2. **Safari API TTS** — if still failing, investigate AudioContext/decodeAudioData playback.
+3. **ORB-292** — design user-facing Value/Balanced/Deep Thinking modes.
+4. **ORB-287** — investigate dashboard background polling overhead.
+5. **ORB-254 remaining** — blank User columns when filtering by date.
 
 ---
 
@@ -148,7 +159,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-06-24 — Codex (GPT-5)`
+`2026-06-25 — Codex (GPT-5)`
 
 ---
 

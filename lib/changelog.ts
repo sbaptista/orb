@@ -6,6 +6,106 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.65',
+    date: '2026-06-25',
+    changes: [
+      'Dev login bypass: Added one-click login buttons for Stan, Otto Owner, and Adele Admin on the login page in development mode, skipping email OTP entirely via server-side token generation.',
+      'Closed ORB-294: AI settings and metrics cost reporting confirmed complete — estimated costs from tokens × rate cards, provider bill reconciliation, and rate cards all already in AI Metrics.',
+    ]
+  },
+  {
+    version: 'v0.6.64',
+    date: '2026-06-25',
+    changes: [
+      'Voice mode: Passed the active TTS provider, model, and voice ID into Orb context so provider questions are answered from settings rather than guesses or release notes.',
+      'Voice mode: Added conservative transcript-recovery guidance so fragmentary speech asks for clarification instead of filling in missing words from prior context.',
+      'Voice mode: Added delayed spoken progress cues from actual streamed work labels, plus hard audio teardown so status cues, stopped audio, and final replies cannot overlap.',
+      'Orb Eval: Added focused guards for active voice-provider reporting and garbled voice transcript clarification.',
+    ]
+  },
+  {
+    version: 'v0.6.63',
+    date: '2026-06-25',
+    changes: [
+      'Voice mode: Removed the temporary pause-bars state from the Orb face; the transient post-stop state now uses the existing listening motif so the traffic-light model remains clear.',
+    ]
+  },
+  {
+    version: 'v0.6.62',
+    date: '2026-06-25',
+    changes: [
+      'Voice mode: Stop now behaves like an escape key for hands-free conversation: it cancels Orb, clears orphaned streaming markers, avoids idle Thinking, and automatically returns to listening.',
+      'Voice mode: Invalidated in-flight API TTS requests after Stop so late audio cannot restart while the microphone is already listening.',
+      'Orb grounding: Strategic dependency claims now require explicit evidence; plausible sequencing judgments must stay labeled as judgment instead of becoming invented blockers.',
+    ]
+  },
+  {
+    version: 'v0.6.61',
+    date: '2026-06-25',
+    changes: [
+      'Voice mode: Made Stop a hard stop for the current Orb response by preventing the auto-TTS effect from restarting speech for a message the user explicitly cancelled.',
+    ]
+  },
+  {
+    version: 'v0.6.60',
+    date: '2026-06-25',
+    changes: [
+      'Dev channel: Paused dashboard polling after a dev-server Server Action ID refresh so stale browser bundles no longer repeat noisy poll failures until the next hard refresh.',
+    ]
+  },
+  {
+    version: 'v0.6.59',
+    date: '2026-06-25',
+    changes: [
+      'Voice mode latency: Split API TTS playback into bounded speech chunks so long or lightly punctuated responses no longer wait on a single large synthesis request before continuing aloud.',
+    ]
+  },
+  {
+    version: 'v0.6.58',
+    date: '2026-06-25',
+    changes: [
+      'Orb accuracy: Added deterministic active, parked, and closed count summaries to each project in the Orb context so project-health answers no longer rely on model arithmetic over task lists.',
+      'Orb accuracy: Tightened count-answer instructions and aligned parked-task classification with the canonical status vocabulary.',
+    ]
+  },
+  {
+    version: 'v0.6.57',
+    date: '2026-06-25',
+    changes: [
+      'Voice mode routing: Voice conversations now use the same intent router as typed conversations, so voice changes response style without automatically forcing the strategic/no-tools route.',
+      'Orb Eval: Added a Tier 1 regression case proving ordinary voice-mode status questions remain on the operational route.',
+    ]
+  },
+  {
+    version: 'v0.6.56',
+    date: '2026-06-25',
+    changes: [
+      'Orb conversation toolbar: Renamed the inline speech-to-text control from Voice to Dictate, with matching tooltip and accessible label updates.',
+      'Help and UI catalog: Clarified that Dictate inserts spoken words into the text field, while full voice sessions start through More → Talk to Orb or the Orb itself.',
+      'Voice mode: Prevented More-menu commands, including Talk to Orb, from accidentally submitting the chat form while activating voice mode.',
+    ]
+  },
+  {
+    version: 'v0.6.55',
+    date: '2026-06-24',
+    changes: [
+      'Voice TTS: Added OpenAI and ElevenLabs as text-to-speech providers alongside the free browser engine, with full cost instrumentation through the existing model request ledger.',
+      'AI Settings: New Voice (TTS) section — choose provider, model, and voice; costs are tracked and reported in AI Metrics automatically.',
+      'TTS rate cards seeded: OpenAI tts-1 ($15/1M chars), tts-1-hd ($30/1M chars), ElevenLabs Turbo v2.5 ($66/1M chars).',
+    ]
+  },
+  {
+    version: 'v0.6.54',
+    date: '2026-06-24',
+    changes: [
+      'Settings navigation: Renamed the embedded-assistant cluster to AI Memory, AI Metrics, and AI Settings so Orb is no longer overloaded as app name, ambient object, and assistant label.',
+      'AI Metrics: Added a filter-driven app AI cost summary powered by the request ledger and configured rate cards, with explicit requested and actual row ranges.',
+      'AI Metrics: Added date and model filters for tracked AI cost, included eval traffic as real AI spend, and exposed source breakdowns so day-to-day and evaluation costs remain distinguishable.',
+      'AI Metrics: Moved rate-card editing out of AI Settings and reframed manual provider bill entries as optional reconciliation or external AI operating cost context.',
+      'AI budget checks: Monthly and role allowances now use Orb’s app-specific request ledger estimates; manual provider bill entries no longer override live call limits.',
+    ]
+  },
+  {
     version: 'v0.6.53',
     date: '2026-06-24',
     changes: [

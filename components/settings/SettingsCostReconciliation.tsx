@@ -19,15 +19,17 @@ function today() {
 
 const PROVIDERS = [
   { value: 'anthropic', label: 'Anthropic' },
+  { value: 'openai', label: 'OpenAI' },
   { value: 'google', label: 'Google' },
   { value: 'mistral', label: 'Mistral' },
+  { value: 'elevenlabs', label: 'ElevenLabs' },
 ]
 
 function providerLabel(provider: string) {
   return PROVIDERS.find(option => option.value === provider)?.label ?? provider
 }
 
-export default function SettingsCostReconciliation() {
+export default function SettingsCostReconciliation({ onSaved }: { onSaved?: () => void }) {
   const toast = useToast()
   const [items, setItems] = useState<OrbCostReconciliation[]>([])
   const [provider, setProvider] = useState('anthropic')
@@ -60,7 +62,8 @@ export default function SettingsCostReconciliation() {
       setActualCost('')
       setNotes('')
       await load()
-      toast.success('Actual Orb cost recorded.')
+      onSaved?.()
+      toast.success('Provider bill entry recorded.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to record actual cost.')
     } finally {
@@ -71,20 +74,20 @@ export default function SettingsCostReconciliation() {
   return (
     <section className="s-card flex-col gap-lg" style={{ marginTop: 'var(--sp-lg)' }}>
       <div>
-        <h2 className="s-card-title">Actual Provider Cost</h2>
-        <p className="s-card-desc">Record the Orb-attributable amount from a provider dashboard or invoice. This becomes the primary cost for that reconciled period.</p>
+        <h2 className="s-card-title">Provider Bill Reconciliation</h2>
+        <p className="s-card-desc">Optional calibration or external AI operating cost from a provider dashboard. Orb&apos;s primary app-cost estimate comes from request tokens multiplied by the rate cards above.</p>
       </div>
       <div className="s-form" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--sp-md)' }}>
         <label><span className="label">Provider</span><select value={provider} onChange={event => setProvider(event.target.value)}>{PROVIDERS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-        <label><span className="label">Actual Orb Cost</span><input type="number" min="0" step="0.0001" value={actualCost} onChange={event => setActualCost(event.target.value)} placeholder="0.00" /></label>
+        <label><span className="label">Provider Bill Amount</span><input type="number" min="0" step="0.0001" value={actualCost} onChange={event => setActualCost(event.target.value)} placeholder="0.00" /></label>
         <label><span className="label">Period start</span><input type="date" value={periodStart} onChange={event => setPeriodStart(event.target.value)} /></label>
         <label><span className="label">Period end</span><input type="date" value={periodEnd} onChange={event => setPeriodEnd(event.target.value)} /></label>
       </div>
       <div className="s-form">
-        <label><span className="label">Notes</span><input value={notes} onChange={event => setNotes(event.target.value)} placeholder="Optional provider-console reference" /></label>
+        <label><span className="label">Notes</span><input value={notes} onChange={event => setNotes(event.target.value)} placeholder="Optional invoice, console, or external AI tooling note" /></label>
       </div>
       <div className="flex-center gap-md">
-        <button type="button" className="btn-primary" onClick={save} disabled={saving || actualCost === ''}>{saving ? 'Saving…' : 'Record Actual Cost'}</button>
+        <button type="button" className="btn-primary" onClick={save} disabled={saving || actualCost === ''}>{saving ? 'Saving…' : 'Record Bill Entry'}</button>
       </div>
       {items.length > 0 && (
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--sp-md)', display: 'grid', gap: 'var(--sp-sm)' }}>

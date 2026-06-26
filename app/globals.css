@@ -1371,6 +1371,47 @@ a, button, [role="button"], input, select, textarea {
   margin: 0;
 }
 
+/* ── Range slider ── */
+input[type="range"].s-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  outline: none;
+}
+input[type="range"].s-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--pill-active-bg);
+  cursor: pointer;
+  border: 2px solid var(--bg);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  margin-top: -7px;
+}
+input[type="range"].s-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--pill-active-bg);
+  cursor: pointer;
+  border: 2px solid var(--bg);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+input[type="range"].s-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+}
+input[type="range"].s-range::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+}
+
 .btn-outline:disabled {
   cursor: not-allowed;
   opacity: var(--opacity-disabled);
@@ -2255,6 +2296,9 @@ mark.crud-highlight {
   right: 10px;
   transform: translateX(0) scale(0.35);
   transform-origin: top right;
+}
+.dash-orb-wrap[data-mode="voice"] {
+  z-index: 20;
 }
 
 .dash-conversation {
@@ -3322,6 +3366,17 @@ mark.crud-highlight {
   background: transparent;
   box-shadow: none;
 }
+.oc-wrap[data-mode="voice"] {
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+}
+.oc-wrap[data-mode="voice"] .oc-thread {
+  filter: blur(6px);
+  opacity: 0.4;
+  pointer-events: none;
+  transition: filter 0.4s ease, opacity 0.4s ease;
+}
 
 .oc-thread {
   flex: 1;
@@ -3753,127 +3808,145 @@ mark.crud-highlight {
 
 /* ── Voice conversation bar ── */
 
-.oc-voice-bar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px var(--sp-md);
-  gap: var(--sp-md);
-}
+/* ── Voice input box ── */
 
-.oc-voice-status {
-  flex: 1;
-  min-width: 0;
-}
-
-.oc-voice-indicator {
+.oc-voice-box {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  border: 1.5px solid rgba(60, 110, 60, 0.55);
+  border-radius: var(--r-xl);
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  padding: var(--sp-sm) var(--sp-md);
   gap: var(--sp-sm);
+  position: relative;
+}
+
+/* STT transcript — top of the box */
+.oc-voice-stt {
+  font-family: var(--font-ui);
   font-size: var(--fs-sm);
-  color: var(--text2);
-}
-
-.oc-voice-listening {
-  color: #3ab4b4;
-}
-
-.oc-voice-speaking {
-  color: #c8a040;
-}
-
-.oc-voice-transcript {
+  font-style: italic;
+  color: var(--text);
+  min-height: 20px;
+  line-height: var(--lh-snug);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 200px;
-  color: var(--text);
-  font-style: italic;
+  padding: 2px 28px 2px 0;
 }
 
-.oc-voice-controls {
+/* Traffic-light indicator row */
+.oc-voice-indicators {
   display: flex;
   align-items: flex-start;
-  gap: var(--sp-md);
-  flex-shrink: 0;
+  justify-content: center;
+  gap: clamp(20px, 6vw, 40px);
+  padding: 4px 0 2px;
 }
 
-.oc-voice-btn-wrap {
+.oc-voice-ind-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
-.oc-voice-btn-label {
-  font-size: var(--fs-version);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-none);
-  color: var(--text2);
-}
-
-.oc-voice-btn {
+.oc-voice-ind {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 44px;
-  min-width: 44px;
-  max-width: 44px;
   height: 44px;
-  min-height: 44px;
-  max-height: 44px;
   border-radius: 50%;
-  background: none;
-  border: 1.5px solid var(--btn-primary-bg);
-  color: var(--btn-primary-bg);
-  cursor: pointer;
-  transition: all var(--transition);
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
   -webkit-appearance: none;
   appearance: none;
-  flex-shrink: 0;
+  background: none;
+  cursor: default;
 }
 
-.oc-voice-btn:hover:not(:disabled) {
-  background: rgba(var(--btn-primary-rgb, 80, 130, 80), 0.1);
-  border-color: var(--btn-primary-hover-bg);
-  color: var(--btn-primary-hover-bg);
-}
-
-.oc-voice-btn:active:not(:disabled) {
-  background: rgba(var(--btn-primary-rgb, 80, 130, 80), 0.18);
-  transform: scale(0.95);
-}
-
-.oc-voice-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.oc-voice-btn-end {
-  border-color: var(--text2);
+.oc-voice-ind-label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-version);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-none);
   color: var(--text2);
+  text-align: center;
 }
 
-.oc-voice-btn-end:hover:not(:disabled) {
-  border-color: var(--text);
-  color: var(--text);
-  background: rgba(var(--btn-primary-rgb, 80, 130, 80), 0.06);
+/* Green indicator — active when user is speaking */
+.oc-voice-ind-green {
+  color: rgba(60, 140, 60, 0.25);
+  border-color: rgba(60, 140, 60, 0.15);
+}
+.oc-voice-ind-green.oc-voice-ind-active {
+  color: #3c8c3c;
+  border-color: #3c8c3c;
+  background: rgba(60, 140, 60, 0.08);
+  box-shadow: 0 0 12px rgba(60, 140, 60, 0.2);
 }
 
-.oc-voice-btn-stop {
-  border-color: #c00;
+/* Yellow indicator — active when user is listening */
+.oc-voice-ind-yellow {
+  color: rgba(180, 150, 40, 0.25);
+  border-color: rgba(180, 150, 40, 0.15);
+}
+.oc-voice-ind-yellow.oc-voice-ind-active {
+  color: #b49628;
+  border-color: #b49628;
+  background: rgba(180, 150, 40, 0.08);
+  box-shadow: 0 0 12px rgba(180, 150, 40, 0.2);
+}
+
+/* Red button — always interactive */
+.oc-voice-ind-red {
   color: #c00;
-  background: rgba(200, 0, 0, 0.06);
+  border-color: rgba(200, 0, 0, 0.35);
+  background: rgba(200, 0, 0, 0.04);
+  cursor: pointer;
 }
-
-.oc-voice-btn-stop:hover:not(:disabled) {
-  background: rgba(200, 0, 0, 0.14);
+.oc-voice-ind-red:hover {
+  background: rgba(200, 0, 0, 0.12);
   border-color: #e00;
   color: #e00;
 }
+.oc-voice-ind-red:active {
+  background: rgba(200, 0, 0, 0.2);
+  transform: scale(0.95);
+}
 
-.oc-voice-btn-stop:active:not(:disabled) {
-  background: rgba(200, 0, 0, 0.22);
+.oc-voice-stop-square {
+  display: block;
+  width: 12px;
+  height: 12px;
+  background: currentColor;
+  border-radius: 2px;
+}
+
+/* X exit button — top right of the box */
+.oc-voice-exit {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.oc-voice-exit:hover {
+  background: var(--bg2);
+  color: var(--text);
 }
 
 /* ── Full-screen panel (help, todo detail, product config) ── */
@@ -4130,6 +4203,61 @@ mark.crud-highlight {
   justify-content: flex-end;
   gap: var(--sp-md);
   flex-shrink: 0;
+}
+
+/* ── Selectable row — reusable pick-one list inside modals ── */
+.selectable-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: var(--sp-sm) var(--sp-md);
+  border-radius: var(--r);
+  cursor: pointer;
+  min-height: var(--touch);
+  transition: background var(--transition);
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+.selectable-row:hover {
+  background: var(--bg);
+}
+.selectable-row[aria-selected="true"] {
+  background: var(--bg3);
+  font-weight: var(--fw-medium);
+}
+.selectable-row-label {
+  flex: 1;
+  min-width: 0;
+}
+.selectable-row-meta {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  margin-left: var(--sp-xs);
+  opacity: 0.7;
+}
+.selectable-row[aria-selected="true"] .selectable-row-meta {
+  color: var(--text3);
+}
+.selectable-row-action {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  padding: 2px 8px;
+  min-width: 28px;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color var(--transition);
+}
+.selectable-row-action:hover {
+  color: var(--text);
+}
+.selectable-row[aria-selected="true"] .selectable-row-action {
+  color: var(--text2);
 }
 
 /* ── Compose modal: two-column form + preview ── */
@@ -5037,6 +5165,21 @@ mark.crud-highlight {
   background: rgba(122, 80, 16, 0.07);
   border: 1px solid rgba(122, 80, 16, 0.2);
 }
+
+.auth-dev-bypass {
+  flex: 1;
+  padding: var(--sp-sm) var(--sp-md);
+  border-radius: var(--r);
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--fg-secondary);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  min-height: 44px;
+}
+.auth-dev-bypass:hover { border-color: var(--fg-secondary); color: var(--fg); }
+.auth-dev-bypass:disabled { cursor: not-allowed; opacity: var(--opacity-disabled); }
 
 .auth-back {
   display: block;

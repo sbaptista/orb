@@ -4,7 +4,14 @@ import { useState, useEffect, useRef, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { checkLoginAllowed } from '@/app/actions/auth-actions'
+import { devLogin } from '@/app/actions/dev-login'
 import { isPasskeyAvailable, isConditionalMediationSupported, authenticateWithPasskey, authenticateWithConditionalMediation } from '@/lib/passkey'
+
+const DEV_USERS = process.env.NODE_ENV === 'development' ? [
+  { label: 'Stan', email: 'stan.baptista@gmail.com' },
+  { label: 'Otto Owner', email: 'stan.baptista+otto-owner@gmail.com' },
+  { label: 'Adele Admin', email: 'stan.baptista+admin@gmail.com' },
+] as const : []
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -14,6 +21,7 @@ function LoginForm() {
   const [mounted, setMounted] = useState(false)
   const [passkeyAvailable, setPasskeyAvailable] = useState(false)
   const [passkeyLoading, setPasskeyLoading] = useState(false)
+  const [devLoading, setDevLoading] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = useMemo(() => createClient(), [])
@@ -243,6 +251,36 @@ function LoginForm() {
         <div className="auth-error">
           <p className="text-sm text-error" style={{ margin: 0 }}>{error}</p>
         </div>
+      )}
+
+      {DEV_USERS.length > 0 && (
+        <>
+          <div className="auth-divider"><span>dev bypass</span></div>
+          <div style={{ display: 'flex', gap: 'var(--sp-sm)' }}>
+            {DEV_USERS.map(u => (
+              <button
+                key={u.email}
+                type="button"
+                className="auth-dev-bypass"
+                disabled={devLoading !== null}
+                onClick={async () => {
+                  abortRef.current?.abort()
+                  setDevLoading(u.email)
+                  setError('')
+                  const result = await devLogin(u.email)
+                  if (result.ok) {
+                    router.push('/dashboard')
+                  } else {
+                    setError(result.error || 'Dev login failed')
+                    setDevLoading(null)
+                  }
+                }}
+              >
+                {devLoading === u.email ? '…' : u.label}
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   )

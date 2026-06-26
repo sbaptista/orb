@@ -54,7 +54,7 @@ export default function SettingsMemory() {
     <>
     <SettingsCrudList<MemoryEntry, MemoryForm>
       config={{
-        title: 'Orb Memory',
+        title: 'AI Memory',
         table: 'orb_memory',
         itemLabel: 'Memory',
         emptyForm: EMPTY_FORM,

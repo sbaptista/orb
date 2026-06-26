@@ -15,6 +15,9 @@ function mapPolicy(row: any): OrbAiPolicy {
     monthlyBudgetUsd: Number(row.monthly_budget_usd),
     strategicBudgetUsd: Number(row.strategic_budget_usd),
     operationalBudgetUsd: Number(row.operational_budget_usd),
+    ttsProvider: row.tts_provider ?? 'browser',
+    ttsModel: row.tts_model ?? null,
+    ttsVoiceId: row.tts_voice_id ?? null,
   }
 }
 

@@ -1,11 +1,15 @@
 'use client'
 
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
 import DateSearchModal, { type CreatedFilter } from './DateSearchModal'
 import { getOrbMetrics } from '@/app/actions/get-orb-metrics'
 import SettingsCostReconciliation from './SettingsCostReconciliation'
+import { getAiCostSummary, type AiCostDateMode, type AiCostSummary } from '@/app/actions/get-ai-cost-summary'
+import { getOrbAiSettings, saveOrbModelRateCard } from '@/app/actions/orb-ai-settings'
+import type { OrbModelRateCard } from '@/lib/orb-model/policy'
+import { useToast } from '@/components/ui/Toast'
 
 type MetricsRow = {
   id: string
@@ -28,6 +32,7 @@ type MetricsRow = {
 }
 
 type MetricsForm = Record<string, never>
+type EditableRateCard = OrbModelRateCard & { saving?: boolean }
 type MetricsSummaryRow = Pick<MetricsRow,
   'model' | 'call_count' | 'speech_chars' | 'voice_speech_chars' | 'input_chars' |
   'tool_call_count' | 'ambient_chars' | 'input_tokens' | 'output_tokens' |
@@ -59,6 +64,11 @@ function formatDate(value: string, timeZone: string): string {
   return new Date(value + 'T00:00:00').toLocaleDateString(undefined, { timeZone, month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function formatDateTime(value: string | null, timeZone: string): string {
+  if (!value) return 'No matching rows'
+  return new Date(value).toLocaleString(undefined, { timeZone, month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 function formatNumber(n: number): string {
   return n.toLocaleString()
 }
@@ -81,6 +91,41 @@ function formatCost(dollars: number): string {
   return '$' + dollars.toFixed(2)
 }
 
+function formatModel(provider: string, model: string) {
+  if (provider === 'anthropic' && model === 'claude-haiku-4-5') return 'Claude Haiku 4.5'
+  if (provider === 'google' && model === 'gemini-3.1-pro-preview') return 'Gemini 3.1 Pro Preview'
+  if (provider === 'mistral' && model === 'mistral-medium-latest') return 'Mistral Medium'
+  if (provider === 'openai' && model === 'tts-1') return 'OpenAI tts-1'
+  if (provider === 'openai' && model === 'tts-1-hd') return 'OpenAI tts-1 HD'
+  if (provider === 'elevenlabs' && model === 'eleven_turbo_v2_5') return 'ElevenLabs Turbo v2.5'
+  return model
+}
+
+function providerLabel(provider: string) {
+  return provider === 'anthropic' ? 'Anthropic'
+    : provider === 'google' ? 'Google'
+      : provider === 'mistral' ? 'Mistral'
+        : provider === 'openai' ? 'OpenAI'
+          : provider === 'elevenlabs' ? 'ElevenLabs'
+            : provider
+}
+
+function roleLabel(role: string) {
+  return role === 'strategic' ? 'Strategic' : role === 'operational' ? 'Operational' : role
+}
+
+function sourceLabel(source: string) {
+  return source === 'eval' ? 'Eval'
+    : source === 'strategic_review' ? 'Strategic review'
+      : source === 'conversation' ? 'Conversation'
+        : source.replace(/_/g, ' ')
+}
+
+function actualRangeText(summary: AiCostSummary, timeZone: string) {
+  if (!summary.actualStart || !summary.actualEnd) return 'No matching rows'
+  return `${formatDateTime(summary.actualStart, timeZone)} to ${formatDateTime(summary.actualEnd, timeZone)}`
+}
+
 const TTS_RATES = [
   { label: 'OpenAI tts-1', perMChar: 15 },
   { label: 'ElevenLabs', perMChar: 66 },
@@ -95,6 +140,7 @@ function estimateTTSCost(chars: number): string {
 }
 
 export default function SettingsMetrics() {
+  const toast = useToast()
   const timeZone = useSyncExternalStore(subscribeToTimeZone, getBrowserTimeZone, () => 'UTC')
 
   const [showTextSearch, setShowTextSearch] = useState(false)
@@ -102,6 +148,55 @@ export default function SettingsMetrics() {
   const [showDateFilter, setShowDateFilter] = useState(false)
   const [dateFilter, setDateFilter] = useState<CreatedFilter | null>(null)
   const [summaryData, setSummaryData] = useState<MetricsSummaryRow[]>([])
+  const [costSummary, setCostSummary] = useState<AiCostSummary | null>(null)
+  const [rateCards, setRateCards] = useState<EditableRateCard[]>([])
+  const [accountingLoading, setAccountingLoading] = useState(true)
+  const [aiDateMode, setAiDateMode] = useState<AiCostDateMode>('all_tracked')
+  const [aiDateFrom, setAiDateFrom] = useState('')
+  const [aiDateTo, setAiDateTo] = useState('')
+  const [aiMonth, setAiMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [aiModelKey, setAiModelKey] = useState('all')
+
+  async function loadAiAccounting() {
+    setAccountingLoading(true)
+    try {
+      const [summary, settings] = await Promise.all([
+        getAiCostSummary({
+          dateMode: aiDateMode,
+          from: aiDateFrom || null,
+          to: aiDateTo || null,
+          month: aiMonth || null,
+          modelKey: aiModelKey,
+        }),
+        getOrbAiSettings(),
+      ])
+      setCostSummary(summary)
+      setRateCards(settings.rateCards)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load AI cost accounting.')
+    } finally {
+      setAccountingLoading(false)
+    }
+  }
+
+  useEffect(() => { loadAiAccounting() }, [aiDateMode, aiDateFrom, aiDateTo, aiMonth, aiModelKey])
+
+  function patchRateCard(id: string, patch: Partial<EditableRateCard>) {
+    setRateCards(cards => cards.map(card => card.id === id ? { ...card, ...patch } : card))
+  }
+
+  async function saveRateCard(card: EditableRateCard) {
+    patchRateCard(card.id, { saving: true })
+    try {
+      await saveOrbModelRateCard(card)
+      toast.success(`${formatModel(card.provider, card.model)} rate saved.`)
+      await loadAiAccounting()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save rate card.')
+    } finally {
+      patchRateCard(card.id, { saving: false })
+    }
+  }
 
   function resetAll() {
     setTextSearchTerm('')
@@ -144,6 +239,180 @@ export default function SettingsMetrics() {
     { label: 'Cache Write', value: formatTokensAsK(totals.cacheCreateTokens) },
     { label: 'Cache Read', value: formatTokensAsK(totals.cacheReadTokens) },
   ]
+
+  const tokenCards = costSummary ? [
+    {
+      label: 'Input Tokens',
+      value: formatTokensAsK(costSummary.inputTokens),
+      tooltip: 'Text and context sent to the AI model, including instructions, backlog context, and user input.',
+    },
+    {
+      label: 'Output Tokens',
+      value: formatTokensAsK(costSummary.outputTokens),
+      tooltip: 'Text generated by the AI model in its response.',
+    },
+    {
+      label: 'Cache Read',
+      value: formatTokensAsK(costSummary.cachedInputTokens),
+      tooltip: 'Prompt/context tokens served from provider cache at a discounted cached-input rate when the provider reports them.',
+    },
+    {
+      label: 'Cache Write',
+      value: formatTokensAsK(costSummary.cacheWriteTokens),
+      tooltip: 'Prompt/context tokens written into provider cache, usually billed separately from normal input tokens.',
+    },
+  ] : []
+
+  const aiCostSummary = (
+    <div className="metrics-summary" style={{ marginBottom: 'var(--sp-lg)' }}>
+      <div style={{ marginBottom: 'var(--sp-md)' }}>
+        <h2 className="s-card-title" style={{ margin: 0 }}>AI Cost Summary</h2>
+        <p className="s-card-desc" style={{ marginTop: 'var(--sp-xs)' }}>
+          App AI cost from tracked request tokens multiplied by the configured rate cards.
+        </p>
+      </div>
+      <div className="s-card flex-col gap-md" style={{ marginBottom: 'var(--sp-md)' }}>
+        <div className="s-form" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 'var(--sp-md)' }}>
+          <label>
+            <span className="label">Date filter</span>
+            <select
+              className="select"
+              value={aiDateMode}
+              onChange={event => setAiDateMode(event.target.value as AiCostDateMode)}
+            >
+              <option value="all_tracked">All tracked</option>
+              <option value="last_7_days">Last 7 days</option>
+              <option value="last_30_days">Last 30 days</option>
+              <option value="current_month">Current month</option>
+              <option value="specific_month">Specific month</option>
+              <option value="custom_range">Date range</option>
+            </select>
+          </label>
+          <label>
+            <span className="label">Model</span>
+            <select
+              className="select"
+              value={aiModelKey}
+              onChange={event => setAiModelKey(event.target.value)}
+            >
+              <option value="all">All models</option>
+              {costSummary?.modelOptions.map(option => (
+                <option key={option.key} value={option.key}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          {aiDateMode === 'specific_month' ? (
+            <label>
+              <span className="label">Month</span>
+              <input type="month" value={aiMonth} onChange={event => setAiMonth(event.target.value)} />
+            </label>
+          ) : aiDateMode === 'custom_range' ? (
+            <>
+              <label>
+                <span className="label">From</span>
+                <input type="date" value={aiDateFrom} onChange={event => setAiDateFrom(event.target.value)} />
+              </label>
+              <label>
+                <span className="label">To</span>
+                <input type="date" value={aiDateTo} onChange={event => setAiDateTo(event.target.value)} />
+              </label>
+            </>
+          ) : (
+            <div className="s-card-desc" style={{ alignSelf: 'end', margin: 0 }}>Eval and day-to-day calls are included.</div>
+          )}
+        </div>
+      </div>
+      {accountingLoading || !costSummary ? (
+        <div className="metrics-cost-bar">Loading AI cost accounting…</div>
+      ) : (
+        <>
+          <div className="metrics-summary-grid">
+            <div className="metrics-summary-card">
+              <div className="metrics-summary-label">Estimated AI Cost</div>
+              <div className="metrics-summary-value">{formatCost(costSummary.estimatedLiveCostUsd)}</div>
+            </div>
+            <div className="metrics-summary-card">
+              <div className="metrics-summary-label">Requests</div>
+              <div className="metrics-summary-value">{formatNumber(costSummary.requestCount)}</div>
+            </div>
+            {tokenCards.map(card => (
+              <div key={card.label} className="metrics-summary-card" data-tooltip={card.tooltip}>
+                <div className="metrics-summary-label">{card.label}</div>
+                <div className="metrics-summary-value">{card.value}</div>
+              </div>
+            ))}
+            <div className="metrics-summary-card">
+              <div className="metrics-summary-label">Provider Bills</div>
+              <div className="metrics-summary-value">{formatCost(costSummary.reconciledTotalUsd)}</div>
+            </div>
+          </div>
+
+          <ul className="metrics-summary-list">
+            <li><span className="metrics-summary-label">Estimated AI Cost:</span> <span className="metrics-summary-value">{formatCost(costSummary.estimatedLiveCostUsd)}</span></li>
+            <li><span className="metrics-summary-label">Requests:</span> <span className="metrics-summary-value">{formatNumber(costSummary.requestCount)}</span></li>
+            {tokenCards.map(card => (
+              <li key={card.label} data-tooltip={card.tooltip}><span className="metrics-summary-label">{card.label}:</span> <span className="metrics-summary-value">{card.value}</span></li>
+            ))}
+            <li><span className="metrics-summary-label">Provider Bills:</span> <span className="metrics-summary-value">{formatCost(costSummary.reconciledTotalUsd)}</span></li>
+          </ul>
+
+          <div className="metrics-cost-bar">
+            Requested range · {costSummary.periodStart} to {costSummary.periodEnd}
+          </div>
+          <div className="metrics-cost-bar">
+            Actual row range · {actualRangeText(costSummary, timeZone)}
+          </div>
+          {costSummary.providerBreakdown.length > 0 && (
+            <div className="metrics-cost-bar">
+              By provider · {costSummary.providerBreakdown.map(row => `${providerLabel(row.provider)} ${formatCost(row.estimatedCostUsd)}`).join(' · ')}
+            </div>
+          )}
+          {costSummary.roleBreakdown.length > 0 && (
+            <div className="metrics-cost-bar">
+              By role · {costSummary.roleBreakdown.map(row => `${roleLabel(row.routeRole)} ${formatCost(row.estimatedCostUsd)}`).join(' · ')}
+            </div>
+          )}
+          {costSummary.sourceBreakdown.length > 0 && (
+            <div className="metrics-cost-bar">
+              By source · {costSummary.sourceBreakdown.map(row => `${sourceLabel(row.source)} ${formatCost(row.estimatedCostUsd)}`).join(' · ')}
+            </div>
+          )}
+          {costSummary.reconciliations.length > 0 && (
+            <div className="metrics-cost-bar">
+              Provider bill entries · {costSummary.reconciliations.map(row => `${providerLabel(row.provider)} ${formatCost(row.actualOrbCostUsd)}`).join(' · ')}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+
+  const rateCardEditor = (
+    <section className="s-card flex-col gap-lg" style={{ marginBottom: 'var(--sp-lg)' }}>
+      <div>
+        <h2 className="s-card-title">Rate Cards</h2>
+        <p className="s-card-desc">These rates are the cost assumptions behind the app AI estimate. Future request records use the current provider/model rate at call time.</p>
+      </div>
+      {rateCards.map(card => (
+        <div key={card.id} style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--sp-lg)' }}>
+          <div style={{ fontWeight: 'var(--fw-medium)', marginBottom: 'var(--sp-md)' }}>
+            {providerLabel(card.provider)} · {formatModel(card.provider, card.model)}
+          </div>
+          <div className="s-form" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--sp-md)' }}>
+            <label><span className="label">Effective from</span><input type="date" value={card.effectiveFrom} onChange={event => patchRateCard(card.id, { effectiveFrom: event.target.value })} /></label>
+            <label><span className="label">Input / 1M tokens</span><input type="number" min="0" step="0.0001" value={card.inputPerMillion} onChange={event => patchRateCard(card.id, { inputPerMillion: Number(event.target.value) })} /></label>
+            <label><span className="label">Output / 1M tokens</span><input type="number" min="0" step="0.0001" value={card.outputPerMillion} onChange={event => patchRateCard(card.id, { outputPerMillion: Number(event.target.value) })} /></label>
+            <label><span className="label">Cached input / 1M</span><input type="number" min="0" step="0.0001" value={card.cachedInputPerMillion ?? ''} onChange={event => patchRateCard(card.id, { cachedInputPerMillion: event.target.value === '' ? null : Number(event.target.value) })} /></label>
+            <label><span className="label">Cache write / 1M</span><input type="number" min="0" step="0.0001" value={card.cacheWritePerMillion ?? ''} onChange={event => patchRateCard(card.id, { cacheWritePerMillion: event.target.value === '' ? null : Number(event.target.value) })} /></label>
+            <label><span className="label">Notes</span><input value={card.notes ?? ''} onChange={event => patchRateCard(card.id, { notes: event.target.value })} placeholder="Optional pricing note" /></label>
+          </div>
+          <div className="flex-center gap-md" style={{ marginTop: 'var(--sp-md)' }}>
+            <button type="button" className="btn-primary" onClick={() => saveRateCard(card)} disabled={card.saving}>{card.saving ? 'Saving…' : 'Save Rate'}</button>
+          </div>
+        </div>
+      ))}
+    </section>
+  )
 
   const summaryCards = summaryData.length > 0 ? (
     <div className="metrics-summary" style={{ marginBottom: 'var(--sp-lg)' }}>
@@ -193,7 +462,7 @@ export default function SettingsMetrics() {
     <>
       <SettingsCrudList<MetricsRow, MetricsForm>
         config={{
-          title: 'Orb Metrics',
+          title: 'AI Metrics',
           table: 'orb_metrics',
           itemLabel: 'Entry',
           emptyForm: EMPTY_FORM,
@@ -215,7 +484,13 @@ export default function SettingsMetrics() {
           tableNavCaption: 'prev/next columns',
           externalFilterKey: `${dateFilter?.from ?? ''}|${dateFilter?.to ?? ''}|${dateFilter?.before ?? ''}`,
           onResetFilters: resetAll,
-          headerExtra: summaryCards,
+          headerExtra: (
+            <>
+              {aiCostSummary}
+              {rateCardEditor}
+              {summaryCards}
+            </>
+          ),
           toolbarExtra: (
             <>
               <button
@@ -347,7 +622,7 @@ export default function SettingsMetrics() {
         onClear={() => { setDateFilter(null); setShowDateFilter(false) }}
         currentFilter={dateFilter}
       />
-      <SettingsCostReconciliation />
+      <SettingsCostReconciliation onSaved={loadAiAccounting} />
     </>
   )
 }

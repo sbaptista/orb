@@ -165,6 +165,9 @@ export type UIContext = {
   voiceMode?: boolean
   availableVoices?: string[]
   currentVoice?: string
+  ttsProvider?: string
+  ttsModel?: string | null
+  ttsVoiceId?: string | null
 }
 
 export type OrbRequest = {
@@ -290,19 +293,21 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     const ownerTag = ownerName ? ` [Owner: ${ownerName}]` : ''
     const header = `${p.code ?? p.name}${p.description ? ` (${p.description})` : ''}${ownerTag}`
     // All projects always visible in query scope (ORB-203)
-    const pTodos = todoList.filter((t: any) => t.product_id === p.id && !statusList.find((s: any) => s.name === t.status)?.is_closed)
-    const activeLine = pTodos
-      .filter((t: any) => isActive(t.status))
-      .map(todoLine)
-      .join('\n')
-    const parkedLine = pTodos
-      .filter((t: any) => !isActive(t.status))
-      .map(todoLine)
-      .join('\n')
-    let body = ''
-    if (activeLine) body += `  ACTIVE:\n${activeLine}`
-    if (parkedLine) body += `${activeLine ? '\n' : ''}  PARKED (on hold/deferred):\n${parkedLine}`
-    return `${header}:\n${body || '  (none active)'}`
+    const projectTodos = todoList.filter((t: any) => t.product_id === p.id)
+    const nonClosedTodos = projectTodos.filter((t: any) => !statusList.find((s: any) => s.name === t.status)?.is_closed)
+    const activeTodos = nonClosedTodos.filter((t: any) => isActive(t.status))
+    const parkedTodos = nonClosedTodos.filter((t: any) => isParked(t.status))
+    const otherNonClosedTodos = nonClosedTodos.filter((t: any) => !isActive(t.status) && !isParked(t.status))
+    const closedCount = projectTodos.length - nonClosedTodos.length
+    const summary = `  SUMMARY: active_count=${activeTodos.length} (open + in progress); parked_count=${parkedTodos.length} (deferred + on hold); closed_count=${closedCount} (excluded)`
+    const activeLine = activeTodos.map(todoLine).join('\n')
+    const parkedLine = parkedTodos.map(todoLine).join('\n')
+    const otherLine = otherNonClosedTodos.map(todoLine).join('\n')
+    const sections = [summary]
+    if (activeLine) sections.push(`  ACTIVE:\n${activeLine}`)
+    if (parkedLine) sections.push(`  PARKED (on hold/deferred):\n${parkedLine}`)
+    if (otherLine) sections.push(`  OTHER NON-CLOSED:\n${otherLine}`)
+    return `${header}:\n${sections.join('\n')}`
   }).join('\n\n')
 
   const dormantSection = dormantList.length > 0
@@ -619,7 +624,7 @@ export async function orbConverse(req: OrbRequest) {
           ORB_RESOLUTION_LAWS,
           `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,
           STATUS_VOCABULARY,
-          `The BACKLOG below separates ACTIVE from PARKED — use this split, not your own filtering. When the user asks "how many tasks" or "my tasks" without specifying, report the ACTIVE count. If parked tasks exist, mention them separately.`,
+          `The BACKLOG below gives a SUMMARY line for each project and then separates ACTIVE from PARKED. When answering counts or project-health questions, copy the SUMMARY counts exactly; do not recalculate by counting visible lines. When the user asks "how many tasks" or "my tasks" without specifying, report the active_count. If parked_count is above zero, mention it separately. If you list tasks, make sure the number you claim matches the number of listed items, or say "including" instead of implying a complete list.`,
           buildUrgencyRules(ctx.urgencyThresholdHours),
           ORB_QUERY_ROUTING,
           repositoryAccessPrompt,
@@ -647,11 +652,19 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           ctx.currentUser ? `USER CONTEXT: You are talking to ${ctx.currentUser.email} (Name: ${ctx.currentUser.name || 'Unknown'}, Role: ${userRole || 'Unknown'}).` : '',
           `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${ctx.current?.name}" (code: "${ctx.current?.code}") unless the user explicitly names a different project.\n- An unqualified request to create a task already has a project: the currently selected project. Do not ask which project; propose the requested task there and request any required mutation approval.\n- When calling tools (create_todo, query_todos, etc.), ALWAYS pass the project code — never omit it.\n- When speaking to the user, refer to projects by display name.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${ctx.current?.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${ctx.currentUser.name || ctx.currentUser.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
           req.uiContext ? `UI STATE: The user is viewing: ${req.uiContext.viewMode ?? 'list'} view | filter: ${req.uiContext.filterStatus ?? 'active'} | priority filter: ${req.uiContext.filterPriority ?? 'all'} | sort: ${req.uiContext.sortAsc ? 'oldest first' : 'newest first'} | orb pane: ${req.uiContext.orbPaneVisible ? 'visible' : 'hidden'} | list pane: ${req.uiContext.listPaneVisible ? 'visible' : 'hidden'} | device: ${req.uiContext.isMobile ? 'mobile' : 'desktop'}. Use this to understand what the user sees when they say "this view", "the list", "that column", etc.` : '',
-          req.uiContext?.voiceMode ? `VOICE CONVERSATION: You are currently in voice mode — the user is speaking to you and hearing your responses aloud.
+          req.uiContext?.voiceMode ? `VOICE CONVERSATION: You are in an ongoing voice conversation. The user speaks, you speak back. This is a continuous dialogue — NOT a series of independent requests.
+CURRENT VOICE OUTPUT CONFIG:
+- TTS provider: ${req.uiContext.ttsProvider || 'unknown'}
+- TTS model: ${req.uiContext.ttsModel || 'not specified'}
+- TTS voice ID/name: ${req.uiContext.ttsVoiceId || req.uiContext.currentVoice || 'not specified'}
+Use this config when the user asks what voice provider, model, or voice is active. Do not infer the active voice provider from release notes, device voices, or the user's guess. If the provider is "unknown", say you do not have that setting in context.
 VOICE RESPONSE RULES:
+- NEVER greet or re-greet. The greeting was already spoken when voice mode started — it is in the conversation history. Do not say "Good morning", "Morning", "Hey", "All set here", or any opening salutation. Jump straight into substance.
 - Keep responses concise and conversational — clear sentences, not markdown lists or tables.
 - Avoid complex formatting (tables, bullet lists, code blocks). Speak in natural prose.
 - BREVITY THRESHOLD: If your answer involves more than 3–4 sentences of content — task details, lists, summaries, lookups — give a brief 2–3 sentence spoken summary of the key point, then explicitly ask: "That's the summary. Want me to read the full details, or is that enough?" Wait for the user's answer before providing more. Do NOT read out long content unprompted.
+- Do not use filler phrases like "Let me check", "One moment", "I'm on it", or "Got it." If you have something to say, say it. If not, just act.
+- Voice transcripts may be imperfect. If the user input is fragmentary, garbled, or hinges on a missing word, ask one concise clarification instead of filling in the blank from prior context.
 ${req.uiContext.availableVoices?.length ? `Available voices on this device: ${req.uiContext.availableVoices.join(', ')}. Current voice: ${req.uiContext.currentVoice || 'system default'}.\nWhen the user asks about voices, describe the available options conversationally. When asked to switch, use client_action with action="set_voice" and target set to the exact voice name.` : ''}
 When the user signals they want to end the voice conversation — "that's enough", "let's stop", "stop talking", "end voice mode", or similar — use client_action with action="exit_voice". You may say a brief closing remark first.` : '',
           uiCatalog ? `UI CATALOG & NAVIGATION (the layout structure, buttons, views, and settings of the app):\n${uiCatalog}` : '',
