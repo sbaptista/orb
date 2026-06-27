@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.67',
+    date: '2026-06-26',
+    changes: [
+      'Voice mode: TTS errors now surface in the voice UI instead of failing silently. When API TTS fails (e.g. missing provider API key), the error message displays in red in the transcript area.',
+    ]
+  },
+  {
     version: 'v0.6.66',
     date: '2026-06-26',
     changes: [

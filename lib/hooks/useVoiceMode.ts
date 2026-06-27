@@ -101,6 +101,7 @@ export type VoiceState = {
   isListening: boolean
   isSpeaking: boolean
   transcript: string
+  ttsError: string | null
   supportsVoice: boolean
   availableVoices: SpeechSynthesisVoice[]
   selectedVoiceName: string
@@ -151,6 +152,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   const [selectedVoiceName, setSelectedVoiceName] = useState('')
   const [voiceRate, setVoiceRate] = useState(1.0)
   const [wasInterrupted, setWasInterrupted] = useState(false)
+  const [ttsError, setTtsError] = useState<string | null>(null)
 
   // ── Refs ─────────────────────────────────────────────────────────
   const recRef = useRef<any>(null)
@@ -396,7 +398,15 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
         }).catch(() => null as any)
       }
 
-      await playChunk(chunk, gen)
+      try {
+        await playChunk(chunk, gen)
+      } catch (err) {
+        console.error('[voice] TTS playback failed:', err)
+        const msg = err instanceof Error ? err.message : 'Speech synthesis failed'
+        setTtsError(msg.replace(/^Error:\s*/i, ''))
+        q.chunks = []
+        break
+      }
 
       // If more chunks arrived while playing (streaming), keep going
       if (cancelledRef.current || gen !== genRef.current) break
@@ -417,6 +427,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   const beginSpeaking = useCallback(() => {
     clearSilence()
     cancelledRef.current = false
+    setTtsError(null)
     stopPlayback()
     stopRecognition()
     setSpeaking(true)
@@ -594,7 +605,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   }, [])
 
   return {
-    voiceActive, isListening, isSpeaking, transcript,
+    voiceActive, isListening, isSpeaking, transcript, ttsError,
     supportsVoice, availableVoices, selectedVoiceName, voiceRate,
     wasInterrupted,
     startConversation, resumeListening, speak, speakStatus, speakStreaming,

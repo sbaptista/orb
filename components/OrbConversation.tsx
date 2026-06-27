@@ -38,6 +38,7 @@ type Props = {
     voiceSpeaking?: boolean
     voiceTranscript?: string
     voiceInterrupted?: boolean
+    voiceError?: string | null
     supportsVoiceMode?: boolean
     onStartVoiceMode?: () => void
     onVoiceContinue?: () => void
@@ -174,6 +175,7 @@ export default function OrbConversation({
     voiceSpeaking = false,
     voiceTranscript = '',
     voiceInterrupted = false,
+    voiceError = null,
     supportsVoiceMode = false,
     onStartVoiceMode,
     onVoiceContinue,
@@ -458,7 +460,9 @@ export default function OrbConversation({
                     <div className="oc-voice-box">
                         {/* STT transcript field — top */}
                         <div className="oc-voice-stt">
-                            {voiceTranscript || (voiceListening ? 'Listening…' : voiceInterrupted ? 'Returning to listening…' : ' ')}
+                            {voiceError
+                                ? <span style={{ color: 'var(--color-danger)' }}>{voiceError}</span>
+                                : voiceTranscript || (voiceListening ? 'Listening…' : voiceInterrupted ? 'Returning to listening…' : ' ')}
                         </div>
 
                         {/* Traffic-light indicators + stop button */}

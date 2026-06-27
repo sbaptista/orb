@@ -1614,6 +1614,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               voiceSpeaking={voice.isSpeaking}
               voiceTranscript={voice.transcript}
               voiceInterrupted={voice.wasInterrupted}
+              voiceError={voice.ttsError}
               supportsVoiceMode={voice.supportsVoice && !noProject}
               onStartVoiceMode={handleOrbTap}
               onVoiceContinue={voice.resumeListening}
