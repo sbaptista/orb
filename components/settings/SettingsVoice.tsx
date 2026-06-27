@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { OPENAI_VOICES, ELEVENLABS_VOICES, type TtsVoiceOption } from '@/lib/orb-model/tts'
 import { synthesizeSpeech } from '@/app/actions/orb-tts'
-import { saveTtsConfig } from '@/app/actions/orb-ai-settings'
+import { getTtsConfig, saveTtsConfig } from '@/app/actions/orb-ai-settings'
 import { useToast } from '@/components/ui/Toast'
 
 type BrowserVoiceInfo = {
@@ -46,11 +46,18 @@ export default function SettingsVoice() {
     speechSynthesis.onvoiceschanged = load
 
     try {
-      const savedVoice = localStorage.getItem(LS_VOICE_KEY)
-      if (savedVoice) setSelected(savedVoice)
       const savedRate = localStorage.getItem(LS_RATE_KEY)
       if (savedRate) setRate(parseFloat(savedRate) || 1.0)
     } catch {}
+
+    getTtsConfig().then(cfg => {
+      if (cfg.provider === 'browser') {
+        const savedVoice = localStorage.getItem(LS_VOICE_KEY)
+        if (savedVoice) setSelected(savedVoice)
+      } else {
+        if (cfg.voiceId) setSelected(cfg.voiceId)
+      }
+    }).catch(() => {})
   }, [])
 
   const grouped = browserVoices.reduce<Record<string, BrowserVoiceInfo[]>>((acc, v) => {

@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.70',
+    date: '2026-06-26',
+    changes: [
+      'Voice settings: Current voice selection now loads from the database on mount instead of localStorage only, so API TTS voices (OpenAI/ElevenLabs) display correctly.',
+    ]
+  },
+  {
     version: 'v0.6.69',
     date: '2026-06-26',
     changes: [
