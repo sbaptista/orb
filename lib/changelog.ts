@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.68',
+    date: '2026-06-26',
+    changes: [
+      'Build gate: OPENAI_API_KEY and ELEVENLABS_API_KEY are now validated at build time — deploy fails if either is missing.',
+    ]
+  },
+  {
     version: 'v0.6.67',
     date: '2026-06-26',
     changes: [
