@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.71',
+    date: '2026-06-26',
+    changes: [
+      'Fixed project deletion loop: removed delete_project from the approval gate since the tool already has its own confirmed boolean guard, preventing a double-confirmation cycle.',
+      'Fixed duplicate voice in voice mode: when TTS config loaded async, the first speech chunk fell through to browser speechSynthesis while later chunks used API AudioContext, producing two overlapping voices. Now waits for config before speaking.',
+      'Voice mode: always unlocks both AudioContext and speechSynthesis on conversation start regardless of provider, so switching providers mid-session cannot leave audio locked.',
+      'Voice settings: replaced circular slider thumb with a vertical fader bar.',
+    ]
+  },
+  {
     version: 'v0.6.70',
     date: '2026-06-26',
     changes: [

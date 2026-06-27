@@ -317,7 +317,8 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     if (cancelledRef.current || gen !== genRef.current) return Promise.resolve()
 
     const cfg = cfgRef.current
-    if (cfg && cfg.provider !== 'browser') {
+    if (!cfg) return Promise.resolve()
+    if (cfg.provider !== 'browser') {
       // API TTS path
       return (async () => {
         // Use prefetched result if available
@@ -442,26 +443,26 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     setVoiceActive(true)
     autoResumeRef.current = true
 
-    if (isApi()) {
-      // Unlock AudioContext within user gesture — stays unlocked for the session
-      try {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
-        const buf = ctx.createBuffer(1, 1, 22050)
-        const src = ctx.createBufferSource()
-        src.buffer = buf
-        src.connect(ctx.destination)
-        src.start()
-        ctx.resume()
-        audioCtxRef.current = ctx
-      } catch {}
-    } else {
-      if ('speechSynthesis' in window) {
-        const primer = new SpeechSynthesisUtterance('')
-        primer.volume = 0
-        speechSynthesis.speak(primer)
-      }
+    // Always unlock AudioContext within user gesture — needed for API TTS,
+    // harmless if browser TTS ends up being used instead
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const buf = ctx.createBuffer(1, 1, 22050)
+      const src = ctx.createBufferSource()
+      src.buffer = buf
+      src.connect(ctx.destination)
+      src.start()
+      ctx.resume()
+      audioCtxRef.current = ctx
+    } catch {}
+
+    // Also prime browser speechSynthesis for the browser TTS path
+    if ('speechSynthesis' in window) {
+      const primer = new SpeechSynthesisUtterance('')
+      primer.volume = 0
+      speechSynthesis.speak(primer)
     }
-  }, [isApi])
+  }, [])
 
   const resumeListening = useCallback(() => {
     autoResumeRef.current = true

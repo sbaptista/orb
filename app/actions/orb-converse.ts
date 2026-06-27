@@ -80,7 +80,7 @@ function isFalseMutationClaim(speech: string, hasMutated: boolean, toolProducedC
 
 const APPROVAL_GATED_TOOLS = new Set([
   'create_todo', 'update_todo', 'delete_todo', 'move_todo',
-  'create_project', 'update_project', 'delete_project', 'set_dormancy',
+  'create_project', 'update_project', 'set_dormancy',
 ])
 
 function isAffirmativeApproval(input: string): boolean {
