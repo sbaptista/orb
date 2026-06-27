@@ -29,7 +29,8 @@ export default function SettingsVoice() {
   const [pendingVoice, setPendingVoice] = useState<string | null>(null)
   const [showAllLangs, setShowAllLangs] = useState(false)
   const synthRef = useRef<SpeechSynthesisUtterance | null>(null)
-  const apiAudioRef = useRef<HTMLAudioElement | null>(null)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const activeSourceRef = useRef<AudioBufferSourceNode | null>(null)
   const dialogRef = useCallback((el: HTMLDivElement | null) => { el?.focus() }, [])
 
   useEffect(() => {
@@ -84,10 +85,16 @@ export default function SettingsVoice() {
   }
 
   async function previewApi(voiceId: string, provider: 'openai' | 'elevenlabs') {
-    if (apiAudioRef.current) {
-      apiAudioRef.current.pause()
-      apiAudioRef.current = null
+    if (activeSourceRef.current) {
+      try { activeSourceRef.current.stop() } catch {}
+      activeSourceRef.current = null
     }
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
+    }
+    const ctx = audioCtxRef.current
+    if (ctx.state === 'suspended') await ctx.resume()
+
     setPlaying(voiceId)
     try {
       const result = await synthesizeSpeech({
@@ -96,12 +103,17 @@ export default function SettingsVoice() {
         model: provider === 'openai' ? 'tts-1' : 'eleven_turbo_v2_5',
         voiceId,
       })
-      const audio = new Audio(`data:${result.contentType};base64,${result.audioBase64}`)
-      apiAudioRef.current = audio
-      audio.playbackRate = rate
-      audio.onended = () => { setPlaying(null); apiAudioRef.current = null }
-      audio.onerror = (e) => { console.error('[tts] audio playback error:', e); setPlaying(null); apiAudioRef.current = null }
-      await audio.play()
+      const raw = atob(result.audioBase64)
+      const arr = new Uint8Array(raw.length)
+      for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i)
+      const decoded = await ctx.decodeAudioData(arr.buffer.slice(0))
+      const source = ctx.createBufferSource()
+      source.buffer = decoded
+      source.playbackRate.value = rate
+      source.connect(ctx.destination)
+      source.onended = () => { setPlaying(null); activeSourceRef.current = null }
+      activeSourceRef.current = source
+      source.start()
     } catch (err) {
       console.error('[tts] preview failed:', err)
       setPlaying(null)
@@ -110,7 +122,7 @@ export default function SettingsVoice() {
 
   function stopPreview() {
     if ('speechSynthesis' in window) speechSynthesis.cancel()
-    if (apiAudioRef.current) { apiAudioRef.current.pause(); apiAudioRef.current = null }
+    if (activeSourceRef.current) { try { activeSourceRef.current.stop() } catch {}; activeSourceRef.current = null }
     setPlaying(null)
   }
 

@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.69',
+    date: '2026-06-26',
+    changes: [
+      'Voice settings: Switched API TTS preview from HTMLAudioElement to AudioContext, matching Orb voice mode. Fixes barely audible OpenAI/ElevenLabs previews on iPhone.',
+    ]
+  },
+  {
     version: 'v0.6.68',
     date: '2026-06-26',
     changes: [
