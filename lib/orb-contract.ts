@@ -357,13 +357,13 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "create_project",
-    "description": "[Confidence: well-tested] Create a new project. Requires a name. The code is optional and will be auto-generated from the name if omitted. If provided, it must be unique, uppercase, alphanumeric (e.g. WORK, SIDE, TRAVEL).",
+    "description": "[Confidence: well-tested] Create a new project. Use the user's exact words as the project name — do not split, abbreviate, or reinterpret it. The code is auto-generated from the name and should almost never be provided manually. Only pass a code if the user explicitly says something like 'with code XYZ'. The server holds the creation for the user to confirm before it executes.",
     "input_schema": {
       "type": "object",
       "properties": {
         "name": {
           "type": "string",
-          "description": "Project name (e.g. \"Work\", \"Side Projects\")."
+          "description": "Project name — use exactly what the user said (e.g. \"Work\", \"Side Projects\", \"TEST2\"). Do not infer or modify."
         },
         "code": {
           "type": "string",
@@ -381,21 +381,17 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "update_project",
-    "description": "[Confidence: new] Update a project's name, description, or code. Users can only update their own projects. Use when the user says 'rename project X', 'change the description of X', etc.",
+    "description": "[Confidence: new] Update a project's name or description. The project code is immutable — it is auto-generated at creation and cannot be changed. Users can only update their own projects. Use when the user says 'rename project X', 'change the description of X', etc. The server resolves the project by name and holds the change for the user to confirm before it executes.",
     "input_schema": {
       "type": "object",
       "properties": {
-        "project_code": {
+        "name": {
           "type": "string",
-          "description": "Current project code to identify the project."
+          "description": "Current project name — use exactly what the user said."
         },
         "new_name": {
           "type": "string",
           "description": "New project name."
-        },
-        "new_code": {
-          "type": "string",
-          "description": "New project code. Must be unique, uppercase, alphanumeric."
         },
         "new_description": {
           "type": "string",
@@ -403,29 +399,32 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         }
       },
       "required": [
-        "project_code"
+        "name"
       ]
     }
   },
   {
     "name": "delete_project",
-    "description": "[Confidence: new] Permanently delete a project and all its todos. IRREVERSIBLE. Users can only delete their own projects. MANDATORY: Before calling this tool, you MUST ask the user to confirm by saying exactly which project will be deleted and that all its todos will be lost. Only proceed after the user explicitly confirms (e.g. \"yes, delete it\"). Never delete without confirmation.",
+    "description": "[Confidence: new] Permanently delete a project and all its todos. IRREVERSIBLE. Users can only delete their own projects. Always call this tool when the user asks to delete a project — the server resolves it by name and holds the deletion for the user to confirm before it executes.",
     "input_schema": {
       "type": "object",
       "properties": {
-        "project_code": {
+        "name": {
           "type": "string",
-          "description": "Project code to delete (e.g. \"WORK\")."
-        },
-        "confirmed": {
-          "type": "boolean",
-          "description": "Must be true. The AI sets this after receiving explicit user confirmation."
+          "description": "Project name to delete — use exactly what the user said."
         }
       },
       "required": [
-        "project_code",
-        "confirmed"
+        "name"
       ]
+    }
+  },
+  {
+    "name": "confirm_mutation",
+    "description": "[Confidence: new] Execute the project action you most recently proposed, after the user confirms it. Call this — and ONLY this — when the user agrees to a pending create/rename/delete you just described (e.g. they say \"yes\", \"go ahead\", \"do it\"). It takes no parameters; the server runs the exact action that was proposed. Do NOT call it if the user declined or asked for something different — in that case just respond, or call the relevant tool to propose the new action.",
+    "input_schema": {
+      "type": "object",
+      "properties": {}
     }
   },
   {
@@ -464,6 +463,7 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   create_project: 'Creating project...',
   update_project: 'Updating project...',
   delete_project: 'Deleting project...',
+  confirm_mutation: 'Confirming...',
   set_dormancy: 'Updating project...',
   create_ticket: 'Noting observation...',
   query_db: 'Querying database...',

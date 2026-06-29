@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { TtsProvider } from '@/lib/orb-model/tts'
 import { synthesizeSpeech } from '@/app/actions/orb-tts'
+import { useCapabilities, type Capabilities } from './useCapabilities'
 
 export type TtsConfig = {
   provider: TtsProvider
@@ -92,8 +93,6 @@ const LS_RATE_KEY = 'orb_voice_rate'
 const SILENCE_MS = 2000
 const TRANSCRIPT_DEBOUNCE_MS = 150
 
-const isIOS = () => typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)
-
 // ── Types ───────────────────────────────────────────────────────────
 
 export type VoiceState = {
@@ -103,6 +102,7 @@ export type VoiceState = {
   transcript: string
   ttsError: string | null
   supportsVoice: boolean
+  capabilities: Capabilities
   availableVoices: SpeechSynthesisVoice[]
   selectedVoiceName: string
   voiceRate: number
@@ -140,6 +140,8 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   const cfgRef = useRef(ttsConfig)
   cfgRef.current = ttsConfig
 
+  const capabilities = useCapabilities(!!(ttsConfig && ttsConfig.provider !== 'browser'))
+
   // ── State ───────────────────────────────────────────────────────
   const [voiceActive, setVoiceActive] = useState(false)
   const [isListening, setIsListening] = useState(false)
@@ -147,7 +149,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   const speakingRef = useRef(false)
   const setSpeaking = useCallback((v: boolean) => { speakingRef.current = v; _setIsSpeaking(v) }, [])
   const [transcript, setTranscript] = useState('')
-  const [supportsVoice, setSupportsVoice] = useState(false)
+  const supportsVoice = capabilities.voice !== 'unavailable'
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
   const [selectedVoiceName, setSelectedVoiceName] = useState('')
   const [voiceRate, setVoiceRate] = useState(1.0)
@@ -166,20 +168,11 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   const queueRef = useRef<SpeechQueue>({ ...EMPTY_QUEUE })
   const audioCtxRef = useRef<AudioContext | null>(null)
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null)
-  const prefetchRef = useRef<Promise<{ audioBase64: string; contentType: string }> | null>(null)
-
-  const isApi = useCallback(() => {
-    const c = cfgRef.current
-    return !!(c && c.provider !== 'browser')
-  }, [])
+  const prefetchRef = useRef<{ promise: Promise<{ audioBase64: string; contentType: string }>; provider: string } | null>(null)
 
   // ── Init ────────────────────────────────────────────────────────
   useEffect(() => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const hasTTS = 'speechSynthesis' in window
-    setSupportsVoice(!!SR && (hasTTS || isApi()))
-
-    if (hasTTS) {
+    if ('speechSynthesis' in window) {
       const load = () => { const v = speechSynthesis.getVoices(); if (v.length) setAvailableVoices(v) }
       load()
       speechSynthesis.onvoiceschanged = load
@@ -191,7 +184,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       const r = localStorage.getItem(LS_RATE_KEY)
       if (r) setVoiceRate(parseFloat(r) || 1.0)
     } catch {}
-  }, [isApi])
+  }, [])
 
   // ── Timers ──────────────────────────────────────────────────────
   const clearSilence = useCallback(() => {
@@ -203,6 +196,19 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     debounceRef.current = setTimeout(() => setTranscript(text), TRANSCRIPT_DEBOUNCE_MS)
   }, [])
 
+  // Safety timeout: if speaking is stuck for 30s, force-reset
+  useEffect(() => {
+    if (!isSpeaking) return
+    const timer = setTimeout(() => {
+      if (speakingRef.current) {
+        console.warn('[voice] speaking stuck for 30s, force-resetting')
+        setSpeaking(false)
+        queueRef.current = { ...EMPTY_QUEUE }
+      }
+    }, 30_000)
+    return () => clearTimeout(timer)
+  }, [isSpeaking, setSpeaking])
+
   // ═══════════════════════════════════════════════════════════════
   // LAYER 3: Recognition — single instance per session
   // ═══════════════════════════════════════════════════════════════
@@ -212,11 +218,18 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     if (!SR) return
 
     const rec = new SR()
-    rec.continuous = !isIOS()
+    rec.continuous = capabilities.speech.continuous
     rec.interimResults = true
     rec.lang = 'en-US'
 
     let accumulated = ''
+    let lastStartTime = 0
+    let rapidEndCount = 0
+
+    rec.onstart = () => {
+      lastStartTime = Date.now()
+      rapidEndCount = 0
+    }
 
     rec.onresult = (e: any) => {
       let interim = ''
@@ -253,7 +266,18 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
 
     rec.onend = () => {
       setIsListening(false)
-      if (!isIOS()) return
+      if (capabilities.speech.continuous) return
+
+      // Detect rapid end cycling (recognition starts but immediately ends without audio)
+      const elapsed = Date.now() - lastStartTime
+      if (elapsed < 500 && !transcriptRef.current.trim()) {
+        rapidEndCount++
+        if (rapidEndCount >= 3) {
+          console.error('[voice] recognition ending immediately — not supported in this browser')
+          setTtsError('Voice input is not working in this browser. Try Safari.')
+          return
+        }
+      }
 
       // iOS: continuous=false, so onend fires after each pause.
       // Reuse the same instance to avoid "Microphone access allowed" toasts.
@@ -269,18 +293,36 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
         return
       }
       setTimeout(() => {
-        if (autoResumeRef.current && !cancelledRef.current && !speakingRef.current) {
-          try { rec.start(); setIsListening(true) } catch {}
+        if (!autoResumeRef.current || cancelledRef.current || speakingRef.current) return
+        try {
+          rec.start()
+          setIsListening(true)
+        } catch (e) {
+          console.warn('[voice] iOS auto-resume failed, retrying:', e)
+          setTimeout(() => {
+            if (!autoResumeRef.current || cancelledRef.current || speakingRef.current) return
+            try {
+              rec.start()
+              setIsListening(true)
+            } catch (e2) {
+              console.error('[voice] iOS auto-resume retry failed:', e2)
+              setTtsError('Microphone lost. Tap to resume.')
+            }
+          }, 500)
         }
       }, 800)
     }
 
     recRef.current = rec
-  }, [clearSilence, debouncedTranscript])
+  }, [clearSilence, debouncedTranscript, capabilities.speech.continuous])
 
   const startRecognition = useCallback(() => {
     if (!recRef.current) createRecognition()
-    if (!recRef.current) return
+    if (!recRef.current) {
+      console.error('[voice] SpeechRecognition unavailable')
+      setTtsError('Voice input is not available in this browser.')
+      return
+    }
     try {
       recRef.current.start()
       setIsListening(true)
@@ -288,7 +330,10 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       setTranscript('')
       cancelledRef.current = false
       setWasInterrupted(false)
-    } catch {}
+    } catch (e) {
+      console.error('[voice] recognition.start() failed:', e)
+      setTtsError('Could not start listening. Try again or switch browsers.')
+    }
   }, [createRecognition])
 
   const stopRecognition = useCallback(() => {
@@ -313,20 +358,36 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     if ('speechSynthesis' in window) speechSynthesis.cancel()
   }, [])
 
+  const playBrowserTts = useCallback((text: string): Promise<void> => {
+    if (!('speechSynthesis' in window)) return Promise.resolve()
+    return new Promise<void>(resolve => {
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.rate = voiceRate
+      const voice = selectedVoiceName && availableVoices.length > 0
+        ? availableVoices.find(v => v.name === selectedVoiceName) ?? null
+        : null
+      if (voice) utterance.voice = voice
+      utterance.onend = () => resolve()
+      utterance.onerror = () => resolve()
+      speechSynthesis.speak(utterance)
+    })
+  }, [voiceRate, selectedVoiceName, availableVoices])
+
   const playChunk = useCallback((text: string, gen: number): Promise<void> => {
     if (cancelledRef.current || gen !== genRef.current) return Promise.resolve()
 
     const cfg = cfgRef.current
-    if (!cfg) return Promise.resolve()
-    if (cfg.provider !== 'browser') {
-      // API TTS path
-      return (async () => {
-        // Use prefetched result if available
+    if (!cfg || cfg.provider === 'browser') return playBrowserTts(text)
+
+    // API TTS path — falls back to browser TTS on failure
+    return (async () => {
+      try {
         let result: { audioBase64: string; contentType: string }
-        if (prefetchRef.current) {
-          result = await prefetchRef.current
+        if (prefetchRef.current && prefetchRef.current.provider === cfg.provider) {
+          result = await prefetchRef.current.promise
           prefetchRef.current = null
         } else {
+          prefetchRef.current = null
           result = await synthesizeSpeech({
             text,
             provider: cfg.provider,
@@ -338,7 +399,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
         if (cancelledRef.current || gen !== genRef.current) return
 
         const ctx = audioCtxRef.current
-        if (!ctx) return
+        if (!ctx) return playBrowserTts(text)
 
         const raw = atob(result.audioBase64)
         const arr = new Uint8Array(raw.length)
@@ -355,24 +416,13 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
           activeSourceRef.current = source
           source.start()
         })
-      })()
-    }
-
-    // Browser TTS path
-    if (!('speechSynthesis' in window)) return Promise.resolve()
-
-    return new Promise<void>(resolve => {
-      const utterance = new SpeechSynthesisUtterance(text)
-      utterance.rate = voiceRate
-      const voice = selectedVoiceName && availableVoices.length > 0
-        ? availableVoices.find(v => v.name === selectedVoiceName) ?? null
-        : null
-      if (voice) utterance.voice = voice
-      utterance.onend = () => resolve()
-      utterance.onerror = () => resolve()
-      speechSynthesis.speak(utterance)
-    })
-  }, [voiceRate, selectedVoiceName, availableVoices])
+      } catch (err) {
+        console.warn('[voice] API TTS failed, falling back to browser:', err)
+        if (cancelledRef.current || gen !== genRef.current) return
+        return playBrowserTts(text)
+      }
+    })()
+  }, [voiceRate, playBrowserTts])
 
   // ═══════════════════════════════════════════════════════════════
   // LAYER 2: Speech Queue — single queue, single drain loop
@@ -389,14 +439,18 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       const chunk = q.chunks.shift()!
 
       // Prefetch next chunk for API TTS while current plays
-      if (cfgRef.current && cfgRef.current.provider !== 'browser' && q.chunks.length > 0 && !prefetchRef.current) {
+      const currentCfg = cfgRef.current
+      if (currentCfg && currentCfg.provider !== 'browser' && q.chunks.length > 0 && !prefetchRef.current) {
         const next = q.chunks[0]
-        prefetchRef.current = synthesizeSpeech({
-          text: next,
-          provider: cfgRef.current.provider,
-          model: cfgRef.current.model || 'tts-1',
-          voiceId: cfgRef.current.voiceId || 'nova',
-        }).catch(() => null as any)
+        prefetchRef.current = {
+          provider: currentCfg.provider,
+          promise: synthesizeSpeech({
+            text: next,
+            provider: currentCfg.provider,
+            model: currentCfg.model || 'tts-1',
+            voiceId: currentCfg.voiceId || 'nova',
+          }).catch(() => null as any),
+        }
       }
 
       try {
@@ -406,7 +460,10 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
         const msg = err instanceof Error ? err.message : 'Speech synthesis failed'
         setTtsError(msg.replace(/^Error:\s*/i, ''))
         q.chunks = []
-        break
+        q.playing = false
+        prefetchRef.current = null
+        setSpeaking(false)
+        return
       }
 
       // If more chunks arrived while playing (streaming), keep going
@@ -607,7 +664,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
 
   return {
     voiceActive, isListening, isSpeaking, transcript, ttsError,
-    supportsVoice, availableVoices, selectedVoiceName, voiceRate,
+    supportsVoice, capabilities, availableVoices, selectedVoiceName, voiceRate,
     wasInterrupted,
     startConversation, resumeListening, speak, speakStatus, speakStreaming,
     cancelSpeech, exitVoiceMode, setVoice, setRate, setOnSend,

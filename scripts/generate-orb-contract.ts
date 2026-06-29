@@ -164,6 +164,7 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   create_project: 'Creating project...',
   update_project: 'Updating project...',
   delete_project: 'Deleting project...',
+  confirm_mutation: 'Confirming...',
   set_dormancy: 'Updating project...',
   create_ticket: 'Noting observation...',
   query_db: 'Querying database...',
@@ -172,6 +173,9 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   set_preference: 'Saving preference...',
   query_capabilities: 'Checking capabilities...',
   send_to_developer: 'Sending to developer...',
+  save_memory: 'Remembering...',
+  recall_memories: 'Recalling...',
+  propose_adaptation: 'Proposing adaptation...',
 }
 `
     

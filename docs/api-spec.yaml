@@ -81,12 +81,12 @@ info:
     
     client_action:
       confidence: well-tested
-      description: 'Navigate or switch UI state. Use switch_project to change the active project, open_settings to go to settings, open_help for help.'
+      description: 'Navigate or switch UI state. Use switch_project to change the active project, open_settings to go to settings, open_help for help. Use set_voice to change the TTS voice (target = voice name). Use exit_voice to end voice conversation mode when the user signals they want to stop.'
       input_schema:
         type: object
         properties:
-          action: { type: string, enum: ['switch_project', 'open_settings', 'open_help'] }
-          target: { type: string, description: 'Project code for switch_project.' }
+          action: { type: string, enum: ['switch_project', 'open_settings', 'open_help', 'set_voice', 'exit_voice'] }
+          target: { type: string, description: 'Project code for switch_project, voice name for set_voice.' }
         required: ['action']
 
     search_knowledge:
@@ -152,36 +152,41 @@ info:
 
     create_project:
       confidence: well-tested
-      description: 'Create a new project. Requires a name. The code is optional and will be auto-generated from the name if omitted. If provided, it must be unique, uppercase, alphanumeric (e.g. WORK, SIDE, TRAVEL).'
+      description: "Create a new project. Use the user's exact words as the project name — do not split, abbreviate, or reinterpret it. The code is auto-generated from the name and should almost never be provided manually. Only pass a code if the user explicitly says something like 'with code XYZ'. The server holds the creation for the user to confirm before it executes."
       input_schema:
         type: object
         properties:
-          name: { type: string, description: 'Project name (e.g. "Work", "Side Projects").' }
+          name: { type: string, description: 'Project name — use exactly what the user said (e.g. "Work", "Side Projects", "TEST2"). Do not infer or modify.' }
           code: { type: string, description: 'Optional short uppercase code (e.g. WORK, SIDE). If provided, it must be unique.' }
           description: { type: string, description: 'Optional project description.' }
         required: ['name']
 
     update_project:
       confidence: new
-      description: "Update a project's name, description, or code. Users can only update their own projects. Use when the user says 'rename project X', 'change the description of X', etc."
+      description: "Update a project's name or description. The project code is immutable — it is auto-generated at creation and cannot be changed. Users can only update their own projects. Use when the user says 'rename project X', 'change the description of X', etc. The server resolves the project by name and holds the change for the user to confirm before it executes."
       input_schema:
         type: object
         properties:
-          project_code: { type: string, description: 'Current project code to identify the project.' }
+          name: { type: string, description: 'Current project name — use exactly what the user said.' }
           new_name: { type: string, description: 'New project name.' }
-          new_code: { type: string, description: 'New project code. Must be unique, uppercase, alphanumeric.' }
           new_description: { type: string, description: 'New project description. Pass empty string to clear.' }
-        required: ['project_code']
+        required: ['name']
 
     delete_project:
       confidence: new
-      description: 'Permanently delete a project and all its todos. IRREVERSIBLE. Users can only delete their own projects. MANDATORY: Before calling this tool, you MUST ask the user to confirm by saying exactly which project will be deleted and that all its todos will be lost. Only proceed after the user explicitly confirms (e.g. "yes, delete it"). Never delete without confirmation.'
+      description: 'Permanently delete a project and all its todos. IRREVERSIBLE. Users can only delete their own projects. Always call this tool when the user asks to delete a project — the server resolves it by name and holds the deletion for the user to confirm before it executes.'
       input_schema:
         type: object
         properties:
-          project_code: { type: string, description: 'Project code to delete (e.g. "WORK").' }
-          confirmed: { type: boolean, description: 'Must be true. The AI sets this after receiving explicit user confirmation.' }
-        required: ['project_code', 'confirmed']
+          name: { type: string, description: 'Project name to delete — use exactly what the user said.' }
+        required: ['name']
+
+    confirm_mutation:
+      confidence: new
+      description: 'Execute the project action you most recently proposed, after the user confirms it. Call this — and ONLY this — when the user agrees to a pending create/rename/delete you just described (e.g. they say "yes", "go ahead", "do it"). It takes no parameters; the server runs the exact action that was proposed. Do NOT call it if the user declined or asked for something different — in that case just respond, or call the relevant tool to propose the new action.'
+      input_schema:
+        type: object
+        properties: {}
 
     set_dormancy:
       confidence: well-tested

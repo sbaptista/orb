@@ -19,7 +19,7 @@ import { sendAdaptationEmail } from '@/lib/email'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 import { VERSION } from '@/lib/version'
-import { createProject } from '@/app/actions/manage-project'
+import { PROJECT_MUTATIONS, getPendingMutation, storePendingMutation, clearPendingMutation, proposeProjectMutation, executePendingProjectMutation, type PendingMutationRow } from '@/lib/orb-mutations'
 import { DB_SCHEMA, ALLOWED_TABLES, SOFT_DELETE_TABLES, ALLOWED_OPS, COLUMN_NAME_RE } from '@/lib/db-schema'
 import { fuzzyMatch } from '@/lib/fuzzy-search'
 import { CHANGELOG } from '@/lib/changelog'
@@ -37,13 +37,15 @@ import type { OrbModelProviderId } from '@/lib/orb-model/types'
 // Types
 // ──────────────────────────────────────────────────────────────────────────
 
+export type PendingMutation = { tool: string; params: Record<string, any> }
+
 export type OrbResponse = {
   speech: string
   insight?: { type: 'observation' | 'coaching' | 'strategic'; summary: string }
   thought?: string // A discrete "work step" completed by the Orb
   refresh?: boolean
   mutatedProductId?: string
-  mutationType?: 'create' | 'update' | 'delete' | 'project_create' | 'dormancy'
+  mutationType?: 'create' | 'update' | 'delete' | 'project_create' | 'project_update' | 'project_delete' | 'dormancy'
   clientAction?: { action: string; target?: string }
   error?: string
   isServiceError?: boolean // True when the error is a service-level issue (billing, overloaded, network)
@@ -51,11 +53,23 @@ export type OrbResponse = {
   suggestedKnowledge?: { id: string; productId: string; title: string; suggestion: { title: string; content: string } }
   knowledgeResults?: Array<{ title: string; content: string; code?: string }>
   newProject?: { id: string; name: string; code: string; description: string | null; created_by: string }
+  pendingMutation?: PendingMutation
 }
 
 type OrbInsight = NonNullable<OrbResponse['insight']>
 
-// ── Structural mutation guard ──
+// ── Structural mutation gate ──
+// CRUD mutations are held until the user confirms. The server intercepts the
+// tool call, feeds a "held" result to the AI (so it proposes the action),
+// and returns a pendingMutation to the client. On the next turn, if the
+// client sends back the same pendingMutation, the tool is allowed to execute.
+// LEGACY (todos only). Project mutations use the server-held propose/confirm/execute
+// flow in lib/orb-mutations.ts. Todos migrate to that flow in a follow-up pass.
+const GATED_MUTATIONS = new Set([
+  'create_todo', 'update_todo', 'delete_todo', 'move_todo',
+])
+
+// ── Structural mutation guard (false-claim detection) ──
 // Instead of guessing intent from user input (fragile regex), we check what
 // actually happened: did the model cite a task/project code that no tool
 // produced, or claim completion language when no mutation tool ran at all?
@@ -66,70 +80,14 @@ function extractCitedCodes(speech: string): Set<string> {
   return new Set(matches ?? [])
 }
 
-function hasCompletionLanguage(speech: string): boolean {
-  return /\b(done —|done\.|created as|i'?ve (created|added|filed|updated|changed|closed|completed|deleted|removed|moved|archived|deferred|saved)|successfully (created|added|updated|deleted|moved))\b/i.test(speech)
-}
-
-function isFalseMutationClaim(speech: string, hasMutated: boolean, toolProducedCodes: Set<string>, historyCodes: Set<string>): boolean {
+function isFalseMutationClaim(speech: string, toolProducedCodes: Set<string>, historyCodes: Set<string>): boolean {
   const cited = extractCitedCodes(speech)
-  const hasPhantomCode = [...cited].some(code => !toolProducedCodes.has(code) && !historyCodes.has(code))
-  if (hasPhantomCode) return true
-  if (!hasMutated && hasCompletionLanguage(speech)) return true
-  return false
+  return [...cited].some(code => !toolProducedCodes.has(code) && !historyCodes.has(code))
 }
 
-const APPROVAL_GATED_TOOLS = new Set([
-  'create_todo', 'update_todo', 'delete_todo', 'move_todo',
-  'create_project', 'update_project', 'set_dormancy',
-])
-
-function isAffirmativeApproval(input: string): boolean {
-  return /^(yes|yep|yeah|ok|okay|sure|confirmed?|approved?|proceed|go ahead|do it|create it|create them|make it|make them)\b/i.test(input.trim())
-}
-
-function historyHasPendingMutationProposal(history?: OrbRequest['history']): boolean {
-  const recentAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
-  if (!recentAssistant) return false
-  const asksApproval = /\b(go ahead\??|confirm|approve|proceed|want me to|should i|create (it|this|these|them)|make (it|this|these|them)|do it)\b/i.test(recentAssistant)
-  const namesMutation = /\b(create|add|file|log|make|update|change|rename|close|complete|delete|remove|move|archive|defer|park|wake|sleep)\b/i.test(recentAssistant)
-  return asksApproval && namesMutation
-}
-
-function pendingApprovalCode(history?: OrbRequest['history']): string | null {
-  const recentAssistant = [...(history ?? []).reverse()].find(h => h.role === 'assistant')?.text ?? ''
-  return recentAssistant.match(/\b[A-Z][A-Z0-9]{1,15}-\d+\b/)?.[0] ?? null
-}
-
-function pendingApprovalTool(history?: OrbRequest['history']): 'create_todo' | 'update_todo' | 'delete_todo' | 'move_todo' | null {
-  const recentAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
-  if (/\bcreate (a |the )?(task|todo)\b/i.test(recentAssistant)) return 'create_todo'
-  if (/\bupdate\b/i.test(recentAssistant)) return 'update_todo'
-  if (/\bdelete\b/i.test(recentAssistant)) return 'delete_todo'
-  if (/\bmove\b/i.test(recentAssistant)) return 'move_todo'
-  return null
-}
-
-function mutationToolSummary(name: string, input: any): string {
-  if (name === 'create_todo') {
-    return `create a task${input.title ? `: "${input.title}"` : ''}${input.product_code ? ` in ${input.product_code}` : ''}`
-  }
-  if (name === 'update_todo') return `update ${input.code ?? 'the task'}`
-  if (name === 'delete_todo') return `delete ${input.code ?? 'the task'}`
-  if (name === 'move_todo') return `move ${input.code ?? 'the task'} to ${input.target_project_code ?? 'the target project'}`
-  if (name === 'create_project') return `create a project${input.name ? `: "${input.name}"` : ''}`
-  if (name === 'update_project') return `update ${input.project_code ?? 'the project'}`
-  if (name === 'delete_project') return `delete ${input.project_code ?? 'the project'}`
-  if (name === 'set_dormancy') return `${input.dormant ? 'put to sleep' : 'wake'} ${input.project_code ?? 'the project'}`
-  return `run ${name}`
-}
-
-function buildApprovalPrompt(toolCalls: Array<{ name: string; input: any }>): string {
-  const summaries = toolCalls.map(tc => mutationToolSummary(tc.name, tc.input))
-  if (summaries.length === 1) {
-    return `I'll ${summaries[0]}. Go ahead?`
-  }
-  return `I'll do ${summaries.length} changes:\n${summaries.map((s, i) => `${i + 1}. ${s}`).join('\n')}\nGo ahead?`
-}
+// Mutation confirmation is handled entirely by the prompt layer
+// (buildMutationApprovalPrompt in orb-prompt.ts). The AI proposes,
+// the user confirms, the AI executes. No server-side gate.
 
 function extractInsight(rawSpeech: string): { speech: string; insight?: OrbInsight } {
   const insightPattern = /\[INSIGHT:(observation|coaching|strategic)\]([\s\S]*?)\[\/INSIGHT\]/i
@@ -180,6 +138,7 @@ export type OrbRequest = {
   uiContext?: UIContext
   simulateError?: 'billing' | 'overloaded' | null
   systemInfo?: { browser: string; os: string; os_version: string; viewport: string } | null
+  pendingMutation?: PendingMutation
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
@@ -291,7 +250,8 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   const byProduct = productList.map((p: any) => {
     const ownerName = userMap.get(p.created_by)
     const ownerTag = ownerName ? ` [Owner: ${ownerName}]` : ''
-    const header = `${p.code ?? p.name}${p.description ? ` (${p.description})` : ''}${ownerTag}`
+    const codeLabel = p.code ? ` [code: ${p.code}]` : ''
+    const header = `${p.name}${codeLabel}${p.description ? ` (${p.description})` : ''}${ownerTag}`
     // All projects always visible in query scope (ORB-203)
     const projectTodos = todoList.filter((t: any) => t.product_id === p.id)
     const nonClosedTodos = projectTodos.filter((t: any) => !statusList.find((s: any) => s.name === t.status)?.is_closed)
@@ -311,7 +271,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   }).join('\n\n')
 
   const dormantSection = dormantList.length > 0
-    ? `\n\nDORMANT (hidden from active views, no CRUD — use set_dormancy to wake):\n${dormantList.map((p: any) => `  ${p.code ?? p.name}`).join(', ')}`
+    ? `\n\nDORMANT (hidden from active views, no CRUD — use set_dormancy to wake):\n${dormantList.map((p: any) => `  ${p.name}${p.code ? ` [code: ${p.code}]` : ''}`).join(', ')}`
     : ''
 
   // ── Additional context sections (ORB-146) ──
@@ -325,14 +285,14 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   const categoriesSection = categoryList.length > 0
     ? `\n\nCATEGORIES:\n${categoryList.map((c: any) => {
         const proj = productList.find((p: any) => p.id === c.product_id)
-        return `  ${c.name}${proj ? ` (${proj.code ?? proj.name})` : ''}`
+        return `  ${c.name}${proj ? ` (${proj.name})` : ''}`
       }).join('\n')}`
     : ''
 
   const groupsSection = groupList.length > 0
     ? `\n\nGROUPS:\n${groupList.map((g: any) => {
         const proj = productList.find((p: any) => p.id === g.product_id)
-        return `  ${g.name}${proj ? ` (${proj.code ?? proj.name})` : ''}`
+        return `  ${g.name}${proj ? ` (${proj.name})` : ''}`
       }).join('\n')}`
     : ''
 
@@ -563,19 +523,29 @@ export async function orbConverse(req: OrbRequest) {
           : 'REPOSITORY ACCESS: You may inspect both the current local working tree (source="local") and the current Vercel deployment (source="production"). Use the source the user asks about; default to local for implementation questions asked on localhost.'
         : 'REPOSITORY ACCESS: This user is not an Admin, Super Admin, or Developer. You cannot inspect source code for them.'
 
-      const approvalConfirmed = isAffirmativeApproval(req.input) && historyHasPendingMutationProposal(req.history)
-      const approvedCode = pendingApprovalCode(req.history)
-      const approvedTool = pendingApprovalTool(req.history)
       const messages: any[] = [
         ...(req.history?.map(h => ({ role: h.role, content: h.text })) ?? []),
         { role: 'user', content: req.input },
-        ...(approvalConfirmed ? [{
-          role: 'user',
-          content: approvedTool
-            ? `SYSTEM: The user has approved the immediately preceding mutation proposal. Call ${approvedTool} now${approvedCode ? ` for ${approvedCode}` : ''}. Do not query first or ask for approval again.`
-            : 'SYSTEM: The user has approved the immediately preceding mutation proposal. Execute that requested mutation now. Do not perform a preliminary lookup or ask for approval again.',
-        }] : []),
       ]
+
+      // Server-held pending PROJECT mutation (propose/confirm/execute). The client
+      // echoes nothing — the server is the source of truth for what's awaiting confirmation.
+      const pendingMutation: PendingMutationRow | null = await getPendingMutation(auth.admin, auth.user.id)
+      if (pendingMutation) {
+        // Consume on load: a pending is confirmable ONLY on the turn directly after it
+        // was proposed. Clear it now (the in-memory copy still serves this turn's
+        // confirm_mutation) so it can never linger and be confirmed on a later, unrelated
+        // turn. If the user doesn't confirm this turn, it's already gone — fail-safe.
+        await clearPendingMutation(auth.admin, auth.user.id)
+        messages.push({ role: 'user', content: `[SYSTEM: This note applies ONLY if the user's latest message is a bare affirmation (e.g. "yes", "go", "go ahead", "do it", "yep"). If so, they are approving the action you proposed on the previous turn — "${pendingMutation.summary}" — so call confirm_mutation. For ANY other message (a new or changed request, a question, or a decline), ignore this note completely and respond as if it were not here: do not call confirm_mutation, and never mention a pending, held, or previous action to the user.]` })
+      }
+
+      // Legacy todo gate (client-echoed): held todo mutations re-call their tool on confirm.
+      // TODO: migrate todos to the server-held flow above, then remove this and req.pendingMutation.
+      if (req.pendingMutation) {
+        const pm = req.pendingMutation
+        messages.push({ role: 'user', content: `[SYSTEM: You previously proposed to ${pm.tool}(${JSON.stringify(pm.params)}). The user is now responding. If they agreed, call ${pm.tool} with those exact parameters. If they declined or changed their mind, acknowledge and move on. Do not explain the process — just act.]` })
+      }
 
       const routeRole = routeOrbRequest(req.input, aiPolicy.routingEnabled, aiPolicy.strategicReadsEnabled)
       metricRouteRole = routeRole
@@ -605,6 +575,8 @@ export async function orbConverse(req: OrbRequest) {
       let turnCount = 0
       const MAX_TURNS = 5
       let repairedNoToolMutationClaim = false
+      let heldMutation: PendingMutation | null = null
+      const toolErrors: string[] = []
       const toolProducedCodes = new Set<string>()
       const historyCodes = extractCitedCodes(
         (req.history ?? []).map(h => h.text).join(' ') + ' ' + req.input
@@ -650,7 +622,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         const dynamicPrompt = [
           `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
           ctx.currentUser ? `USER CONTEXT: You are talking to ${ctx.currentUser.email} (Name: ${ctx.currentUser.name || 'Unknown'}, Role: ${userRole || 'Unknown'}).` : '',
-          `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${ctx.current?.name}" (code: "${ctx.current?.code}") unless the user explicitly names a different project.\n- An unqualified request to create a task already has a project: the currently selected project. Do not ask which project; propose the requested task there and request any required mutation approval.\n- When calling tools (create_todo, query_todos, etc.), ALWAYS pass the project code — never omit it.\n- When speaking to the user, refer to projects by display name.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${ctx.current?.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${ctx.currentUser.name || ctx.currentUser.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
+          `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${ctx.current?.name}" unless the user explicitly names a different project.\n- An unqualified request to create a task already has a project: the currently selected project. Do not ask which project; just create it there.\n- When calling tools that need a project identifier, look up the project code from the backlog (shown as [code: XXX] next to each project name) and pass that. The user speaks in names — you translate to codes for tool calls.\n- When speaking to the user, ALWAYS use project names, never codes.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${ctx.current?.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${ctx.currentUser.name || ctx.currentUser.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
           req.uiContext ? `UI STATE: The user is viewing: ${req.uiContext.viewMode ?? 'list'} view | filter: ${req.uiContext.filterStatus ?? 'active'} | priority filter: ${req.uiContext.filterPriority ?? 'all'} | sort: ${req.uiContext.sortAsc ? 'oldest first' : 'newest first'} | orb pane: ${req.uiContext.orbPaneVisible ? 'visible' : 'hidden'} | list pane: ${req.uiContext.listPaneVisible ? 'visible' : 'hidden'} | device: ${req.uiContext.isMobile ? 'mobile' : 'desktop'}. Use this to understand what the user sees when they say "this view", "the list", "that column", etc.` : '',
           req.uiContext?.voiceMode ? `VOICE CONVERSATION: You are in an ongoing voice conversation. The user speaks, you speak back. This is a continuous dialogue — NOT a series of independent requests.
 CURRENT VOICE OUTPUT CONFIG:
@@ -676,7 +648,7 @@ When the user signals they want to end the voice conversation — "that's enough
                 const srcTodo = ctx.todoList.find((t: any) => t.id === k.origin_todo_id)
                 if (srcTodo) origin = ` [from: ${todoCode(srcTodo, ctx.productList)}]`
               }
-              return `- [${k.projects?.name || k.projects?.code}] ${k.title}${tags}${origin}: ${k.content.slice(0, 100)}...`
+              return `- [${k.projects?.name ?? k.projects?.code ?? '?'}] ${k.title}${tags}${origin}: ${k.content.slice(0, 100)}...`
             }).join('\n')}\n(Note: Use the 'search_knowledge' tool to query the full repository if the answer isn't here.)`,
           `WHAT'S NEW (recent releases — use when the user asks "what's new?", "what changed?", or "what version is this?"):\n${CHANGELOG.slice(0, 3).map(r => `${r.version} (${r.date}):\n${r.changes.map(c => `  - ${c}`).join('\n')}`).join('\n\n')}`,
           buildMutationApprovalPrompt(ctx.preferenceList),
@@ -746,14 +718,15 @@ When the user signals they want to end the voice conversation — "that's enough
           messages,
           tools: routeRole === 'strategic'
             ? []
-            : [...availableOrbTools, ...ORB_PREFERENCE_TOOLS, ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []), ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_ADAPTATION_TOOL],
-          ...(routeRole !== 'strategic' && approvalConfirmed && approvedTool ? { tool_choice: { type: 'tool' as const, name: approvedTool } } : {}),
+            : [...availableOrbTools.filter(t => t.name !== 'confirm_mutation' || !!pendingMutation), ...ORB_PREFERENCE_TOOLS, ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []), ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_ADAPTATION_TOOL],
           stream: true,
         }, { timeout: 60_000 })
 
         let currentTurnSpeech = ''
         let currentInsight: OrbInsight | undefined
-        const baseSpeech = accumulatedSpeech
+        // Separate this turn's speech from any prior turn's (e.g. proposal text before
+        // a tool call, then narration after) so they don't run together: "now.Done".
+        const baseSpeech = accumulatedSpeech && !/\s$/.test(accumulatedSpeech) ? accumulatedSpeech + ' ' : accumulatedSpeech
         const toolCalls: any[] = []
 
         for await (const chunk of response) {
@@ -793,12 +766,10 @@ When the user signals they want to end the voice conversation — "that's enough
               .catch(err => console.error('[orbConverse] Push check failed:', err))
           }
           const parsed = extractInsight(accumulatedSpeech)
-          if (isFalseMutationClaim(parsed.speech, hasMutated, toolProducedCodes, historyCodes)) {
-            console.error('[orbConverse] Blocked false mutation claim (structural guard)', {
-              hasMutated,
+          if (isFalseMutationClaim(parsed.speech, toolProducedCodes, historyCodes)) {
+            console.error('[orbConverse] Blocked phantom code citation', {
               toolProducedCodes: [...toolProducedCodes],
               citedCodes: [...extractCitedCodes(parsed.speech)],
-              hasCompletionLang: hasCompletionLanguage(parsed.speech),
               speech: parsed.speech.slice(0, 300),
             })
             if (!repairedNoToolMutationClaim && turnCount < MAX_TURNS) {
@@ -806,25 +777,25 @@ When the user signals they want to end the voice conversation — "that's enough
               accumulatedSpeech = ''
               messages.push({
                 role: 'user',
-                content: 'SYSTEM CORRECTION: Your previous message claimed a mutation succeeded, but no mutation tool call was made and nothing was written. You must now correct course. If approval is required, ask for confirmation without claiming completion. If approval is already present, call the correct mutation tool. Do not cite any new code unless a mutation tool returns it.',
+                content: 'SYSTEM CORRECTION: Your response cited a task or project code that no tool produced. Do not invent codes. Only cite codes returned by a tool call in this conversation.',
               })
-              stream.update({ speech: '', thought: 'Correcting mutation claim...', isStreaming: true })
+              stream.update({ speech: '', thought: 'Correcting...', isStreaming: true })
               continue
             }
-            recordModelRequest('I did not actually complete that')
-            recordMetrics('I did not actually complete that'.length)
-            stream.done({
-              speech: 'I did not actually complete that — no mutation tool ran, so nothing was written. Please ask again and I will either request confirmation or run the correct tool.',
-              isStreaming: false,
-            })
-            return
+            recordModelRequest(parsed.speech)
+            recordMetrics(parsed.speech.length)
           }
           recordModelRequest(parsed.speech)
           recordMetrics(parsed.speech.length)
           const insight = routeRole === 'strategic'
             ? parsed.insight ?? { type: 'strategic' as const, summary: parsed.speech }
             : parsed.insight
-          stream.done({ speech: parsed.speech, insight, isStreaming: false })
+          // If tool errors occurred but the AI didn't acknowledge them, surface to client
+          const unacknowledgedError = toolErrors.length > 0
+            && !/(fail|error|couldn't|could not|unable|problem|issue|went wrong)/i.test(parsed.speech)
+            ? toolErrors.join('; ')
+            : undefined
+          stream.done({ speech: parsed.speech, insight, isStreaming: false, error: unacknowledgedError, pendingMutation: heldMutation ?? undefined })
           return
         }
 
@@ -835,27 +806,6 @@ When the user signals they want to end the voice conversation — "that's enough
           'create_ticket', 'add_knowledge', 'set_preference',
           'send_to_developer', 'propose_adaptation',
         ])
-
-        const approvalMode = ctx.preferenceList.find(p => p.key === 'mutation_approval')?.value ?? 'ask'
-        const approvalNeeded = toolCalls
-          .filter(tc => APPROVAL_GATED_TOOLS.has(tc.name))
-          .map(tc => {
-            let parsed: any
-            try { parsed = JSON.parse(tc.input || '{}') } catch { parsed = {} }
-            return { name: tc.name, input: parsed }
-          })
-
-        if (
-          approvalMode !== 'allow'
-          && approvalNeeded.length > 0
-          && !(isAffirmativeApproval(req.input) && historyHasPendingMutationProposal(req.history))
-        ) {
-          const speech = buildApprovalPrompt(approvalNeeded)
-          recordModelRequest(speech)
-          recordMetrics(speech.length)
-          stream.done({ speech, isStreaming: false })
-          return
-        }
 
         const toolOutputs: any[] = []
         for (const tc of toolCalls) {
@@ -870,6 +820,76 @@ When the user signals they want to end the voice conversation — "that's enough
 
           if (inputTruncated) {
             output = { error: 'Your tool call was truncated (incomplete JSON). The parameters were too long for the response limit. Try again with a shorter description, or create the task first with just a title and update it separately.' }
+          } else
+
+          // ── Project mutation: PROPOSE (resolve + hold; never execute here) ──
+          if (PROJECT_MUTATIONS.has(tc.name)) {
+            const proposal = await proposeProjectMutation(auth.admin, { userId: auth.user.id, isAdmin: auth.isAdmin }, tc.name, input)
+            if (proposal.kind === 'error') {
+              output = { error: proposal.message }
+            } else if (proposal.kind === 'ambiguous') {
+              const list = proposal.candidates.map(c => `${c.name} (${c.code})`).join(', ')
+              output = { needs_disambiguation: true, candidates: proposal.candidates, _instruction: `More than one project matches: ${list}. Ask the user which one they mean — refer to them by name. Do not act yet.` }
+            } else {
+              await storePendingMutation(auth.admin, auth.user.id, { tool: tc.name, target_id: proposal.target_id, params: proposal.params, summary: proposal.summary })
+              output = { proposed: true, _instruction: `Briefly tell the user you're about to ${proposal.summary}, and ask whether they want you to go ahead (e.g. "Want me to go ahead?"). You MUST end by asking for the go-ahead. Do NOT say it is already done — it has not run yet. Don't explain any internal mechanism or use the word "pending".` }
+            }
+            // Discard any premature speech the model emitted before this propose call
+            // (e.g. "Renaming X to Y now.") so only the clean proposal narration remains.
+            accumulatedSpeech = ''
+            stream.update({ speech: '', isStreaming: true })
+            toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
+            continue
+          } else
+
+          // ── Project mutation: EXECUTE the exact stored intent ──
+          if (tc.name === 'confirm_mutation') {
+            // pendingMutation was consumed (cleared) on load; the in-memory copy is the
+            // sole source of truth for this turn. Null means nothing was pending.
+            const pend = pendingMutation
+            if (!pend) {
+              output = { error: 'There is nothing pending to confirm.' }
+              toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
+              continue
+            }
+            const result = await executePendingProjectMutation(auth.admin, { userId: auth.user.id, isAdmin: auth.isAdmin }, pend)
+            if (!result.ok) {
+              toolErrors.push(`confirm_mutation: ${result.error}`)
+              output = { error: result.error, _instruction: `This failed: ${result.error}. Tell the user plainly. Do NOT claim success.` }
+              toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
+              continue
+            }
+            hasMutated = true
+            if (result.code) toolProducedCodes.add(result.code)
+            // Discard premature pre-confirm speech ("Renaming X now.") so the result reads cleanly.
+            accumulatedSpeech = ''
+            stream.update({ speech: '', thought: result.summary, refresh: true, mutationType: result.mutationType, ...(result.newProject ? { newProject: result.newProject } : {}) })
+            // HYBRID confirm: voice → deterministic done (no extra model turn). Text → Orb narrates.
+            if (req.uiContext?.voiceMode) {
+              const doneSpeech = `${result.summary}.`
+              checkAndNotifyEscalation(auth.user.id, beforeUrgency, supabase).catch(err => console.error('[orbConverse] Push check failed:', err))
+              recordModelRequest(doneSpeech)
+              recordMetrics(doneSpeech.length)
+              stream.done({ speech: doneSpeech, isStreaming: false, refresh: true, mutationType: result.mutationType, ...(result.newProject ? { newProject: result.newProject } : {}) })
+              return
+            }
+            output = { ok: true, summary: result.summary, _instruction: `Done: ${result.summary}. Tell the user in your own voice. Do not mention internal mechanics.` }
+            toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
+            continue
+          } else
+
+          // ── Structural mutation gate (LEGACY — todos only) ──
+          // Hold CRUD mutations unless the client sent back a matching pendingMutation.
+          // When confirmed (pendingMutation.tool matches), fall through to execute.
+          if (GATED_MUTATIONS.has(tc.name) && !heldMutation && req.pendingMutation?.tool !== tc.name) {
+            heldMutation = { tool: tc.name, params: input }
+            output = {
+              _held: true,
+              _instruction: `This action has not been executed yet. Describe what you are about to do in plain language (include names, codes, and relevant details) and ask the user to confirm. Do NOT claim the action was completed, do NOT mention confirmations, gates, or internal mechanics.`,
+              params: input,
+            }
+            toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
+            continue
           } else
 
           // try/catch wraps every tool handler so a throw doesn't crash the stream
@@ -1273,77 +1293,9 @@ When the user signals they want to end the voice conversation — "that's enough
               output = { count: formatted.length, events: formatted }
               stream.update({ speech: accumulatedSpeech, thought: `Found ${formatted.length} audit events` })
             }
-          } else if (tc.name === 'create_project') {
-            const res = await createProject({
-              name: input.name,
-              code: input.code || null,
-              description: input.description || null,
-              ownerId: auth.user.id,
-            })
-            if (res.error) {
-              output = { error: res.error }
-            } else {
-              const project = res.project!
-              output = { ok: true, code: project.code, name: project.name }
-              // Push into live context so subsequent tool calls (e.g. create_todo)
-              // in the same turn can resolve the new project code (fixes ORB-136)
-              ctx.productList.push(project)
-              stream.update({ speech: accumulatedSpeech, thought: `Created project ${project.code}`, refresh: true, mutationType: 'project_create', newProject: project })
-            }
-          } else if (tc.name === 'update_project') {
-            const code = String(input.project_code || '').toUpperCase()
-            const projectQuery = supabase.from('projects').select('id, code, name, description, created_by').ilike('code', code)
-            if (!auth.isAdmin) projectQuery.eq('created_by', auth.user.id)
-            const { data: project } = await projectQuery.maybeSingle()
-            if (!project) {
-              output = { error: `Project ${code} not found` }
-            } else if (project.created_by !== auth.user.id && !auth.isAdmin) {
-              output = { error: 'You can only update your own projects' }
-            } else {
-              const updates: any = {}
-              if (input.new_name) updates.name = input.new_name
-              if (input.new_description !== undefined) updates.description = input.new_description || null
-              if (input.new_code) {
-                const cleanCode = String(input.new_code).trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
-                if (!cleanCode) { output = { error: 'Project code is required' }; toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) }); continue }
-                const { data: conflict } = await auth.admin.from('projects').select('id').ilike('code', cleanCode).eq('created_by', project.created_by).neq('id', project.id).is('deleted_at', null).maybeSingle()
-                if (conflict) { output = { error: `Code "${cleanCode}" is already in use` }; toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) }); continue }
-                updates.code = cleanCode
-              }
-              if (Object.keys(updates).length === 0) {
-                output = { error: 'Nothing to update' }
-              } else {
-                const client = auth.isAdmin ? auth.admin : supabase
-                const { data: updated, error: updateErr } = await client.from('projects').update(updates).eq('id', project.id).select('id, name, code, description, created_by').single()
-                if (updateErr) output = { error: updateErr.message }
-                else {
-                  output = { ok: true, code: updated.code, name: updated.name }
-                  stream.update({ speech: accumulatedSpeech, thought: `Updated project ${updated.code}`, refresh: true, mutationType: 'project_create' })
-                }
-              }
-            }
-          } else if (tc.name === 'delete_project') {
-            if (!input.confirmed) {
-              output = { error: 'Confirmation required. Ask the user to confirm before deleting.' }
-            } else {
-              const code = String(input.project_code || '').toUpperCase()
-              const delProjectQuery = supabase.from('projects').select('id, code, name, created_by').ilike('code', code)
-              if (!auth.isAdmin) delProjectQuery.eq('created_by', auth.user.id)
-              const { data: project } = await delProjectQuery.maybeSingle()
-              if (!project) {
-                output = { error: `Project ${code} not found` }
-              } else if (project.created_by !== auth.user.id && !auth.isAdmin) {
-                output = { error: 'You can only delete your own projects' }
-              } else {
-                const client = auth.isAdmin ? auth.admin : supabase
-                const { error: delErr } = await client.from('projects').delete().eq('id', project.id)
-                if (delErr) output = { error: delErr.message }
-                else {
-                  output = { ok: true, code: project.code }
-                  stream.update({ speech: accumulatedSpeech, thought: `Deleted project ${project.code}`, refresh: true, mutationType: 'dormancy' })
-                }
-              }
-            }
+          // NOTE: create_project / update_project / delete_project are handled by the
+          // server-held propose/confirm/execute flow above (PROJECT_MUTATIONS / confirm_mutation),
+          // not here. See lib/orb-mutations.ts.
           } else if (tc.name === 'set_dormancy') {
             const code = String(input.project_code || '').toUpperCase()
             const dormQuery = auth.admin.from('projects').select('id, code, name, created_by').ilike('code', code)
@@ -1610,6 +1562,7 @@ When the user signals they want to end the voice conversation — "that's enough
           }
 
           if (output?.error) {
+            toolErrors.push(`${tc.name}: ${output.error}`)
             stream.update({ speech: accumulatedSpeech, thought: `Error: ${output.error}` })
           }
 
@@ -1631,6 +1584,9 @@ When the user signals they want to end the voice conversation — "that's enough
           if (output?.code) toolProducedCodes.add(output.code)
           if (output?.old_code) toolProducedCodes.add(output.old_code)
           if (output?.new_code) toolProducedCodes.add(output.new_code)
+        }
+        if (!hasMutated && toolErrors.length > 0) {
+          toolOutputs.push({ type: 'text' as const, text: `[SYSTEM: No data was modified. Errors occurred: ${toolErrors.join('; ')}. Report these errors to the user. Do NOT claim success.]` })
         }
         messages.push({ role: 'user', content: toolOutputs })
 

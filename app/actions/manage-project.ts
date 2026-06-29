@@ -44,6 +44,12 @@ export async function createProject(data: {
   
   const ownerId = ctx.isAdmin ? (data.ownerId ?? ctx.user.id) : ctx.user.id
 
+  const { data: nameConflict } = await ctx.admin.from('projects').select('id, code')
+    .ilike('name', data.name.trim()).eq('created_by', ownerId).is('deleted_at', null).maybeSingle()
+  if (nameConflict) {
+    return { error: `A project named "${data.name.trim()}" already exists (${nameConflict.code})` }
+  }
+
   let code = data.code?.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
   if (!code) {
     code = await generateUniqueCode(ctx.admin, data.name, ownerId)

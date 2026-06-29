@@ -13,7 +13,7 @@ import EmptyState from './ui/EmptyState'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { registerOrbTour, unregisterOrbTour, runOrbTour, launchOrbTour } from './OrbTour'
 import { OrbDevPanel, DevTestError, type MoodOverride, type SimulateError } from './OrbDevPanel'
-import { orbConverse, orbGreeting, type OrbResponse } from '@/app/actions/orb-converse'
+import { orbConverse, orbGreeting, type OrbResponse, type PendingMutation } from '@/app/actions/orb-converse'
 import { collectSystemInfo, type SystemInfo } from '@/lib/system-info'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { checkReminders } from '@/app/actions/reminder-actions'
@@ -196,11 +196,17 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   useEffect(() => {
     getTtsConfig()
       .then(cfg => setTtsConfig(cfg))
-      .catch(() => {})
+      .catch(err => {
+        console.error('[tts] config load failed:', err)
+        setTtsConfig({ provider: 'browser', model: null, voiceId: null })
+      })
   }, [])
   const voice = useVoiceMode(ttsConfig)
   const voiceActiveRef = useRef(false)
   voiceActiveRef.current = voice.voiceActive
+
+  // ── Mutation gate ──
+  const pendingMutationRef = useRef<PendingMutation | null>(null)
 
   // ── Project switcher state ──
   const [projectSearchOpen, setProjectSearchOpen] = useState(false)
@@ -274,12 +280,28 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   // adminSearchResults removed — SearchModal handles its own filtering
 
-  function addProjectEverywhere(project: Product) {
-    setProducts(prev => prev.some(p => p.id === project.id) ? prev : [...prev, project])
-    setAdminProjects(prev => prev.some(p => p.id === project.id) ? prev : [...prev, {
-      id: project.id, name: project.name, code: project.code ?? null,
-      owner_name: userFullName || userName || '',
-    }])
+  async function refreshProjects() {
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const dq = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode')
+    const { data: freshProducts } = (authUser && !isAdmin) ? await dq.eq('created_by', authUser.id) : await dq
+    const list = (freshProducts ?? []) as Product[]
+    setProducts(list)
+    if (isAdmin) {
+      const { data } = await supabase
+        .from('projects')
+        .select('id, name, code, is_dormant, users!created_by(first_name, last_name)')
+        .eq('is_dormant', false)
+        .order('name')
+      if (data) {
+        setAdminProjects((data as any[]).map(p => ({
+          id: p.id, name: p.name, code: p.code,
+          owner_name: p.users ? [p.users.first_name, p.users.last_name].filter(Boolean).join(' ') : 'Unknown',
+        })))
+      }
+    } else {
+      setAdminProjects(list.map(p => ({ id: p.id, name: p.name, code: p.code ?? null, owner_name: '' })))
+    }
+    return list
   }
 
   // handleSearchFocus/Blur removed — SearchModal handles open/close
@@ -797,7 +819,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         ))
       }
       // Fire-and-forget purge of old processed messages (knowledge repo has the permanent record)
-      purgeOldDevMessages().catch(() => {})
+      purgeOldDevMessages().catch(e => console.warn('[dashboard] purge old dev messages failed:', e))
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       if (message.includes('Server Action') && message.includes('was not found on the server')) {
@@ -1071,7 +1093,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
     try {
       if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
-      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError, systemInfo: systemInfoRef.current, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive, voiceMode: voice.voiceActive, availableVoices: voice.voiceActive ? voice.availableVoices.map(v => v.name) : undefined, currentVoice: voice.voiceActive ? voice.selectedVoiceName || undefined : undefined, ttsProvider: voice.voiceActive ? ttsConfig?.provider : undefined, ttsModel: voice.voiceActive ? ttsConfig?.model : undefined, ttsVoiceId: voice.voiceActive ? ttsConfig?.voiceId : undefined } })
+      const outgoingMutation = pendingMutationRef.current
+      pendingMutationRef.current = null
+      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError, systemInfo: systemInfoRef.current, pendingMutation: outgoingMutation ?? undefined, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive, voiceMode: voice.voiceActive, availableVoices: voice.voiceActive ? voice.availableVoices.map(v => v.name) : undefined, currentVoice: voice.voiceActive ? voice.selectedVoiceName || undefined : undefined, ttsProvider: voice.voiceActive ? ttsConfig?.provider : undefined, ttsModel: voice.voiceActive ? ttsConfig?.model : undefined, ttsVoiceId: voice.voiceActive ? ttsConfig?.voiceId : undefined } })
       for await (const chunk of readStreamableValue(stream)) {
         if (request.aborted || cancelledConversationRequestIdsRef.current.has(request.id)) break
         if (!chunk) continue
@@ -1093,18 +1117,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         if (chunk.refresh) {
           setPulse(true)
           setTimeout(() => setPulse(false), 420)
-          if (chunk.mutationType === 'dormancy') {
-            const { data: { user: authUser } } = await supabase.auth.getUser()
-            const dq = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode')
-            const { data: freshProjects } = (authUser && !isAdmin) ? await dq.eq('created_by', authUser.id) : await dq
-            const list = (freshProjects ?? []) as Product[]
-            setProducts(list)
-            if (list.length > 0 && !list.find(p => p.id === selectedId)) setSelectedId(list[0].id)
-          } else if (chunk.mutationType === 'project_create' && chunk.newProject) {
-            addProjectEverywhere(chunk.newProject)
-            orbSwitchingRef.current = true
-            setSelectedId(chunk.newProject.id)
-            toast.success('Project created.')
+          const isProjectMutation = chunk.mutationType === 'dormancy' || chunk.mutationType === 'project_create' || chunk.mutationType === 'project_update' || chunk.mutationType === 'project_delete'
+          if (isProjectMutation) {
+            const list = await refreshProjects()
+            if (chunk.mutationType === 'project_create' && chunk.newProject) {
+              orbSwitchingRef.current = true
+              setSelectedId(chunk.newProject.id)
+              toast.success('Project created.')
+            } else if (list.length > 0 && !list.find(p => p.id === selectedId)) {
+              setSelectedId(list[0].id)
+            }
           } else {
             if (chunk.mutatedProductId === selectedId) { fetchOrbTodos(); fetchTodos() }
             if (chunk.mutationType === 'create') toast.success('Todo created.')
@@ -1145,12 +1167,18 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           }
         }
         if (chunk.suggestedKnowledge) setDistillTodo(chunk.suggestedKnowledge)
+        if (chunk.pendingMutation) pendingMutationRef.current = chunk.pendingMutation
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('[orbSubmit]', err)
       if (isAuthError(String(err))) { handleSessionExpired(toast); return }
       if (!request.aborted && !cancelledConversationRequestIdsRef.current.has(request.id)) {
-        setMessages(prev => prev.map(m => m.id === processingId ? { ...m, text: 'Something went wrong. Try again?' } : m))
+        const msg = err instanceof TypeError && /(fetch|load failed|network)/i.test(err.message)
+          ? 'Lost connection. Check your network and try again.'
+          : err?.name === 'AbortError' || err?.name === 'TimeoutError'
+            ? 'Request took too long. Try again.'
+            : 'Something went wrong. Try again?'
+        setMessages(prev => prev.map(m => m.id === processingId ? { ...m, text: msg } : m))
       }
     } finally {
       clearVoiceProgressCue()
@@ -1615,6 +1643,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               voiceTranscript={voice.transcript}
               voiceInterrupted={voice.wasInterrupted}
               voiceError={voice.ttsError}
+              voiceWarnings={voice.capabilities.warnings}
               supportsVoiceMode={voice.supportsVoice && !noProject}
               onStartVoiceMode={handleOrbTap}
               onVoiceContinue={voice.resumeListening}
@@ -1665,9 +1694,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                               const result = await deleteProject(selected.id)
                               if (result.error) { toast.error('Failed to delete project.'); return }
                               toast.success('Project deleted.')
-                              setProducts(prev => prev.filter(p => p.id !== selected.id))
-                              setAdminProjects(prev => prev.filter(p => p.id !== selected.id))
-                              setSelectedId(products.find(p => p.id !== selected.id)?.id ?? null)
+                              const list = await refreshProjects()
+                              setSelectedId(list.find(p => p.id !== selected.id)?.id ?? null)
                               setProjectMenuOpen(false)
                               setConfirmProjectDelete(false)
                             }}
@@ -1866,14 +1894,14 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
       {showAddProduct && (
         <AddProductModal ownerId={null} onClose={() => setShowAddProduct(false)}
-          onCreated={project => { addProjectEverywhere(project); setSelectedId(project.id); setShowAddProduct(false) }}
+          onCreated={project => { refreshProjects(); setSelectedId(project.id); setShowAddProduct(false) }}
         />
       )}
 
       {showEditProduct && selected && (
         <AddProductModal project={selected as any} onClose={() => setShowEditProduct(false)}
-          onUpdated={updated => { setProducts(prev => prev.map(p => p.id === updated.id ? updated : p)); setShowEditProduct(false) }}
-          onDeleted={id => { setProducts(prev => prev.filter(p => p.id !== id)); setSelectedId(prev => prev === id ? (products.find(p => p.id !== id)?.id ?? null) : prev); setShowEditProduct(false) }}
+          onUpdated={() => { refreshProjects(); setShowEditProduct(false) }}
+          onDeleted={id => { refreshProjects().then(list => { if (selectedId === id) setSelectedId(list[0]?.id ?? null) }); setShowEditProduct(false) }}
         />
       )}
 

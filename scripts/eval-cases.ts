@@ -9,6 +9,8 @@ export type EvalCase = {
   input: string                    // what the user says to the Orb
   userEmail?: string               // optional admin context for strategic evaluations
   history?: Array<{ role: 'user' | 'assistant'; text: string }>
+  pendingSummary?: string            // simulate a server-held pending project mutation awaiting confirmation
+  backlogOverride?: string           // freeze the backlog the model sees (decouples project-routing cases from live DB state)
   mutationApproval?: 'ask' | 'allow' // eval-only override; defaults to allow for tool-routing cases
   voiceMode?: boolean                // inject voice mode context into the system prompt
   ttsProvider?: string                // eval-only voice output config
@@ -38,6 +40,14 @@ export type EvalCase = {
   tier: 1 | 2                     // Tier 1 = deterministic (1 run), Tier 2 = statistical (3 runs)
 }
 
+// Frozen mini-backlog for project-routing cases — keeps them deterministic and
+// independent of whatever the live DB happens to contain.
+function evalBacklog(projects: Array<{ name: string; code: string }>): string {
+  return projects
+    .map(p => `${p.name} [code: ${p.code}]:\n  SUMMARY: active_count=0 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)`)
+    .join('\n\n')
+}
+
 export const EVAL_CASES: EvalCase[] = [
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -65,12 +75,10 @@ export const EVAL_CASES: EvalCase[] = [
       { role: 'user', text: 'Create test 5a slice' },
       { role: 'assistant', text: 'Creating the task...\n\nDone — created as **ORB-282**.' },
     ],
-    // Keep the fixture out of the duplicate-search vocabulary. This case is
-    // specifically about rejecting a historical no-tool completion claim.
     input: 'Create a task: [EVAL] verify historical completion claim protection',
-    tier: 1,
+    tier: 2,
     expectNoTool: true,
-    speechPattern: /(go ahead|confirm|did not actually|nothing was written)/i,
+    speechPattern: /(go ahead|confirm|did not actually|nothing was written|shall i|want me to)/i,
     speechNotContains: ['done', 'created as', 'orb-'],
   },
 
@@ -90,6 +98,111 @@ export const EVAL_CASES: EvalCase[] = [
       params: { product_code: 'ORB' },
     },
     speechNotContains: ['done', 'created as', 'orb-'],
+  },
+
+  {
+    id: 'delete-project-calls-tool',
+    description: 'Project deletion calls delete_project with the project name the user said',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    backlogOverride: evalBacklog([{ name: 'Marketing Site', code: 'MARKSITE' }]),
+    input: 'Delete the project Marketing Site',
+    tier: 1,
+    expectTool: {
+      name: 'delete_project',
+      params: { name: 'Marketing Site' },
+    },
+  },
+
+  {
+    id: 'confirm-mutation-executes-on-yes',
+    description: 'Affirming a pending project mutation calls confirm_mutation (not the original tool again)',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    history: [
+      { role: 'user', text: 'Delete the project testp' },
+      { role: 'assistant', text: 'I\'ll permanently delete testp and all its todos. Go ahead?' },
+    ],
+    pendingSummary: 'permanently delete the project "testp" and all of its todos',
+    input: 'yes',
+    tier: 1,
+    expectTool: {
+      name: 'confirm_mutation',
+    },
+  },
+
+  {
+    id: 'confirm-mutation-not-called-on-decline',
+    description: 'Declining a pending project mutation does NOT call confirm_mutation',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    history: [
+      { role: 'user', text: 'Delete the project testp' },
+      { role: 'assistant', text: 'I\'ll permanently delete testp and all its todos. Go ahead?' },
+    ],
+    pendingSummary: 'permanently delete the project "testp" and all of its todos',
+    input: 'no, leave it',
+    tier: 1,
+    expectNoTool: true,
+  },
+
+  {
+    id: 'disambiguation-pick-routes-to-delete',
+    description: 'After the Orb asks which duplicate-named project, the user\'s code pick routes to delete_project',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    backlogOverride: evalBacklog([{ name: 'Test', code: 'TEST' }, { name: 'Test', code: 'TEST2' }]),
+    history: [
+      { role: 'user', text: 'Delete the project Test' },
+      { role: 'assistant', text: 'You have two projects named Test — one is code TEST, the other is TEST2. Which one do you mean?' },
+    ],
+    input: 'TEST2',
+    tier: 1,
+    expectTool: {
+      name: 'delete_project',
+      params: { name: 'TEST2' },
+    },
+  },
+
+  {
+    id: 'restated-request-reproposes-not-confirms',
+    description: 'A restated request with a stale pending re-proposes (update_project), never auto-confirms',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    backlogOverride: evalBacklog([{ name: 'Test Project', code: 'TESTP' }]),
+    pendingSummary: 'rename "Test Project" to "Test Project 2"',
+    input: 'Rename Test Project to Test Project 2',
+    tier: 1,
+    expectTool: {
+      name: 'update_project',
+      params: { name: 'Test Project', new_name: 'Test Project 2' },
+    },
+  },
+
+  {
+    id: 'create-project-exact-name',
+    description: 'Project creation uses the exact user-provided name (runtime-unique, collision-proof)',
+    productCode: 'ORB',
+    input: 'Create a project called __UNIQUE__',
+    tier: 1,
+    expectTool: {
+      name: 'create_project',
+      params: { name: '__UNIQUE__' },
+    },
+  },
+
+  {
+    id: 'rename-project-proposes',
+    description: 'Renaming a project calls update_project with the current name and new_name',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    backlogOverride: evalBacklog([{ name: 'Helm', code: 'HELM' }]),
+    input: 'Rename the project Helm to Helm Classic',
+    tier: 1,
+    expectTool: {
+      name: 'update_project',
+      params: { name: 'Helm', new_name: 'Helm Classic' },
+    },
   },
 
   {
@@ -435,14 +548,14 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
-    id: 'approval-loop-bypass',
-    description: 'User saying "yes" after an approval prompt with a task code bypasses the gate',
+    id: 'approval-follow-through',
+    description: 'User saying "yes" after an approval prompt executes the proposed mutation',
     productCode: 'ORB',
-    input: 'yes',
+    input: 'yes, go ahead',
     mutationApproval: 'ask',
     history: [
-      { role: 'user', text: 'Update ORB-100 with a note about testing' },
-      { role: 'assistant', text: "I'll update ORB-100. Go ahead?" },
+      { role: 'user', text: 'Update ORB-100 with a note that says "testing complete"' },
+      { role: 'assistant', text: 'I found ORB-100 ("Set up CI pipeline", currently open). I\'ll add the note "testing complete" to it. Shall I go ahead?' },
     ],
     tier: 1,
     expectTool: { name: 'update_todo' },

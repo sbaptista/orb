@@ -6,6 +6,57 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.76',
+    date: '2026-06-28',
+    changes: [
+      'Project CRUD reliability rework: create/rename/delete of projects now use a server-held propose → confirm → execute flow. The Orb proposes the action; the server holds the exact intent (resolved to a concrete project, not a name) and only executes it when you confirm via a dedicated confirm step. This removes the double-confirmation, lost-state, and false-success bugs that came from the AI driving confirmation across turns.',
+      'Projects are now identified by name everywhere you speak to the Orb — never by internal code. A name is resolved to one project (0/1/many): if more than one project matches, the Orb asks which one you mean (showing the code only to break the tie). The immutable project code is used only behind the scenes for tool calls.',
+      'The Orb\'s backlog view now shows each project by name first, with the code as secondary metadata, so it can match what you actually say.',
+      'Voice confirmations are now instant: when you confirm a project action by voice, the result is spoken immediately without an extra round-trip to the AI. In text the Orb still narrates in its own voice.',
+      'Duplicate project names are caught at proposal time with a clear message instead of silently creating a second project.',
+    ]
+  },
+  {
+    version: 'v0.6.75',
+    date: '2026-06-27',
+    changes: [
+      'Structural mutation gate: CRUD operations (create/update/delete for projects and todos) are now held by the server until the user confirms. The AI proposes the action, the server holds the tool call, and execution only happens after the user\'s next message sends back the pending mutation. This replaces prompt-only gating which the AI could ignore.',
+      'Fixed project creation naming: the create_project tool description now instructs the AI to use the user\'s exact words as the project name instead of splitting into separate name and code fields.',
+    ]
+  },
+  {
+    version: 'v0.6.74',
+    date: '2026-06-27',
+    changes: [
+      'New runtime capability detection: useCapabilities hook detects platform, browser, and speech API availability. Voice mode now warns users when their browser/platform cannot support voice input (e.g. Chrome on iOS).',
+      'Voice mode config race fix: TTS config load failure now falls back to browser TTS instead of silently dropping speech. Voice mode start is blocked until config resolves.',
+      'Provider switch safety: prefetched TTS audio is now tagged with the provider that generated it. Switching providers mid-session discards stale prefetch instead of playing audio from the wrong voice.',
+      'Voice error recovery: TTS playback failure now immediately resets the speaking state instead of leaving the UI stuck. Added 30-second safety timeout for stuck speaking state.',
+      'iOS voice recognition reliability: auto-resume now retries once on failure instead of silently giving up. Shows "Microphone lost" message if retry also fails.',
+      'Tool error propagation: if a tool call fails and the AI does not acknowledge the error in its response, the error is surfaced to the client.',
+      'Network error differentiation: connection failures and timeouts now show specific messages instead of generic "Something went wrong."',
+      'Eliminated silent .catch(() => {}) patterns across dashboard, conversation, and voice components.',
+    ]
+  },
+  {
+    version: 'v0.6.73',
+    date: '2026-06-27',
+    changes: [
+      'Removed the server-side approval gate — mutation confirmation is now handled entirely by the AI prompt layer. The regex-based gate caused the delete_project infinite loop and was the #1 source of CRUD bugs.',
+      'Removed forced tool_choice injection on confirmation, SYSTEM message injection, and approval interception from both the server action and eval endpoint.',
+      'Eval cases updated: delete-project-asks-once and create-after-hallucinated-history moved to Tier 2 (behavioral) since the AI generates its own confirmation language.',
+    ]
+  },
+  {
+    version: 'v0.6.72',
+    date: '2026-06-26',
+    changes: [
+      'Fixed project deletion approvals by making the generic mutation approval gate the single confirmation path for delete_project.',
+      'Removed the duplicate delete_project confirmed parameter from the Orb tool contract and API spec so approved deletes no longer bounce back into another confirmation request.',
+      'Orb Eval: Added deterministic regression cases for delete-project approval wording and confirmed delete_project execution.',
+    ]
+  },
+  {
     version: 'v0.6.71',
     date: '2026-06-26',
     changes: [

@@ -418,7 +418,7 @@ export function computeObservations(
   const observations: string[] = []
   const productName = (pid: string) => {
     const p = products.find(pp => pp.id === pid)
-    return p?.name ?? p?.code ?? 'Unknown'
+    return p?.name ?? 'Unknown'
   }
   const todoCode = (t: TodoForObservation) => {
     const p = products.find(pp => pp.id === t.product_id)
@@ -521,7 +521,7 @@ export function computeObservations(
     for (const p of products) {
       const pActive = active.filter(t => t.product_id === p.id)
       if (pActive.length >= 3 && !projectsWithActivity.has(p.id)) {
-        observations.push(`${p.name ?? p.code} has ${pActive.length} active tasks but zero closures in 2 weeks.`)
+        observations.push(`${p.name} has ${pActive.length} active tasks but zero closures in 2 weeks.`)
         break
       }
     }
@@ -555,19 +555,8 @@ export const VALID_PREFERENCE_KEYS: Record<string, { description: string; values
 export function buildMutationApprovalPrompt(prefs: Array<{ key: string; value: string }>): string {
   const approval = prefs.find(p => p.key === 'mutation_approval')?.value ?? 'ask'
   if (approval === 'allow') return ''
-  return `MUTATION APPROVAL PROTOCOL:
-Before executing any action that creates, updates, deletes, or moves a task/project, you MUST:
-1. Present what you plan to do in a clear summary. For multiple actions, list them all.
-2. Ask for confirmation: "Go ahead?" or "Create these?"
-3. Only call the mutation tools AFTER the user confirms (says "yes", "go ahead", "do it", etc.)
-4. If the user says "no" or changes their mind, acknowledge and do not execute.
-
-CONFIRMATION FOLLOW-THROUGH (MANDATORY — violation is a regression):
-If your immediately previous assistant message proposed one or more specific mutations and asked for confirmation, and the user's current reply is affirmative ("yes", "go", "do it", "go ahead", "yes that's correct", "yes go ahead", etc.):
-- Call the corresponding mutation tool(s) IMMEDIATELY in this turn. This is non-negotiable.
-- Do NOT re-summarize the proposal. Do NOT ask for confirmation again. Do NOT say "just to confirm" or "to make sure". The user already confirmed.
-- Do NOT treat the affirmative reply as a new standalone message requiring context. It is a reply to YOUR proposal.
-- If you fail to execute after an affirmative confirmation, that is a bug in your behavior. Execute the tools.
+  return `MUTATION PROTOCOL:
+When the user asks to create, update, delete, or move a task or project, ALWAYS call the tool immediately. Do not wait, do not ask for confirmation first. The server handles confirmation — just call the tool.
 
 ${approval === 'session' ? 'SESSION MODE: After the user approves the first mutation in this session, you may skip confirmation for subsequent mutations of the same type. Still present what you will do, but execute without waiting.' : ''}
 
@@ -575,13 +564,7 @@ MULTI-ACTION PARSING:
 When the user gives you a sentence containing multiple tasks or actions, parse ALL of them:
 - "Review the deck by Friday, fix the login bug which is urgent, and eventually look into dark mode" = 3 separate tasks with different attributes.
 - Extract: title, priority (from words like "urgent", "critical", "low priority", "eventually"), due date (from "by Friday", "next week", "end of month"), and status (from "eventually" = deferred, "later" = deferred, active by default).
-- Present all parsed tasks in a numbered list with the attributes you inferred, then ask for confirmation before creating them.
-- Example response:
-  "I'll create 3 tasks:
-  1. **Review the deck** — due Friday, normal priority
-  2. **Fix the login bug** — urgent priority
-  3. **Look into dark mode** — deferred
-  Go ahead?"
+- Present all parsed tasks in a numbered list with the attributes you inferred, then call the tools to create them all.
 
 This is a key differentiator — most tools require one task at a time through forms. You understand natural language and can batch-parse intelligently.
 

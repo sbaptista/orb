@@ -39,6 +39,7 @@ type Props = {
     voiceTranscript?: string
     voiceInterrupted?: boolean
     voiceError?: string | null
+    voiceWarnings?: string[]
     supportsVoiceMode?: boolean
     onStartVoiceMode?: () => void
     onVoiceContinue?: () => void
@@ -60,7 +61,7 @@ function OrbCard({ msg }: { msg: ConversationMessage }) {
         navigator.clipboard.writeText(msg.text).then(() => {
             setCopied(true)
             setTimeout(() => setCopied(false), 1500)
-        }).catch(() => {})
+        }).catch(e => console.warn('[clipboard]', e))
     }
 
     return (
@@ -176,6 +177,7 @@ export default function OrbConversation({
     voiceTranscript = '',
     voiceInterrupted = false,
     voiceError = null,
+    voiceWarnings = [],
     supportsVoiceMode = false,
     onStartVoiceMode,
     onVoiceContinue,
@@ -370,7 +372,7 @@ export default function OrbConversation({
         navigator.clipboard.writeText(transcript).then(() => {
             setCopiedTranscript(true)
             setTimeout(() => setCopiedTranscript(false), 1500)
-        }).catch(() => {})
+        }).catch(e => console.warn('[clipboard]', e))
     }
 
     async function exportTranscript() {
@@ -463,6 +465,11 @@ export default function OrbConversation({
                             {voiceError
                                 ? <span style={{ color: 'var(--color-danger)' }}>{voiceError}</span>
                                 : voiceTranscript || (voiceListening ? 'Listening…' : voiceInterrupted ? 'Returning to listening…' : ' ')}
+                            {voiceWarnings.length > 0 && !voiceError && (
+                                <div style={{ color: 'var(--color-warning, #e6a817)', fontSize: 'var(--fs-xs)', marginTop: '4px', opacity: 0.85 }}>
+                                    {voiceWarnings[0]}
+                                </div>
+                            )}
                         </div>
 
                         {/* Traffic-light indicators + stop button */}
@@ -748,7 +755,7 @@ export default function OrbConversation({
                                                             input.trim() && navigator.clipboard.writeText(input).then(() => {
                                                                 setCopiedInput(true)
                                                                 setTimeout(() => setCopiedInput(false), 1500)
-                                                            }).catch(() => {})
+                                                            }).catch(e => console.warn('[clipboard]', e))
                                                             setMoreMenuOpen(false)
                                                         }}
                                                         disabled={!input.trim()}

@@ -33,11 +33,6 @@ function checkAuth(request: NextRequest): NextResponse | null {
   return null
 }
 
-const APPROVAL_GATED_TOOLS = new Set([
-  'create_todo', 'update_todo', 'delete_todo', 'move_todo',
-  'create_project', 'update_project', 'delete_project', 'set_dormancy',
-])
-
 // Structural mutation guard — mirrors orb-converse.ts
 function extractCitedCodes(speech: string): Set<string> {
   const matches = speech.match(/\b[A-Z][A-Z0-9]{1,15}-\d+\b/g)
@@ -56,50 +51,6 @@ function isFalseMutationClaim(speech: string, hasMutated: boolean, toolProducedC
   return false
 }
 
-function isAffirmativeApproval(input: string): boolean {
-  return /^(yes|yep|yeah|ok|okay|sure|confirmed?|approved?|proceed|go ahead|do it|create it|create them|make it|make them)\b/i.test(input.trim())
-}
-
-function historyHasPendingMutationProposal(history?: Array<{ role: 'user' | 'assistant'; text: string }>): boolean {
-  const recentAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
-  if (!recentAssistant) return false
-  const asksApproval = /\b(go ahead\??|confirm|approve|proceed|want me to|should i|create (it|this|these|them)|make (it|this|these|them)|do it)\b/i.test(recentAssistant)
-  const namesMutation = /\b(create|add|file|log|make|update|change|rename|close|complete|delete|remove|move|archive|defer|park|wake|sleep)\b/i.test(recentAssistant)
-  return asksApproval && namesMutation
-}
-
-function pendingApprovalCode(history?: Array<{ role: 'user' | 'assistant'; text: string }>): string | null {
-  const recentAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
-  return recentAssistant.match(/\b[A-Z][A-Z0-9]{1,15}-\d+\b/)?.[0] ?? null
-}
-
-function pendingApprovalTool(history?: Array<{ role: 'user' | 'assistant'; text: string }>): 'create_todo' | 'update_todo' | 'delete_todo' | 'move_todo' | null {
-  const recentAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
-  if (/\bcreate (a |the )?(task|todo)\b/i.test(recentAssistant)) return 'create_todo'
-  if (/\bupdate\b/i.test(recentAssistant)) return 'update_todo'
-  if (/\bdelete\b/i.test(recentAssistant)) return 'delete_todo'
-  if (/\bmove\b/i.test(recentAssistant)) return 'move_todo'
-  return null
-}
-
-function mutationToolSummary(name: string, params: Record<string, any>): string {
-  if (name === 'create_todo') return `create a task${params.title ? `: "${params.title}"` : ''}${params.product_code ? ` in ${params.product_code}` : ''}`
-  if (name === 'update_todo') return `update ${params.code ?? 'the task'}`
-  if (name === 'delete_todo') return `delete ${params.code ?? 'the task'}`
-  if (name === 'move_todo') return `move ${params.code ?? 'the task'} to ${params.target_project_code ?? 'the target project'}`
-  if (name === 'create_project') return `create a project${params.name ? `: "${params.name}"` : ''}`
-  if (name === 'update_project') return `update ${params.project_code ?? 'the project'}`
-  if (name === 'delete_project') return `delete ${params.project_code ?? 'the project'}`
-  if (name === 'set_dormancy') return `${params.dormant ? 'put to sleep' : 'wake'} ${params.project_code ?? 'the project'}`
-  return `run ${name}`
-}
-
-function buildApprovalPrompt(toolCalls: Array<{ name: string; params: Record<string, any> }>): string {
-  const summaries = toolCalls.map(tc => mutationToolSummary(tc.name, tc.params))
-  if (summaries.length === 1) return `I'll ${summaries[0]}. Go ahead?`
-  return `I'll do ${summaries.length} changes:\n${summaries.map((s, i) => `${i + 1}. ${s}`).join('\n')}\nGo ahead?`
-}
-
 // ── POST /api/orb-eval ───────────────────────────────────────────────────
 // Non-streaming Orb call that returns speech + tool calls without executing them.
 // For the eval framework only. Disabled in production.
@@ -109,10 +60,12 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
-  const { input, productCode, history, mutationApproval, voiceMode, ttsProvider, ttsModel, ttsVoiceId, provider, model, userEmail, evaluationMode, contextPacketId, autoRoute, budgetOverride, evaluationCaseId } = body as {
+  const { input, productCode, history, pendingSummary, backlogOverride, mutationApproval, voiceMode, ttsProvider, ttsModel, ttsVoiceId, provider, model, userEmail, evaluationMode, contextPacketId, autoRoute, budgetOverride, evaluationCaseId } = body as {
     input: string
     productCode?: string
     history?: Array<{ role: 'user' | 'assistant'; text: string }>
+    pendingSummary?: string
+    backlogOverride?: string
     mutationApproval?: 'ask' | 'allow'
     voiceMode?: boolean
     ttsProvider?: string
@@ -245,7 +198,8 @@ export async function POST(request: NextRequest) {
   const byProduct = productList.map((p: any) => {
     const ownerName = userMap.get(p.created_by)
     const ownerTag = ownerName ? ` [Owner: ${ownerName}]` : ''
-    const header = `${p.code ?? p.name}${p.description ? ` (${p.description})` : ''}${ownerTag}`
+    const codeLabel = p.code ? ` [code: ${p.code}]` : ''
+    const header = `${p.name}${codeLabel}${p.description ? ` (${p.description})` : ''}${ownerTag}`
     const projectTodos = todoList.filter((t: any) => t.product_id === p.id)
     const nonClosedTodos = projectTodos.filter((t: any) => !statusList.find((s: any) => s.name === t.status)?.is_closed)
     const activeTodos = nonClosedTodos.filter((t: any) => isActive(t.status))
@@ -264,10 +218,12 @@ export async function POST(request: NextRequest) {
   }).join('\n\n')
 
   const dormantSection = dormantList.length > 0
-    ? `\n\nDORMANT:\n${dormantList.map((p: any) => `  ${p.code ?? p.name}`).join(', ')}`
+    ? `\n\nDORMANT:\n${dormantList.map((p: any) => `  ${p.name}${p.code ? ` [code: ${p.code}]` : ''}`).join(', ')}`
     : ''
 
-  const contextString = byProduct + dormantSection
+  // backlogOverride freezes the backlog the model sees, so project-routing cases are
+  // deterministic instead of hostage to live DB state. The endpoint still executes nothing.
+  const contextString = backlogOverride ?? (byProduct + dormantSection)
 
   const statusNames = statusList.map((s: any) => `${s.name}${s.is_closed ? ' (closed)' : s.is_open ? ' (default)' : ''}`).join(', ')
   const priorityInfo = priorityList.map((p: any) => `${p.value}:${p.label}${p.is_urgent ? ' (URGENT)' : ''}`).join(', ')
@@ -296,12 +252,12 @@ export async function POST(request: NextRequest) {
     STATUS_VOCABULARY,
     `The BACKLOG below gives a SUMMARY line for each project and then separates ACTIVE from PARKED. When answering counts or project-health questions, copy the SUMMARY counts exactly; do not recalculate by counting visible lines. When the user asks "how many tasks" or "my tasks" without specifying, report the active_count. If parked_count is above zero, mention it separately. If you list tasks, make sure the number you claim matches the number of listed items, or say "including" instead of implying a complete list.`,
     buildUrgencyRules(24),
-    `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${current.name}" (code: "${current.code}") unless the user explicitly names a different project.\n- An unqualified request to create a task already has a project: the currently selected project. Do not ask which project; propose the requested task there and request any required mutation approval.\n- When calling tools (create_todo, query_todos, etc.), ALWAYS pass the project code — never omit it.\n- When speaking to the user, refer to projects by display name.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${current.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${auth.user.name || auth.user.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
+    `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${current.name}" unless the user explicitly names a different project.\n- An unqualified request to create a task already has a project: the currently selected project. Do not ask which project; just create it there.\n- When calling tools that need a project identifier, look up the project code from the backlog (shown as [code: XXX] next to each project name) and pass that. The user speaks in names — you translate to codes for tool calls.\n- When speaking to the user, ALWAYS use project names, never codes.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${current.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${auth.user.name || auth.user.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
     uiCatalog ? `UI CATALOG & NAVIGATION:\n${uiCatalog}` : '',
     `BACKLOG:\n${contextString}`,
     `KNOWLEDGE BASE (Recent):\n${knowledgeList.slice(0, 5).map((k: any) => {
       const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
-      return `- [${k.projects?.name || k.projects?.code}] ${k.title}${tags}: ${k.content.slice(0, 100)}...`
+      return `- [${k.projects?.name ?? k.projects?.code ?? '?'}] ${k.title}${tags}: ${k.content.slice(0, 100)}...`
     }).join('\n')}`,
     voiceMode ? `VOICE CONVERSATION: You are currently in voice mode — the user is speaking to you and hearing your responses aloud.
 CURRENT VOICE OUTPUT CONFIG:
@@ -343,19 +299,15 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     ORB_DEV_CHANNEL_PROMPT,
   ].filter(Boolean).join('\n\n')
 
-  const approvalConfirmed = isAffirmativeApproval(input) && historyHasPendingMutationProposal(history)
-  const approvedCode = pendingApprovalCode(history)
-  const approvedTool = pendingApprovalTool(history)
   const messages: any[] = [
     ...(history?.map(h => ({ role: h.role, content: h.text })) ?? []),
     { role: 'user', content: input },
-    ...(approvalConfirmed ? [{
-      role: 'user',
-      content: approvedTool
-        ? `SYSTEM: The user has approved the immediately preceding mutation proposal. Call ${approvedTool} now${approvedCode ? ` for ${approvedCode}` : ''}. Do not query first or ask for approval again.`
-        : 'SYSTEM: The user has approved the immediately preceding mutation proposal. Execute that requested mutation now. Do not perform a preliminary lookup or ask for approval again.',
-    }] : []),
   ]
+
+  // Mirror production's server-held pending-mutation injection (lib/orb-mutations.ts flow).
+  if (pendingSummary) {
+    messages.push({ role: 'user', content: `[SYSTEM: This note applies ONLY if the user's latest message is a bare affirmation (e.g. "yes", "go", "go ahead", "do it", "yep"). If so, they are approving the action you proposed on the previous turn — "${pendingSummary}" — so call confirm_mutation. For ANY other message (a new or changed request, a question, or a decline), ignore this note completely and respond as if it were not here: do not call confirm_mutation, and never mention a pending, held, or previous action to the user.]` })
+  }
 
   try {
     const routeRole = autoRoute
@@ -416,7 +368,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         systemPrompt: evalSystemPrompt,
         messages,
         tools,
-        forcedTool: isStrategicEvaluation || !approvalConfirmed ? null : approvedTool,
+        forcedTool: null,
       })
       speech = result.speech
       toolCalls = result.toolCalls
@@ -429,7 +381,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         systemPrompt: evalSystemPrompt,
         messages,
         tools,
-        forcedTool: isStrategicEvaluation || !approvalConfirmed ? null : approvedTool,
+        forcedTool: null,
         strategic: isStrategicEvaluation,
       })
       speech = result.speech
@@ -445,7 +397,6 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         system: evalSystemPrompt,
         messages,
         tools,
-        ...(!isStrategicEvaluation && approvalConfirmed && approvedTool ? { tool_choice: { type: 'tool' as const, name: approvedTool } } : {}),
       })
       for (const block of response.content) {
         if (block.type === 'text') speech += block.text
@@ -499,22 +450,6 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       if (requestResult.status === 'rejected') {
         console.error('[orbEval] Request ledger insert failed:', requestResult.reason)
       }
-    }
-
-    const gatedToolCalls = toolCalls.filter(tc => APPROVAL_GATED_TOOLS.has(tc.name))
-    if (
-      evalApprovalMode !== 'allow'
-      && gatedToolCalls.length > 0
-      && !(isAffirmativeApproval(input) && historyHasPendingMutationProposal(history))
-    ) {
-      return NextResponse.json({
-        speech: buildApprovalPrompt(gatedToolCalls),
-        toolCalls: [],
-        stopReason: 'approval_gate',
-        tokenUsage,
-        modelUsage,
-        routeRole,
-      })
     }
 
     const historyCodes = extractCitedCodes(

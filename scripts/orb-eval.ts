@@ -80,6 +80,8 @@ async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
       input: testCase.input,
       productCode: testCase.productCode,
       history: testCase.history,
+      pendingSummary: testCase.pendingSummary,
+      backlogOverride: testCase.backlogOverride,
       mutationApproval: testCase.mutationApproval,
       voiceMode: testCase.voiceMode,
       ttsProvider: testCase.ttsProvider,
@@ -210,7 +212,32 @@ function assertRouting(response: EvalResponse, testCase: EvalCase): string[] {
 
 // ── Runner ─────────────────────────────────────────────────────────────────
 
-async function runCase(testCase: EvalCase): Promise<TestResult> {
+// Readable-but-collision-proof names (Supabase/Docker style + random suffix) for
+// cases that create entities. Cases use the literal token __UNIQUE__ in `input`
+// and `expectTool.params`; we substitute the SAME generated value into both.
+const NAME_ADJ = ['brisk', 'calm', 'dapper', 'eager', 'fuzzy', 'jolly', 'keen', 'lush', 'mellow', 'nimble', 'plucky', 'quirky', 'rustic', 'snug', 'witty', 'zesty']
+const NAME_NOUN = ['otter', 'beluga', 'bellows', 'cedar', 'comet', 'ember', 'fjord', 'gable', 'harbor', 'ibis', 'juniper', 'kestrel', 'lichen', 'marlin', 'nimbus', 'quartz']
+function generateUniqueName(): string {
+  const pick = (a: string[]) => a[Math.floor(Math.random() * a.length)]
+  return `${pick(NAME_ADJ)}-${pick(NAME_NOUN)}-${Math.random().toString(36).slice(2, 7)}`
+}
+function substituteUnique(testCase: EvalCase): EvalCase {
+  const usesToken = testCase.input.includes('__UNIQUE__')
+    || Object.values(testCase.expectTool?.params ?? {}).some(v => typeof v === 'string' && v.includes('__UNIQUE__'))
+  if (!usesToken) return testCase
+  const name = generateUniqueName()
+  const params = testCase.expectTool?.params
+    ? Object.fromEntries(Object.entries(testCase.expectTool.params).map(([k, v]) => [k, typeof v === 'string' ? v.replace('__UNIQUE__', name) : v]))
+    : testCase.expectTool?.params
+  return {
+    ...testCase,
+    input: testCase.input.replace('__UNIQUE__', name),
+    ...(testCase.expectTool ? { expectTool: { ...testCase.expectTool, params } } : {}),
+  }
+}
+
+async function runCase(testCaseRaw: EvalCase): Promise<TestResult> {
+  const testCase = substituteUnique(testCaseRaw)
   const runs = testCase.tier === 2 ? 3 : 1
   let passCount = 0
   let lastFailures: string[] = []
