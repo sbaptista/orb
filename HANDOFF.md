@@ -110,7 +110,7 @@ v0.6.67–v0.6.71: silent TTS fix, build gate for TTS keys, iPhone AudioContext 
 
 ## Next Priorities
 
-1. **Examine voice mode the way we did text.** This baseline (project CRUD via propose/confirm/execute) carries forward. Verify CRUD in voice, then audit voice for redundant code / path consolidation — it was whack-a-mole'd too, so expect the same kind of cleanup the text path needed. Stan: "examine voice as it is just as you did with text."
+1. **Examine voice mode the way we did text — see `WIP.md` (Codex handoff).** This baseline (project CRUD via propose/confirm/execute) carries forward. The voice path is already **mapped** in `WIP.md`: full end-to-end flow, the whack-a-mole residue (three overlapping speak entry points, two parallel speech drivers coordinating by timing handshake, scattered fallbacks/reliability patches), what to verify (CRUD-in-voice with the new flow, latency breakdown), and the consolidation thesis (collapse to one speak channel + remove cross-path timing, mirroring text's six→two). No voice code changed yet — mapping first. Stan: "examine voice as it is just as you did with text."
 2. **Latency** — look at responsiveness (especially voice); the hybrid deterministic confirm is one lever, but general LLM+TTS latency is the bigger factor.
 3. **Migrate todos to the propose/confirm/execute flow**, then delete the legacy gate + client `req.pendingMutation` echo. Todos use code identity (no fuzzy resolution needed); reuse the shared machinery.
 4. **Prompt consolidation** — the structure now carries the weight; several prompt crutches around mutation/confirmation can shrink. Do this with the todo migration.
