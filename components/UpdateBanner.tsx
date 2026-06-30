@@ -1,43 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { VERSION } from '@/lib/version'
 import { useSystemState } from '@/components/SystemStateProvider'
 
 export default function UpdateBanner() {
-  const [tick, setTick] = useState(0)
-  const { version } = useSystemState()
-
-  const isSimulated = typeof window !== 'undefined' && localStorage.getItem('todos_dev_simulate_update') === 'true'
-  const updateAvailable = isSimulated || (!!version && version !== VERSION)
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    const handleSimChange = () => {
-      setTick(t => t + 1)
-    }
-
-    window.addEventListener('todos-dev-update-change', handleSimChange)
-    return () => {
-      window.removeEventListener('todos-dev-update-change', handleSimChange)
-    }
-  }, [])
-
-  const handleUpdate = () => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        for (const registration of registrations) {
-          registration.update()
-        }
-      })
-    }
-    window.location.reload()
-  }
+  const { updateAvailable, updateReason, isApplyingUpdate, applyUpdate } = useSystemState()
+  const message = updateReason === 'dev-restart'
+    ? 'Dev only: reconnect to the restarted local server'
+    : 'A fresh version of Orb is available'
 
   return (
     <div
-      key={tick}
       className="update-banner"
       style={{
         height: updateAvailable ? '40px' : '0px',
@@ -57,18 +29,19 @@ export default function UpdateBanner() {
       }}
     >
       <button
-        onClick={handleUpdate}
-        title="New version of Orb available"
+        onClick={applyUpdate}
+        disabled={isApplyingUpdate}
+        title={updateReason === 'dev-restart' ? 'Local dev server restarted' : 'New version of Orb available'}
         className="btn-banner"
       >
-        Update
+        {isApplyingUpdate ? 'Updating' : updateReason === 'dev-restart' ? 'Reconnect' : 'Update'}
       </button>
       <span style={{
         fontSize: 'var(--fs-xs)',
         color: 'var(--text3)',
         whiteSpace: 'nowrap',
       }}>
-        An application update is available
+        {message}
       </span>
     </div>
   )

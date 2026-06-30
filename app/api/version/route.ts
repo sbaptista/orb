@@ -10,6 +10,7 @@ interface CachedSettings {
 
 let settingsCache: CachedSettings | null = null
 const CACHE_TTL_MS = 60_000
+const SERVER_BOOT_ID = process.env.NODE_ENV === 'development' ? `${Date.now()}` : null
 
 async function getSystemSettings(): Promise<CachedSettings> {
   const now = Date.now()
@@ -76,6 +77,7 @@ export async function GET() {
   return NextResponse.json(
     {
       version: VERSION,
+      serverBootId: SERVER_BOOT_ID,
       maintenance,
       lockedOut,
       broadcast,

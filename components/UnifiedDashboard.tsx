@@ -42,6 +42,7 @@ import TaskListView from './views/TaskListView'
 import TaskChecklistView from './views/TaskChecklistView'
 import TaskKanbanView from './views/TaskKanbanView'
 import ViewSwitcher, { type ViewMode } from './views/ViewSwitcher'
+import { useSystemState } from '@/components/SystemStateProvider'
 
 const TTS_CONFIG_CHANGED_EVENT = 'orb:tts-config-changed'
 
@@ -137,6 +138,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const router   = useRouter()
   const supabase = useMemo(() => createClient(), [])
   const toast    = useToast()
+  const systemState = useSystemState()
+  const systemUpdateActiveRef = useRef(false)
+  systemUpdateActiveRef.current = systemState.updateAvailable || systemState.isApplyingUpdate
 
   // ── Shared state ──
   const [products, setProducts]       = useState<Product[]>(initialProducts ?? [])
@@ -829,6 +833,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const pollDevChannel = useCallback(async () => {
     if (!isAdmin) return
     if (devPollDisabledRef.current) return
+    if (systemUpdateActiveRef.current) return
     if (devPollInFlightRef.current) return
     devPollInFlightRef.current = true
     try {
@@ -866,6 +871,14 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         if (!devPollMismatchLoggedRef.current) {
           devPollMismatchLoggedRef.current = true
           console.info('[UnifiedDashboard] Dev channel poll paused after a dev-server action refresh. Hard refresh to resume polling.')
+        }
+        return
+      }
+      if (message.includes('An unexpected response was received from the server')) {
+        devPollDisabledRef.current = true
+        if (!devPollMismatchLoggedRef.current) {
+          devPollMismatchLoggedRef.current = true
+          console.info('[UnifiedDashboard] Dev channel poll paused during a dev-server restart. The release coordinator will refresh the tab.')
         }
         return
       }
@@ -1185,22 +1198,22 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           else if (action.action === 'open_help') openHelp()
           else if (action.action === 'check_update') {
             try {
-              const res = await fetch('/api/version')
+              systemState.refresh()
+              const res = await fetch(`/api/version?t=${Date.now()}`, {
+                cache: 'no-store',
+                headers: { 'cache-control': 'no-cache' },
+              })
               const data = await res.json()
-              const { VERSION } = await import('@/lib/version')
-              if (data.version && data.version !== VERSION) {
-                toast.success(`Update available: ${data.version} (you have ${VERSION})`)
+              if (data.version && data.version !== systemState.clientVersion) {
+                toast.success(`Update available: ${data.version} (you have ${systemState.clientVersion})`)
               } else {
-                toast.success(`You're up to date (${VERSION})`)
+                toast.success(`You're up to date (${systemState.clientVersion})`)
               }
             } catch {
               toast.error('Could not check for updates')
             }
           } else if (action.action === 'apply_update') {
-            if ('serviceWorker' in navigator) {
-              navigator.serviceWorker.getRegistrations().then(regs => { for (const r of regs) r.update() })
-            }
-            window.location.reload()
+            await systemState.applyUpdate()
           } else if (action.action === 'set_voice' && action.target) {
             voice.setVoice(action.target)
           } else if (action.action === 'exit_voice') {

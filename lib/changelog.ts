@@ -6,6 +6,57 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.104',
+    date: '2026-06-30',
+    changes: [
+      'Update banner copy now distinguishes production-style version updates from local development server restarts.',
+      'When a dev-only server restart is detected without a version change, the banner says "Dev only: reconnect to the restarted local server" and the action button says "Reconnect".',
+    ]
+  },
+  {
+    version: 'v0.6.103',
+    date: '2026-06-30',
+    changes: [
+      'Version displays now show the pinned running client version until the user explicitly applies an update and reloads.',
+      'What\'s New no longer presents newer release entries as installed before approval; it filters the changelog to the running client version and labels that release as Installed.',
+      'Settings update checks compare the live server version against the pinned running client version and use the shared manual update path.',
+    ]
+  },
+  {
+    version: 'v0.6.102',
+    date: '2026-06-30',
+    changes: [
+      'Retest release bump for manual update behavior on iPhone and iPad after disabling silent release recovery reloads.',
+    ]
+  },
+  {
+    version: 'v0.6.101',
+    date: '2026-06-30',
+    changes: [
+      'Release recovery no longer applies updates silently. Version mismatches and development server restarts still surface the Update banner automatically, but the user must tap Update to reload.',
+    ]
+  },
+  {
+    version: 'v0.6.100',
+    date: '2026-06-30',
+    changes: [
+      'Development release recovery now detects when the local Next/Turbopack server process restarts under an already-open tab, even if the Orb version string has not changed.',
+      'When a dev-server restart is detected, Orb applies the same version-safe refresh path automatically so iPad and iPhone testing does not require clearing browser data, switching tabs, or manually recovering from the Next dev overlay.',
+      'The update path no longer performs an extra pre-reload self-fetch, avoiding local HTTPS certificate verification races during a dev-server restart.',
+      'The admin-only developer-channel poll now pauses during update/restart recovery instead of sending server actions into a rebooting dev server.',
+    ]
+  },
+  {
+    version: 'v0.6.99',
+    date: '2026-06-30',
+    changes: [
+      'Release coherency now has a central app-shell coordinator: Orb checks the live server version every 30 seconds while the tab is visible, so long-running tabs can discover a new deployment without requiring a tab switch.',
+      'The Update banner now uses the shared update path, applying service worker updates, clearing only version-sensitive Orb session state, and reloading through one canonical flow.',
+      'The push-notification service worker now activates new worker code immediately with skipWaiting/clients.claim while remaining push-only and avoiding app asset caching.',
+      'Conversational update commands now use the same no-cache version check and shared apply-update path as the visible Update banner.',
+    ]
+  },
+  {
     version: 'v0.6.98',
     date: '2026-06-30',
     changes: [

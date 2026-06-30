@@ -2,22 +2,28 @@
 
 import { useState } from 'react'
 import { CHANGELOG } from '@/lib/changelog'
-import { VERSION } from '@/lib/version'
+import { useSystemState } from '@/components/SystemStateProvider'
 
 export default function SettingsWhatsNew() {
+  const { clientVersion, applyUpdate } = useSystemState()
   const [checking, setChecking] = useState(false)
   const [result, setResult] = useState<'up-to-date' | 'update-available' | 'error' | null>(null)
   const [serverVersion, setServerVersion] = useState<string | null>(null)
+  const runningReleaseIndex = CHANGELOG.findIndex(release => release.version === clientVersion)
+  const visibleChangelog = runningReleaseIndex >= 0 ? CHANGELOG.slice(runningReleaseIndex) : CHANGELOG
 
   async function handleCheckUpdate() {
     setChecking(true)
     setResult(null)
     try {
-      const res = await fetch('/api/version')
+      const res = await fetch(`/api/version?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'cache-control': 'no-cache' },
+      })
       if (!res.ok) { setResult('error'); setChecking(false); return }
       const data = await res.json()
       setServerVersion(data.version)
-      if (data.version && data.version !== VERSION) {
+      if (data.version && data.version !== clientVersion) {
         setResult('update-available')
       } else {
         setResult('up-to-date')
@@ -26,15 +32,6 @@ export default function SettingsWhatsNew() {
       setResult('error')
     }
     setChecking(false)
-  }
-
-  function handleApplyUpdate() {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(regs => {
-        for (const reg of regs) reg.update()
-      })
-    }
-    window.location.reload()
   }
 
   return (
@@ -46,7 +43,7 @@ export default function SettingsWhatsNew() {
             <span className="text-sm" style={{ color: 'var(--success)', fontWeight: 'var(--fw-medium)' }}>Up to date</span>
           )}
           {result === 'update-available' && (
-            <button className="btn-primary" onClick={handleApplyUpdate} style={{ fontSize: 'var(--fs-xs)', padding: '6px 14px' }}>
+            <button className="btn-primary" onClick={applyUpdate} style={{ fontSize: 'var(--fs-xs)', padding: '6px 14px' }}>
               Update to {serverVersion}
             </button>
           )}
@@ -74,7 +71,7 @@ export default function SettingsWhatsNew() {
         />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-          {CHANGELOG.map((release, index) => (
+          {visibleChangelog.map((release, index) => (
             <div key={release.version} style={{ position: 'relative' }}>
               {/* Timeline circle point */}
               <div
@@ -135,7 +132,7 @@ export default function SettingsWhatsNew() {
                           textTransform: 'uppercase',
                         }}
                       >
-                        Latest
+                        Installed
                       </span>
                     )}
                   </div>

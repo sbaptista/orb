@@ -10,74 +10,66 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.97
+- **Version:** 0.6.104
 
 ---
 
 ### Last Session Completed
 
-**Voice + Todo Action Transaction Release — 2026-06-29 (Codex, GPT-5) — v0.6.97**
+**Release Coherency + Manual Update Recovery — 2026-06-30 (Codex, GPT-5) — v0.6.104**
 
-Stan's directive: keep the same deterministic spine Claude established for text, then make voice CRUD feel solid without whack-a-mole. We mapped the voice path first, documented the consolidation plan, then built the first canonical approximation for **todo action transactions shared by text and voice**.
+Stan's directive: fix the broader release/update problem that affects both development and production. Users should never have to clear browser data, switch tabs, or guess whether the app silently changed under them after a deploy or local dev-server restart.
 
-**Organizing principle carried forward:** *correctness vs. judgment.* The app owns exact actions, confirmation state, action sets, and verified outcomes. The Orb owns intent interpretation and conversational phrasing. This session extended that principle from project CRUD into todo CRUD and voice references.
+**Core contract:** Orb may detect that a newer server version or restarted local dev process exists, but it must not present itself as running that new state until the user explicitly applies the update/reconnect.
 
 **What changed:**
-- **Todo action transaction path:** multi-todo create/update/delete/move requests are collected into a single pending action transaction. Confirmation executes the exact stored operations deterministically; "is it set/done?" while pending returns a deterministic "not yet" answer instead of accidentally executing or guessing.
-- **Session action-set ledger:** verified grouped results are recorded as session action sets, so follow-ups like "delete them" and "delete the first five" resolve to the exact prior batch rather than stale backlog order. The ledger is mirrored to `sessionStorage` for same-tab/session recovery and is cleared on transcript clear or project switch.
-- **Grouped voice/user summaries:** grouped confirmations and success messages now summarize by count (`create 5 todos in TEST`, `deleted 5 todos`) while transcript thought/progress bullets can still show individual task codes for trust.
-- **Bulk delete path:** "delete all todos in test2" calls the delete tool for each matching task and lets the server summarize and ask once.
-- **Voice speech channel cleanup:** `speak`, `speakStatus`, and `speakStreaming` now route through one internal queue setup. Progress cues are visual-only. API TTS failures no longer silently fall back to browser TTS, avoiding mixed voices.
-- **Voice settings refresh:** dashboard refreshes TTS config when settings change and before the greeting, so voice/provider changes apply without reload.
-- **Voice auto-TTS and mic handoff:** deterministic non-streaming replies now speak in voice mode. A recovery guard hands the mic back if voice lands in the idle "Ready" pocket, and duplicate `SpeechRecognition.start()` races are treated as already-listening instead of console errors.
-- **Concise voice summaries:** broad "state of my projects" voice questions use a deterministic short summary. The shortcut is limited to broad/global project-state questions so single-project health checks still exercise the normal operational model route.
-- **Commitment integrity:** Orb now has a behavioral rule not to promise future behavior, persistence, or capability unless a real tool/rule can honor it. If a behavior is only possible for the current conversation, Orb must say that.
-- **Eval runner timestamps:** Tier runs now print start/completion timestamps.
-
-**New documents:**
-- `docs/orb-voice-speech-channel-plan.md` — voice path map and consolidation plan.
-- `docs/orb-action-transaction-thesis.md` — thesis, implementation approximation, testing strategy, and abandonment criteria for product-level action transactions.
+- **Central release coordinator:** `SystemStateProvider` owns server/client version state, polls `/api/version` while visible, and exposes one `applyUpdate` path for visible and conversational update actions.
+- **Pinned running client version:** the mounted app shell pins `clientVersion` once. Version labels, Settings update checks, and What's New use that pinned value so Fast Refresh/HMR cannot make the app look upgraded before approval.
+- **Production update detection:** production can only show the update banner for a real server/client version mismatch. `/api/version` returns `serverBootId: null` outside development.
+- **Development restart detection:** local Next/Turbopack restarts are detected with a development-only `serverBootId`. The banner says `Dev only: reconnect to the restarted local server` and the button says `Reconnect`, avoiding production-style update language.
+- **Manual-only apply:** automatic reload was removed after mobile testing showed it undermines trust. The app detects automatically, but reloads only when the user taps Update/Reconnect or explicitly applies an update.
+- **Scoped state clearing:** `applyUpdate` clears only version-sensitive session state (`todos_orb_input`, `todos_orb_conversation`, `todos_orb_action_sets`) and preserves auth, durable settings, voice preferences, and layout preferences.
+- **Push-only service worker lifecycle:** `public/sw.js` now uses `skipWaiting`/`clients.claim` while still avoiding any fetch handler or app asset cache.
+- **What's New coherency:** Settings filters the changelog to the pinned running version, labels it `Installed`, and does not present newer release entries as installed before approval.
+- **Dev-channel hardening:** the admin developer-channel poll pauses during update/restart recovery and on stale server-action response errors so it does not fire server actions into a rebooting dev server.
 
 **Tracking todo and knowledge:**
-- Created **ORB-299 — Voice and todo action transaction reliability release** (`in progress`, priority High) to carry this major release work forward after production push.
-- Added linked knowledge entry `Voice and todo action transaction reliability release state` with detailed implementation state, eval results, manual verification, and watch items.
+- Closed **ORB-300 — Release coherency and automatic update recovery** with server-verified `closed_at`.
+- Added linked knowledge entry `Release coherency and manual update recovery contract` (`6d3e884c-0b15-4934-86cf-aa88e5910ce4`).
+- Checked related knowledge. `Helm version update system — update banner, changelog, What's New sheet, and SW dev guard` is adjacent prior art, not superseded.
 
-### Changes in this commit (v0.6.77–v0.6.97)
+### Changes in this commit (v0.6.99–v0.6.104)
 
 Key files:
-- `app/actions/orb-converse.ts` — todo action transaction type, deterministic pending/status handling, grouped execution, action-set ledger resolution, broad voice project summary shortcut, commitment-integrity prompt inclusion.
-- `app/api/orb-eval/route.ts` — mirrors deterministic action-set and broad voice summary behavior for evals.
-- `components/UnifiedDashboard.tsx` — TTS config refresh, voice auto-TTS for final replies, mic idle recovery, session action-set persistence, grouped toasts.
-- `lib/hooks/useVoiceMode.ts` — unified speech queue entry, no silent API-TTS fallback, duplicate recognition-start guard, runtime TTS config update.
-- `components/settings/SettingsVoice.tsx` — emits settings-change event for runtime voice refresh.
-- `lib/orb-prompt.ts` — bulk delete rule, disambiguation follow-through, search_knowledge routing restoration, commitment integrity.
-- `scripts/eval-cases.ts` + `scripts/orb-eval.ts` — tool-count assertions, action-set injection, focused cases for batch create, bulk delete, ledger delete, voice summaries, and unsupported commitments.
-- `app/globals.css`, `docs/ui-catalog.md` — voice transcript readability/UI catalog updates from the voice UI pass.
-- `lib/changelog.ts`, `lib/version.ts`, `package.json` — release entries and version bump through v0.6.97.
+- `components/SystemStateProvider.tsx` — release coordinator, pinned client version, update reason, manual apply path, scoped session clearing.
+- `app/api/version/route.ts` — no-store version endpoint now includes development-only `serverBootId`.
+- `components/UpdateBanner.tsx` — reason-specific copy for real version updates vs dev-only reconnects.
+- `components/ui/OrbVersionLabel.tsx` — displays pinned running client version.
+- `components/settings/SettingsWhatsNew.tsx` — filters changelog to the installed/running version and uses the shared manual update path.
+- `components/UnifiedDashboard.tsx` — conversational check/apply update actions use the release coordinator; dev-channel polling backs off during restart recovery.
+- `public/sw.js` — push-only service worker lifecycle update.
+- `lib/changelog.ts`, `lib/version.ts`, `package.json` — release entries and version bump through v0.6.104.
 
-### Eval Status
+### Verification Status
 
-- **Tier 1:** passed after fixing `voice-status-question-stays-operational` (the deterministic voice summary shortcut was too broad and bypassed the provider route).
-- **Tier 2: 20/20 passed ✅** (2026-06-29 17:54:07–18:05:46 HST; 11m39s; ~1.67M tokens; ~$1.71)
-- The eval endpoint executes nothing (captures tool calls only) — it creates no DB rows.
+- `npx tsc --noEmit` passed.
+- Focused ESLint on touched files passed with only existing `UnifiedDashboard` warnings.
+- `git diff --check` passed.
+- Manual local testing on iPad/iPhone confirmed: update/reconnect waits for user action, version stamp stays pinned before approval, and dev-only reconnect copy is clear.
+- Production verification is next after push. Production should exercise only the version-mismatch path, never the dev-only server-restart path.
 
 ### Known Issues / Watch
 
-1. **Double confirmation edge:** one prior transcript showed a ledger/bulk delete confirmation being asked twice. Later tests looked good, but keep watching for any prompt-first confirmation leaking before the app-owned pending transaction.
-2. **Failure/warning paths:** success cases are now strong; still worth deliberately testing partial failures, missing tasks, stale action-set references, and network aborts so pending/action-set state cannot lie after an error.
-3. **Action ledger scope:** current ledger is session/same-tab durable, not a DB transaction journal. This is intentional for the first approximation; revisit only if cross-device or crash recovery becomes necessary.
-4. **Latency:** voice feels much improved, but record breakdown later (LLM, TTS synthesis, audio playback, recognition restart) before broad optimization.
-5. **Backlog cache staleness:** execution reads live DB, but any model-narrated context can still be stale if cached. Deterministic action-set outcomes reduce the most dangerous cases, but broad narration may still lag.
+1. **Production verification pending:** after deploy, test old open tabs on Mac/iPad/iPhone. Expected: banner appears for server/client version mismatch, version stamp remains old until Update is tapped, then reload shows v0.6.104.
+2. **Voice production still needs retest:** earlier iPhone voice symptoms may have been affected by stale release state. Retest voice after production release coherency is live.
+3. **Full project lint still has unrelated historical errors:** focused lint on touched files is clean, but full `npm run lint` still fails in unrelated prototype/settings files.
 
 ### Key Lessons
 
-1. **Don't let a non-deterministic entity own correctness.** The fragility came from the AI driving a deterministic confirm state machine. Code owns when/which; the AI owns what/how it's said.
-2. **A sturdy deterministic spine frees the AI.** Once a wrong word can't cause a wrong act, you can stop muzzling the Orb (templated confirmations, hallucination catchers shrink).
-3. **Session references need product-level records.** "Delete them" and "delete the first five" should resolve against verified action sets, not the model's memory or the current backlog sort order.
-4. **Summaries can be grouped while details remain visible.** Voice/user-facing summaries should say "created/deleted 5 todos"; transcript thoughts can retain individual codes for trust.
-5. **Do not promise what the app cannot keep.** "In this conversation" is acceptable; "I'll remember going forward" is only acceptable when a real persistence tool/rule honors it.
-6. **Identity ≠ label.** Free-text names can collide and change → never a key. Resolve name→id/code; surface stable codes only when needed to break ties or verify.
-7. **Eval cases test model behavior → their context must be controlled, not live.** Use `backlogOverride`/`pendingSummary`/`actionSets`/`__UNIQUE__`; never hard-code live project names unless the case intentionally depends on live state.
+1. **Detecting an update is not applying an update.** The UI must distinguish “new state exists” from “this app is running new state.”
+2. **Running version is a client-shell fact.** Pin it at mount; do not let server version or HMR module replacement rewrite the user's visible installed version before consent.
+3. **Development recovery needs development language.** A local dev-server restart is not a production release. Label it as dev-only reconnect so the mechanism builds trust instead of confusion.
+4. **Manual consent beats clever auto-reload.** Especially on mobile, silent recovery can feel like the app changed behind the user's back.
 
 ---
 
@@ -90,6 +82,10 @@ Key files:
 ---
 
 ### Prior Session Context
+
+**Voice + Todo Action Transaction Release — 2026-06-29 (Codex, GPT-5) — v0.6.97**
+
+v0.6.77–v0.6.97: unified voice speech channel, no silent TTS fallback, deterministic todo action transactions shared by text/voice, session action-set ledger, grouped summaries, concise voice project state, commitment integrity, and eval coverage. Created ORB-299 to continue failure/warning-path work.
 
 **CRUD Reliability — Name-First Context + structural gate — 2026-06-27 (Claude Code, Opus 4.6)**
 
@@ -120,9 +116,9 @@ v0.6.67–v0.6.71: silent TTS fix, build gate for TTS keys, iPhone AudioContext 
 
 ## Next Priorities
 
-1. **Production push:** Stan approved release direction after final manual voice CRUD tests and evals. Commit locally first; push only after Stan explicitly says push.
-2. **Continue ORB-299 after release:** failure/warning tests should deliberately exercise stale references, missing todos, partial delete/update failures, and interrupted/network-aborted sessions. Ensure all paths are try/catch wrapped and do not leave stale pending/action-set state.
-3. **Double-confirm watch:** if a future transcript shows two confirmations for one grouped action, trace whether a model speech confirmation is escaping before the app-owned pending transaction.
+1. **Production verification for ORB-300:** after deploy, test an already-open production tab plus fresh loads on Mac/iPad/iPhone. Confirm only real version mismatch triggers the production update banner, the version stamp remains pinned before Update, and tapping Update reloads to v0.6.104.
+2. **Retest iPhone voice in production:** release coherency should remove stale-app-state as a confounder. If voice still has no sound or gets stuck after greeting, diagnose voice itself next.
+3. **Continue ORB-299:** failure/warning tests should deliberately exercise stale references, missing todos, partial delete/update failures, and interrupted/network-aborted sessions.
 4. **Latency breakdown:** measure voice turn timing by stage before optimizing.
 5. **Consider persistence design later:** pronunciation/user behavior preferences need a separate product design if they should survive beyond the current conversation. Do not imply persistence without a real tool.
 
@@ -153,7 +149,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-06-29 — Codex (GPT-5)`
+`2026-06-30 — Codex (GPT-5)`
 
 ---
 
