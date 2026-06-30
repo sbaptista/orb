@@ -295,6 +295,20 @@ Test design decisions across all three form factors. When in doubt, err on the s
 
 ---
 
+# Object Capability Matrix — Maintenance Rule
+
+**File:** `docs/object-capability-matrix.md` — the standing audit of every domain object's surface (DB table, Orb conversational tool, `query_db` fallback, REST API, Settings UI, Help, Print, test coverage) plus a separate matrix for cross-cutting critical-path performance (login, dashboard load, voice start, etc.).
+
+**Why this exists:** Built 2026-06-30 after Tickets was found to have create-only Orb access — no read, update, or delete tool — a gap that went unnoticed because CRUD coverage was being verified one object at a time instead of audited as a whole. The same failure mode applies beyond CRUD: a reported problem in one flow (e.g. login latency) is a signal to audit the whole class of flows, not a ticket to patch the one instance. See `[[project_systematic_quality_audits]]` in memory.
+
+**Rule — extend the matrix as you build:**
+- **New DB table, Orb tool, REST endpoint, or Settings page** → add/update the relevant row and cell in Part 1 (Object Capability Matrix) in the same change.
+- **New critical user-facing flow, or a flow found to have a latency problem** → add/update the relevant row in Part 2 (Flow/Performance Matrix) in the same change. A single slow flow is grounds to audit related flows, not just fix the one reported.
+- **Do not assume a blank cell is intentional.** If an object or flow has no coverage on some surface and the reason isn't already documented, ask Stan rather than guessing — record the answer in the matrix once given.
+- Do not defer this to a later session, same as the UI catalog and eval suite rules above.
+
+---
+
 # Known Gotchas
 
 - **Dev server**: User-started only. The dev server runs on `0.0.0.0:3001` with `--experimental-https` so iPad and iPhone can reach it over the local network. No AI tool can replicate this setup. **Do not:** run `npm run dev`, call `preview_start`, kill processes on port 3001 (`lsof -ti :3001 | xargs kill`), or otherwise start/stop/restart the dev server. Assume it's running when Stan says it is; if you need it started, ask Stan.

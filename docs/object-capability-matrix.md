@@ -1,0 +1,66 @@
+# Object Capability Matrix
+
+This is the standing audit of every domain object's mutation and access surface — built so capability gaps (a missing tool, a missing test, a missing UI affordance) are discovered systematically, not one object at a time when something breaks. See AGENTS.md → "Object Capability Matrix — Maintenance Rule" for when this file must be updated.
+
+**Origin:** Built 2026-06-30 after discovering Tickets had create-only Orb access (no read/update/delete tool) — a gap that had gone unnoticed because CRUD coverage was being verified piecemeal, object by object, instead of audited as a whole.
+
+**Two axes, not one:**
+- **Objects** — the 11 domain entities below. Each has a stable identity across surfaces (DB table → Orb tool → REST → Settings UI → Help → Print → Tests).
+- **Flows** — composite interactions that cut across objects (login, dashboard load, voice start). These don't map to a single object, so they get their own matrix with a different column set (see Part 2).
+
+---
+
+## Part 1 — Object Capability Matrix
+
+Legend: ✅ covered · 🟡 covered but unverified/low-confidence · ⚠️ fallback only, not first-class · ❌ gap · — not applicable · `?` unconfirmed with Stan
+
+| Object | DB Table | Orb Tool (C/R/U/D) | `query_db` fallback | REST API (C/R/U/D) | Settings UI (C/R/U/D) | Print | Help | Test Coverage |
+|---|---|---|---|---|---|---|---|---|
+| **todos** | ✅ `todos` | ✅✅✅✅ `create_todo`/`query_todos`/`update_todo`/`delete_todo` + `move_todo`, all well-tested | ✅ | ✅✅✅✅ `/api/tasks` (soft delete) | Primary CRUD lives in the main dashboard (`TodoView`), not Settings — `SettingsProjectTodos` is a project-scoped view, not the canonical editor | ✅ "Print Backlog" (global nav) | ✅ `ask` topic covers C/R/U/D examples | ✅ Tier 1 + Tier 2 eval cases (tool correctness + speech behavior) |
+| **projects** | ✅ `projects` | ✅create / ⚠️**no read tool** / 🟡update / 🟡delete (held via propose/confirm) | ✅ | ❌ none | ✅✅✅✅ `SettingsProjects` — confirmed `onEdit`+`onDelete`, create via command-bar button | — | 🟡 generic only (`[project]` placeholder examples in `ask` topic, no dedicated topic) | ⚠️ not confirmed in `eval-cases.ts` — needs check |
+| **knowledge_repo** | ✅ `knowledge_repo` | ✅create(`add_knowledge`) / ✅read(`search_knowledge`) / ❌**no update** / ❌**no delete** | ✅ | ❌ none | ✅✅✅✅ `SettingsKnowledge` — confirmed `onEdit`+`onDelete` (Settings UI exceeds Orb tool coverage) | — | ❌ none | ❌ none found |
+| **tickets** | ✅ `tickets` | ✅create(`create_ticket`) only / ❌**no read** / ❌**no update** / ❌**no delete** | ❌ not in `ALLOWED_TABLES` | ❌ none | ✅✅✅✅ `SettingsTickets` (admin-managed) — confirmed `onEdit`+`onDelete` | — | ❌ none | ❌ none found |
+| **audit_log** | ✅ `audit_log` | ✅read(`query_audit_trail`) only — correct, append-only by design | ✅ | ❌ none | ✅ read-only by design (`SettingsAudit`, "Open" to view, no mutation actions) | — | ❌ none | ❌ none found |
+| **categories** | ✅ `categories` | ❌ no Orb tool at all | ✅ | ❌ none | ✅✅✅✅ `SettingsCategories` — `onEdit`+`onDelete`+`canDelete` (guards in-use categories) | — | ❌ none | ❌ none found |
+| **groups** | ✅ `groups` | ❌ no Orb tool at all | ✅ | ❌ none | ✅✅✅✅ `SettingsGroups` — `handleAdd`+`editingId`+`confirmDeleteId` confirmed | — | ❌ none | ❌ none found |
+| **statuses** | ✅ `statuses` | ❌ no Orb tool | ✅ (read fallback only) | ❌ none | ❌ **no Settings page at all** | — | ❌ none | ❌ none found |
+| **priorities** | ✅ `priorities` | ❌ no Orb tool | ✅ (read fallback only) | ❌ none | ❌ **no Settings page at all** | — | ❌ none | ❌ none found |
+| **invitations** | ✅ `invitations` | ❌ deliberately excluded (sensitive, per `DB_SCHEMA` comment) | ❌ excluded | ❌ none | ✅ `SettingsInvitations` — `onDelete`+`onResend`+`onCopyDecline` (revoke/resend model, not plain update) | — | ❌ none | ❌ none found |
+| **users** | ✅ `users` | ❌ deliberately excluded (sensitive) | ❌ excluded | ❌ none | ✅ `SettingsUsers`/`SettingsUserDetail` — `onEdit`+`onDelete`+`canDelete`; create is via signup/invitation, not direct | — | ❌ none | ❌ none found |
+
+### Deliberate exclusions (not gaps)
+`users` and `invitations` are intentionally kept out of Orb tools and `query_db` — `lib/db-schema.ts`'s own `DB_SCHEMA` comment marks them `EXCLUDED (sensitive)`. Confirmed by design, not by omission.
+
+### Confirmed deliberate (not a gap)
+`statuses` and `priorities` have **zero** surface anywhere (no Orb tool, no Settings page) outside the read-only `query_db` fallback. **Confirmed by Stan 2026-06-30: deliberately meant to stay fixed/unmanaged.** Not a gap — do not propose tools or a Settings page for these without a new explicit request.
+
+### Tracked gaps (filed as ORB todos, 2026-06-30)
+- **ORB-301** — Add a read tool for projects (`query_projects`)
+- **ORB-302** — Add update/delete tools for `knowledge_repo` entries
+- **ORB-303** — Add read/update/delete tools for tickets (sharpest gap — create-only today)
+
+### Cross-cutting finding: test coverage
+The **only** test mechanism in this repo is the Orb eval suite (`scripts/eval-cases.ts`), and it exclusively covers **Orb-conversation tool-calling and speech behavior** (Tier 1 / Tier 2). There is **no traditional unit, integration, or E2E test suite** anywhere in the codebase — Settings UI CRUD, REST API, print, and every non-conversational surface in the table above ships with zero automated test coverage. This is a standing gap across nearly every row, not a per-object issue.
+
+---
+
+## Part 2 — Flow / Performance Matrix
+
+Speed is a flow property, not an object property — login isn't one of the 11 domain objects, but it's exactly the kind of critical path this matrix exists to stop losing track of. Per [[project_systematic_quality_audits]]: when one flow is found slow, audit the class, don't patch the instance.
+
+| Flow | Instrumented? | Measured baseline | Budget/target | Known issues |
+|---|---|---|---|---|
+| **Login/auth → app visible** | ❌ no timing instrumentation found | Unmeasured | TBD | Stan-reported: "sometimes much longer than it should be" — see **ORB-304** |
+| **Initial dashboard load** (products + todos fetch) | ❌ | Unmeasured | TBD | — |
+| **Project switch** | ❌ | Unmeasured | TBD | — |
+| **Settings page loads** | ❌ | Unmeasured | TBD | — |
+| **Voice-mode start** (greeting latency) | ❌ | Unmeasured | TBD | Per HANDOFF.md "Next Priorities" — latency breakdown by stage already flagged as needed |
+| **Todo CRUD round-trip** (confirm → execute → UI update) | ❌ | Unmeasured | TBD | — |
+
+**Tracked:** **ORB-304** — Systematic time-to-interactive instrumentation across critical flows. Login is the first known case, not the whole scope.
+
+---
+
+## Maintenance
+
+See AGENTS.md → "Object Capability Matrix — Maintenance Rule." Short version: touching any object's mutation surface (new table, new Orb tool, new REST endpoint, new Settings page, new eval case) or any critical flow updates this file in the same change.

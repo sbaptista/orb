@@ -16,7 +16,37 @@
 
 ### Last Session Completed
 
-**Release Coherency + Manual Update Recovery — 2026-06-30 (Codex, GPT-5) — v0.6.104**
+**Object Capability Matrix — Systematic CRUD/Surface Audit — 2026-06-30 (Claude Code, Sonnet 5)**
+
+Stan's directive: stop discovering capability gaps (e.g. Tickets having create-only Orb access) piecemeal — build a systematic, living audit across every domain object and every surface, plus a separate cross-cutting performance/flow matrix, since speed problems (e.g. login latency) need the same systematic treatment, not one-off fixes.
+
+**What changed:**
+- Created `docs/object-capability-matrix.md` — two-part matrix:
+  - **Part 1:** all 11 domain objects (`todos`, `projects`, `knowledge_repo`, `tickets`, `audit_log`, `categories`, `groups`, `statuses`, `priorities`, `invitations`, `users`) audited across DB table, Orb tool CRUD, `query_db` fallback, REST API, Settings UI CRUD (verified against actual `onEdit`/`onDelete`/`onCreate` handlers in each Settings component, not assumed), Print, Help, and Test coverage.
+  - **Part 2:** Flow/Performance matrix for cross-cutting critical paths (login/auth, dashboard load, project switch, settings loads, voice start, todo CRUD round-trip) — none currently instrumented.
+- Added **"Object Capability Matrix — Maintenance Rule"** section to AGENTS.md (modeled on the existing UI Catalog / Eval Suite rules): any new table/tool/endpoint/page/flow must update the matrix in the same change; blank cells must be confirmed with Stan, not assumed.
+- Filed four ORB todos for confirmed gaps:
+  - **ORB-301** — Add a read tool for projects (`query_projects`)
+  - **ORB-302** — Add update/delete tools for `knowledge_repo` entries
+  - **ORB-303** — Add read/update/delete tools for tickets (sharpest gap — create-only today)
+  - **ORB-304** — Systematic time-to-interactive instrumentation across critical flows (login flagged as the first known case; reframed from an initial one-off "fix login speed" todo after Stan caught the piecemeal framing mid-session)
+- **Confirmed with Stan:** `statuses`/`priorities` are deliberately fixed/unmanaged (no Orb tool, no Settings page) — not a gap. Matrix records this as confirmed, not open.
+- **Key findings surfaced:**
+  - REST API (`docs/api-spec.yaml`) covers only `/api/tasks` — no project/knowledge/ticket/audit endpoints exist for external agents at all.
+  - The only test coverage anywhere in the repo is the Orb eval suite (Tier 1/2), scoped to conversational tool-calling only — Settings UI, REST, and every non-conversational surface has zero automated test coverage.
+  - Knowledge Repo's Settings UI (full CRUD) exceeds its Orb tool surface (create+read only) — an inverse gap worth noting alongside ORB-302.
+
+No version bump — documentation/process work only, no user-facing app change this session.
+
+**Tracking:** No knowledge_repo entry written yet for this session (the matrix doc itself is the artifact). Consider adding a short knowledge entry on close if this work is later closed against a todo.
+
+### Key Lesson (this session)
+
+When a reported problem (a missing tool, a slow flow) looks like a one-off, treat it as a signal to audit the whole category, not a ticket to patch the single instance. Caught live this session: an initial "fix login speed" todo was rewritten into ORB-304 (systematic instrumentation) after Stan pointed out it repeated the exact piecemeal pattern the matrix work exists to prevent. Saved to memory as `project_systematic_quality_audits` and `project_app_generator_vision` (Orb as a deliberate learning ground toward a future app-generator tool — context for why this kind of systemic work matters beyond Orb itself).
+
+---
+
+### Prior Session: Release Coherency + Manual Update Recovery — 2026-06-30 (Codex, GPT-5) — v0.6.104
 
 Stan's directive: fix the broader release/update problem that affects both development and production. Users should never have to clear browser data, switch tabs, or guess whether the app silently changed under them after a deploy or local dev-server restart.
 
@@ -119,11 +149,12 @@ v0.6.67–v0.6.71: silent TTS fix, build gate for TTS keys, iPhone AudioContext 
 
 ## Next Priorities
 
-1. **Production verification for ORB-300:** after deploy, test an already-open production tab plus fresh loads on Mac/iPad/iPhone. Confirm only real version mismatch triggers the production update banner, the version stamp remains pinned before Update, and tapping Update reloads to v0.6.104.
-2. **Retest iPhone voice in production:** release coherency should remove stale-app-state as a confounder. If voice still has no sound or gets stuck after greeting, diagnose voice itself next.
-3. **Continue ORB-299:** failure/warning tests should deliberately exercise stale references, missing todos, partial delete/update failures, and interrupted/network-aborted sessions.
-4. **Latency breakdown:** measure voice turn timing by stage before optimizing.
-5. **Consider persistence design later:** pronunciation/user behavior preferences need a separate product design if they should survive beyond the current conversation. Do not imply persistence without a real tool.
+1. **Scope ORB-301/302/303/304 implementation:** Stan has not yet decided when to pick these up — ask before starting any of them. ORB-304 (systematic flow instrumentation) supersedes/encompasses priority #4 below (voice latency breakdown) — fold that work into ORB-304 rather than doing it separately.
+2. **Production verification for ORB-300:** after deploy, test an already-open production tab plus fresh loads on Mac/iPad/iPhone. Confirm only real version mismatch triggers the production update banner, the version stamp remains pinned before Update, and tapping Update reloads to v0.6.104.
+3. **Retest iPhone voice in production:** release coherency should remove stale-app-state as a confounder. If voice still has no sound or gets stuck after greeting, diagnose voice itself next.
+4. **Continue ORB-299:** failure/warning tests should deliberately exercise stale references, missing todos, partial delete/update failures, and interrupted/network-aborted sessions.
+5. **Latency breakdown (voice):** now scoped under ORB-304 — measure voice turn timing by stage as part of the broader critical-flow instrumentation pass, not standalone.
+6. **Consider persistence design later:** pronunciation/user behavior preferences need a separate product design if they should survive beyond the current conversation. Do not imply persistence without a real tool.
 
 ---
 
@@ -152,7 +183,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-06-30 — Codex (GPT-5)`
+`2026-06-30 — Claude Code (Sonnet 5)`
 
 ---
 
