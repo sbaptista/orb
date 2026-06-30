@@ -270,7 +270,11 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
           interim += e.results[i][0].transcript
         }
       }
-      if (interim) debouncedTranscript(accumulated + interim)
+      if (interim) {
+        const visibleTranscript = accumulated + interim
+        transcriptRef.current = visibleTranscript
+        debouncedTranscript(visibleTranscript)
+      }
     }
 
     rec.onerror = (e: any) => {
@@ -418,6 +422,9 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
 
         const ctx = audioCtxRef.current
         if (!ctx) throw new Error('Audio output is not ready for API voice playback.')
+        if (ctx.state === 'suspended') {
+          await ctx.resume()
+        }
 
         const raw = atob(result.audioBase64)
         const arr = new Uint8Array(raw.length)
@@ -430,7 +437,17 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
           source.buffer = decoded
           source.playbackRate.value = voiceRate
           source.connect(ctx.destination)
-          source.onended = () => { activeSourceRef.current = null; resolve() }
+          let settled = false
+          const watchdogMs = Math.max(1500, (decoded.duration * 1000) / Math.max(voiceRate, 0.5) + 1500)
+          const timeout = window.setTimeout(() => finish(), watchdogMs)
+          const finish = () => {
+            if (settled) return
+            settled = true
+            window.clearTimeout(timeout)
+            activeSourceRef.current = null
+            resolve()
+          }
+          source.onended = finish
           activeSourceRef.current = source
           source.start()
         })

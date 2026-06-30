@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.98',
+    date: '2026-06-30',
+    changes: [
+      'iPhone voice mode now stores interim recognition text as the submit-ready transcript, so visible speech text can be sent even when iOS does not emit a final result.',
+      'API voice playback now resumes the AudioContext before playback and uses a watchdog so a stuck or silent audio source cannot trap voice mode before the mic handoff.',
+    ]
+  },
+  {
     version: 'v0.6.97',
     date: '2026-06-29',
     changes: [
