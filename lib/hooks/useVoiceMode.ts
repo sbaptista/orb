@@ -86,6 +86,10 @@ function truncateForSpeech(text: string): string {
   return (result.trim() || sentences[0].trim()) + ' Check the transcript for the full details.'
 }
 
+function isRecognitionAlreadyStarted(err: unknown): boolean {
+  return err instanceof DOMException && err.name === 'InvalidStateError'
+}
+
 // ── Constants ───────────────────────────────────────────────────────
 
 const LS_VOICE_KEY = 'orb_preferred_voice'
@@ -120,6 +124,7 @@ export type VoiceActions = {
   setVoice: (name: string) => void
   setRate: (rate: number) => void
   setOnSend: (cb: (text: string) => void) => void
+  updateTtsConfig: (config: TtsConfig) => void
 }
 
 // ── Queue state ─────────────────────────────────────────────────────
@@ -133,14 +138,20 @@ type SpeechQueue = {
 }
 
 const EMPTY_QUEUE: SpeechQueue = { chunks: [], playing: false, spokenChars: 0, done: false, autoResume: true }
+type SpeechMode = 'full' | 'status' | 'stream'
 
 // ── Hook ────────────────────────────────────────────────────────────
 
 export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   const cfgRef = useRef(ttsConfig)
-  cfgRef.current = ttsConfig
+  const [effectiveTtsConfig, setEffectiveTtsConfig] = useState<TtsConfig | undefined>(ttsConfig)
 
-  const capabilities = useCapabilities(!!(ttsConfig && ttsConfig.provider !== 'browser'))
+  useEffect(() => {
+    cfgRef.current = ttsConfig
+    setEffectiveTtsConfig(ttsConfig)
+  }, [ttsConfig])
+
+  const capabilities = useCapabilities(!!(effectiveTtsConfig && effectiveTtsConfig.provider !== 'browser'))
 
   // ── State ───────────────────────────────────────────────────────
   const [voiceActive, setVoiceActive] = useState(false)
@@ -212,6 +223,11 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   // ═══════════════════════════════════════════════════════════════
   // LAYER 3: Recognition — single instance per session
   // ═══════════════════════════════════════════════════════════════
+
+  const stopRecognition = useCallback(() => {
+    if (recRef.current) try { recRef.current.stop() } catch {}
+    setIsListening(false)
+  }, [])
 
   const createRecognition = useCallback(() => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -314,7 +330,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     }
 
     recRef.current = rec
-  }, [clearSilence, debouncedTranscript, capabilities.speech.continuous])
+  }, [clearSilence, debouncedTranscript, capabilities.speech.continuous, stopRecognition])
 
   const startRecognition = useCallback(() => {
     if (!recRef.current) createRecognition()
@@ -331,15 +347,16 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       cancelledRef.current = false
       setWasInterrupted(false)
     } catch (e) {
+      if (isRecognitionAlreadyStarted(e)) {
+        setIsListening(true)
+        cancelledRef.current = false
+        setWasInterrupted(false)
+        return
+      }
       console.error('[voice] recognition.start() failed:', e)
       setTtsError('Could not start listening. Try again or switch browsers.')
     }
   }, [createRecognition])
-
-  const stopRecognition = useCallback(() => {
-    if (recRef.current) try { recRef.current.stop() } catch {}
-    setIsListening(false)
-  }, [])
 
   const teardownRecognition = useCallback(() => {
     stopRecognition()
@@ -379,7 +396,8 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     const cfg = cfgRef.current
     if (!cfg || cfg.provider === 'browser') return playBrowserTts(text)
 
-    // API TTS path — falls back to browser TTS on failure
+    // API TTS path. Do not silently fall back to browser TTS: mixed voices
+    // are more confusing than a clear, recoverable voice error.
     return (async () => {
       try {
         let result: { audioBase64: string; contentType: string }
@@ -399,7 +417,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
         if (cancelledRef.current || gen !== genRef.current) return
 
         const ctx = audioCtxRef.current
-        if (!ctx) return playBrowserTts(text)
+        if (!ctx) throw new Error('Audio output is not ready for API voice playback.')
 
         const raw = atob(result.audioBase64)
         const arr = new Uint8Array(raw.length)
@@ -417,9 +435,9 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
           source.start()
         })
       } catch (err) {
-        console.warn('[voice] API TTS failed, falling back to browser:', err)
+        console.warn('[voice] API TTS failed:', err)
         if (cancelledRef.current || gen !== genRef.current) return
-        return playBrowserTts(text)
+        throw err
       }
     })()
   }, [voiceRate, playBrowserTts])
@@ -449,7 +467,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
             provider: currentCfg.provider,
             model: currentCfg.model || 'tts-1',
             voiceId: currentCfg.voiceId || 'nova',
-          }).catch(() => null as any),
+          }),
         }
       }
 
@@ -492,6 +510,50 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     queueRef.current.spokenChars = 0
   }, [clearSilence, stopPlayback, stopRecognition, setSpeaking])
 
+  const enqueueSpeech = useCallback((mode: SpeechMode, text: string, done: boolean) => {
+    if (cancelledRef.current && mode === 'stream') return
+    const cleaned = stripMarkdown(text)
+    if (!cleaned) return
+
+    const q = queueRef.current
+
+    if (mode === 'full') {
+      beginSpeaking()
+      const spoken = cleaned.length > LONG_RESPONSE ? truncateForSpeech(cleaned) : cleaned
+      q.chunks = chunkText(spoken)
+      q.spokenChars = 0
+      q.done = true
+      q.autoResume = true
+      drain()
+      return
+    }
+
+    if (mode === 'status') {
+      beginSpeaking()
+      const spoken = cleaned.length > 120 ? `${cleaned.slice(0, 117)}...` : cleaned
+      q.chunks = [spoken]
+      q.spokenChars = 0
+      q.done = true
+      q.autoResume = false
+      drain()
+      return
+    }
+
+    q.done = done
+
+    // Reliability mode: streamed text can change many times before the final
+    // response settles. Speak the final response once so audio matches transcript.
+    if (!done) return
+
+    beginSpeaking()
+    q.chunks = chunkText(cleaned)
+    q.spokenChars = cleaned.length
+    q.done = true
+    q.autoResume = true
+    drain()
+    return
+  }, [beginSpeaking, drain])
+
   // ═══════════════════════════════════════════════════════════════
   // PUBLIC API
   // ═══════════════════════════════════════════════════════════════
@@ -528,93 +590,16 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   }, [startRecognition])
 
   const speak = useCallback((text: string) => {
-    const cleaned = stripMarkdown(text)
-    if (!cleaned) return
-
-    beginSpeaking()
-    const spoken = cleaned.length > LONG_RESPONSE ? truncateForSpeech(cleaned) : cleaned
-    const q = queueRef.current
-    q.chunks = chunkText(spoken)
-    q.spokenChars = 0
-    q.done = true
-    q.autoResume = true
-    drain()
-  }, [beginSpeaking, drain])
+    enqueueSpeech('full', text, true)
+  }, [enqueueSpeech])
 
   const speakStatus = useCallback((text: string) => {
-    const cleaned = stripMarkdown(text)
-    if (!cleaned) return
-
-    beginSpeaking()
-    const spoken = cleaned.length > 120 ? `${cleaned.slice(0, 117)}...` : cleaned
-    const q = queueRef.current
-    q.chunks = [spoken]
-    q.spokenChars = 0
-    q.done = true
-    q.autoResume = false
-    drain()
-  }, [beginSpeaking, drain])
+    enqueueSpeech('status', text, true)
+  }, [enqueueSpeech])
 
   const speakStreaming = useCallback((text: string, done: boolean) => {
-    if (cancelledRef.current) return
-    const cleaned = stripMarkdown(text)
-    if (!cleaned) return
-
-    const q = queueRef.current
-    q.done = done
-
-    // First call — set up state
-    if (q.spokenChars === 0 && !q.playing) {
-      beginSpeaking()
-      q.autoResume = true
-    }
-
-    const already = q.spokenChars
-
-    // Long response truncation
-    if (cleaned.length > LONG_RESPONSE && already === 0) {
-      const truncated = truncateForSpeech(cleaned)
-      q.spokenChars = cleaned.length
-      q.chunks.push(...chunkText(truncated))
-      if (!q.playing) drain()
-      return
-    }
-    if (already >= LONG_RESPONSE) {
-      if (done && !q.playing) drain()
-      return
-    }
-
-    // Extract new complete sentences
-    const unspoken = cleaned.slice(already)
-    const sentences = unspoken.match(/[^.!?]+[.!?]+[\s]*/g)
-
-    if (sentences) {
-      let consumed = 0
-      for (const s of sentences) {
-        consumed += s.length
-        q.chunks.push(...chunkText(s.trim()))
-      }
-      q.spokenChars = already + consumed
-      if (!q.playing) drain()
-    } else if (already === 0 && unspoken.split(/\s+/).length >= 8) {
-      // Early clause trigger for faster first speech
-      const clause = unspoken.match(/^.+?[,;:—–]\s*/)?.[0]
-      if (clause) {
-        q.chunks.push(...chunkText(clause.trim()))
-        q.spokenChars = already + clause.length
-        if (!q.playing) drain()
-      }
-    }
-
-    if (done) {
-      const remaining = cleaned.slice(q.spokenChars).trim()
-      if (remaining) {
-        q.chunks.push(...chunkText(remaining))
-        q.spokenChars = cleaned.length
-      }
-      if (!q.playing) drain()
-    }
-  }, [beginSpeaking, drain])
+    enqueueSpeech('stream', text, done)
+  }, [enqueueSpeech])
 
   // ── Reset (shared by cancel + exit) ─────────────────────────────
 
@@ -634,7 +619,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     setTranscript('')
     transcriptRef.current = ''
     if (!keepActive) { setVoiceActive(false); setWasInterrupted(false) }
-  }, [clearSilence, teardownRecognition, stopPlayback, setSpeaking])
+  }, [clearSilence, stopRecognition, teardownRecognition, stopPlayback, setSpeaking])
 
   const cancelSpeech = useCallback(() => {
     reset(true)
@@ -656,6 +641,11 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     onSendRef.current = cb
   }, [])
 
+  const updateTtsConfig = useCallback((config: TtsConfig) => {
+    cfgRef.current = config
+    setEffectiveTtsConfig(config)
+  }, [])
+
   const setRate = useCallback((rate: number) => {
     const clamped = Math.max(0.5, Math.min(2.0, rate))
     setVoiceRate(clamped)
@@ -667,6 +657,6 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     supportsVoice, capabilities, availableVoices, selectedVoiceName, voiceRate,
     wasInterrupted,
     startConversation, resumeListening, speak, speakStatus, speakStreaming,
-    cancelSpeech, exitVoiceMode, setVoice, setRate, setOnSend,
+    cancelSpeech, exitVoiceMode, setVoice, setRate, setOnSend, updateTtsConfig,
   }
 }

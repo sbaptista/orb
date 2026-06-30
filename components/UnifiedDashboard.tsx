@@ -13,7 +13,7 @@ import EmptyState from './ui/EmptyState'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { registerOrbTour, unregisterOrbTour, runOrbTour, launchOrbTour } from './OrbTour'
 import { OrbDevPanel, DevTestError, type MoodOverride, type SimulateError } from './OrbDevPanel'
-import { orbConverse, orbGreeting, type OrbResponse, type PendingMutation } from '@/app/actions/orb-converse'
+import { orbConverse, orbGreeting, type ActionSet, type OrbResponse, type PendingMutation } from '@/app/actions/orb-converse'
 import { collectSystemInfo, type SystemInfo } from '@/lib/system-info'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { checkReminders } from '@/app/actions/reminder-actions'
@@ -42,6 +42,8 @@ import TaskListView from './views/TaskListView'
 import TaskChecklistView from './views/TaskChecklistView'
 import TaskKanbanView from './views/TaskKanbanView'
 import ViewSwitcher, { type ViewMode } from './views/ViewSwitcher'
+
+const TTS_CONFIG_CHANGED_EVENT = 'orb:tts-config-changed'
 
 // ── Types ──
 
@@ -75,6 +77,7 @@ type Props = {
 const LAST_PRODUCT_KEY  = 'todos_last_product_id'
 const SS_INPUT          = 'todos_orb_input'
 const SS_CONVERSATION   = 'todos_orb_conversation'
+const SS_ACTION_SETS    = 'todos_orb_action_sets'
 const INACTIVITY_MS     = 5 * 60 * 1000
 const DEV_CHANNEL_POLL_INTERVAL = 15_000
 const PAGE_SIZE         = 40
@@ -193,20 +196,46 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   // ── Voice mode ──
   const [ttsConfig, setTtsConfig] = useState<TtsConfig | undefined>(undefined)
-  useEffect(() => {
-    getTtsConfig()
-      .then(cfg => setTtsConfig(cfg))
-      .catch(err => {
-        console.error('[tts] config load failed:', err)
-        setTtsConfig({ provider: 'browser', model: null, voiceId: null })
-      })
-  }, [])
   const voice = useVoiceMode(ttsConfig)
+  const updateTtsConfigRef = useRef(voice.updateTtsConfig)
+  updateTtsConfigRef.current = voice.updateTtsConfig
+  const refreshTtsConfig = useCallback(async () => {
+    try {
+      const cfg = await getTtsConfig()
+      setTtsConfig(cfg)
+      updateTtsConfigRef.current(cfg)
+      return cfg
+    } catch (err) {
+      console.error('[tts] config load failed:', err)
+      const fallback: TtsConfig = { provider: 'browser', model: null, voiceId: null }
+      setTtsConfig(fallback)
+      updateTtsConfigRef.current(fallback)
+      return fallback
+    }
+  }, [])
+  useEffect(() => {
+    refreshTtsConfig()
+  }, [refreshTtsConfig])
+  useEffect(() => {
+    const handleTtsConfigChanged = () => { refreshTtsConfig() }
+    window.addEventListener(TTS_CONFIG_CHANGED_EVENT, handleTtsConfigChanged)
+    return () => window.removeEventListener(TTS_CONFIG_CHANGED_EVENT, handleTtsConfigChanged)
+  }, [refreshTtsConfig])
   const voiceActiveRef = useRef(false)
   voiceActiveRef.current = voice.voiceActive
 
   // ── Mutation gate ──
   const pendingMutationRef = useRef<PendingMutation | null>(null)
+  const actionSetsRef = useRef<ActionSet[]>([])
+  const clearActionSets = useCallback(() => {
+    actionSetsRef.current = []
+    try { sessionStorage.removeItem(SS_ACTION_SETS) } catch {}
+  }, [])
+  const rememberActionSet = useCallback((actionSet: ActionSet) => {
+    const next = [...actionSetsRef.current, { ...actionSet, ordinal: actionSetsRef.current.length + 1 }].slice(-12)
+    actionSetsRef.current = next
+    try { sessionStorage.setItem(SS_ACTION_SETS, JSON.stringify(next)) } catch {}
+  }, [])
 
   // ── Project switcher state ──
   const [projectSearchOpen, setProjectSearchOpen] = useState(false)
@@ -246,12 +275,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const messagesRef            = useRef<ConversationMessage[]>([])
   messagesRef.current = messages
   const prevStreamingRef       = useRef(false)
+  const lastSpokenVoiceMessageRef = useRef<{ id: string; text: string } | null>(null)
   const stoppedVoiceMessageIdsRef = useRef<Set<string>>(new Set())
-  const voiceProgressCueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const voiceSpeakingRef      = useRef(false)
-  voiceSpeakingRef.current = voice.isSpeaking
-  const voiceListeningRef     = useRef(false)
-  voiceListeningRef.current = voice.isListening
   const welcomeDismissedRef    = useRef(false)
   const orbFadeRef             = useRef<ReturnType<typeof setTimeout> | null>(null)
   const orbSwitchingRef        = useRef(false)
@@ -425,33 +450,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   const cancelSpeechRef = useRef(voice.cancelSpeech)
   cancelSpeechRef.current = voice.cancelSpeech
-  const speakStatusRef = useRef(voice.speakStatus)
-  speakStatusRef.current = voice.speakStatus
   const resumeListeningRef = useRef(voice.resumeListening)
   resumeListeningRef.current = voice.resumeListening
-
-  const clearVoiceProgressCue = useCallback(() => {
-    if (voiceProgressCueTimerRef.current) {
-      clearTimeout(voiceProgressCueTimerRef.current)
-      voiceProgressCueTimerRef.current = null
-    }
-  }, [])
-
-  const scheduleVoiceProgressCue = useCallback((thought: string, request: { id: number; aborted: boolean }) => {
-    if (!voiceActiveRef.current || !thought) return
-    clearVoiceProgressCue()
-    voiceProgressCueTimerRef.current = setTimeout(() => {
-      voiceProgressCueTimerRef.current = null
-      if (!voiceActiveRef.current) return
-      if (request.aborted || cancelledConversationRequestIdsRef.current.has(request.id)) return
-      if (activeConversationRequestRef.current?.id !== request.id) return
-      if (voiceSpeakingRef.current || voiceListeningRef.current) return
-      speakStatusRef.current(thought.replace(/\.\.\.$/, '...'))
-    }, 1400)
-  }, [clearVoiceProgressCue])
+  const speakStreamingRef = useRef(voice.speakStreaming)
+  speakStreamingRef.current = voice.speakStreaming
 
   const handleStop = useCallback(() => {
-    clearVoiceProgressCue()
     const lastOrb = [...messagesRef.current].reverse().find(m => m.type === 'orb')
     if (lastOrb) stoppedVoiceMessageIdsRef.current.add(lastOrb.id)
     prevStreamingRef.current = false
@@ -474,7 +478,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     window.setTimeout(() => {
       if (voiceActiveRef.current) resumeListeningRef.current()
     }, 80)
-  }, [clearVoiceProgressCue])
+  }, [])
 
   // ── Voice mode handlers ──
   // Register the send callback so the hook can submit after recognition ends.
@@ -489,7 +493,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleOrbTap = useCallback(() => {
+  const handleOrbTap = useCallback(async () => {
     if (noProject) return
     if (!voice.supportsVoice) return
 
@@ -498,6 +502,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     voice.startConversation()
     setConversationActive(true)
     resetInactivity()
+    await refreshTtsConfig()
 
     const firstName = user?.first_name || ''
     const hour = new Date().getHours()
@@ -507,10 +512,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         ? [`Hey${firstName ? ` ${firstName}` : ''}. What's on your mind?`, `What can I help with?`]
         : [`Evening${firstName ? `, ${firstName}` : ''}. What's on your mind?`, `Hey. What's up?`]
     const greeting = greetings[Math.floor(Math.random() * greetings.length)]
-    setMessages(prev => [...prev, { id: genId(), type: 'orb', text: greeting }])
+    const greetingId = genId()
+    lastSpokenVoiceMessageRef.current = { id: greetingId, text: greeting }
+    setMessages(prev => [...prev, { id: greetingId, type: 'orb', text: greeting }])
     voice.speak(greeting)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noProject, voice.voiceActive, voice.supportsVoice, user?.first_name])
+  }, [noProject, voice.voiceActive, voice.supportsVoice, user?.first_name, refreshTtsConfig])
 
   // Auto-TTS: speak Orb responses as they stream in voice mode.
   // Uses speakStreaming for sentence-level playback during generation,
@@ -522,16 +529,36 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     if (stoppedVoiceMessageIdsRef.current.has(lastOrb.id)) return
 
     const nowStreaming = !!lastOrb.isStreaming
-    const wasStreaming = prevStreamingRef.current
     prevStreamingRef.current = nowStreaming
 
-    if (!lastOrb.text || lastOrb.text === 'Processing…' || lastOrb.text === 'Stopped.') return
+    if (!lastOrb.text) return
+    if (lastOrb.text === 'Processing…' || lastOrb.text === 'Stopped.') return
     if (activeConversationRequestRef.current?.aborted) return
 
-    if (nowStreaming || (wasStreaming && !nowStreaming)) {
-      voice.speakStreaming(lastOrb.text, !nowStreaming)
+    if (!nowStreaming) {
+      const lastSpoken = lastSpokenVoiceMessageRef.current
+      if (lastSpoken?.id === lastOrb.id && lastSpoken.text === lastOrb.text) return
+      lastSpokenVoiceMessageRef.current = { id: lastOrb.id, text: lastOrb.text }
     }
-  }, [messages, voice.voiceActive, voice.speakStreaming])
+    speakStreamingRef.current(lastOrb.text, !nowStreaming)
+  }, [messages, voice.voiceActive])
+
+  // Voice recovery: "Ready" should be a moment between states, not a parked
+  // destination. If speech has finished and no request is active, hand the mic
+  // back unless the user intentionally stopped speech or TTS needs attention.
+  useEffect(() => {
+    if (!voice.voiceActive) return
+    if (voice.isListening || voice.isSpeaking || voice.wasInterrupted || voice.ttsError) return
+    if (submitting || messages.some(m => m.isStreaming)) return
+
+    const timer = window.setTimeout(() => {
+      if (!voiceActiveRef.current) return
+      if (activeConversationRequestRef.current) return
+      resumeListeningRef.current()
+    }, 700)
+
+    return () => window.clearTimeout(timer)
+  }, [messages, submitting, voice.isListening, voice.isSpeaking, voice.ttsError, voice.voiceActive, voice.wasInterrupted])
 
   // Keyboard shortcut: Cmd+Shift+O toggles voice mode
   useEffect(() => {
@@ -564,6 +591,13 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     }
     const savedInput = sessionStorage.getItem(SS_INPUT)
     if (savedInput) setInput(savedInput)
+    const savedActionSets = sessionStorage.getItem(SS_ACTION_SETS)
+    if (savedActionSets) {
+      try {
+        const parsed = JSON.parse(savedActionSets)
+        if (Array.isArray(parsed)) actionSetsRef.current = parsed.slice(-12)
+      } catch { /* ignore */ }
+    }
     setIsRestored(true)
   }, [])
 
@@ -571,7 +605,11 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   useEffect(() => {
     if (!isRestored) return
     if (messages.length > 0) sessionStorage.setItem(SS_CONVERSATION, JSON.stringify(messages))
-    else sessionStorage.removeItem(SS_CONVERSATION)
+    else {
+      sessionStorage.removeItem(SS_CONVERSATION)
+      sessionStorage.removeItem(SS_ACTION_SETS)
+      actionSetsRef.current = []
+    }
   }, [messages, isRestored])
 
   // Orb fade on mode switch
@@ -592,6 +630,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       setConfirmProjectDelete(false)
       if (!orbSwitchingRef.current) {
         setMessages([])
+        clearActionSets()
         setConversationActive(false)
         sessionStorage.removeItem(SS_CONVERSATION)
         if (inactivityRef.current) { clearTimeout(inactivityRef.current); inactivityRef.current = null }
@@ -599,7 +638,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       orbSwitchingRef.current = false
     }
     prevSelectedId.current = selectedId
-  }, [selectedId])
+  }, [selectedId, clearActionSets])
 
   useEffect(() => { return () => { if (inactivityRef.current) clearTimeout(inactivityRef.current) } }, [])
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -908,6 +947,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   useEffect(() => {
     if (noProject || prevUrgencyRef.current === null) { prevUrgencyRef.current = urgency; return }
     if (projectSwitchingRef.current) { prevUrgencyRef.current = urgency; return }
+    if (voiceActiveRef.current) { prevUrgencyRef.current = urgency; return }
     const prev = prevUrgencyRef.current
     if (prev === urgency) return
     prevUrgencyRef.current = urgency
@@ -1016,7 +1056,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       const [cmd, ...args] = text.split(' ')
       if (cmd === '/settings') router.push('/settings')
       else if (cmd === '/help' || cmd === '/?') openHelp()
-      else if (cmd === '/clear') { setMessages([]); setConversationActive(false); sessionStorage.removeItem(SS_CONVERSATION); greetingFiredRef.current = false }
+      else if (cmd === '/clear') { setMessages([]); clearActionSets(); setConversationActive(false); sessionStorage.removeItem(SS_CONVERSATION); greetingFiredRef.current = false }
       else if (cmd === '/add') {
         const task = args.join(' ').trim()
         if (!task) { toast.neutral('Usage: /add Buy groceries'); return }
@@ -1095,12 +1135,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
       const outgoingMutation = pendingMutationRef.current
       pendingMutationRef.current = null
-      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError, systemInfo: systemInfoRef.current, pendingMutation: outgoingMutation ?? undefined, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive, voiceMode: voice.voiceActive, availableVoices: voice.voiceActive ? voice.availableVoices.map(v => v.name) : undefined, currentVoice: voice.voiceActive ? voice.selectedVoiceName || undefined : undefined, ttsProvider: voice.voiceActive ? ttsConfig?.provider : undefined, ttsModel: voice.voiceActive ? ttsConfig?.model : undefined, ttsVoiceId: voice.voiceActive ? ttsConfig?.voiceId : undefined } })
+      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError, systemInfo: systemInfoRef.current, pendingMutation: outgoingMutation ?? undefined, actionSets: actionSetsRef.current, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive, voiceMode: voice.voiceActive, availableVoices: voice.voiceActive ? voice.availableVoices.map(v => v.name) : undefined, currentVoice: voice.voiceActive ? voice.selectedVoiceName || undefined : undefined, ttsProvider: voice.voiceActive ? ttsConfig?.provider : undefined, ttsModel: voice.voiceActive ? ttsConfig?.model : undefined, ttsVoiceId: voice.voiceActive ? ttsConfig?.voiceId : undefined } })
       for await (const chunk of readStreamableValue(stream)) {
         if (request.aborted || cancelledConversationRequestIdsRef.current.has(request.id)) break
         if (!chunk) continue
-        if (chunk.speech) clearVoiceProgressCue()
-        if (chunk.thought && !chunk.speech) scheduleVoiceProgressCue(chunk.thought, request)
         setMessages(prev => prev.map(m => {
           if (m.id !== processingId) return m
           const newThoughts = m.thoughts ? [...m.thoughts] : []
@@ -1129,10 +1167,13 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             }
           } else {
             if (chunk.mutatedProductId === selectedId) { fetchOrbTodos(); fetchTodos() }
-            if (chunk.mutationType === 'create') toast.success('Todo created.')
-            else if (chunk.mutationType === 'update') toast.success('Todo saved.')
-            else if (chunk.mutationType === 'delete') toast.success('Todo deleted.')
-            else toast.success('Todo updated.')
+            if (!chunk.isStreaming) {
+              if (chunk.actionSet) toast.success(chunk.actionSet.summary)
+              else if (chunk.mutationType === 'create') toast.success('Todo created.')
+              else if (chunk.mutationType === 'update') toast.success('Todo saved.')
+              else if (chunk.mutationType === 'delete') toast.success('Todo deleted.')
+              else toast.success('Todo updated.')
+            }
           }
         }
         if (chunk.clientAction) {
@@ -1168,6 +1209,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         }
         if (chunk.suggestedKnowledge) setDistillTodo(chunk.suggestedKnowledge)
         if (chunk.pendingMutation) pendingMutationRef.current = chunk.pendingMutation
+        if (chunk.actionSet) rememberActionSet(chunk.actionSet)
       }
     } catch (err: any) {
       console.error('[orbSubmit]', err)
@@ -1181,7 +1223,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         setMessages(prev => prev.map(m => m.id === processingId ? { ...m, text: msg } : m))
       }
     } finally {
-      clearVoiceProgressCue()
       const wasCancelled = request.aborted || cancelledConversationRequestIdsRef.current.has(request.id)
       if (activeConversationRequestRef.current?.id === request.id) {
         activeConversationRequestRef.current = null
@@ -1628,7 +1669,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               products={products}
               conversationActive={conversationActive}
               onRestoreConversation={() => setConversationActive(true)}
-              onClearTranscript={() => { setMessages([]); setConversationActive(false); sessionStorage.removeItem(SS_CONVERSATION) }}
+              onClearTranscript={() => { setMessages([]); clearActionSets(); setConversationActive(false); sessionStorage.removeItem(SS_CONVERSATION) }}
               onInputChange={v => { setInput(v); sessionStorage.setItem(SS_INPUT, v) }}
               onSubmit={handleSubmit}
               onStop={handleStop}

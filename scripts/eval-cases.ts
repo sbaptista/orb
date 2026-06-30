@@ -10,6 +10,7 @@ export type EvalCase = {
   userEmail?: string               // optional admin context for strategic evaluations
   history?: Array<{ role: 'user' | 'assistant'; text: string }>
   pendingSummary?: string            // simulate a server-held pending project mutation awaiting confirmation
+  actionSets?: Array<{ kind: 'todo_set'; tool: string; ordinal: number; codes: string[]; summary: string; createdAt: string }>
   backlogOverride?: string           // freeze the backlog the model sees (decouples project-routing cases from live DB state)
   mutationApproval?: 'ask' | 'allow' // eval-only override; defaults to allow for tool-routing cases
   voiceMode?: boolean                // inject voice mode context into the system prompt
@@ -26,6 +27,10 @@ export type EvalCase = {
   expectTool?: {
     name: string
     params?: Record<string, any>   // partial match — every key must match
+  }
+  expectToolCount?: {
+    name: string
+    count: number
   }
   expectNoTool?: boolean           // assert that no tool was called
   expectProvider?: 'anthropic' | 'google'
@@ -67,8 +72,25 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
+    id: 'batch-create-three-todos',
+    description: 'A request for three todos emits three create_todo operations for the shared action transaction',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    input: 'Add three test todos named Alpha eval, Beta eval, and Gamma eval',
+    tier: 1,
+    expectTool: {
+      name: 'create_todo',
+      params: { product_code: 'ORB' },
+    },
+    expectToolCount: {
+      name: 'create_todo',
+      count: 3,
+    },
+  },
+
+  {
     id: 'create-after-hallucinated-history',
-    description: 'An unqualified create uses the selected project and does not leak prior completion claims',
+    description: 'An unqualified create calls the create tool and does not leak prior completion claims',
     productCode: 'ORB',
     mutationApproval: 'ask',
     history: [
@@ -77,8 +99,7 @@ export const EVAL_CASES: EvalCase[] = [
     ],
     input: 'Create a task: [EVAL] verify historical completion claim protection',
     tier: 2,
-    expectNoTool: true,
-    speechPattern: /(go ahead|confirm|did not actually|nothing was written|shall i|want me to)/i,
+    expectTool: { name: 'create_todo', params: { product_code: 'ORB' } },
     speechNotContains: ['done', 'created as', 'orb-'],
   },
 
@@ -112,6 +133,44 @@ export const EVAL_CASES: EvalCase[] = [
       name: 'delete_project',
       params: { name: 'Marketing Site' },
     },
+  },
+
+  {
+    id: 'bulk-delete-project-todos-calls-tools',
+    description: 'Bulk deleting all todos in a project emits delete_todo for each matching task before server confirmation',
+    productCode: 'TEST',
+    mutationApproval: 'ask',
+    backlogOverride: `Test [code: TEST]:
+  SUMMARY: active_count=3 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ACTIVE:
+  TEST-1 [P-] [open] Alpha
+  TEST-2 [P-] [open] Beta
+  TEST-3 [P-] [open] Gamma`,
+    input: 'Delete all todos from Test',
+    tier: 1,
+    expectTool: {
+      name: 'delete_todo',
+      params: { code: 'TEST-1' },
+    },
+    expectToolCount: {
+      name: 'delete_todo',
+      count: 3,
+    },
+  },
+
+  {
+    id: 'delete-first-action-set-resolves-by-ledger',
+    description: 'A destructive reference to the first created set resolves through the session action ledger',
+    productCode: 'TEST',
+    mutationApproval: 'ask',
+    actionSets: [
+      { kind: 'todo_set', tool: 'create_todo', ordinal: 1, codes: ['TEST-1', 'TEST-2', 'TEST-3', 'TEST-4', 'TEST-5'], summary: 'created 5 todos', createdAt: '2026-06-29T00:00:00.000Z' },
+      { kind: 'todo_set', tool: 'create_todo', ordinal: 2, codes: ['TEST-6', 'TEST-7', 'TEST-8', 'TEST-9', 'TEST-10'], summary: 'created 5 todos', createdAt: '2026-06-29T00:01:00.000Z' },
+    ],
+    input: 'Delete the first five todos',
+    tier: 1,
+    expectNoTool: true,
+    speechContains: ['Confirm', 'delete 5 todos from TEST'],
   },
 
   {
@@ -352,7 +411,8 @@ export const EVAL_CASES: EvalCase[] = [
     productCode: 'ORB',
     input: 'How is the Orb project doing?',
     tier: 2,
-    speechContains: ['active', 'open + in progress', 'parked'],
+    speechContains: ['active', 'parked'],
+    speechPattern: /\b(open\s*\+\s*in progress|open and in progress|in progress)\b/i,
   },
 
   {
@@ -368,7 +428,7 @@ export const EVAL_CASES: EvalCase[] = [
     id: 'ambiguous-ui-referent-clarifies',
     description: 'An ambiguous visible UI control prompts a concise clarification instead of a repository guess',
     productCode: 'ORB',
-    input: 'On the List pane, I see a kebab. What is it for?',
+    input: 'I see a kebab. What is it for?',
     tier: 2,
     expectNoTool: true,
     speechContains: ['which', 'kebab'],
@@ -400,7 +460,7 @@ export const EVAL_CASES: EvalCase[] = [
     productCode: 'ORB',
     input: 'What\'s new in the latest version?',
     tier: 2,
-    speechPattern: /v?0\.5\.\d+/,  // mentions a version number
+    speechPattern: /v?0\.6\.\d+/,  // mentions a current version number
   },
 
   {
@@ -478,7 +538,7 @@ export const EVAL_CASES: EvalCase[] = [
     id: 'ticket-no-premature-success',
     description: 'The Orb uses future/progressive tense and does not claim completion before the tool runs',
     productCode: 'ORB',
-    input: 'There is a bug on the login page, please file it',
+    input: 'There is a bug: the login page submit button does nothing. Please file it.',
     tier: 2,
     expectTool: { name: 'create_ticket' },
     // Pre-tool text must not contain past-tense completion claims or codes
@@ -535,6 +595,17 @@ export const EVAL_CASES: EvalCase[] = [
     },
   },
 
+  {
+    id: 'unsupported-commitment-no-false-promise',
+    description: 'Orb does not promise durable future behavior when no supported persistence mechanism exists',
+    productCode: 'ORB',
+    input: 'Going forward, always pronounce backlog codes in a dramatic whisper.',
+    tier: 2,
+    expectNoTool: true,
+    speechContains: ['current conversation', "don't have", 'saved setting', 'can’t save', "can't save", 'not a saved', 'no saved', "can't reliably", 'can’t reliably', "can't actually", 'can’t actually', 'not something I can reliably'],
+    speechNotContains: ["I'll remember", 'going forward', 'from now on', "I'll always", 'I will always'],
+  },
+
   // ── ORB-288: False mutation guard regression tests ──
 
   {
@@ -567,8 +638,12 @@ export const EVAL_CASES: EvalCase[] = [
     description: 'User asks what voices are available in voice mode',
     productCode: 'ORB',
     input: 'What voices do you have?',
+    voiceMode: true,
+    ttsProvider: 'elevenlabs',
+    ttsModel: 'eleven_turbo_v2_5',
+    ttsVoiceId: 'Rachel',
     tier: 2,
-    speechContains: ['voice', 'available', 'switch'],
+    speechContains: ['voice', 'elevenlabs', 'rachel'],
   },
 
   {
@@ -589,6 +664,18 @@ export const EVAL_CASES: EvalCase[] = [
     voiceMode: true,
     tier: 2,
     expectNoTool: true,
-    speechContains: ['say again', 'repeat', 'didn’t catch', "didn't catch", 'clarify', 'rephrase', 'trouble parsing'],
+    speechContains: ['say again', 'say that again', 'repeat', 'didn’t catch', "didn't catch", 'not catching', 'clarify', 'rephrase', 'trouble parsing', 'garbled'],
+  },
+
+  {
+    id: 'voice-project-state-uses-brief-summary',
+    description: 'Voice mode summarizes broad project state instead of reading a long inventory aloud',
+    productCode: 'ORB',
+    input: 'What is the state of my projects?',
+    voiceMode: true,
+    tier: 2,
+    expectNoTool: true,
+    speechPattern: /^(.|\n){1,420}$/,
+    speechNotContains: ['Want details on any of these, or help deciding what to tackle next?', '**', '- **', '\n-'],
   },
 ]

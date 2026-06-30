@@ -10,64 +10,74 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.76
+- **Version:** 0.6.97
 
 ---
 
 ### Last Session Completed
 
-**Project CRUD Reliability Rework — propose/confirm/execute — 2026-06-28 (Claude Code, Opus 4.8) — v0.6.76**
+**Voice + Todo Action Transaction Release — 2026-06-29 (Codex, GPT-5) — v0.6.97**
 
-Stan's directive: "CRUD must be rock solid in text mode first." We diagnosed the prior structural gate as fragile (six overlapping steering mechanisms; the AI driving a deterministic state machine across turns) and replaced it, for **project mutations**, with a clean server-held propose → confirm → execute flow. Tested by Stan in text mode ("felt comfortable"); **Tier 1 evals 27/27 green.**
+Stan's directive: keep the same deterministic spine Claude established for text, then make voice CRUD feel solid without whack-a-mole. We mapped the voice path first, documented the consolidation plan, then built the first canonical approximation for **todo action transactions shared by text and voice**.
 
-**Organizing principle (drives all future Orb work):** *correctness vs. judgment.* Deterministic code owns anything with one right answer (which row, executing once, reporting truthfully); the non-deterministic Orb owns interpretation/judgment (understanding intent, phrasing, disambiguation, strategic insight). A sturdy deterministic spine *frees* the Orb to be expressive, because a wrong word can no longer cause a wrong act. The boundary is meant to be adjustable — move things from rails toward rope as trust grows.
+**Organizing principle carried forward:** *correctness vs. judgment.* The app owns exact actions, confirmation state, action sets, and verified outcomes. The Orb owns intent interpretation and conversational phrasing. This session extended that principle from project CRUD into todo CRUD and voice references.
 
-**The new flow (projects only this pass):**
-- **One rule:** mutation tools PROPOSE (never execute); a single `confirm_mutation` tool EXECUTES the exact stored intent. Calling a mutation tool twice just re-proposes — the only path to a write is `confirm_mutation`.
-- **Identity ≠ label:** `resolveProjectReference` turns a free-text name into 0/1/N projects (normalize for match, preserve for display; exact name → exact code → unique substring). Ambiguous → the Orb asks which, using the code as the tiebreaker. The pending stores the resolved **id**, never a name.
-- **Server-held pending** (`orb_pending_mutations`, one row per user, TTL, upsert-supersede). The client echoes nothing. **Consumed on load** → a pending is confirmable only on the turn directly after it's proposed (fail-safe: a stray later "yes" can't execute it).
-- **Hybrid confirm:** voice → instant deterministic "Done — …" (no extra model turn); text → Orb narrates.
+**What changed:**
+- **Todo action transaction path:** multi-todo create/update/delete/move requests are collected into a single pending action transaction. Confirmation executes the exact stored operations deterministically; "is it set/done?" while pending returns a deterministic "not yet" answer instead of accidentally executing or guessing.
+- **Session action-set ledger:** verified grouped results are recorded as session action sets, so follow-ups like "delete them" and "delete the first five" resolve to the exact prior batch rather than stale backlog order. The ledger is mirrored to `sessionStorage` for same-tab/session recovery and is cleared on transcript clear or project switch.
+- **Grouped voice/user summaries:** grouped confirmations and success messages now summarize by count (`create 5 todos in TEST`, `deleted 5 todos`) while transcript thought/progress bullets can still show individual task codes for trust.
+- **Bulk delete path:** "delete all todos in test2" calls the delete tool for each matching task and lets the server summarize and ask once.
+- **Voice speech channel cleanup:** `speak`, `speakStatus`, and `speakStreaming` now route through one internal queue setup. Progress cues are visual-only. API TTS failures no longer silently fall back to browser TTS, avoiding mixed voices.
+- **Voice settings refresh:** dashboard refreshes TTS config when settings change and before the greeting, so voice/provider changes apply without reload.
+- **Voice auto-TTS and mic handoff:** deterministic non-streaming replies now speak in voice mode. A recovery guard hands the mic back if voice lands in the idle "Ready" pocket, and duplicate `SpeechRecognition.start()` races are treated as already-listening instead of console errors.
+- **Concise voice summaries:** broad "state of my projects" voice questions use a deterministic short summary. The shortcut is limited to broad/global project-state questions so single-project health checks still exercise the normal operational model route.
+- **Commitment integrity:** Orb now has a behavioral rule not to promise future behavior, persistence, or capability unless a real tool/rule can honor it. If a behavior is only possible for the current conversation, Orb must say that.
+- **Eval runner timestamps:** Tier runs now print start/completion timestamps.
 
-**New module:** `lib/orb-mutations.ts` (resolution + pending store + propose + execute). **Migration:** `scripts/migrations/20260628_orb_pending_mutations.sql` (applied; RLS `(SELECT auth.uid())`, service-role-only, UNIQUE(user_id)).
+**New documents:**
+- `docs/orb-voice-speech-channel-plan.md` — voice path map and consolidation plan.
+- `docs/orb-action-transaction-thesis.md` — thesis, implementation approximation, testing strategy, and abandonment criteria for product-level action transactions.
 
-**Also:** project mutations now route via the new flow; the **legacy gate is reduced to todos only** and clearly marked transitional. Contract changes go through `docs/api-spec.yaml` → regenerated `lib/orb-contract.ts` (caught + fixed pre-existing drift: restored `set_voice`/`exit_voice` and three tool labels the spec lacked). Eval suite gained `backlogOverride` (frozen backlog) + `pendingSummary` + `__UNIQUE__` runtime name generation so project-routing cases are deterministic, not hostage to live DB.
+**Tracking todo and knowledge:**
+- Created **ORB-299 — Voice and todo action transaction reliability release** (`in progress`, priority High) to carry this major release work forward after production push.
+- Added linked knowledge entry `Voice and todo action transaction reliability release state` with detailed implementation state, eval results, manual verification, and watch items.
 
-### Changes in this commit (v0.6.76 + carried-forward v0.6.73–v0.6.75)
+### Changes in this commit (v0.6.77–v0.6.97)
 
-This commit bundles the uncommitted v0.6.73–v0.6.75 work (capability detection, voice structural fixes, error propagation) **plus** this session's v0.6.76 project-mutation rework. Key files:
-- `app/actions/orb-converse.ts` — propose/confirm/execute interception, `confirm_mutation`, server-held pending (consume-on-load), hybrid confirm, dead project handlers removed, GATED_MUTATIONS reduced to todos, multi-turn speech spacing, premature-speech discard
-- `lib/orb-mutations.ts` — NEW: resolution + pending store + propose + execute
-- `scripts/migrations/20260628_orb_pending_mutations.sql` — NEW: pending table
-- `app/api/orb-eval/route.ts` — mirrored pending injection, `backlogOverride`, name-first backlog
-- `docs/api-spec.yaml` + `lib/orb-contract.ts` — name-param tools, `confirm_mutation`, drift fixes
-- `lib/orb-prompt.ts` — mutation prompt rewritten (always call tool; server handles confirmation), name-first observations
-- `scripts/eval-cases.ts` + `scripts/orb-eval.ts` — new fields (pendingSummary, backlogOverride, __UNIQUE__), project-flow cases, frozen backlogs
-- `lib/hooks/useCapabilities.ts` — NEW: runtime capability detection
-- `lib/hooks/useVoiceMode.ts`, `components/UnifiedDashboard.tsx`, `components/OrbConversation.tsx` — capability detection, TTS fallback, error recovery (v0.6.74)
-- `app/actions/manage-project.ts` — name-conflict check in createProject
-- `lib/changelog.ts`, `lib/version.ts`, `package.json` — v0.6.76 (+ 0.6.73–0.6.75 entries)
+Key files:
+- `app/actions/orb-converse.ts` — todo action transaction type, deterministic pending/status handling, grouped execution, action-set ledger resolution, broad voice project summary shortcut, commitment-integrity prompt inclusion.
+- `app/api/orb-eval/route.ts` — mirrors deterministic action-set and broad voice summary behavior for evals.
+- `components/UnifiedDashboard.tsx` — TTS config refresh, voice auto-TTS for final replies, mic idle recovery, session action-set persistence, grouped toasts.
+- `lib/hooks/useVoiceMode.ts` — unified speech queue entry, no silent API-TTS fallback, duplicate recognition-start guard, runtime TTS config update.
+- `components/settings/SettingsVoice.tsx` — emits settings-change event for runtime voice refresh.
+- `lib/orb-prompt.ts` — bulk delete rule, disambiguation follow-through, search_knowledge routing restoration, commitment integrity.
+- `scripts/eval-cases.ts` + `scripts/orb-eval.ts` — tool-count assertions, action-set injection, focused cases for batch create, bulk delete, ledger delete, voice summaries, and unsupported commitments.
+- `app/globals.css`, `docs/ui-catalog.md` — voice transcript readability/UI catalog updates from the voice UI pass.
+- `lib/changelog.ts`, `lib/version.ts`, `package.json` — release entries and version bump through v0.6.97.
 
 ### Eval Status
 
-- **Tier 1: 27/27 passed ✅** (deterministic; project-routing cases now use frozen `backlogOverride`)
-- **Tier 2:** not run this session
+- **Tier 1:** passed after fixing `voice-status-question-stays-operational` (the deterministic voice summary shortcut was too broad and bypassed the provider route).
+- **Tier 2: 20/20 passed ✅** (2026-06-29 17:54:07–18:05:46 HST; 11m39s; ~1.67M tokens; ~$1.71)
 - The eval endpoint executes nothing (captures tool calls only) — it creates no DB rows.
 
 ### Known Issues / Watch
 
-1. **Voice not yet verified by Stan** for the new flow — hybrid confirm only exercises in voice mode. Next focus: examine voice exactly as we did text (it was also whack-a-mole'd — expect redundant code / path consolidation opportunities).
-2. **Latency** — to be looked at as part of voice/CRUD verification.
-3. **Todos still on the legacy gate** — migrate to the new flow, then delete the legacy gate + client `req.pendingMutation` echo + remaining "six mechanisms" traces.
-4. **Backlog cache staleness** (separate from this flow): the ~5-min prompt cache can make the Orb *speak* stale counts after a mutation. Execution always reads live DB; only narration is affected. Candidate follow-up: invalidate cache on mutation.
-5. **iPhone Chrome / Settings→Voice / Comet voice** — pre-existing, unchanged.
+1. **Double confirmation edge:** one prior transcript showed a ledger/bulk delete confirmation being asked twice. Later tests looked good, but keep watching for any prompt-first confirmation leaking before the app-owned pending transaction.
+2. **Failure/warning paths:** success cases are now strong; still worth deliberately testing partial failures, missing tasks, stale action-set references, and network aborts so pending/action-set state cannot lie after an error.
+3. **Action ledger scope:** current ledger is session/same-tab durable, not a DB transaction journal. This is intentional for the first approximation; revisit only if cross-device or crash recovery becomes necessary.
+4. **Latency:** voice feels much improved, but record breakdown later (LLM, TTS synthesis, audio playback, recognition restart) before broad optimization.
+5. **Backlog cache staleness:** execution reads live DB, but any model-narrated context can still be stale if cached. Deterministic action-set outcomes reduce the most dangerous cases, but broad narration may still lag.
 
 ### Key Lessons
 
 1. **Don't let a non-deterministic entity own correctness.** The fragility came from the AI driving a deterministic confirm state machine. Code owns when/which; the AI owns what/how it's said.
 2. **A sturdy deterministic spine frees the AI.** Once a wrong word can't cause a wrong act, you can stop muzzling the Orb (templated confirmations, hallucination catchers shrink).
-3. **Identity ≠ label.** Free-text names can collide and change → never a key. Resolve name→id; surface the stable code only to break ties.
-4. **Eval cases test model behavior → their context must be controlled, not live.** Use `backlogOverride`/`pendingSummary`/`__UNIQUE__`; never hard-code live project names.
-5. **The contract is generated from `docs/api-spec.yaml`.** Edit the spec + regenerate; never hand-edit `lib/orb-contract.ts` (drift gets silently reverted).
+3. **Session references need product-level records.** "Delete them" and "delete the first five" should resolve against verified action sets, not the model's memory or the current backlog sort order.
+4. **Summaries can be grouped while details remain visible.** Voice/user-facing summaries should say "created/deleted 5 todos"; transcript thoughts can retain individual codes for trust.
+5. **Do not promise what the app cannot keep.** "In this conversation" is acceptable; "I'll remember going forward" is only acceptable when a real persistence tool/rule honors it.
+6. **Identity ≠ label.** Free-text names can collide and change → never a key. Resolve name→id/code; surface stable codes only when needed to break ties or verify.
+7. **Eval cases test model behavior → their context must be controlled, not live.** Use `backlogOverride`/`pendingSummary`/`actionSets`/`__UNIQUE__`; never hard-code live project names unless the case intentionally depends on live state.
 
 ---
 
@@ -110,11 +120,11 @@ v0.6.67–v0.6.71: silent TTS fix, build gate for TTS keys, iPhone AudioContext 
 
 ## Next Priorities
 
-1. **Examine voice mode the way we did text — see `WIP.md` (Codex handoff).** This baseline (project CRUD via propose/confirm/execute) carries forward. The voice path is already **mapped** in `WIP.md`: full end-to-end flow, the whack-a-mole residue (three overlapping speak entry points, two parallel speech drivers coordinating by timing handshake, scattered fallbacks/reliability patches), what to verify (CRUD-in-voice with the new flow, latency breakdown), and the consolidation thesis (collapse to one speak channel + remove cross-path timing, mirroring text's six→two). No voice code changed yet — mapping first. Stan: "examine voice as it is just as you did with text."
-2. **Latency** — look at responsiveness (especially voice); the hybrid deterministic confirm is one lever, but general LLM+TTS latency is the bigger factor.
-3. **Migrate todos to the propose/confirm/execute flow**, then delete the legacy gate + client `req.pendingMutation` echo. Todos use code identity (no fuzzy resolution needed); reuse the shared machinery.
-4. **Prompt consolidation** — the structure now carries the weight; several prompt crutches around mutation/confirmation can shrink. Do this with the todo migration.
-5. **Backlog cache staleness** — consider invalidating the prompt cache on mutation so the Orb stops *speaking* stale counts (execution is already live-correct).
+1. **Production push:** Stan approved release direction after final manual voice CRUD tests and evals. Commit locally first; push only after Stan explicitly says push.
+2. **Continue ORB-299 after release:** failure/warning tests should deliberately exercise stale references, missing todos, partial delete/update failures, and interrupted/network-aborted sessions. Ensure all paths are try/catch wrapped and do not leave stale pending/action-set state.
+3. **Double-confirm watch:** if a future transcript shows two confirmations for one grouped action, trace whether a model speech confirmation is escaping before the app-owned pending transaction.
+4. **Latency breakdown:** measure voice turn timing by stage before optimizing.
+5. **Consider persistence design later:** pronunciation/user behavior preferences need a separate product design if they should survive beyond the current conversation. Do not imply persistence without a real tool.
 
 ---
 
@@ -143,7 +153,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-06-28 — Claude Code (Opus 4.8)`
+`2026-06-29 — Codex (GPT-5)`
 
 ---
 

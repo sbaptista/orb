@@ -51,6 +51,45 @@ function isFalseMutationClaim(speech: string, hasMutated: boolean, toolProducedC
   return false
 }
 
+function isBroadProjectStateQuestion(input: string): boolean {
+  return /\b(state|status|snapshot|summary|overview|how (are|is)|what'?s going on)\b/i.test(input)
+    && /\b(projects|backlog|everything|all)\b/i.test(input)
+}
+
+type EvalActionSet = { kind: 'todo_set'; tool: string; ordinal: number; codes: string[]; summary: string; createdAt: string }
+
+function resolveActionSetReference(input: string, actionSets: EvalActionSet[] | undefined): EvalActionSet | null {
+  const sets = (actionSets ?? []).filter(set => set.kind === 'todo_set' && set.codes.length > 0)
+  if (sets.length === 0 || !/\b(them|those|these|all of them|the ones|the tasks|the todos|the to dos|first|second|third|last|latest)\b/i.test(input)) return null
+  const lower = input.toLowerCase()
+  if (/\b(first|1st|initial)\b/.test(lower)) return sets[0] ?? null
+  if (/\b(second|2nd)\b/.test(lower)) return sets[1] ?? null
+  if (/\b(third|3rd)\b/.test(lower)) return sets[2] ?? null
+  return sets[sets.length - 1] ?? null
+}
+
+function isDeleteRequest(input: string): boolean {
+  return /\b(delete|remove|clear|trash|get rid of)\b/i.test(input)
+}
+
+function inferProjectDisambiguationInstruction(
+  history: Array<{ role: 'user' | 'assistant'; text: string }> | undefined,
+  input: string,
+): string | null {
+  const selection = input.trim()
+  if (!selection || selection.length > 80) return null
+  const prior = history ?? []
+  const lastAssistant = [...prior].reverse().find(h => h.role === 'assistant')?.text ?? ''
+  const lastUser = [...prior].reverse().find(h => h.role === 'user')?.text ?? ''
+  const assistantAskedWhich = /\b(which|which one|do you mean)\b/i.test(lastAssistant)
+    && /\b(code|project)\b/i.test(lastAssistant)
+  const priorWasDeleteProject = /\b(delete|remove|drop)\b/i.test(lastUser)
+    && /\bproject\b/i.test(lastUser)
+  if (!assistantAskedWhich || !priorWasDeleteProject) return null
+  const safeSelection = selection.replace(/"/g, '\\"')
+  return `[SYSTEM: The user is answering your immediately prior disambiguation question for a delete_project request. Their selected project is "${safeSelection}". You MUST call delete_project now with {"name":"${safeSelection}"}. Do not produce only a proposal in speech; the server handles confirmation after the tool call.]`
+}
+
 // ── POST /api/orb-eval ───────────────────────────────────────────────────
 // Non-streaming Orb call that returns speech + tool calls without executing them.
 // For the eval framework only. Disabled in production.
@@ -60,11 +99,12 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
-  const { input, productCode, history, pendingSummary, backlogOverride, mutationApproval, voiceMode, ttsProvider, ttsModel, ttsVoiceId, provider, model, userEmail, evaluationMode, contextPacketId, autoRoute, budgetOverride, evaluationCaseId } = body as {
+  const { input, productCode, history, pendingSummary, actionSets, backlogOverride, mutationApproval, voiceMode, ttsProvider, ttsModel, ttsVoiceId, provider, model, userEmail, evaluationMode, contextPacketId, autoRoute, budgetOverride, evaluationCaseId } = body as {
     input: string
     productCode?: string
     history?: Array<{ role: 'user' | 'assistant'; text: string }>
     pendingSummary?: string
+    actionSets?: EvalActionSet[]
     backlogOverride?: string
     mutationApproval?: 'ask' | 'allow'
     voiceMode?: boolean
@@ -225,6 +265,26 @@ export async function POST(request: NextRequest) {
   // deterministic instead of hostage to live DB state. The endpoint still executes nothing.
   const contextString = backlogOverride ?? (byProduct + dormantSection)
 
+  function buildVoiceProjectStateSummary(): string {
+    type ProjectCount = { name: string; count: number }
+    const activeTodos = todoList.filter((t: any) => isActive(t.status))
+    const parkedTodos = todoList.filter((t: any) => isParked(t.status))
+    const activeByProject = productList
+      .map((p: any) => ({ name: p.name, count: activeTodos.filter((t: any) => t.product_id === p.id).length }))
+      .filter((p: ProjectCount) => p.count > 0)
+      .sort((a: ProjectCount, b: ProjectCount) => b.count - a.count)
+    const parkedByProject = productList
+      .map((p: any) => ({ name: p.name, count: parkedTodos.filter((t: any) => t.product_id === p.id).length }))
+      .filter((p: ProjectCount) => p.count > 0)
+      .sort((a: ProjectCount, b: ProjectCount) => b.count - a.count)
+    const notable = activeByProject[0]
+      ? `${activeByProject[0].name} has the most active work with ${activeByProject[0].count}.`
+      : parkedByProject[0]
+        ? `${parkedByProject[0].name} has the largest parked backlog with ${parkedByProject[0].count}.`
+        : 'Nothing is active right now.'
+    return `Across your projects, you have ${activeTodos.length} active tasks and ${parkedTodos.length} parked items. ${notable}`
+  }
+
   const statusNames = statusList.map((s: any) => `${s.name}${s.is_closed ? ' (closed)' : s.is_open ? ' (default)' : ''}`).join(', ')
   const priorityInfo = priorityList.map((p: any) => `${p.value}:${p.label}${p.is_urgent ? ' (URGENT)' : ''}`).join(', ')
 
@@ -267,6 +327,8 @@ CURRENT VOICE OUTPUT CONFIG:
 Use this config when the user asks what voice provider, model, or voice is active. Do not infer the active voice provider from release notes, device voices, or the user's guess. If the provider is "unknown", say you do not have that setting in context.
 VOICE RESPONSE RULES:
 - Keep responses concise and conversational — clear sentences, not markdown lists or tables.
+- Default to 1–3 spoken sentences. For lists, counts, summaries, task details, or analysis, give the useful headline and at most 2 key specifics, then stop. Do not add a follow-up offer unless the user asks what to do next. Do not read long inventories aloud by default.
+- For broad project-state questions in voice mode, answer in one short plain-text paragraph, no markdown or bullets, under about 60 words. Give total active/parked counts and at most one notable project or risk. Do not list every project or every task.
 - Avoid complex formatting (tables, bullet lists, code blocks). Speak in natural prose.
 - Voice transcripts may be imperfect. If the user input is fragmentary, garbled, or hinges on a missing word, ask one concise clarification instead of filling in the blank from prior context.
 When the user signals they want to end the voice conversation — "that's enough", "let's stop", "stop talking", "end voice mode", or similar — you MUST call client_action with action="exit_voice". You may say a brief closing remark first.` : '',
@@ -303,6 +365,8 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     ...(history?.map(h => ({ role: h.role, content: h.text })) ?? []),
     { role: 'user', content: input },
   ]
+  const disambiguationInstruction = inferProjectDisambiguationInstruction(history, input)
+  if (disambiguationInstruction) messages.push({ role: 'user', content: disambiguationInstruction })
 
   // Mirror production's server-held pending-mutation injection (lib/orb-mutations.ts flow).
   if (pendingSummary) {
@@ -313,6 +377,27 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     const routeRole = autoRoute
       ? routeOrbRequest(input, true, true)
       : 'operational'
+    if (voiceMode && isBroadProjectStateQuestion(input)) {
+      return NextResponse.json({
+        speech: buildVoiceProjectStateSummary(),
+        toolCalls: [],
+        stopReason: 'deterministic_voice_project_state',
+        tokenUsage: { input_tokens: 0, output_tokens: 0 },
+        routeRole,
+      })
+    }
+    const referencedSet = resolveActionSetReference(input, actionSets)
+    if (referencedSet && isDeleteRequest(input)) {
+      const prefixes = new Set(referencedSet.codes.map(code => code.split('-')[0]).filter(Boolean))
+      const scope = prefixes.size === 1 ? ` from ${[...prefixes][0]}` : ''
+      return NextResponse.json({
+        speech: `Confirm: delete ${referencedSet.codes.length} todos${scope}?`,
+        toolCalls: [],
+        stopReason: 'deterministic_action_set_reference',
+        tokenUsage: { input_tokens: 0, output_tokens: 0 },
+        routeRole,
+      })
+    }
     if (budgetOverride) {
       const budgetCheck: OrbBudgetCheck = {
         allowed: false,

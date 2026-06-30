@@ -15,6 +15,7 @@ type BrowserVoiceInfo = {
 const LS_VOICE_KEY = 'orb_preferred_voice'
 const LS_RATE_KEY = 'orb_voice_rate'
 const SAMPLE_TEXT = 'Hello. I\'m your Orb — ready when you are.'
+const TTS_CONFIG_CHANGED_EVENT = 'orb:tts-config-changed'
 
 type ModalTarget = 'browser' | 'openai' | 'elevenlabs' | null
 
@@ -143,6 +144,7 @@ export default function SettingsVoice() {
     setRate(1.0)
     try {
       await saveTtsConfig({ provider: 'browser', model: null, voiceId: null })
+      window.dispatchEvent(new Event(TTS_CONFIG_CHANGED_EVENT))
       toast.success('Voice reset to default.')
     } catch {
       toast.error('Failed to reset voice setting.')
@@ -182,6 +184,7 @@ export default function SettingsVoice() {
       await saveTtsConfig({ provider, model, voiceId: provider === 'browser' ? null : name })
       setSelected(name)
       try { localStorage.setItem(LS_VOICE_KEY, name) } catch {}
+      window.dispatchEvent(new Event(TTS_CONFIG_CHANGED_EVENT))
       toast.success(`Voice set to ${label}.`)
     } catch (err) {
       console.error('[voice] failed to save TTS config:', err)

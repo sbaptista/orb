@@ -278,6 +278,8 @@ The Orb sphere has two voice-specific visual states that temporarily override ur
 
 A thin `orb-voice-ring` animation pulses around the Orb sphere whenever voice mode is active, regardless of listening/speaking/idle state.
 
+The conversation transcript remains readable in voice mode (`oc-thread` is not blurred) so the user can scan what the Orb said while the large voice Orb remains the primary state indicator.
+
 **Interaction model:**
 - **Tap Orb** — toggle voice recording on/off
 - **Double-tap Orb** — interrupt TTS
@@ -484,6 +486,8 @@ Behavioral owner for focused editor dialogs. It composes the existing `modal-cen
 **Canonical example:** `components/settings/SettingsVoice.tsx` (voice picker modals)
 
 Pick-one list row for use inside modals. Uses `aria-selected="true"` for the active item and `--bg3` highlight.
+
+Voice settings save/reset actions also dispatch the existing same-tab `orb:tts-config-changed` runtime event so the mounted dashboard refreshes TTS config without a page reload. This is a behavior hook on the existing settings controls, not a new visual pattern.
 
 | Class | Purpose |
 |---|---|

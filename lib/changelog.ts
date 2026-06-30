@@ -6,6 +6,180 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.97',
+    date: '2026-06-29',
+    changes: [
+      'Tightened the deterministic voice project-state shortcut so single-project health questions still exercise the normal operational model route.',
+    ]
+  },
+  {
+    version: 'v0.6.96',
+    date: '2026-06-29',
+    changes: [
+      'Broadened the unsupported-commitment eval to accept honest "cannot reliably/cannot actually do that" refusals, while still rejecting false future promises.',
+    ]
+  },
+  {
+    version: 'v0.6.95',
+    date: '2026-06-29',
+    changes: [
+      'Added a commitment-integrity rule so Orb does not promise future behavior, persistence, or capabilities unless a real tool or current system rule can honor the commitment.',
+      'Added behavioral eval coverage for unsupported durable commitments so Orb answers honestly instead of claiming it will remember or always do something.',
+    ]
+  },
+  {
+    version: 'v0.6.94',
+    date: '2026-06-29',
+    changes: [
+      'Voice recognition resume now treats duplicate SpeechRecognition starts as an already-listening state, avoiding a console InvalidStateError when Stop races the mic restart.',
+    ]
+  },
+  {
+    version: 'v0.6.93',
+    date: '2026-06-29',
+    changes: [
+      'Voice mode now recovers from the idle "Ready" pocket after a completed response by handing the mic back when no speech, request, or manual stop is active.',
+    ]
+  },
+  {
+    version: 'v0.6.92',
+    date: '2026-06-29',
+    changes: [
+      'Session action sets are now mirrored to sessionStorage with the conversation transcript, preserving same-tab reload recovery for references like "delete the first five".',
+      'Clearing the transcript or switching projects clears the session action-set ledger to avoid stale references.',
+      'Grouped transaction toasts now fire only on the final grouped result instead of once per progress update plus one extra.',
+      'Documented the action ledger recovery boundary: same-tab/session durable, not a cross-device transaction journal.',
+    ]
+  },
+  {
+    version: 'v0.6.91',
+    date: '2026-06-29',
+    changes: [
+      'Added a session-scoped action-set ledger so follow-up references like "delete them" or "delete the first five" can resolve against verified prior todo action batches without exposing every code in the spoken summary.',
+      'The shared conversation path can now turn a destructive reference to a prior action set into a concise pending confirmation, preserving the approval step while avoiding stale backlog guesses.',
+      'Added focused eval coverage for resolving "Delete the first five todos" against the session action ledger.',
+    ]
+  },
+  {
+    version: 'v0.6.90',
+    date: '2026-06-29',
+    changes: [
+      'Grouped todo action confirmations now summarize all same-kind batch operations by count, including creates, updates, deletes, and moves.',
+      'Grouped todo action success messages now summarize by count instead of reading every generated or affected task code aloud.',
+    ]
+  },
+  {
+    version: 'v0.6.89',
+    date: '2026-06-29',
+    changes: [
+      'Bulk todo deletes now use the shared action transaction path: the model is instructed to call delete_todo for each matching task and let the app ask for confirmation.',
+      'Multi-delete confirmations now summarize by count/project instead of reading every task code aloud.',
+      'If the Orb previously produced a prompt-only delete confirmation with explicit task codes, a subsequent yes can recover deterministically and execute those listed deletes instead of asking again.',
+      'Added Tier 1 coverage for bulk project-todo deletion tool calls.',
+    ]
+  },
+  {
+    version: 'v0.6.88',
+    date: '2026-06-29',
+    changes: [
+      'Voice auto-TTS now speaks any new final Orb reply in voice mode, not only streamed replies or replies still tied to an active request, while marking the greeting as already spoken to avoid duplication.',
+    ]
+  },
+  {
+    version: 'v0.6.87',
+    date: '2026-06-29',
+    changes: [
+      'Voice mode now speaks deterministic non-streaming Orb replies, such as app-computed project-state summaries, and then resumes listening.',
+    ]
+  },
+  {
+    version: 'v0.6.86',
+    date: '2026-06-29',
+    changes: [
+      'Voice broad project-state questions now use a deterministic short summary from app state instead of asking the model to produce a concise spoken inventory.',
+      'The voice project-state eval path mirrors that deterministic summary, reducing Tier 2 cost for that case while matching production behavior.',
+      'Expanded the garbled voice-input eval synonyms to accept the actual "not catching" / "garbled" clarification phrasing.',
+    ]
+  },
+  {
+    version: 'v0.6.85',
+    date: '2026-06-29',
+    changes: [
+      'Voice mode now suppresses ambient urgency-transition chatter after confirmed actions, avoiding extra "Orb shifted..." lines after deterministic mutation results.',
+      'Deterministic todo action summaries now use a natural grouped form such as "Done — created TEST-4, TEST-5, and TEST-6."',
+    ]
+  },
+  {
+    version: 'v0.6.84',
+    date: '2026-06-29',
+    changes: [
+      'First approximation of the Orb action transaction thesis: todo mutations from a single request are now collected into one pending action transaction shared by text and voice.',
+      'Confirming a pending todo action now executes the exact stored operations deterministically before another model turn, so batch creates cannot partly execute while holding only one item.',
+      'Asking whether a pending action is already set/done now gets a deterministic "not yet" answer and keeps the pending action available instead of accidentally executing it.',
+      'Added eval support for expected tool-call counts plus a batch-create regression case requiring three create_todo calls for a three-todo request.',
+      'Documented the action transaction thesis, first approximation, verification targets, and abandonment criteria.',
+    ]
+  },
+  {
+    version: 'v0.6.83',
+    date: '2026-06-29',
+    changes: [
+      'Orb eval runner now prints local and ISO start/completion timestamps in Tier 1/Tier 2 runs so pasted results are easier to compare over time.',
+      'Adjusted the project-health Tier 2 assertion to accept current active/in-progress phrasing while still requiring active and parked status concepts.',
+    ]
+  },
+  {
+    version: 'v0.6.82',
+    date: '2026-06-29',
+    changes: [
+      'Voice project-state summaries are now constrained to one short plain-text paragraph with no markdown or bullets.',
+      'Adjusted Tier 2 voice eval assertions to accept the actual configured provider/voice names and to guard against formatted project inventories.',
+    ]
+  },
+  {
+    version: 'v0.6.81',
+    date: '2026-06-29',
+    changes: [
+      'Voice mode broad project-state answers are now explicitly constrained to totals plus at most one notable project or risk, avoiding spoken task inventories by default.',
+      'Updated Tier 2 eval cases to match the current 0.6.x release line, voice-mode context, and the server-held mutation flow.',
+    ]
+  },
+  {
+    version: 'v0.6.80',
+    date: '2026-06-29',
+    changes: [
+      'Voice mode is terser by default: broad summaries and analysis now target 1–3 spoken sentences and avoid automatic follow-up offers unless the user asks what to do next.',
+      'Added a completed-message guard so the same final Orb response is not sent to TTS twice as voice state settles.',
+    ]
+  },
+  {
+    version: 'v0.6.79',
+    date: '2026-06-29',
+    changes: [
+      'Voice mode now defaults to shorter spoken answers: broad summaries, task details, and analysis should use a concise 2–4 sentence shape unless the user asks for more.',
+      'Voice mode transcript text is readable again instead of blurred, while keeping the existing Orb size and layout unchanged.',
+    ]
+  },
+  {
+    version: 'v0.6.78',
+    date: '2026-06-29',
+    changes: [
+      'Voice TTS reliability: streaming responses now speak the final response once after generation completes, so the audio output matches the transcript instead of dropping earlier streamed chunks.',
+    ]
+  },
+  {
+    version: 'v0.6.77',
+    date: '2026-06-29',
+    changes: [
+      'Voice mode speech-channel cleanup: speak, speakStatus, and speakStreaming now share one internal queue setup path while preserving their separate timing contracts.',
+      'Voice settings now refresh in the mounted dashboard after a voice/provider change and again before the greeting, so voice mode uses the current TTS config without needing a reload.',
+      'Removed silent API-to-browser TTS fallback. API voice failures now surface as recoverable voice errors instead of unexpectedly switching to a browser voice mid-session.',
+      'Progress cues are now visual-only, so tool/thought labels no longer compete with the main spoken response.',
+      'Orb behavior hardening: after project disambiguation the server now injects an explicit call-the-mutation-tool instruction for the selected target, and knowledge-topic questions are routed to search_knowledge unless recent snippets fully answer them.',
+      'Added the Orb voice speech-channel plan documenting the shared CRUD requirement: voice CRUD continues to use the same server action and tool paths as text CRUD.',
+    ]
+  },
+  {
     version: 'v0.6.76',
     date: '2026-06-28',
     changes: [

@@ -81,6 +81,7 @@ async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
       productCode: testCase.productCode,
       history: testCase.history,
       pendingSummary: testCase.pendingSummary,
+      actionSets: testCase.actionSets,
       backlogOverride: testCase.backlogOverride,
       mutationApproval: testCase.mutationApproval,
       voiceMode: testCase.voiceMode,
@@ -153,6 +154,13 @@ function assertToolCall(response: EvalResponse, testCase: EvalCase): string[] {
           failures.push(`Tool "${testCase.expectTool.name}" param "${key}": expected "${expected}", got "${actual}"`)
         }
       }
+    }
+  }
+
+  if (testCase.expectToolCount) {
+    const actual = response.toolCalls.filter(tc => tc.name === testCase.expectToolCount!.name).length
+    if (actual !== testCase.expectToolCount.count) {
+      failures.push(`Expected ${testCase.expectToolCount.count} calls to "${testCase.expectToolCount.name}", got ${actual}`)
     }
   }
 
@@ -302,6 +310,19 @@ function formatElapsed(ms: number): string {
   return m > 0 ? `${m}m ${s % 60}s` : `${s}s`
 }
 
+function formatDateTime(d: Date): string {
+  const local = d.toLocaleString(undefined, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short',
+  })
+  return `${local} (${d.toISOString()})`
+}
+
 function updateStatusBar(opts: {
   current: number; total: number; passed: number; failed: number;
   elapsed: number; currentCase?: string; currentRun?: number; totalRuns?: number
@@ -338,7 +359,9 @@ async function main() {
   }
 
   const totalRuns = cases.reduce((sum, c) => sum + (c.tier === 2 ? 3 : 1), 0)
+  const startedAt = new Date()
   console.log(`\n🔮 Orb Eval — ${cases.length} cases, ${totalRuns} total runs\n`)
+  console.log(`   Started: ${formatDateTime(startedAt)}`)
   console.log(`   Target: ${BASE_URL}`)
   console.log(`   Tier 1 (deterministic): ${cases.filter(c => c.tier === 1).length} cases`)
   console.log(`   Tier 2 (behavioral, 3× each): ${cases.filter(c => c.tier === 2).length} cases`)
@@ -483,6 +506,7 @@ async function main() {
     }
   }
   const elapsed = Date.now() - startTime
+  const completedAt = new Date()
 
   if (tier1.length > 0) {
     console.log(`  Tier 1 (tool correctness): ${tier1Pass}/${tier1.length} passed${tier1Pass < tier1.length ? ' ⚠️  REGRESSION' : ' ✅'}`)
@@ -502,6 +526,8 @@ async function main() {
   } else {
     console.log('  Estimated cost:            unavailable (endpoint returned legacy usage only)')
   }
+  console.log(`  Started:                  ${formatDateTime(startedAt)}`)
+  console.log(`  Completed:                ${formatDateTime(completedAt)}`)
   console.log(`  Elapsed:                   ${formatElapsed(elapsed)}`)
   console.log('═'.repeat(60) + '\n')
 

@@ -8,7 +8,7 @@ import { headers } from 'next/headers'
 import { getAuthContext, type AuthContext } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, buildAdaptationsPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
+import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, buildAdaptationsPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 // computeInsights suspended — code preserved in lib/insights.ts for future use
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
@@ -37,7 +37,21 @@ import type { OrbModelProviderId } from '@/lib/orb-model/types'
 // Types
 // ──────────────────────────────────────────────────────────────────────────
 
-export type PendingMutation = { tool: string; params: Record<string, any> }
+export type PendingMutationOperation = { tool: string; params: Record<string, any> }
+
+export type PendingMutation =
+  | { tool: string; params: Record<string, any> }
+  | { kind: 'todo_action_transaction'; operations: PendingMutationOperation[]; summary: string }
+
+export type ActionSet = {
+  id: string
+  kind: 'todo_set'
+  tool: string
+  ordinal: number
+  codes: string[]
+  summary: string
+  createdAt: string
+}
 
 export type OrbResponse = {
   speech: string
@@ -54,6 +68,7 @@ export type OrbResponse = {
   knowledgeResults?: Array<{ title: string; content: string; code?: string }>
   newProject?: { id: string; name: string; code: string; description: string | null; created_by: string }
   pendingMutation?: PendingMutation
+  actionSet?: ActionSet
 }
 
 type OrbInsight = NonNullable<OrbResponse['insight']>
@@ -85,9 +100,87 @@ function isFalseMutationClaim(speech: string, toolProducedCodes: Set<string>, hi
   return [...cited].some(code => !toolProducedCodes.has(code) && !historyCodes.has(code))
 }
 
-// Mutation confirmation is handled entirely by the prompt layer
-// (buildMutationApprovalPrompt in orb-prompt.ts). The AI proposes,
-// the user confirms, the AI executes. No server-side gate.
+function pendingTodoOperations(pending: PendingMutation | undefined): PendingMutationOperation[] {
+  if (!pending) return []
+  if ('kind' in pending && pending.kind === 'todo_action_transaction') return pending.operations
+  if ('tool' in pending) return [{ tool: pending.tool, params: pending.params }]
+  return []
+}
+
+function isBareAffirmation(input: string): boolean {
+  return /^(yes|yep|yeah|sure|ok|okay|go ahead|do it|confirm|confirmed|please do|sounds good|that's right|that is right)$/i.test(input.trim())
+}
+
+function isBareDecline(input: string): boolean {
+  return /^(no|nope|cancel|stop|don't|do not|never mind|nevermind|leave it|skip it)$/i.test(input.trim())
+}
+
+function isPendingStatusQuestion(input: string): boolean {
+  return /\?*\s*$/i.test(input.trim())
+    && /\b(is it|did it|was it|are they|did they|has it|have they)\b/i.test(input)
+    && /\b(set|done|created|updated|deleted|changed|moved|saved|finished|complete|completed)\b/i.test(input)
+}
+
+function todoActionNoun(tool: string): string {
+  if (tool === 'create_todo') return 'create'
+  if (tool === 'update_todo') return 'update'
+  if (tool === 'delete_todo') return 'delete'
+  if (tool === 'move_todo') return 'move'
+  return tool
+}
+
+function joinNatural(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? ''
+  if (items.length === 2) return `${items[0]} and ${items[1]}`
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`
+}
+
+function formatMutationSummaries(summaries: string[]): string {
+  const parsed = summaries.map(s => s.match(/^(Created|Updated|Deleted|Moved)\s+(.+)$/))
+  const firstVerb = parsed[0]?.[1]
+  if (firstVerb && parsed.every(p => p?.[1] === firstVerb)) {
+    if (summaries.length > 1) return `${firstVerb.toLowerCase()} ${summaries.length} todos`
+    return `${firstVerb.toLowerCase()} ${joinNatural(parsed.map(p => p?.[2] ?? '').filter(Boolean))}`
+  }
+  return joinNatural(summaries)
+}
+
+function isBroadProjectStateQuestion(input: string): boolean {
+  return /\b(state|status|snapshot|summary|overview|how (are|is)|what'?s going on)\b/i.test(input)
+    && /\b(projects|backlog|everything|all)\b/i.test(input)
+}
+
+function isRecentTodoReference(input: string): boolean {
+  return /\b(them|those|these|all of them|the ones|the tasks|the todos|the to dos)\b/i.test(input)
+}
+
+function isDeleteRequest(input: string): boolean {
+  return /\b(delete|remove|clear|trash|get rid of)\b/i.test(input)
+}
+
+function resolveActionSetReference(input: string, actionSets: ActionSet[] | undefined): ActionSet | null {
+  const sets = (actionSets ?? []).filter(set => set.kind === 'todo_set' && set.codes.length > 0)
+  if (sets.length === 0 || !isRecentTodoReference(input)) return null
+  const lower = input.toLowerCase()
+  if (/\b(first|1st|initial)\b/.test(lower)) return sets[0] ?? null
+  if (/\b(second|2nd)\b/.test(lower)) return sets[1] ?? null
+  if (/\b(third|3rd)\b/.test(lower)) return sets[2] ?? null
+  if (/\b(last|latest|most recent|newest|just created|all of them|them|those|these|the ones)\b/.test(lower)) return sets[sets.length - 1] ?? null
+  return sets.length === 1 ? sets[0] : null
+}
+
+function inferConfirmedDeleteOpsFromHistory(
+  history: Array<{ role: 'user' | 'assistant'; text: string }> | undefined,
+  input: string,
+): PendingMutationOperation[] {
+  if (!isBareAffirmation(input)) return []
+  const lastAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
+  if (!/\b(confirm|go ahead)\b/i.test(lastAssistant)) return []
+  if (!/\b(delete|deleting|remove|removing)\b/i.test(lastAssistant)) return []
+  const codes = [...extractCitedCodes(lastAssistant)]
+  if (codes.length === 0) return []
+  return codes.map(code => ({ tool: 'delete_todo', params: { code } }))
+}
 
 function extractInsight(rawSpeech: string): { speech: string; insight?: OrbInsight } {
   const insightPattern = /\[INSIGHT:(observation|coaching|strategic)\]([\s\S]*?)\[\/INSIGHT\]/i
@@ -139,6 +232,7 @@ export type OrbRequest = {
   simulateError?: 'billing' | 'overloaded' | null
   systemInfo?: { browser: string; os: string; os_version: string; viewport: string } | null
   pendingMutation?: PendingMutation
+  actionSets?: ActionSet[]
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
@@ -510,6 +604,318 @@ export async function orbConverse(req: OrbRequest) {
       const statusNames = ctx.statusList.map((s: any) => `${s.name}${s.is_closed ? ' (closed)' : s.is_open ? ' (default)' : ''}`).join(', ')
       const priorityInfo = ctx.priorityList.map((p: any) => `${p.value}:${p.label}${p.is_urgent ? ' (URGENT)' : ''}`).join(', ')
 
+      function buildVoiceProjectStateSummary(): string {
+        type ProjectCount = { name: string; count: number }
+        const visibleProjectIds = new Set(ctx.productList.map((p: any) => p.id))
+        const activeTodos = ctx.todoList.filter((t: any) => visibleProjectIds.has(t.product_id) && isActive(t.status))
+        const parkedTodos = ctx.todoList.filter((t: any) => visibleProjectIds.has(t.product_id) && isParked(t.status))
+        const activeByProject = ctx.productList
+          .map((p: any) => ({ name: p.name, count: activeTodos.filter((t: any) => t.product_id === p.id).length }))
+          .filter((p: ProjectCount) => p.count > 0)
+          .sort((a: ProjectCount, b: ProjectCount) => b.count - a.count)
+        const parkedByProject = ctx.productList
+          .map((p: any) => ({ name: p.name, count: parkedTodos.filter((t: any) => t.product_id === p.id).length }))
+          .filter((p: ProjectCount) => p.count > 0)
+          .sort((a: ProjectCount, b: ProjectCount) => b.count - a.count)
+        const notable = activeByProject[0]
+          ? `${activeByProject[0].name} has the most active work with ${activeByProject[0].count}.`
+          : parkedByProject[0]
+            ? `${parkedByProject[0].name} has the largest parked backlog with ${parkedByProject[0].count}.`
+            : 'Nothing is active right now.'
+        return `Across your projects, you have ${activeTodos.length} active tasks and ${parkedTodos.length} parked items. ${notable}`
+      }
+
+      function describeTodoOperation(op: PendingMutationOperation): string {
+        const input = op.params
+        if (op.tool === 'create_todo') {
+          const product = input.product_code
+            ? ctx.productList.find((p: any) => p.code?.toUpperCase() === String(input.product_code).toUpperCase())
+            : ctx.current
+          const projectName = product?.name ?? input.product_code ?? ctx.current?.name ?? 'the current project'
+          return `create "${input.title ?? 'Untitled'}" in ${projectName}`
+        }
+        if (op.tool === 'update_todo') {
+          const changes: string[] = []
+          if (input.new_title) changes.push(`title to "${input.new_title}"`)
+          if (input.new_status) changes.push(`status to ${input.new_status}`)
+          if (input.new_priority !== undefined) {
+            const priority = ctx.priorityList.find((p: any) => p.value === input.new_priority)
+            changes.push(`priority to ${priority?.label ?? input.new_priority}`)
+          }
+          if (input.description !== undefined) changes.push('description')
+          if (input.due_at !== undefined) changes.push(input.due_at ? `due date to ${input.due_at}` : 'clear due date')
+          return `update ${input.code}${changes.length ? ` (${changes.join(', ')})` : ''}`
+        }
+        if (op.tool === 'delete_todo') return `delete ${input.code}`
+        if (op.tool === 'move_todo') return `move ${input.code} to ${input.target_project_code}`
+        return `${todoActionNoun(op.tool)} a todo`
+      }
+
+      function summarizeTodoOperations(ops: PendingMutationOperation[]): string {
+        if (ops.length === 1) return describeTodoOperation(ops[0])
+        const grouped = new Map<string, PendingMutationOperation[]>()
+        for (const op of ops) {
+          grouped.set(op.tool, [...(grouped.get(op.tool) ?? []), op])
+        }
+        const projectCodes = new Set(ops.map(op => {
+          if (op.tool === 'create_todo') return op.params.product_code ? String(op.params.product_code).toUpperCase() : ctx.current?.code
+          if (op.params.code) return String(op.params.code).split('-')[0]?.toUpperCase()
+          if (op.params.target_project_code) return String(op.params.target_project_code).toUpperCase()
+          return null
+        }).filter(Boolean))
+        const projectScope = projectCodes.size === 1 ? [...projectCodes][0] : ''
+        if (grouped.size === 1 && grouped.has('create_todo')) {
+          return `create ${ops.length} todos${projectScope ? ` in ${projectScope}` : ''}`
+        }
+        if (grouped.size === 1 && grouped.has('update_todo')) {
+          return `update ${ops.length} todos${projectScope ? ` in ${projectScope}` : ''}`
+        }
+        if (grouped.size === 1 && grouped.has('delete_todo')) {
+          return `delete ${ops.length} todos${projectScope ? ` from ${projectScope}` : ''}`
+        }
+        if (grouped.size === 1 && grouped.has('move_todo')) {
+          return `move ${ops.length} todos${projectScope ? ` from ${projectScope}` : ''}`
+        }
+        return ops.map((op, i) => `${i + 1}. ${describeTodoOperation(op)}`).join('; ')
+      }
+
+      async function executeTodoOperation(op: PendingMutationOperation): Promise<{
+        ok: true
+        summary: string
+        code?: string
+        old_code?: string
+        new_code?: string
+        mutatedProductId?: string
+        mutationType: 'create' | 'update' | 'delete'
+      } | { ok: false; summary: string; error: string }> {
+        const input = op.params
+
+        if (op.tool === 'create_todo') {
+          if (!input.title) return { ok: false, summary: 'Create failed', error: 'title is required' }
+          const product = input.product_code
+            ? ctx.productList.find((p: any) => p.code?.toUpperCase() === String(input.product_code).toUpperCase())
+            : ctx.productList.find((p: any) => p.id === req.productId)
+          if (!product) return { ok: false, summary: 'Create failed', error: 'project not found' }
+          const { data: openStatus } = await supabase
+            .from('statuses').select('name').eq('is_open', true).limit(1).single()
+          const { data, error } = await supabase.from('todos').insert({
+            product_id: product.id,
+            title: input.title,
+            description: input.description ?? null,
+            status: openStatus?.name ?? 'open',
+            priority_value: input.priority_value ?? null,
+            due_at: input.due_at ?? null,
+          }).select('id, todo_number').single()
+          if (error) return { ok: false, summary: `Create "${input.title}" failed`, error: error.message }
+          const code = `${product.code}-${data.todo_number}`
+          await logAuditEvent({
+            action: 'todo_create',
+            table_name: 'todos',
+            record_id: data.id,
+            after: { code, title: input.title, priority_value: input.priority_value ?? null, due_at: input.due_at ?? null },
+            actor: 'orb',
+            user_id: auth.user.id,
+            system_info: req.systemInfo,
+          })
+          return { ok: true, summary: `Created ${code}`, code, mutatedProductId: product.id, mutationType: 'create' }
+        }
+
+        if (op.tool === 'update_todo') {
+          const productCode = input.code?.split('-')[0]
+          const todoNum = parseInt(input.code?.split('-')[1] || '0')
+          let todo = ctx.todoList.find((t: any) => {
+            const p = ctx.productList.find((pp: any) => pp.id === t.product_id)
+            return p?.code === productCode && t.todo_number === todoNum
+          })
+          if (!todo) {
+            const { data: found } = await supabase
+              .from('todos')
+              .select('*, projects!inner(code)')
+              .eq('todo_number', todoNum)
+              .ilike('projects.code', productCode)
+              .maybeSingle()
+            if (found) todo = found
+          }
+          if (!todo) return { ok: false, summary: `Update ${input.code} failed`, error: 'todo not found' }
+
+          const closingStatus = !!(input.new_status &&
+            ctx.statusList.find((s: any) => s.name === input.new_status)?.is_closed
+          )
+          const { data, error } = await supabase.from('todos').update({
+            title: input.new_title ?? todo.title,
+            status: input.new_status ?? todo.status,
+            priority_value: input.new_priority !== undefined ? input.new_priority : todo.priority_value,
+            description: input.description ?? todo.description,
+            resolution_notes: input.resolution_notes ?? todo.resolution_notes,
+            closed_at: closingStatus ? new Date().toISOString() : todo.closed_at,
+            due_at: input.due_at !== undefined ? input.due_at : todo.due_at,
+          }).eq('id', todo.id).select('*').single()
+          if (error) return { ok: false, summary: `Update ${input.code} failed`, error: error.message }
+          await logAuditEvent({
+            action: closingStatus && !todo.closed_at ? 'todo_close' : 'todo_update',
+            table_name: 'todos',
+            record_id: todo.id,
+            before: { status: todo.status, priority_value: todo.priority_value, title: todo.title },
+            after: { status: data.status, priority_value: data.priority_value, title: data.title, code: input.code, due_at: data.due_at },
+            actor: 'orb',
+            user_id: auth.user.id,
+            system_info: req.systemInfo,
+          })
+          return { ok: true, summary: `Updated ${input.code}`, code: input.code, mutatedProductId: todo.product_id, mutationType: 'update' }
+        }
+
+        if (op.tool === 'delete_todo') {
+          const productCode = input.code?.split('-')[0]
+          const todoNum = parseInt(input.code?.split('-')[1] || '0')
+          let todo = ctx.todoList.find((t: any) => {
+            const p = ctx.productList.find((pp: any) => pp.id === t.product_id)
+            return p?.code === productCode && t.todo_number === todoNum
+          })
+          if (!todo) {
+            const { data: found } = await supabase
+              .from('todos')
+              .select('*, projects!inner(code)')
+              .eq('todo_number', todoNum)
+              .ilike('projects.code', productCode)
+              .maybeSingle()
+            if (found) todo = found
+          }
+          if (!todo) return { ok: false, summary: `Delete ${input.code} failed`, error: 'todo not found' }
+          const { data: deleted, error } = await supabase.from('todos').delete().eq('id', todo.id).select().maybeSingle()
+          if (error) return { ok: false, summary: `Delete ${input.code} failed`, error: error.message }
+          if (!deleted) return { ok: false, summary: `Delete ${input.code} failed`, error: 'row was not removed' }
+          await logAuditEvent({
+            action: 'todo_delete',
+            table_name: 'todos',
+            record_id: todo.id,
+            before: { code: input.code, title: todo.title, status: todo.status },
+            actor: 'orb',
+            user_id: auth.user.id,
+            system_info: req.systemInfo,
+          })
+          return { ok: true, summary: `Deleted ${input.code}`, code: input.code, mutatedProductId: todo.product_id, mutationType: 'delete' }
+        }
+
+        if (op.tool === 'move_todo') {
+          const productCode = input.code?.split('-')[0]
+          const todoNum = parseInt(input.code?.split('-')[1] || '0')
+          const targetCode = String(input.target_project_code).toUpperCase()
+          let todo = ctx.todoList.find((t: any) => {
+            const p = ctx.productList.find((pp: any) => pp.id === t.product_id)
+            return p?.code === productCode && t.todo_number === todoNum
+          })
+          if (!todo) {
+            const { data: found } = await supabase
+              .from('todos')
+              .select('*, projects!inner(code)')
+              .eq('todo_number', todoNum)
+              .ilike('projects.code', productCode)
+              .maybeSingle()
+            if (found) todo = found
+          }
+          if (!todo) return { ok: false, summary: `Move ${input.code} failed`, error: 'todo not found' }
+          const sourceProject = ctx.productList.find((p: any) => p.id === todo.product_id)
+          const moveTargetQuery = supabase.from('projects').select('id, code, name').ilike('code', targetCode)
+          if (!auth.isAdmin) moveTargetQuery.eq('created_by', auth.user.id)
+          const { data: targetProject } = await moveTargetQuery.maybeSingle()
+          if (!targetProject) return { ok: false, summary: `Move ${input.code} failed`, error: `project "${targetCode}" not found` }
+          if (targetProject.id === todo.product_id) return { ok: false, summary: `Move ${input.code} failed`, error: 'task is already in that project' }
+          const { data: maxRow } = await supabase
+            .from('todos')
+            .select('todo_number')
+            .eq('product_id', targetProject.id)
+            .order('todo_number', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          const nextNum = (maxRow?.todo_number ?? 0) + 1
+          const { error } = await supabase
+            .from('todos')
+            .update({ product_id: targetProject.id, todo_number: nextNum })
+            .eq('id', todo.id)
+          if (error) return { ok: false, summary: `Move ${input.code} failed`, error: error.message }
+          const oldCode = `${sourceProject?.code ?? '???'}-${todo.todo_number}`
+          const newCode = `${targetProject.code}-${nextNum}`
+          await logAuditEvent({
+            action: 'todo_move',
+            table_name: 'todos',
+            record_id: todo.id,
+            before: { code: oldCode, product_code: sourceProject?.code },
+            after: { code: newCode, product_code: targetProject.code },
+            actor: 'orb',
+            user_id: auth.user.id,
+            system_info: req.systemInfo,
+          })
+          return { ok: true, summary: `Moved ${oldCode} to ${newCode}`, old_code: oldCode, new_code: newCode, mutatedProductId: sourceProject?.id, mutationType: 'update' }
+        }
+
+        return { ok: false, summary: `${todoActionNoun(op.tool)} failed`, error: `Unsupported todo action: ${op.tool}` }
+      }
+
+      async function executeTodoOperationsAndFinish(ops: PendingMutationOperation[]): Promise<void> {
+        stream.update({ speech: '', thought: 'Confirming...', isStreaming: true })
+        const results = []
+        for (const op of ops) {
+          const result = await executeTodoOperation(op)
+          results.push(result)
+          if (result.ok) {
+            if (result.code) toolProducedCodes.add(result.code)
+            if (result.old_code) toolProducedCodes.add(result.old_code)
+            if (result.new_code) toolProducedCodes.add(result.new_code)
+            hasMutated = true
+            stream.update({
+              speech: '',
+              thought: result.summary,
+              refresh: true,
+              mutatedProductId: result.mutatedProductId,
+              mutationType: result.mutationType,
+              isStreaming: true,
+            })
+          }
+        }
+
+        const successes = results.filter(r => r.ok)
+        const failures = results.filter(r => !r.ok)
+        const lastSuccess = successes[successes.length - 1]
+        const successSummary = formatMutationSummaries(successes.map(r => r.summary))
+        const successCodes = successes.flatMap(r => {
+          if (!r.ok) return []
+          return [r.code, r.old_code, r.new_code].filter(Boolean) as string[]
+        })
+        const firstTool = ops[0]?.tool ?? 'todo_action'
+        const sameTool = ops.every(op => op.tool === firstTool)
+        const actionSet: ActionSet | undefined = successCodes.length > 0
+          ? {
+              id: `todo_set_${Date.now()}`,
+              kind: 'todo_set',
+              tool: sameTool ? firstTool : 'mixed',
+              ordinal: (req.actionSets?.length ?? 0) + 1,
+              codes: successCodes,
+              summary: successSummary,
+              createdAt: new Date().toISOString(),
+            }
+          : undefined
+        const speech = failures.length === 0
+          ? `Done — ${successSummary}.`
+          : successes.length > 0
+            ? `Partially done — ${successSummary}. ${failures.map(r => `${r.summary}: ${r.error}`).join('; ')}.`
+            : `I couldn't complete that — ${failures.map(r => `${r.summary}: ${r.error}`).join('; ')}.`
+
+        if (hasMutated) {
+          checkAndNotifyEscalation(auth.user.id, beforeUrgency, supabase)
+            .catch(err => console.error('[orbConverse] Push check failed:', err))
+        }
+        recordModelRequest(speech)
+        recordMetrics(speech.length)
+        stream.done({
+          speech,
+          isStreaming: false,
+          refresh: successes.length > 0,
+          mutatedProductId: lastSuccess && lastSuccess.ok ? lastSuccess.mutatedProductId : undefined,
+          mutationType: lastSuccess && lastSuccess.ok ? lastSuccess.mutationType : undefined,
+          actionSet,
+        })
+      }
+
       const openness = ctx.preferenceList.find(p => p.key === 'openness')?.value ?? 'natural'
       const memoryLevel = ctx.preferenceList.find(p => p.key === 'memory_level')?.value ?? 'full'
 
@@ -522,6 +928,70 @@ export async function orbConverse(req: OrbRequest) {
           ? 'REPOSITORY ACCESS: You may inspect the source bundled with the current production deployment by using query_repository with source="production".'
           : 'REPOSITORY ACCESS: You may inspect both the current local working tree (source="local") and the current Vercel deployment (source="production"). Use the source the user asks about; default to local for implementation questions asked on localhost.'
         : 'REPOSITORY ACCESS: This user is not an Admin, Super Admin, or Developer. You cannot inspect source code for them.'
+
+      if (req.uiContext?.voiceMode && isBroadProjectStateQuestion(req.input)) {
+        const speech = buildVoiceProjectStateSummary()
+        recordModelRequest(speech)
+        recordMetrics(speech.length)
+        stream.done({ speech, isStreaming: false })
+        return
+      }
+
+      const toolProducedCodes = new Set<string>()
+      const historyCodes = extractCitedCodes(
+        (req.history ?? []).map(h => h.text).join(' ') + ' ' + req.input
+        + ' ' + ctx.todoList.map((t: any) => todoCode(t, ctx.productList)).join(' ')
+      )
+
+      const pendingTodoOps = pendingTodoOperations(req.pendingMutation)
+      if (pendingTodoOps.length > 0) {
+        const pendingSummary = 'summary' in req.pendingMutation! && req.pendingMutation.summary
+          ? req.pendingMutation.summary
+          : summarizeTodoOperations(pendingTodoOps)
+
+        if (isBareDecline(req.input)) {
+          const speech = `Okay — I did not ${pendingSummary}.`
+          recordModelRequest(speech)
+          recordMetrics(speech.length)
+          stream.done({ speech, isStreaming: false })
+          return
+        }
+
+        if (isPendingStatusQuestion(req.input)) {
+          const speech = `Not yet — I was waiting for your go-ahead to ${pendingSummary}. Want me to do it?`
+          recordModelRequest(speech)
+          recordMetrics(speech.length)
+          stream.done({ speech, isStreaming: false, pendingMutation: req.pendingMutation })
+          return
+        }
+
+        if (isBareAffirmation(req.input)) {
+          await executeTodoOperationsAndFinish(pendingTodoOps)
+          return
+        }
+      }
+
+      const confirmedDeleteOps = inferConfirmedDeleteOpsFromHistory(req.history, req.input)
+      if (!req.pendingMutation && confirmedDeleteOps.length > 0) {
+        await executeTodoOperationsAndFinish(confirmedDeleteOps)
+        return
+      }
+
+      const referencedSet = resolveActionSetReference(req.input, req.actionSets)
+      if (!req.pendingMutation && referencedSet && isDeleteRequest(req.input)) {
+        const operations = referencedSet.codes.map(code => ({ tool: 'delete_todo', params: { code } }))
+        const summary = summarizeTodoOperations(operations)
+        const pending: PendingMutation = {
+          kind: 'todo_action_transaction',
+          operations,
+          summary,
+        }
+        const speech = `Confirm: ${summary}?`
+        recordModelRequest(speech)
+        recordMetrics(speech.length)
+        stream.done({ speech, isStreaming: false, pendingMutation: pending })
+        return
+      }
 
       const messages: any[] = [
         ...(req.history?.map(h => ({ role: h.role, content: h.text })) ?? []),
@@ -538,13 +1008,6 @@ export async function orbConverse(req: OrbRequest) {
         // turn. If the user doesn't confirm this turn, it's already gone — fail-safe.
         await clearPendingMutation(auth.admin, auth.user.id)
         messages.push({ role: 'user', content: `[SYSTEM: This note applies ONLY if the user's latest message is a bare affirmation (e.g. "yes", "go", "go ahead", "do it", "yep"). If so, they are approving the action you proposed on the previous turn — "${pendingMutation.summary}" — so call confirm_mutation. For ANY other message (a new or changed request, a question, or a decline), ignore this note completely and respond as if it were not here: do not call confirm_mutation, and never mention a pending, held, or previous action to the user.]` })
-      }
-
-      // Legacy todo gate (client-echoed): held todo mutations re-call their tool on confirm.
-      // TODO: migrate todos to the server-held flow above, then remove this and req.pendingMutation.
-      if (req.pendingMutation) {
-        const pm = req.pendingMutation
-        messages.push({ role: 'user', content: `[SYSTEM: You previously proposed to ${pm.tool}(${JSON.stringify(pm.params)}). The user is now responding. If they agreed, call ${pm.tool} with those exact parameters. If they declined or changed their mind, acknowledge and move on. Do not explain the process — just act.]` })
       }
 
       const routeRole = routeOrbRequest(req.input, aiPolicy.routingEnabled, aiPolicy.strategicReadsEnabled)
@@ -575,13 +1038,8 @@ export async function orbConverse(req: OrbRequest) {
       let turnCount = 0
       const MAX_TURNS = 5
       let repairedNoToolMutationClaim = false
-      let heldMutation: PendingMutation | null = null
       const toolErrors: string[] = []
-      const toolProducedCodes = new Set<string>()
-      const historyCodes = extractCitedCodes(
-        (req.history ?? []).map(h => h.text).join(' ') + ' ' + req.input
-        + ' ' + ctx.todoList.map((t: any) => todoCode(t, ctx.productList)).join(' ')
-      )
+      const heldTodoOperations: PendingMutationOperation[] = []
 
       // Heartbeat to open the pipe
       stream.update({ speech: '', isStreaming: true })
@@ -607,6 +1065,7 @@ export async function orbConverse(req: OrbRequest) {
           ORB_STRATEGIC_REASONING,
           buildCoachingPrompt(openness),
           ORB_PREFERENCE_DISCOVERY,
+          ORB_COMMITMENT_INTEGRITY,
           ORB_ADAPTATION_BEHAVIOR,
           `INSIGHT TAGGING:
 When you surface proactive observation, coaching, or strategic recommendation content, wrap only that sentence or short paragraph in one marker pair:
@@ -633,6 +1092,8 @@ Use this config when the user asks what voice provider, model, or voice is activ
 VOICE RESPONSE RULES:
 - NEVER greet or re-greet. The greeting was already spoken when voice mode started — it is in the conversation history. Do not say "Good morning", "Morning", "Hey", "All set here", or any opening salutation. Jump straight into substance.
 - Keep responses concise and conversational — clear sentences, not markdown lists or tables.
+- Default to 1–3 spoken sentences. For lists, counts, summaries, task details, or analysis, give the useful headline and at most 2 key specifics, then stop. Do not add a follow-up offer unless the user asks what to do next. Do not read long inventories aloud by default.
+- For broad project-state questions in voice mode, answer in one short plain-text paragraph, no markdown or bullets, under about 60 words. Give total active/parked counts and at most one notable project or risk. Do not list every project or every task.
 - Avoid complex formatting (tables, bullet lists, code blocks). Speak in natural prose.
 - BREVITY THRESHOLD: If your answer involves more than 3–4 sentences of content — task details, lists, summaries, lookups — give a brief 2–3 sentence spoken summary of the key point, then explicitly ask: "That's the summary. Want me to read the full details, or is that enough?" Wait for the user's answer before providing more. Do NOT read out long content unprompted.
 - Do not use filler phrases like "Let me check", "One moment", "I'm on it", or "Got it." If you have something to say, say it. If not, just act.
@@ -795,7 +1256,7 @@ When the user signals they want to end the voice conversation — "that's enough
             && !/(fail|error|couldn't|could not|unable|problem|issue|went wrong)/i.test(parsed.speech)
             ? toolErrors.join('; ')
             : undefined
-          stream.done({ speech: parsed.speech, insight, isStreaming: false, error: unacknowledgedError, pendingMutation: heldMutation ?? undefined })
+          stream.done({ speech: parsed.speech, insight, isStreaming: false, error: unacknowledgedError })
           return
         }
 
@@ -878,14 +1339,15 @@ When the user signals they want to end the voice conversation — "that's enough
             continue
           } else
 
-          // ── Structural mutation gate (LEGACY — todos only) ──
-          // Hold CRUD mutations unless the client sent back a matching pendingMutation.
-          // When confirmed (pendingMutation.tool matches), fall through to execute.
-          if (GATED_MUTATIONS.has(tc.name) && !heldMutation && req.pendingMutation?.tool !== tc.name) {
-            heldMutation = { tool: tc.name, params: input }
+          // ── Canonical pending action (todos) ──
+          // Hold every todo mutation in this turn as one action transaction. The
+          // next bare affirmation executes exactly these operations before another
+          // model call; a status question gets a deterministic "not yet" answer.
+          if (GATED_MUTATIONS.has(tc.name)) {
+            heldTodoOperations.push({ tool: tc.name, params: input })
             output = {
               _held: true,
-              _instruction: `This action has not been executed yet. Describe what you are about to do in plain language (include names, codes, and relevant details) and ask the user to confirm. Do NOT claim the action was completed, do NOT mention confirmations, gates, or internal mechanics.`,
+              _instruction: `This action has not been executed yet. The server will summarize the full pending action after collecting all requested operations. Do NOT claim the action was completed.`,
               params: input,
             }
             toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
@@ -1584,6 +2046,19 @@ When the user signals they want to end the voice conversation — "that's enough
           if (output?.code) toolProducedCodes.add(output.code)
           if (output?.old_code) toolProducedCodes.add(output.old_code)
           if (output?.new_code) toolProducedCodes.add(output.new_code)
+        }
+        if (heldTodoOperations.length > 0) {
+          const summary = summarizeTodoOperations(heldTodoOperations)
+          const pending: PendingMutation = {
+            kind: 'todo_action_transaction',
+            operations: heldTodoOperations,
+            summary,
+          }
+          const speech = `Confirm: ${summary}?`
+          recordModelRequest(speech)
+          recordMetrics(speech.length)
+          stream.done({ speech, isStreaming: false, pendingMutation: pending })
+          return
         }
         if (!hasMutated && toolErrors.length > 0) {
           toolOutputs.push({ type: 'text' as const, text: `[SYSTEM: No data was modified. Errors occurred: ${toolErrors.join('; ')}. Report these errors to the user. Do NOT claim success.]` })
