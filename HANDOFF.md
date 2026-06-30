@@ -10,7 +10,7 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.104
+- **Version:** 0.6.105
 
 ---
 
@@ -23,6 +23,7 @@ Stan's directive: fix the broader release/update problem that affects both devel
 **Core contract:** Orb may detect that a newer server version or restarted local dev process exists, but it must not present itself as running that new state until the user explicitly applies the update/reconnect.
 
 **What changed:**
+- **Next 16 build warning cleanup:** follow-up v0.6.105 migrated `middleware.ts` to `proxy.ts`/`proxy()` and aligned `outputFileTracingRoot` with `turbopack.root` using `process.cwd()`, removing the production build warnings Stan saw after v0.6.104.
 - **Central release coordinator:** `SystemStateProvider` owns server/client version state, polls `/api/version` while visible, and exposes one `applyUpdate` path for visible and conversational update actions.
 - **Pinned running client version:** the mounted app shell pins `clientVersion` once. Version labels, Settings update checks, and What's New use that pinned value so Fast Refresh/HMR cannot make the app look upgraded before approval.
 - **Production update detection:** production can only show the update banner for a real server/client version mismatch. `/api/version` returns `serverBootId: null` outside development.
@@ -38,7 +39,7 @@ Stan's directive: fix the broader release/update problem that affects both devel
 - Added linked knowledge entry `Release coherency and manual update recovery contract` (`6d3e884c-0b15-4934-86cf-aa88e5910ce4`).
 - Checked related knowledge. `Helm version update system — update banner, changelog, What's New sheet, and SW dev guard` is adjacent prior art, not superseded.
 
-### Changes in this commit (v0.6.99–v0.6.104)
+### Changes in this commit (v0.6.99–v0.6.105)
 
 Key files:
 - `components/SystemStateProvider.tsx` — release coordinator, pinned client version, update reason, manual apply path, scoped session clearing.
@@ -48,19 +49,21 @@ Key files:
 - `components/settings/SettingsWhatsNew.tsx` — filters changelog to the installed/running version and uses the shared manual update path.
 - `components/UnifiedDashboard.tsx` — conversational check/apply update actions use the release coordinator; dev-channel polling backs off during restart recovery.
 - `public/sw.js` — push-only service worker lifecycle update.
-- `lib/changelog.ts`, `lib/version.ts`, `package.json` — release entries and version bump through v0.6.104.
+- `middleware.ts` → `proxy.ts`, `next.config.ts` — Next 16 proxy convention and aligned build roots.
+- `lib/changelog.ts`, `lib/version.ts`, `package.json` — release entries and version bump through v0.6.105.
 
 ### Verification Status
 
 - `npx tsc --noEmit` passed.
 - Focused ESLint on touched files passed with only existing `UnifiedDashboard` warnings.
 - `git diff --check` passed.
+- `npm run build` passed after v0.6.105 cleanup; the prior `outputFileTracingRoot`/`turbopack.root` and `middleware` deprecation warnings no longer appeared.
 - Manual local testing on iPad/iPhone confirmed: update/reconnect waits for user action, version stamp stays pinned before approval, and dev-only reconnect copy is clear.
 - Production verification is next after push. Production should exercise only the version-mismatch path, never the dev-only server-restart path.
 
 ### Known Issues / Watch
 
-1. **Production verification pending:** after deploy, test old open tabs on Mac/iPad/iPhone. Expected: banner appears for server/client version mismatch, version stamp remains old until Update is tapped, then reload shows v0.6.104.
+1. **Production verification pending:** after deploy, test old open tabs on Mac/iPad/iPhone. Expected: banner appears for server/client version mismatch, version stamp remains old until Update is tapped, then reload shows v0.6.105.
 2. **Voice production still needs retest:** earlier iPhone voice symptoms may have been affected by stale release state. Retest voice after production release coherency is live.
 3. **Full project lint still has unrelated historical errors:** focused lint on touched files is clean, but full `npm run lint` still fails in unrelated prototype/settings files.
 

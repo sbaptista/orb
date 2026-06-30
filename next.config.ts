@@ -9,8 +9,9 @@ if (missing.length > 0) {
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['192.168.86.90', 'https://192.168.86.90:3001', '172.20.10.3', 'https://172.20.10.3:3001'],
   devIndicators: process.env.NODE_ENV === 'production' ? false : undefined,
+  outputFileTracingRoot: process.cwd(),
   turbopack: {
-    root: '/Users/stanleybaptista/Projects/orb',
+    root: process.cwd(),
   },
 };
 

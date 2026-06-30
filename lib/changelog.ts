@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.105',
+    date: '2026-06-30',
+    changes: [
+      'Migrated the deprecated Next.js middleware convention to proxy.ts/proxy() for Next 16.',
+      'Aligned Turbopack and output file tracing roots with the current project root to remove production build warnings.',
+    ]
+  },
+  {
     version: 'v0.6.104',
     date: '2026-06-30',
     changes: [

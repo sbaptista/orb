@@ -6,7 +6,7 @@ let cachedMaintenance: boolean | null = null
 let lastCacheTime = 0
 const CACHE_TTL = 15000 // 15 seconds
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -57,14 +57,14 @@ export async function middleware(request: NextRequest) {
         .maybeSingle()
 
       if (error) {
-        console.error('[middleware] Error querying maintenance setting:', error)
+        console.error('[proxy] Error querying maintenance setting:', error)
       } else {
         isMaintenance = setting?.value === true
         cachedMaintenance = isMaintenance
         lastCacheTime = now
       }
     } catch (err) {
-      console.error('[middleware] Exception querying maintenance setting:', err)
+      console.error('[proxy] Exception querying maintenance setting:', err)
     }
   }
 
@@ -87,7 +87,7 @@ export async function middleware(request: NextRequest) {
       authFailed = false
       break
     } catch (err) {
-      console.error(`[middleware] Auth lookup error (attempt ${attempt + 1}):`, err)
+      console.error(`[proxy] Auth lookup error (attempt ${attempt + 1}):`, err)
       authFailed = true
       if (attempt === 0) await new Promise(r => setTimeout(r, 500))
     }
@@ -143,4 +143,3 @@ export const config = {
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
-
