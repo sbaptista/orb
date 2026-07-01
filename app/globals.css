@@ -2298,7 +2298,32 @@ mark.crud-highlight {
   transform-origin: top right;
 }
 .dash-orb-wrap[data-mode="voice"] {
+  top: 12px;
+  left: auto;
+  right: 12px;
+  transform: translateX(0);
+  transform-origin: top right;
   z-index: 20;
+  align-items: flex-end;
+}
+
+.ud-voice-progress {
+  width: min(86px, 62%);
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(70, 100, 70, 0.16);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.ud-voice-progress span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0.55;
+  animation: ud-voice-progress-sweep 1.35s ease-in-out infinite;
 }
 
 .dash-conversation {

@@ -7,6 +7,7 @@ export type ConversationMessage = {
     id: string
     type: 'user' | 'orb' | 'dev'
     text: string
+    spokenText?: string
     insight?: { type: 'observation' | 'coaching' | 'strategic'; summary: string }
     isStreaming?: boolean
     isServiceError?: boolean

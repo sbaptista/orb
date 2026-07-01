@@ -144,9 +144,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: userEmail ? `No admin user found for ${userEmail}` : 'No admin user found for eval' }, { status: 500 })
   }
 
+  const evalUserId = evalUser.id
   const evalUserName = evalUser ? [evalUser.first_name, evalUser.last_name].filter(Boolean).join(' ') : ''
   const auth = {
-    user: { id: evalUser.id, email: evalUser.email ?? '', name: evalUserName || null },
+    user: { id: evalUserId, email: evalUser.email ?? '', name: evalUserName || null },
     role: (evalUser as any).roles?.name ?? 'Admin',
     roleId: evalUser.role_id,
     isAdmin: true,
@@ -208,10 +209,28 @@ export async function POST(request: NextRequest) {
   }
   const behaviorRuleList = behaviorRules ?? []
 
-  // Resolve current project
-  const current = productCode
+  function fixtureProjectFromContext(code: string, fixture?: string) {
+    const escapedCode = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const match = fixture?.match(new RegExp(`(?:^|\\n)([^:\\n]+)\\s+\\[code:\\s*${escapedCode}\\]`, 'i'))
+    return {
+      id: `eval-fixture-${code.toUpperCase()}`,
+      name: match?.[1]?.trim() || code,
+      code,
+      description: null,
+      created_by: evalUserId,
+      __evalFixture: true,
+    }
+  }
+
+  // Resolve current project. backlogOverride cases are intentionally frozen
+  // fixtures, so their selected project code may not exist in the live DB.
+  const liveCurrent = productCode
     ? productList.find((p: any) => p.code?.toUpperCase() === productCode.toUpperCase())
     : productList[0]
+  const hasFrozenEvalContext = Boolean(backlogOverride || actionSets?.length)
+  const current = liveCurrent ?? (productCode && hasFrozenEvalContext
+    ? fixtureProjectFromContext(productCode, backlogOverride)
+    : null)
 
   if (!current) {
     return NextResponse.json({ error: `Product ${productCode} not found` }, { status: 404 })

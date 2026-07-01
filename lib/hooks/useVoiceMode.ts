@@ -34,6 +34,7 @@ function stripMarkdown(text: string): string {
 
 const MAX_CHUNK = 240
 const LONG_RESPONSE = 500
+const STREAM_CLAUSE_MIN_WORDS = 9
 
 function chunkText(text: string): string[] {
   const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g)
@@ -86,6 +87,22 @@ function truncateForSpeech(text: string): string {
   return (result.trim() || sentences[0].trim()) + ' Check the transcript for the full details.'
 }
 
+function completeSpeechPrefix(text: string, done: boolean): string {
+  if (done) return text
+
+  const sentenceMatches = [...text.matchAll(/[.!?]+(?:\s+|$)/g)]
+  if (sentenceMatches.length > 0) {
+    const last = sentenceMatches[sentenceMatches.length - 1]
+    return text.slice(0, (last.index ?? 0) + last[0].length)
+  }
+
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  if (words.length < STREAM_CLAUSE_MIN_WORDS) return ''
+
+  const clause = text.match(/^.+?[,;:—–]\s+/)?.[0]
+  return clause ?? ''
+}
+
 function isRecognitionAlreadyStarted(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'InvalidStateError'
 }
@@ -118,7 +135,7 @@ export type VoiceActions = {
   resumeListening: () => void
   speak: (text: string) => void
   speakStatus: (text: string) => void
-  speakStreaming: (text: string, done: boolean) => void
+  speakStreaming: (text: string, done: boolean, utteranceId?: string) => void
   cancelSpeech: () => void
   exitVoiceMode: () => void
   setVoice: (name: string) => void
@@ -135,9 +152,10 @@ type SpeechQueue = {
   spokenChars: number
   done: boolean
   autoResume: boolean
+  utteranceId: string | null
 }
 
-const EMPTY_QUEUE: SpeechQueue = { chunks: [], playing: false, spokenChars: 0, done: false, autoResume: true }
+const EMPTY_QUEUE: SpeechQueue = { chunks: [], playing: false, spokenChars: 0, done: false, autoResume: true, utteranceId: null }
 type SpeechMode = 'full' | 'status' | 'stream'
 
 // ── Hook ────────────────────────────────────────────────────────────
@@ -173,6 +191,9 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   const silenceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onSendRef = useRef<((text: string) => void) | null>(null)
+  const recognitionRunningRef = useRef(false)
+  const recognitionStartPendingRef = useRef(false)
+  const emptyAutoResumeCountRef = useRef(0)
   const autoResumeRef = useRef(false)
   const cancelledRef = useRef(false)
   const genRef = useRef(0)
@@ -226,6 +247,8 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
 
   const stopRecognition = useCallback(() => {
     if (recRef.current) try { recRef.current.stop() } catch {}
+    recognitionRunningRef.current = false
+    recognitionStartPendingRef.current = false
     setIsListening(false)
   }, [])
 
@@ -240,14 +263,16 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
 
     let accumulated = ''
     let lastStartTime = 0
-    let rapidEndCount = 0
 
     rec.onstart = () => {
       lastStartTime = Date.now()
-      rapidEndCount = 0
+      recognitionRunningRef.current = true
+      recognitionStartPendingRef.current = false
+      setIsListening(true)
     }
 
     rec.onresult = (e: any) => {
+      emptyAutoResumeCountRef.current = 0
       let interim = ''
       for (let i = e.resultIndex; i < e.results.length; i++) {
         if (e.results[i].isFinal) {
@@ -259,6 +284,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
           silenceRef.current = setTimeout(() => {
             const text = transcriptRef.current.trim()
             if (text && onSendRef.current) {
+              emptyAutoResumeCountRef.current = 0
               onSendRef.current(text)
               transcriptRef.current = ''
               accumulated = ''
@@ -281,20 +307,25 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       if (e.error !== 'aborted' && e.error !== 'no-speech') {
         console.error('[voice] recognition error:', e.error)
       }
+      recognitionRunningRef.current = false
+      recognitionStartPendingRef.current = false
       setIsListening(false)
     }
 
     rec.onend = () => {
+      recognitionRunningRef.current = false
+      recognitionStartPendingRef.current = false
       setIsListening(false)
       if (capabilities.speech.continuous) return
 
       // Detect rapid end cycling (recognition starts but immediately ends without audio)
       const elapsed = Date.now() - lastStartTime
       if (elapsed < 500 && !transcriptRef.current.trim()) {
-        rapidEndCount++
-        if (rapidEndCount >= 3) {
+        emptyAutoResumeCountRef.current++
+        if (emptyAutoResumeCountRef.current >= 2) {
           console.error('[voice] recognition ending immediately — not supported in this browser')
-          setTtsError('Voice input is not working in this browser. Try Safari.')
+          autoResumeRef.current = false
+          setTtsError('Microphone started and stopped immediately. Tap Listen to try again.')
           return
         }
       }
@@ -305,6 +336,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       const text = transcriptRef.current.trim()
       if (text) {
         if (onSendRef.current) {
+          emptyAutoResumeCountRef.current = 0
           onSendRef.current(text)
           transcriptRef.current = ''
           accumulated = ''
@@ -312,19 +344,27 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
         }
         return
       }
+      if (emptyAutoResumeCountRef.current >= 1) return
+      emptyAutoResumeCountRef.current++
       setTimeout(() => {
         if (!autoResumeRef.current || cancelledRef.current || speakingRef.current) return
+        if (recognitionRunningRef.current || recognitionStartPendingRef.current) return
         try {
+          recognitionStartPendingRef.current = true
           rec.start()
           setIsListening(true)
         } catch (e) {
+          recognitionStartPendingRef.current = false
           console.warn('[voice] iOS auto-resume failed, retrying:', e)
           setTimeout(() => {
             if (!autoResumeRef.current || cancelledRef.current || speakingRef.current) return
+            if (recognitionRunningRef.current || recognitionStartPendingRef.current) return
             try {
+              recognitionStartPendingRef.current = true
               rec.start()
               setIsListening(true)
             } catch (e2) {
+              recognitionStartPendingRef.current = false
               console.error('[voice] iOS auto-resume retry failed:', e2)
               setTtsError('Microphone lost. Tap to resume.')
             }
@@ -337,6 +377,12 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   }, [clearSilence, debouncedTranscript, capabilities.speech.continuous, stopRecognition])
 
   const startRecognition = useCallback(() => {
+    if (recognitionRunningRef.current || recognitionStartPendingRef.current) {
+      setIsListening(true)
+      cancelledRef.current = false
+      setWasInterrupted(false)
+      return
+    }
     if (!recRef.current) createRecognition()
     if (!recRef.current) {
       console.error('[voice] SpeechRecognition unavailable')
@@ -344,6 +390,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       return
     }
     try {
+      recognitionStartPendingRef.current = true
       recRef.current.start()
       setIsListening(true)
       transcriptRef.current = ''
@@ -352,11 +399,14 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       setWasInterrupted(false)
     } catch (e) {
       if (isRecognitionAlreadyStarted(e)) {
+        recognitionStartPendingRef.current = false
+        recognitionRunningRef.current = true
         setIsListening(true)
         cancelledRef.current = false
         setWasInterrupted(false)
         return
       }
+      recognitionStartPendingRef.current = false
       console.error('[voice] recognition.start() failed:', e)
       setTtsError('Could not start listening. Try again or switch browsers.')
     }
@@ -514,12 +564,15 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       q.done = false
       setSpeaking(false)
       if (q.autoResume && autoResumeRef.current) startRecognition()
+    } else if (!q.done && q.chunks.length === 0) {
+      setSpeaking(false)
     }
   }, [playChunk, setSpeaking, startRecognition])
 
   const beginSpeaking = useCallback(() => {
     clearSilence()
     cancelledRef.current = false
+    emptyAutoResumeCountRef.current = 0
     setTtsError(null)
     stopPlayback()
     stopRecognition()
@@ -527,7 +580,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     queueRef.current.spokenChars = 0
   }, [clearSilence, stopPlayback, stopRecognition, setSpeaking])
 
-  const enqueueSpeech = useCallback((mode: SpeechMode, text: string, done: boolean) => {
+  const enqueueSpeech = useCallback((mode: SpeechMode, text: string, done: boolean, utteranceId?: string) => {
     if (cancelledRef.current && mode === 'stream') return
     const cleaned = stripMarkdown(text)
     if (!cleaned) return
@@ -541,6 +594,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       q.spokenChars = 0
       q.done = true
       q.autoResume = true
+      q.utteranceId = null
       drain()
       return
     }
@@ -552,21 +606,36 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       q.spokenChars = 0
       q.done = true
       q.autoResume = false
+      q.utteranceId = null
       drain()
       return
     }
 
+    const id = utteranceId ?? '__stream__'
+    if (q.utteranceId !== id) {
+      if (q.playing || speakingRef.current) beginSpeaking()
+      q.chunks = []
+      q.spokenChars = 0
+      q.done = false
+      q.autoResume = true
+      q.utteranceId = id
+    }
+
+    if (cleaned.length < q.spokenChars) {
+      if (q.playing || speakingRef.current) beginSpeaking()
+      q.chunks = []
+      q.spokenChars = 0
+    }
+
+    const unspoken = cleaned.slice(q.spokenChars)
+    const prefix = completeSpeechPrefix(unspoken, done)
     q.done = done
 
-    // Reliability mode: streamed text can change many times before the final
-    // response settles. Speak the final response once so audio matches transcript.
-    if (!done) return
-
-    beginSpeaking()
-    q.chunks = chunkText(cleaned)
-    q.spokenChars = cleaned.length
-    q.done = true
-    q.autoResume = true
+    if (prefix) {
+      if (!speakingRef.current) beginSpeaking()
+      q.chunks.push(...chunkText(prefix.trim()))
+      q.spokenChars += prefix.length
+    }
     drain()
     return
   }, [beginSpeaking, drain])
@@ -614,8 +683,8 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     enqueueSpeech('status', text, true)
   }, [enqueueSpeech])
 
-  const speakStreaming = useCallback((text: string, done: boolean) => {
-    enqueueSpeech('stream', text, done)
+  const speakStreaming = useCallback((text: string, done: boolean, utteranceId?: string) => {
+    enqueueSpeech('stream', text, done, utteranceId)
   }, [enqueueSpeech])
 
   // ── Reset (shared by cancel + exit) ─────────────────────────────
@@ -625,6 +694,9 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     cancelledRef.current = true
     autoResumeRef.current = false
     if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null }
+    recognitionRunningRef.current = false
+    recognitionStartPendingRef.current = false
+    emptyAutoResumeCountRef.current = 0
     clearSilence()
     if (keepActive) stopRecognition()
     else teardownRecognition()

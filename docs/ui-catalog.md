@@ -275,10 +275,13 @@ The Orb sphere has two voice-specific visual states that temporarily override ur
 |---|---|---|---|
 | **Listening** | Teal/cyan (`orbMid: #c8e8e8`, glow: `rgba(60,180,180,0.5)`) | `orb-listening` — gentle scale breath (1→1.03) at 3s | LISTENING |
 | **Speaking** | Warm gold (`orbMid: #f0e8d0`, glow: `rgba(200,170,80,0.5)`) | `orb-speaking` — rhythmic ripple pulse at 2.5s | SPEAKING |
+| **Gathering data** | Current urgency/voice palette | `ud-voice-progress-sweep` indeterminate bar above the icon | GATHERING DATA |
 
 A thin `orb-voice-ring` animation pulses around the Orb sphere whenever voice mode is active, regardless of listening/speaking/idle state.
 
 The conversation transcript remains readable in voice mode (`oc-thread` is not blurred) so the user can scan what the Orb said while the large voice Orb remains the primary state indicator.
+
+In voice mode the Orb is a featured top-right presence: larger than the dialogue minimap Orb, smaller than the former centered voice Orb, and positioned so the transcript can remain the primary reading surface.
 
 **Interaction model:**
 - **Tap Orb** — toggle voice recording on/off

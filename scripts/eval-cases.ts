@@ -295,6 +295,17 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
+    id: 'greeting-no-automatic-summary',
+    description: 'A greeting stays conversational and does not volunteer a backlog summary',
+    productCode: 'ORB',
+    input: 'Hi Orb.',
+    tier: 2,
+    expectNoTool: true,
+    speechPattern: /^(.|\n){1,260}$/,
+    speechNotContains: ['active tasks', 'parked', 'in progress'],
+  },
+
+  {
     id: 'knowledge-search-tool',
     description: 'Asking about a knowledge topic triggers search_knowledge',
     productCode: 'ORB',

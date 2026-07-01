@@ -13,7 +13,7 @@ import EmptyState from './ui/EmptyState'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { registerOrbTour, unregisterOrbTour, runOrbTour, launchOrbTour } from './OrbTour'
 import { OrbDevPanel, DevTestError, type MoodOverride, type SimulateError } from './OrbDevPanel'
-import { orbConverse, orbGreeting, type ActionSet, type OrbResponse, type PendingMutation } from '@/app/actions/orb-converse'
+import { orbConverse, type ActionSet, type OrbResponse, type PendingMutation } from '@/app/actions/orb-converse'
 import { collectSystemInfo, type SystemInfo } from '@/lib/system-info'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { checkReminders } from '@/app/actions/reminder-actions'
@@ -85,6 +85,73 @@ const PAGE_SIZE         = 40
 
 function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+function makeOrbGreeting(firstName: string | undefined | null) {
+  const name = firstName || ''
+  const hour = new Date().getHours()
+  const greetings = hour < 12
+    ? [
+      `Morning${name ? `, ${name}` : ''}. What's on your mind?`,
+      `Good morning. What can I do?`,
+      `Morning${name ? `, ${name}` : ''}. Where should we start?`,
+      `Good morning${name ? `, ${name}` : ''}. What's first?`,
+    ]
+    : hour < 17
+      ? [
+        `Hey${name ? ` ${name}` : ''}. What's on your mind?`,
+        `What can I help with?`,
+        `Hey${name ? ` ${name}` : ''}. What are we looking at?`,
+        `I'm here. What's next?`,
+      ]
+      : [
+        `Evening${name ? `, ${name}` : ''}. What's on your mind?`,
+        `Hey. What's up?`,
+        `Evening${name ? `, ${name}` : ''}. Where should we pick up?`,
+        `I'm here. What should we tackle?`,
+      ]
+  return greetings[Math.floor(Math.random() * greetings.length)]
+}
+
+function isOpeningGreetingText(text: string) {
+  return /(?:what's on your mind|what can i do|what can i help with|what's up|where should we start|what's first|what are we looking at|what's next|where should we pick up|what should we tackle)\??$/i.test(text.trim())
+}
+
+function stripVoiceMarkdown(text: string) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function firstSentences(text: string, maxChars: number, maxSentences: number) {
+  const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g)
+  if (!sentences) return text.slice(0, maxChars).trim()
+  let result = ''
+  for (const sentence of sentences.slice(0, maxSentences)) {
+    if ((result + sentence).length > maxChars && result) break
+    result += sentence
+  }
+  return (result.trim() || sentences[0].slice(0, maxChars).trim())
+}
+
+function toVoiceSpokenText(text: string) {
+  const plain = stripVoiceMarkdown(text)
+  if (!plain) return plain
+
+  const bulkConfirm = plain.match(/\bconfirm:?\s+(.+?\b(?:\d+|all)\s+(?:todos|tasks|items)\b.*?)(?:\?|$)/i)
+  if (bulkConfirm) {
+    const summary = bulkConfirm[1].replace(/\s+/g, ' ').trim()
+    return `Confirm ${summary}. See the transcript for the exact items. Confirm?`
+  }
+
+  const lead = firstSentences(plain.split('\n\n')[0], 320, 2)
+  const hasMore = plain.length > lead.length + 30 || plain.includes('\n-') || plain.includes('\n\n')
+  return hasMore ? `${lead} I put the details on screen.` : lead
 }
 
 function parseLocalDatetime(str: string): Date {
@@ -201,9 +268,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // ── Voice mode ──
   const [ttsConfig, setTtsConfig] = useState<TtsConfig | undefined>(undefined)
   const voice = useVoiceMode(ttsConfig)
+  const [voiceStarting, setVoiceStarting] = useState(false)
   const updateTtsConfigRef = useRef(voice.updateTtsConfig)
   updateTtsConfigRef.current = voice.updateTtsConfig
-  const refreshTtsConfig = useCallback(async () => {
+  const refreshTtsConfig = useCallback(async (): Promise<TtsConfig | null> => {
     try {
       const cfg = await getTtsConfig()
       setTtsConfig(cfg)
@@ -211,10 +279,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       return cfg
     } catch (err) {
       console.error('[tts] config load failed:', err)
-      const fallback: TtsConfig = { provider: 'browser', model: null, voiceId: null }
-      setTtsConfig(fallback)
-      updateTtsConfigRef.current(fallback)
-      return fallback
+      return null
     }
   }, [])
   useEffect(() => {
@@ -503,25 +568,45 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
     if (voice.voiceActive) return
 
+    messagesRef.current
+      .filter(m => m.type === 'orb')
+      .forEach(m => stoppedVoiceMessageIdsRef.current.add(m.id))
+    setVoiceStarting(true)
     voice.startConversation()
     setConversationActive(true)
     resetInactivity()
-    await refreshTtsConfig()
+    const cfg = await refreshTtsConfig()
+    if (!cfg) {
+      const msg = 'I could not load voice settings, so I did not start voice playback. Check your connection and try again.'
+      setMessages(prev => [...prev, { id: genId(), type: 'orb', text: msg }])
+      setConversationActive(true)
+      voice.exitVoiceMode()
+      setVoiceStarting(false)
+      return
+    }
 
-    const firstName = user?.first_name || ''
-    const hour = new Date().getHours()
-    const greetings = hour < 12
-      ? [`Morning${firstName ? `, ${firstName}` : ''}. What's on your mind?`, `Good morning. What can I do?`]
-      : hour < 17
-        ? [`Hey${firstName ? ` ${firstName}` : ''}. What's on your mind?`, `What can I help with?`]
-        : [`Evening${firstName ? `, ${firstName}` : ''}. What's on your mind?`, `Hey. What's up?`]
-    const greeting = greetings[Math.floor(Math.random() * greetings.length)]
+    const existingOpening = messagesRef.current.length === 1 ? messagesRef.current[0] : null
+    if (existingOpening?.type === 'orb' && isOpeningGreetingText(existingOpening.text)) {
+      lastSpokenVoiceMessageRef.current = { id: existingOpening.id, text: existingOpening.text }
+      voice.speak(existingOpening.text)
+      return
+    }
+
+    const greeting = makeOrbGreeting(user?.first_name)
     const greetingId = genId()
+    greetingFiredRef.current = true
     lastSpokenVoiceMessageRef.current = { id: greetingId, text: greeting }
     setMessages(prev => [...prev, { id: greetingId, type: 'orb', text: greeting }])
     voice.speak(greeting)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noProject, voice.voiceActive, voice.supportsVoice, user?.first_name, refreshTtsConfig])
+
+  useEffect(() => {
+    if (!voiceStarting) return
+    if (voice.isSpeaking || voice.isListening || voice.ttsError || voice.wasInterrupted || !voice.voiceActive) {
+      setVoiceStarting(false)
+    }
+  }, [voice.isListening, voice.isSpeaking, voice.ttsError, voice.voiceActive, voice.wasInterrupted, voiceStarting])
 
   // Auto-TTS: speak Orb responses as they stream in voice mode.
   // Uses speakStreaming for sentence-level playback during generation,
@@ -535,34 +620,18 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     const nowStreaming = !!lastOrb.isStreaming
     prevStreamingRef.current = nowStreaming
 
-    if (!lastOrb.text) return
+    const spokenText = lastOrb.spokenText ?? lastOrb.text
+    if (!spokenText) return
     if (lastOrb.text === 'Processing…' || lastOrb.text === 'Stopped.') return
     if (activeConversationRequestRef.current?.aborted) return
 
     if (!nowStreaming) {
       const lastSpoken = lastSpokenVoiceMessageRef.current
-      if (lastSpoken?.id === lastOrb.id && lastSpoken.text === lastOrb.text) return
-      lastSpokenVoiceMessageRef.current = { id: lastOrb.id, text: lastOrb.text }
+      if (lastSpoken?.id === lastOrb.id && lastSpoken.text === spokenText) return
+      lastSpokenVoiceMessageRef.current = { id: lastOrb.id, text: spokenText }
     }
-    speakStreamingRef.current(lastOrb.text, !nowStreaming)
+    speakStreamingRef.current(spokenText, !nowStreaming, lastOrb.id)
   }, [messages, voice.voiceActive])
-
-  // Voice recovery: "Ready" should be a moment between states, not a parked
-  // destination. If speech has finished and no request is active, hand the mic
-  // back unless the user intentionally stopped speech or TTS needs attention.
-  useEffect(() => {
-    if (!voice.voiceActive) return
-    if (voice.isListening || voice.isSpeaking || voice.wasInterrupted || voice.ttsError) return
-    if (submitting || messages.some(m => m.isStreaming)) return
-
-    const timer = window.setTimeout(() => {
-      if (!voiceActiveRef.current) return
-      if (activeConversationRequestRef.current) return
-      resumeListeningRef.current()
-    }, 700)
-
-    return () => window.clearTimeout(timer)
-  }, [messages, submitting, voice.isListening, voice.isSpeaking, voice.ttsError, voice.voiceActive, voice.wasInterrupted])
 
   // Keyboard shortcut: Cmd+Shift+O toggles voice mode
   useEffect(() => {
@@ -772,21 +841,15 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     return () => unregisterOrbTour()
   }, [isMobile, products])
 
-  // Proactive greeting
+  // Initial greeting: start the conversation without an automatic backlog summary.
   useEffect(() => {
     if (greetingFiredRef.current || !selectedId || isNewUser || messages.length > 0) return
     greetingFiredRef.current = true
-    orbGreeting(null).then(text => {
-      if (text) {
-        setMessages([{ id: genId(), type: 'orb', text }])
-        setConversationActive(true)
-        resetInactivity()
-      }
-    }).catch(err => {
-      console.error('[UnifiedDashboard] Greeting check failed:', err)
-    })
+    setMessages([{ id: genId(), type: 'orb', text: makeOrbGreeting(user?.first_name) }])
+    setConversationActive(true)
+    resetInactivity()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, isNewUser])
+  }, [selectedId, isNewUser, user?.first_name])
 
   // Fetch orb todos (lighter query for urgency)
   const fetchOrbTodos = useCallback(async () => {
@@ -1156,9 +1219,11 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           if (m.id !== processingId) return m
           const newThoughts = m.thoughts ? [...m.thoughts] : []
           if (chunk.thought && !newThoughts.includes(chunk.thought)) newThoughts.push(chunk.thought)
+          const displayText = chunk.speech || m.text
           return {
             ...m,
-            text: chunk.speech || m.text,
+            text: displayText,
+            spokenText: voice.voiceActive ? toVoiceSpokenText(displayText) : undefined,
             insight: chunk.insight || m.insight,
             thoughts: newThoughts,
             isStreaming: chunk.isStreaming,
@@ -1233,7 +1298,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           : err?.name === 'AbortError' || err?.name === 'TimeoutError'
             ? 'Request took too long. Try again.'
             : 'Something went wrong. Try again?'
-        setMessages(prev => prev.map(m => m.id === processingId ? { ...m, text: msg } : m))
+        setMessages(prev => prev.map(m => m.id === processingId ? { ...m, text: msg, spokenText: voice.voiceActive ? msg : undefined } : m))
       }
     } finally {
       const wasCancelled = request.aborted || cancelledConversationRequestIdsRef.current.has(request.id)
@@ -1244,12 +1309,15 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       setMessages(prev => prev.map(m => {
         if (m.id !== processingId) return m
         if (wasCancelled) {
-          return { ...m, isStreaming: false, text: m.text === 'Processing…' ? 'Stopped.' : m.text }
+          const text = m.text === 'Processing…' ? 'Stopped.' : m.text
+          return { ...m, isStreaming: false, text, spokenText: voice.voiceActive ? text : m.spokenText }
         }
+        const text = m.text === 'Processing…' ? 'Orb could not complete that request. Please try again.' : m.text
         return {
           ...m,
           isStreaming: false,
-          text: m.text === 'Processing…' ? 'Orb could not complete that request. Please try again.' : m.text,
+          text,
+          spokenText: voice.voiceActive ? toVoiceSpokenText(text) : m.spokenText,
         }
       }))
       cancelledConversationRequestIdsRef.current.delete(request.id)
@@ -1431,6 +1499,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // ══════════════════════════════════════════════════════════
 
   const orbScale = (isInputFocused && isMobile) ? 0.45 : 1.0
+  const voiceBusy = submitting || messages.some(m => m.isStreaming)
+  const voiceGathering = voice.voiceActive && !voice.isListening && !voice.isSpeaking && voiceBusy
 
   const orbElement = (
     <div className="dash-orb-wrap" data-tour="orb" data-mode={voice.voiceActive ? 'voice' : conversationActive ? 'dialogue' : 'ambient'}>
@@ -1462,8 +1532,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         data-tooltip={voice.voiceActive ? (voice.isListening ? 'Listening...' : voice.isSpeaking ? 'Speaking...' : 'Voice active') : noProject ? 'Select a project first' : 'Tap to talk'}
         style={{
           position: 'relative',
-          width: voice.voiceActive ? 'clamp(175px, 31vh, 250px)' : 'clamp(140px, 25vh, 200px)',
-          height: voice.voiceActive ? 'clamp(175px, 31vh, 250px)' : 'clamp(140px, 25vh, 200px)',
+          width: voice.voiceActive ? 'clamp(150px, 24vh, 215px)' : 'clamp(140px, 25vh, 200px)',
+          height: voice.voiceActive ? 'clamp(150px, 24vh, 215px)' : 'clamp(140px, 25vh, 200px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: 'pointer', pointerEvents: 'auto',
           transform: `scale(${orbScale})`, transformOrigin: 'top center',
@@ -1521,7 +1591,21 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             <>
               {/* Voice state icon */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', position: 'relative', zIndex: 1 }}>
-                {voice.isListening ? (
+                {voiceGathering && (
+                  <div className="ud-voice-progress" aria-hidden="true">
+                    <span />
+                  </div>
+                )}
+                {voiceStarting ? (
+                  /* Sound waves — starting */
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={style.labelColor} strokeWidth="1.5" strokeLinecap="round" style={{ transition: 'stroke 0.8s' }}>
+                    <line x1="4" y1="8" x2="4" y2="16"/>
+                    <line x1="8" y1="5" x2="8" y2="19"/>
+                    <line x1="12" y1="3" x2="12" y2="21"/>
+                    <line x1="16" y1="5" x2="16" y2="19"/>
+                    <line x1="20" y1="8" x2="20" y2="16"/>
+                  </svg>
+                ) : voice.isListening ? (
                   /* Sound waves — listening */
                   <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={style.labelColor} strokeWidth="1.5" strokeLinecap="round" style={{ transition: 'stroke 0.8s' }}>
                     <line x1="4" y1="8" x2="4" y2="16"/>
@@ -1539,7 +1623,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                     <line x1="16" y1="4" x2="16" y2="20"/>
                     <line x1="20" y1="8" x2="20" y2="16"/>
                   </svg>
-                ) : (submitting || messages.some(m => m.isStreaming)) ? (
+                ) : voiceBusy ? (
                   /* Lightbulb — thinking */
                   <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={style.labelColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'stroke 0.8s' }}>
                     <path d="M9 18h6"/>
@@ -1557,10 +1641,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                   </svg>
                 )}
                 <span style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-xs)', fontWeight: 'var(--fw-semibold)', letterSpacing: 'var(--ls-wide)', color: style.labelColor, transition: 'color 0.8s' }}>
-                  {voice.isListening ? 'Listening…' : voice.isSpeaking ? 'Speaking…' : (submitting || messages.some(m => m.isStreaming)) ? 'Thinking…' : voice.wasInterrupted ? 'Stopped' : 'Ready'}
+                  {voiceStarting ? 'Starting…' : voice.isListening ? 'Listening…' : voice.isSpeaking ? 'Speaking…' : voiceGathering ? 'Gathering data…' : voice.wasInterrupted ? 'Stopped' : 'Ready'}
                 </span>
                 {/* Thinking progress line */}
-                {!voice.isListening && !voice.isSpeaking && (submitting || messages.some(m => m.isStreaming)) && (() => {
+                {voiceGathering && (() => {
                   const lastThought = [...messages].reverse().find(m => m.type === 'orb' && m.thoughts?.length)
                   const thought = lastThought?.thoughts?.[lastThought.thoughts.length - 1]
                   return thought ? (
@@ -2050,6 +2134,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         @keyframes orb-speaking { 0%, 100% { transform: scale(1); border-radius: 50%; } 25% { transform: scale(1.02); border-radius: 49% 51% 50% 50%; } 50% { transform: scale(1.035); border-radius: 50%; } 75% { transform: scale(1.015); border-radius: 51% 49% 50% 50%; } }
         @keyframes orb-glow-speaking { 0%, 100% { transform: scale(1); opacity: 0.88; } 30% { transform: scale(1.12); opacity: 1; } 60% { transform: scale(1.05); opacity: 0.95; } 80% { transform: scale(1.1); opacity: 1; } }
         @keyframes orb-voice-ring { 0%, 100% { transform: scale(1); opacity: 0.6; } 50% { transform: scale(1.04); opacity: 1; } }
+        @keyframes ud-voice-progress-sweep { 0% { transform: translateX(-120%); } 50% { transform: translateX(70%); } 100% { transform: translateX(240%); } }
         @media (prefers-reduced-motion: reduce) { [data-todos-orb], [data-todos-glow], [data-todos-flare] { animation: none !important; } [data-todos-flare] { opacity: 0; } }
       `}</style>
     </>

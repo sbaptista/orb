@@ -6,6 +6,67 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.112',
+    date: '2026-06-30',
+    changes: [
+      'The Orb eval endpoint now honors frozen backlog fixtures when resolving the selected project, so fixture-only project codes no longer depend on live database state.',
+    ]
+  },
+  {
+    version: 'v0.6.111',
+    date: '2026-06-30',
+    changes: [
+      'Starting voice mode now treats existing transcript messages as display-only history, so Orb does not read old conversation text before speaking the voice intro.',
+    ]
+  },
+  {
+    version: 'v0.6.110',
+    date: '2026-06-30',
+    changes: [
+      'Voice mode now shows a visual "Gathering data..." state before speaking summaries, with an indeterminate progress bar above the Orb state icon.',
+      'The voice Orb is now slightly smaller and positioned at the top right, keeping voice featured while letting the transcript remain the primary reading surface.',
+      'Documented the updated voice Orb state and placement pattern in the UI catalog.',
+    ]
+  },
+  {
+    version: 'v0.6.109',
+    date: '2026-06-30',
+    changes: [
+      'Voice streaming now leaves the active speaking state after a partial segment drains, while still waiting for the final response before handing the mic back.',
+      'Voice spoken text is concise from the start of a response instead of switching from full transcript speech to summary speech mid-stream.',
+      'The speech queue now recovers when the derived spoken text becomes shorter than previously queued text, avoiding dropped speech and missed mic handoff.',
+    ]
+  },
+  {
+    version: 'v0.6.108',
+    date: '2026-06-30',
+    changes: [
+      'Voice responses now distinguish displayed transcript text from shorter spoken text so Orb can act like an operator instead of reading long dashboard answers aloud.',
+      'The speech queue now tracks per-response spoken character progress and queues only new completed speech segments, preventing the final transcript update from replaying already-spoken text.',
+      'Bulk confirmation speech now points users to the transcript for exact items instead of trying to read every target aloud.',
+      'Added the Voice Operator Runtime plan documenting the heard-vs-displayed contract, voice CRUD boundary, iOS rules, and migration path.',
+    ]
+  },
+  {
+    version: 'v0.6.107',
+    date: '2026-06-30',
+    changes: [
+      'Voice startup no longer has a separate dashboard recovery timer that can start microphone recognition while the greeting is still loading or playing.',
+      'Voice startup now fails visibly if current TTS settings cannot be loaded instead of silently falling back to another voice.',
+      'iPhone speech recognition now guards duplicate start calls and stops rapid empty start/end cycling so browser microphone permission notices do not loop.',
+      'Opening greetings have more variation while still avoiding automatic project summaries.',
+    ]
+  },
+  {
+    version: 'v0.6.106',
+    date: '2026-06-30',
+    changes: [
+      'Orb no longer opens text mode with an automatic backlog summary; it starts with a simple greeting and waits for the user to ask for project state.',
+      'Starting voice mode reuses the visible opening greeting when present, avoiding a duplicate greeting in the transcript.',
+      'Added behavioral eval coverage so conversational greetings do not volunteer project summaries.',
+    ]
+  },
+  {
     version: 'v0.6.105',
     date: '2026-06-30',
     changes: [

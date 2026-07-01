@@ -10,11 +10,44 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.105
+- **Version:** 0.6.112
 
 ---
 
 ### Last Session Completed
+
+**Voice Operator Runtime + ORB-299 Closure — 2026-06-30 (Codex, GPT-5) — v0.6.106–v0.6.112**
+
+Stan's directive evolved from fixing iPhone/iPad voice bugs into a product-level voice pivot: Orb voice should be an **operator for the dashboard**, not a screen reader for a complex task interface. Voice carries intent, compact confirmations, concise outcomes, and short summaries; the transcript/UI carries exact target sets, long analysis, and inspection detail.
+
+**What changed:**
+- Removed automatic initial backlog summaries. Text and voice now start with a greeting and wait for the user to ask for project state.
+- Prevented voice mode from reading old transcript cards before the intro. Existing Orb messages are marked as display-only history before voice mode activates.
+- Added `spokenText` alongside transcript `text` so voice can speak shorter operator-style responses while the screen keeps fuller answers.
+- Updated the speech queue to track spoken character progress per Orb response, queue only new completed segments, avoid final-response replay, recover from shortened derived spoken text, and hand the mic back after the final spoken turn.
+- Removed the dashboard-level "Ready" recovery timer from the voice path; mic handoff is owned by the voice runtime/queue.
+- Hardened iPhone/iPad recognition handling with duplicate-start guards and rapid empty start/end loop protection.
+- Kept API TTS failures visible instead of silently falling back to a browser voice.
+- Added concise bulk confirmation speech that points to the transcript for exact todos/items.
+- Repositioned the voice Orb as a featured top-right presence, reduced it slightly, added visual `Gathering data...`, and added an indeterminate progress bar.
+- Created `docs/orb-voice-operator-runtime-plan.md` and updated `docs/ui-catalog.md` for the new voice placement/state pattern.
+- Added eval case `greeting-no-automatic-summary`.
+- Fixed the eval endpoint so frozen backlog fixture cases can use fixture-only project codes without depending on the live database containing that project.
+
+**Tracking:**
+- Closed **ORB-299 — Voice and todo action transaction reliability release** with server-verified `closed_at`.
+- Added linked knowledge entry `Voice operator runtime and ORB-299 closure` (`0586b02c-5268-4d4a-afee-0485e468aca3`).
+- Related prior knowledge `Voice and todo action transaction reliability release state` (`467d7b95-e319-4419-9c5e-6e2666c8c4aa`) remains true as the pre-operator action transaction/speech channel state; the new entry extends it rather than superseding it.
+
+**Verification:**
+- `npx tsc --noEmit` passed.
+- Focused ESLint passed with existing warnings only.
+- `node scripts/verify-ui-catalog.js` passed.
+- `git diff --check` passed.
+- `npm run build` passed.
+- Manual iPad/iPhone localhost testing improved markedly after the operator pivot. Production real-device testing remains the next meaningful check because voice behavior can differ after deploy.
+
+### Prior Session: Object Capability Matrix — Systematic CRUD/Surface Audit — 2026-06-30 (Claude Code, Sonnet 5)
 
 **Object Capability Matrix — Systematic CRUD/Surface Audit — 2026-06-30 (Claude Code, Sonnet 5)**
 
@@ -150,11 +183,10 @@ v0.6.67–v0.6.71: silent TTS fix, build gate for TTS keys, iPhone AudioContext 
 ## Next Priorities
 
 1. **Scope ORB-301/302/303/304 implementation:** Stan has not yet decided when to pick these up — ask before starting any of them. ORB-304 (systematic flow instrumentation) supersedes/encompasses priority #4 below (voice latency breakdown) — fold that work into ORB-304 rather than doing it separately.
-2. **Production verification for ORB-300:** after deploy, test an already-open production tab plus fresh loads on Mac/iPad/iPhone. Confirm only real version mismatch triggers the production update banner, the version stamp remains pinned before Update, and tapping Update reloads to v0.6.104.
-3. **Retest iPhone voice in production:** release coherency should remove stale-app-state as a confounder. If voice still has no sound or gets stuck after greeting, diagnose voice itself next.
-4. **Continue ORB-299:** failure/warning tests should deliberately exercise stale references, missing todos, partial delete/update failures, and interrupted/network-aborted sessions.
-5. **Latency breakdown (voice):** now scoped under ORB-304 — measure voice turn timing by stage as part of the broader critical-flow instrumentation pass, not standalone.
-6. **Consider persistence design later:** pronunciation/user behavior preferences need a separate product design if they should survive beyond the current conversation. Do not imply persistence without a real tool.
+2. **Production verification for v0.6.111:** after deploy, test voice on iPhone/iPad production specifically: no old transcript readout before intro, `Gathering data...` appears during wait, spoken answer is shorter than transcript, mic returns after speech, and the top-right Orb does not obscure transcript reading.
+3. **Production verification for ORB-300 release coherency:** after deploy, test an already-open production tab plus fresh loads on Mac/iPad/iPhone. Confirm only real version mismatch triggers the production update banner, the version stamp remains pinned before Update, and tapping Update reloads to the new version.
+4. **ORB-304 flow instrumentation:** include voice stage timing (voice start, TTS config load, audio unlock, first audio, recognition start/result, model response, speech completion, mic return) in the broader critical-flow instrumentation pass.
+5. **Consider persistence design later:** pronunciation/user behavior preferences need a separate product design if they should survive beyond the current conversation. Do not imply persistence without a real tool.
 
 ---
 
@@ -183,7 +215,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-06-30 — Claude Code (Sonnet 5)`
+`2026-06-30 — Codex (GPT-5)`
 
 ---
 
