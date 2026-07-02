@@ -751,4 +751,24 @@ export const EVAL_CASES: EvalCase[] = [
     speechPattern: /^(.|\n){1,420}$/,
     speechNotContains: ['Want details on any of these, or help deciding what to tackle next?', '**', '- **', '\n-'],
   },
+
+  {
+    id: 'propose-adaptation-after-repeated-correction',
+    description: 'ORB_ADAPTATION_TOOL/ORB_ADAPTATION_BEHAVIOR were previously absent from the eval harness entirely — propose_adaptation was untestable. First coverage: after being corrected for the same thing twice in a row (the tool\'s documented trigger — "you\'ve been corrected on the same thing more than once"), Orb proposes a communication adaptation rather than repeating the pattern a third time. Tier 2 because proposing is deliberately judgment-based and rare ("propose rarely, one per few sessions"), not a command every input should trigger.',
+    productCode: 'ORB',
+    history: [
+      { role: 'user', text: 'How many open tasks in Orb?' },
+      { role: 'assistant', text: 'You have 8 open tasks in Orb, broken down as follows: 3 are high priority covering the voice runtime work, 2 are medium priority related to settings cleanup, and 3 are low priority backlog items including some older UI polish tasks that have been sitting for a few weeks now.' },
+      { role: 'user', text: 'That was way too long, just give me the number next time.' },
+      { role: 'user', text: 'How many open tasks in Helm?' },
+      { role: 'assistant', text: 'Helm currently has 5 open tasks, and if you want the breakdown: 2 are urgent items related to the payment flow, 1 is medium priority for the onboarding redesign, and 2 are lower priority cleanup items that have been open for a while.' },
+      { role: 'user', text: 'Again — I just want the number. This is the second time.' },
+    ],
+    input: 'How many open tasks across all my projects?',
+    tier: 2,
+    expectTool: {
+      name: 'propose_adaptation',
+      params: { category: 'communication' },
+    },
+  },
 ]

@@ -6,7 +6,7 @@ import path from 'path'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
+import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildVoiceConversationPrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildPreferencesPrompt, buildAdaptationsPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { DB_SCHEMA } from '@/lib/db-schema'
@@ -327,19 +327,7 @@ export async function POST(request: NextRequest) {
       const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
       return `- [${k.projects?.name ?? k.projects?.code ?? '?'}] ${k.title}${tags}: ${k.content.slice(0, 100)}...`
     }).join('\n')}`,
-    voiceMode ? `VOICE CONVERSATION: You are currently in voice mode — the user is speaking to you and hearing your responses aloud.
-CURRENT VOICE OUTPUT CONFIG:
-- TTS provider: ${ttsProvider || 'unknown'}
-- TTS model: ${ttsModel || 'not specified'}
-- TTS voice ID/name: ${ttsVoiceId || 'not specified'}
-Use this config when the user asks what voice provider, model, or voice is active. Do not infer the active voice provider from release notes, device voices, or the user's guess. If the provider is "unknown", say you do not have that setting in context.
-VOICE RESPONSE RULES:
-- Keep responses concise and conversational — clear sentences, not markdown lists or tables.
-- Default to 1–3 spoken sentences. For lists, counts, summaries, task details, or analysis, give the useful headline and at most 2 key specifics, then stop. Do not add a follow-up offer unless the user asks what to do next. Do not read long inventories aloud by default.
-- For broad project-state questions in voice mode, answer in one short plain-text paragraph, no markdown or bullets, under about 60 words. Give total active/parked counts and at most one notable project or risk. Do not list every project or every task.
-- Avoid complex formatting (tables, bullet lists, code blocks). Speak in natural prose.
-- Voice transcripts may be imperfect. If the user input is fragmentary, garbled, or hinges on a missing word, ask one concise clarification instead of filling in the blank from prior context.
-When the user signals they want to end the voice conversation — "that's enough", "let's stop", "stop talking", "end voice mode", or similar — you MUST call client_action with action="exit_voice". You may say a brief closing remark first.` : '',
+    voiceMode ? buildVoiceConversationPrompt({ ttsProvider, ttsModel, ttsVoiceId }) : '',
     ORB_QUERY_ROUTING,
     `REPOSITORY ACCESS: You may inspect the local working tree with query_repository source="local", or the current Vercel deployment with source="production".`,
     `DATABASE SCHEMA (for query_db):\n${DB_SCHEMA}`,
@@ -347,14 +335,17 @@ When the user signals they want to end the voice conversation — "that's enough
     `WHAT'S NEW:\n${CHANGELOG.slice(0, 3).map(r => `${r.version} (${r.date}):\n${r.changes.map(c => `  - ${c}`).join('\n')}`).join('\n\n')}`,
     buildMutationApprovalPrompt(preferenceList),
     behaviorRuleList.length > 0
-      ? `BEHAVIORAL RULES:\n${behaviorRuleList.map((r: any) => `- **${r.title}:** ${r.content}`).join('\n')}`
+      ? `BEHAVIORAL RULES (agreed with the user — always enforce):\n${behaviorRuleList.map((r: any) => `- **${r.title}:** ${r.content}`).join('\n')}`
       : '',
     ORB_SESSION_ADAPTATION,
     ORB_SELF_DIAGNOSTICS,
     ORB_STRATEGIC_REASONING,
     buildCoachingPrompt('natural'),
     ORB_PREFERENCE_DISCOVERY,
+    ORB_COMMITMENT_INTEGRITY,
+    ORB_ADAPTATION_BEHAVIOR,
     buildPreferencesPrompt(preferenceList),
+    buildAdaptationsPrompt([]),
     `INSIGHT TAGGING:
 When you surface proactive observation, coaching, or strategic recommendation content, wrap only that sentence or short paragraph in one marker pair:
 [INSIGHT:observation]...[/INSIGHT], [INSIGHT:coaching]...[/INSIGHT], or [INSIGHT:strategic]...[/INSIGHT].
@@ -455,7 +446,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       : systemPrompt
     const tools = isStrategicEvaluation
       ? []
-      : [...ORB_TOOLS, ...ORB_PREFERENCE_TOOLS, ...ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL] as any[]
+      : [...ORB_TOOLS, ...ORB_PREFERENCE_TOOLS, ...ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_ADAPTATION_TOOL] as any[]
     const requestedProvider = autoRoute
       ? provider ?? (routeRole === 'strategic' ? 'gemini' : 'anthropic')
       : provider ?? 'anthropic'

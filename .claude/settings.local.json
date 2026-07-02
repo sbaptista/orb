@@ -456,7 +456,9 @@
       "Bash(echo \"exit: $?\")",
       "Skill(update-config)",
       "Skill(update-config:*)",
-      "Bash(grep -n '\"Bash\\(git push \\\\*\\)\"\\\\|^    ]$\\\\|^  }$\\\\|\"permissions\"' /Users/stanleybaptista/Projects/orb/.claude/settings.local.json)"
+      "Bash(grep -n '\"Bash\\(git push \\\\*\\)\"\\\\|^    ]$\\\\|^  }$\\\\|\"permissions\"' /Users/stanleybaptista/Projects/orb/.claude/settings.local.json)",
+      "Bash(python3 -)",
+      "Bash(echo \"=== DIFF CHECK exit: $? ===\")"
     ],
     "ask": [
       "Bash(git push *)"

@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.119',
+    date: '2026-07-01',
+    changes: [
+      'Follow-up audit after the v0.6.118 fix: the eval test harness that guards Orb\'s conversational behavior was missing real voice speech-policy rules (no re-greeting, a brevity threshold, no filler phrases) and an entire capability (self-proposed behavioral adaptations) -- meaning regressions in either were structurally invisible to the automated test suite. Both are now shared with production instead of hand-duplicated, closing the drift risk rather than just re-syncing the text once more.',
+    ]
+  },
+  {
     version: 'v0.6.118',
     date: '2026-07-01',
     changes: [
