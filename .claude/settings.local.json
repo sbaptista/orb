@@ -452,7 +452,14 @@
       "Bash(echo \"diff-check exit: $?\")",
       "Bash(grep -cP ' {2}$' /Users/stanleybaptista/Projects/orb/docs/ui-catalog.md)",
       "Bash(python3 -m json.tool /Users/stanleybaptista/Projects/orb/.claude/settings.local.json)",
-      "Bash(git -C /Users/stanleybaptista/Projects/orb diff --stat .claude/settings.local.json)"
+      "Bash(git -C /Users/stanleybaptista/Projects/orb diff --stat .claude/settings.local.json)",
+      "Bash(echo \"exit: $?\")",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(grep -n '\"Bash\\(git push \\\\*\\)\"\\\\|^    ]$\\\\|^  }$\\\\|\"permissions\"' /Users/stanleybaptista/Projects/orb/.claude/settings.local.json)"
+    ],
+    "ask": [
+      "Bash(git push *)"
     ]
   }
 }
