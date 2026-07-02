@@ -10,13 +10,13 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.117
+- **Version:** 0.6.119
 
 ---
 
 ### Last Session Completed
 
-**Voice Speak-Once, Confirm-Loop Fixes, Identifier Provenance, Project-Code UI Audit — 2026-07-01 (Claude Code, Fable 5) — v0.6.113–v0.6.117**
+**Voice Speak-Once, Confirm-Loop Fixes, Identifier Provenance, Project-Code UI Audit — 2026-07-01 (Claude Code, Fable 5) — v0.6.113–v0.6.119**
 
 Four connected pieces of work, each surfaced by Stan testing the prior session's voice operator runtime live and reporting exactly what broke, then asked to be fixed as a general class rather than a one-off patch.
 
@@ -39,6 +39,12 @@ Four connected pieces of work, each surfaced by Stan testing the prior session's
 - **Added fuzzy project-name resolution** (`resolveProjectByReference` in `UnifiedDashboard.tsx`: exact name → exact code → fuzzy/partial name via the existing `fuzzyMatch` util) so "Switch to Mr. Stokely" and "Switch to Mr. Stokely from Boston" both resolve — replacing four duplicated exact-match-only call sites (`/switch`, `/drop`, `/edit`, the Orb `switch_project` client action).
 - Files: `components/UnifiedDashboard.tsx`, `components/AddProductModal.tsx`, `components/settings/SettingsProjects.tsx`, `components/settings/SettingsUserDetail.tsx`, `components/settings/SettingsTickets.tsx`, `components/settings/SettingsKnowledge.tsx`, `app/dashboard/print/page.tsx`, `app/settings/projects/page.tsx`, `lib/todo-types.ts` (new), `docs/ui-catalog.md`.
 
+**6. Shared false-completion guard and name-first switch_project (v0.6.118).** Live voice testing caught Orb saying it had switched projects without calling the backing `client_action`, leaving the active project unchanged. Root cause: the false-completion-claim guard existed in the eval harness but had drifted from production. The guard now lives in one shared module (`lib/orb-model/false-claim-guard.ts`) and is tool-agnostic: unbacked completion claims for navigation/actions are blocked the same way unbacked mutation claims are. The server-side switch-project resolver now shares the fuzzy project resolver from `lib/projects.ts`, and `client_action.switch_project.target` is name-first, not code-first, matching `update_project`/`delete_project`.
+- Files: `app/actions/orb-converse.ts`, `app/api/orb-eval/route.ts`, `components/UnifiedDashboard.tsx`, `docs/api-spec.yaml`, `docs/orb-voice-operator-runtime-plan.md`, `lib/orb-contract.ts`, `lib/orb-model/false-claim-guard.ts` (new), `lib/orb-prompt.ts`, `lib/projects.ts`, `scripts/eval-cases.ts`.
+
+**7. Eval harness parity for voice rules and adaptation capability (v0.6.119).** Follow-up audit found the eval harness was missing real production voice speech-policy rules and the self-proposed behavioral adaptation capability. Those are now shared with production instead of duplicated by hand, so no re-greeting, brevity rules, filler avoidance, and adaptation proposal behavior are visible to the automated suite.
+- Files: `app/actions/orb-converse.ts`, `app/api/orb-eval/route.ts`, `docs/orb-voice-operator-runtime-plan.md`, `lib/orb-prompt.ts`, `scripts/eval-cases.ts`.
+
 **Eval suite:** 6 new/strengthened Tier 1 cases this session (`confirm-mutation-doubled-affirmation`, `upfront-permission-still-emits-creates`, `no-session-record-looks-up-before-delete`, itemization assertion added to `delete-first-action-set-resolves-by-ledger`, `switch-project-partial-name-resolves`). Full suite: **Tier 1 34/34 passed**, confirmed by Stan from the terminal.
 
 **Process note (own mistake, corrected):** mid-session, running `rm -rf .next` three times during `tsc --noEmit` verification (to clear stale generated route-type errors after deleting the classic routes) hung Stan's live dev server and, downstream, the eval suite's first HTTP request. Diagnosed once Stan reported the hang; fixed by Stan restarting the dev server (its own script already does `rm -rf .next && next dev ...`). Saved as `feedback_next_cache_live_server` — never delete `.next` directly again; only tell Stan to, paired with a restart.
@@ -52,7 +58,7 @@ Four connected pieces of work, each surfaced by Stan testing the prior session's
 - **`npm run eval:t1` — Tier 1 34/34 passed** (run by Stan from the terminal). One case (`bulk-delete-project-todos-calls-tools`) failed on the full run — diagnosed as a one-off model past-tense phrasing slip against the eval harness's single-shot completion-claim guard (not a code regression; production has a multi-turn retry the eval harness lacks) — confirmed by isolated re-run passing 1/1.
 - No device/browser testing performed this session (server-side/prompt work + non-interactive UI removal); Stan should spot-check voice on iPhone/iPad for the speak-once behavior and confirm the project-code-free UI reads correctly on all three platforms.
 
-**Loose end flagged, not fixed:** `client_action`'s `switch_project.target` is documented in `lib/orb-contract.ts` as "Project code" — inconsistent with the name-first convention `update_project`/`delete_project` use (`name`, not code). The new `resolveProjectByReference` handles either value, so this isn't broken, but it's worth reconciling later for consistency.
+**Loose end resolved in v0.6.118:** `client_action`'s `switch_project.target` is now documented and prompted as a project name, not a project code, consistent with `update_project`/`delete_project`.
 
 ---
 
@@ -225,12 +231,10 @@ v0.6.67–v0.6.71: silent TTS fix, build gate for TTS keys, iPhone AudioContext 
 
 ## Next Priorities
 
-1. **Device testing for v0.6.113–v0.6.117:** this session's work was server/prompt-side and non-interactive UI removal, verified only by `tsc`/`eslint`/eval — no browser testing happened. Spot-check on Mac/iPad/iPhone: voice speak-once timing (first audio now waits for stream end — confirm the "Gathering data..." wait feels acceptable on mobile), the "Confirm confirm" and upfront-permission fixes in a live voice session, an itemized bulk-delete confirm card, and that the project-code-free UI (switch list, Settings → Projects, ticket/knowledge pickers, print) reads correctly with no leftover blank/broken labels.
-2. **`.claude/settings.local.json` still allow-lists `git push *`** (flagged at this session's start, not yet removed — Stan asked for this specific push to proceed, so it wasn't touched mid-task). Per the shared AGENTS.md rule ("if you see git push in any allowlist, remove it and flag it"), this should be removed so future pushes require an interactive prompt, matching the "Git push is NEVER automatic" decision above. Ask Stan before editing permissions.
-3. **Reconcile `client_action.switch_project.target`** to the name-first convention (currently documented as "Project code" in `lib/orb-contract.ts`, inconsistent with `update_project`/`delete_project`'s `name` param). Not broken today — `resolveProjectByReference` accepts either — but worth cleaning up.
-4. **Scope ORB-301/302/303/304 implementation:** Stan has not yet decided when to pick these up — ask before starting any of them. ORB-304 (systematic flow instrumentation) supersedes/encompasses voice latency breakdown — fold that work into ORB-304 rather than doing it separately.
-5. **Production verification for v0.6.111 voice operator runtime and ORB-300 release coherency:** still pending from the prior session — after the next deploy, test both on Mac/iPad/iPhone per the notes in the "Prior Session" section below.
-6. **Consider persistence design later:** pronunciation/user behavior preferences need a separate product design if they should survive beyond the current conversation. Do not imply persistence without a real tool.
+1. **Device testing for v0.6.113–v0.6.119:** this session's work was server/prompt-side and non-interactive UI removal, verified only by `tsc`/`eslint`/eval — no browser testing happened. Spot-check on Mac/iPad/iPhone: voice speak-once timing (first audio now waits for stream end — confirm the "Gathering data..." wait feels acceptable on mobile), the "Confirm confirm" and upfront-permission fixes in a live voice session, an itemized bulk-delete confirm card, project switching by partial name, and that the project-code-free UI (switch list, Settings → Projects, ticket/knowledge pickers, print) reads correctly with no leftover blank/broken labels.
+2. **Scope ORB-301/302/303/304 implementation:** Stan has not yet decided when to pick these up — ask before starting any of them. ORB-304 (systematic flow instrumentation) supersedes/encompasses voice latency breakdown — fold that work into ORB-304 rather than doing it separately.
+3. **Production verification for v0.6.111+ voice operator runtime and ORB-300 release coherency:** still pending from the prior session — after the next deploy, test both on Mac/iPad/iPhone per the notes in the "Prior Session" section below.
+4. **Consider persistence design later:** pronunciation/user behavior preferences need a separate product design if they should survive beyond the current conversation. Do not imply persistence without a real tool.
 
 ---
 
