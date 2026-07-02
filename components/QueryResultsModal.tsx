@@ -6,7 +6,7 @@ import { visibleProjectsQuery } from '@/lib/projects'
 import { logAudit } from '@/app/actions/log-audit'
 import { collectSystemInfo } from '@/lib/system-info'
 import EmptyState from '@/components/ui/EmptyState'
-import type { Todo, Product, Priority, StatusDef } from './TodoView'
+import type { Todo, Product, Priority, StatusDef } from '@/lib/todo-types'
 
 type ResultItem = { id: string; code: string; title: string; status: string; priority_value: number | null }
 

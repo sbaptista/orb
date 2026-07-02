@@ -34,7 +34,6 @@ function stripMarkdown(text: string): string {
 
 const MAX_CHUNK = 240
 const LONG_RESPONSE = 500
-const STREAM_CLAUSE_MIN_WORDS = 9
 
 function chunkText(text: string): string[] {
   const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g)
@@ -87,22 +86,6 @@ function truncateForSpeech(text: string): string {
   return (result.trim() || sentences[0].trim()) + ' Check the transcript for the full details.'
 }
 
-function completeSpeechPrefix(text: string, done: boolean): string {
-  if (done) return text
-
-  const sentenceMatches = [...text.matchAll(/[.!?]+(?:\s+|$)/g)]
-  if (sentenceMatches.length > 0) {
-    const last = sentenceMatches[sentenceMatches.length - 1]
-    return text.slice(0, (last.index ?? 0) + last[0].length)
-  }
-
-  const words = text.trim().split(/\s+/).filter(Boolean)
-  if (words.length < STREAM_CLAUSE_MIN_WORDS) return ''
-
-  const clause = text.match(/^.+?[,;:—–]\s+/)?.[0]
-  return clause ?? ''
-}
-
 function isRecognitionAlreadyStarted(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'InvalidStateError'
 }
@@ -134,8 +117,6 @@ export type VoiceActions = {
   startConversation: () => void
   resumeListening: () => void
   speak: (text: string) => void
-  speakStatus: (text: string) => void
-  speakStreaming: (text: string, done: boolean, utteranceId?: string) => void
   cancelSpeech: () => void
   exitVoiceMode: () => void
   setVoice: (name: string) => void
@@ -145,18 +126,16 @@ export type VoiceActions = {
 }
 
 // ── Queue state ─────────────────────────────────────────────────────
+// One utterance per Orb response: speak() replaces the queue wholesale,
+// drain() plays it out, then hands the mic back. No cross-call
+// reconciliation — spoken text is derived once, upstream, per response.
 
 type SpeechQueue = {
   chunks: string[]
   playing: boolean
-  spokenChars: number
-  done: boolean
-  autoResume: boolean
-  utteranceId: string | null
 }
 
-const EMPTY_QUEUE: SpeechQueue = { chunks: [], playing: false, spokenChars: 0, done: false, autoResume: true, utteranceId: null }
-type SpeechMode = 'full' | 'status' | 'stream'
+const EMPTY_QUEUE: SpeechQueue = { chunks: [], playing: false }
 
 // ── Hook ────────────────────────────────────────────────────────────
 
@@ -551,7 +530,6 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
         return
       }
 
-      // If more chunks arrived while playing (streaming), keep going
       if (cancelledRef.current || gen !== genRef.current) break
     }
 
@@ -560,13 +538,8 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
 
     if (cancelledRef.current || gen !== genRef.current) return
 
-    if (q.done && q.chunks.length === 0) {
-      q.done = false
-      setSpeaking(false)
-      if (q.autoResume && autoResumeRef.current) startRecognition()
-    } else if (!q.done && q.chunks.length === 0) {
-      setSpeaking(false)
-    }
+    setSpeaking(false)
+    if (autoResumeRef.current) startRecognition()
   }, [playChunk, setSpeaking, startRecognition])
 
   const beginSpeaking = useCallback(() => {
@@ -577,68 +550,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     stopPlayback()
     stopRecognition()
     setSpeaking(true)
-    queueRef.current.spokenChars = 0
   }, [clearSilence, stopPlayback, stopRecognition, setSpeaking])
-
-  const enqueueSpeech = useCallback((mode: SpeechMode, text: string, done: boolean, utteranceId?: string) => {
-    if (cancelledRef.current && mode === 'stream') return
-    const cleaned = stripMarkdown(text)
-    if (!cleaned) return
-
-    const q = queueRef.current
-
-    if (mode === 'full') {
-      beginSpeaking()
-      const spoken = cleaned.length > LONG_RESPONSE ? truncateForSpeech(cleaned) : cleaned
-      q.chunks = chunkText(spoken)
-      q.spokenChars = 0
-      q.done = true
-      q.autoResume = true
-      q.utteranceId = null
-      drain()
-      return
-    }
-
-    if (mode === 'status') {
-      beginSpeaking()
-      const spoken = cleaned.length > 120 ? `${cleaned.slice(0, 117)}...` : cleaned
-      q.chunks = [spoken]
-      q.spokenChars = 0
-      q.done = true
-      q.autoResume = false
-      q.utteranceId = null
-      drain()
-      return
-    }
-
-    const id = utteranceId ?? '__stream__'
-    if (q.utteranceId !== id) {
-      if (q.playing || speakingRef.current) beginSpeaking()
-      q.chunks = []
-      q.spokenChars = 0
-      q.done = false
-      q.autoResume = true
-      q.utteranceId = id
-    }
-
-    if (cleaned.length < q.spokenChars) {
-      if (q.playing || speakingRef.current) beginSpeaking()
-      q.chunks = []
-      q.spokenChars = 0
-    }
-
-    const unspoken = cleaned.slice(q.spokenChars)
-    const prefix = completeSpeechPrefix(unspoken, done)
-    q.done = done
-
-    if (prefix) {
-      if (!speakingRef.current) beginSpeaking()
-      q.chunks.push(...chunkText(prefix.trim()))
-      q.spokenChars += prefix.length
-    }
-    drain()
-    return
-  }, [beginSpeaking, drain])
 
   // ═══════════════════════════════════════════════════════════════
   // PUBLIC API
@@ -676,16 +588,14 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   }, [startRecognition])
 
   const speak = useCallback((text: string) => {
-    enqueueSpeech('full', text, true)
-  }, [enqueueSpeech])
-
-  const speakStatus = useCallback((text: string) => {
-    enqueueSpeech('status', text, true)
-  }, [enqueueSpeech])
-
-  const speakStreaming = useCallback((text: string, done: boolean, utteranceId?: string) => {
-    enqueueSpeech('stream', text, done, utteranceId)
-  }, [enqueueSpeech])
+    const cleaned = stripMarkdown(text)
+    if (!cleaned) return
+    beginSpeaking()
+    const q = queueRef.current
+    const spoken = cleaned.length > LONG_RESPONSE ? truncateForSpeech(cleaned) : cleaned
+    q.chunks = chunkText(spoken)
+    drain()
+  }, [beginSpeaking, drain])
 
   // ── Reset (shared by cancel + exit) ─────────────────────────────
 
@@ -745,7 +655,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     voiceActive, isListening, isSpeaking, transcript, ttsError,
     supportsVoice, capabilities, availableVoices, selectedVoiceName, voiceRate,
     wasInterrupted,
-    startConversation, resumeListening, speak, speakStatus, speakStreaming,
+    startConversation, resumeListening, speak,
     cancelSpeech, exitVoiceMode, setVoice, setRate, setOnSend, updateTtsConfig,
   }
 }

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 // Link removed — global nav moved to AppNav
 import { createClient } from '@/lib/supabase/client'
 import { visibleProjectsQuery, clampProjectName } from '@/lib/projects'
+import { fuzzyMatch } from '@/lib/fuzzy-search'
 import AddProductModal from './AddProductModal'
 import AppNav from './AppNav'
 import SearchModal from './ui/SearchModal'
@@ -85,6 +86,31 @@ const PAGE_SIZE         = 40
 
 function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+// Resolves a user-typed or Orb-spoken project reference to exactly one
+// project. Priority mirrors the server's resolveProjectReference (exact
+// name → exact code → fuzzy/partial name), so "Stokely" and "Mr. Stokely
+// from Boston" both resolve to the same project. A tier is used only if it
+// yields exactly one match — ambiguous or empty tiers fall through rather
+// than guessing, since a misfire here silently switches the user's project.
+function resolveProjectByReference<T extends { name: string; code?: string | null }>(
+  products: T[],
+  reference: string,
+): T | null {
+  const ref = reference.trim().toUpperCase()
+  if (!ref) return null
+
+  const byName = products.filter(p => p.name.toUpperCase() === ref)
+  if (byName.length === 1) return byName[0]
+
+  const byCode = products.filter(p => (p.code ?? '').toUpperCase() === ref)
+  if (byCode.length === 1) return byCode[0]
+
+  const byFuzzy = products.filter(p => fuzzyMatch(reference, p.name))
+  if (byFuzzy.length === 1) return byFuzzy[0]
+
+  return null
 }
 
 function makeOrbGreeting(firstName: string | undefined | null) {
@@ -343,7 +369,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const cancelledConversationRequestIdsRef = useRef<Set<number>>(new Set())
   const messagesRef            = useRef<ConversationMessage[]>([])
   messagesRef.current = messages
-  const prevStreamingRef       = useRef(false)
   const lastSpokenVoiceMessageRef = useRef<{ id: string; text: string } | null>(null)
   const stoppedVoiceMessageIdsRef = useRef<Set<string>>(new Set())
   const welcomeDismissedRef    = useRef(false)
@@ -521,13 +546,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   cancelSpeechRef.current = voice.cancelSpeech
   const resumeListeningRef = useRef(voice.resumeListening)
   resumeListeningRef.current = voice.resumeListening
-  const speakStreamingRef = useRef(voice.speakStreaming)
-  speakStreamingRef.current = voice.speakStreaming
+  const speakRef = useRef(voice.speak)
+  speakRef.current = voice.speak
 
   const handleStop = useCallback(() => {
     const lastOrb = [...messagesRef.current].reverse().find(m => m.type === 'orb')
     if (lastOrb) stoppedVoiceMessageIdsRef.current.add(lastOrb.id)
-    prevStreamingRef.current = false
     cancelSpeechRef.current()
 
     const request = activeConversationRequestRef.current
@@ -608,29 +632,27 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     }
   }, [voice.isListening, voice.isSpeaking, voice.ttsError, voice.voiceActive, voice.wasInterrupted, voiceStarting])
 
-  // Auto-TTS: speak Orb responses as they stream in voice mode.
-  // Uses speakStreaming for sentence-level playback during generation,
-  // so the Orb starts speaking as soon as the first sentence is ready.
+  // Auto-TTS: speak each Orb response exactly once, when its turn completes.
+  // Voice never chases the stream — the screen shows streaming progress, and
+  // the spoken text is derived once from the final response. This is what
+  // keeps voice from repeating itself when the server replaces streamed
+  // narration with deterministic text (confirmations, corrections).
   useEffect(() => {
-    if (!voice.voiceActive) { prevStreamingRef.current = false; return }
+    if (!voice.voiceActive) return
     const lastOrb = [...messages].reverse().find(m => m.type === 'orb')
     if (!lastOrb) return
+    if (lastOrb.isStreaming) return
     if (stoppedVoiceMessageIdsRef.current.has(lastOrb.id)) return
-
-    const nowStreaming = !!lastOrb.isStreaming
-    prevStreamingRef.current = nowStreaming
 
     const spokenText = lastOrb.spokenText ?? lastOrb.text
     if (!spokenText) return
     if (lastOrb.text === 'Processing…' || lastOrb.text === 'Stopped.') return
     if (activeConversationRequestRef.current?.aborted) return
 
-    if (!nowStreaming) {
-      const lastSpoken = lastSpokenVoiceMessageRef.current
-      if (lastSpoken?.id === lastOrb.id && lastSpoken.text === spokenText) return
-      lastSpokenVoiceMessageRef.current = { id: lastOrb.id, text: spokenText }
-    }
-    speakStreamingRef.current(spokenText, !nowStreaming, lastOrb.id)
+    const lastSpoken = lastSpokenVoiceMessageRef.current
+    if (lastSpoken?.id === lastOrb.id && lastSpoken.text === spokenText) return
+    lastSpokenVoiceMessageRef.current = { id: lastOrb.id, text: spokenText }
+    speakRef.current(spokenText)
   }, [messages, voice.voiceActive])
 
   // Keyboard shortcut: Cmd+Shift+O toggles voice mode
@@ -1010,7 +1032,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     ).length
     const inProgressCount = active.filter(t => t.status === 'in progress').length
     const parts: string[] = []
-    parts.push(`${selected.code ?? selected.name} — ${active.length} active`)
+    parts.push(`${selected.name} — ${active.length} active`)
     if (urgentCount > 0) parts.push(`${urgentCount} urgent`)
     if (inProgressCount > 0) parts.push(`${inProgressCount} in progress`)
     else if (active.length >= 3) parts.push('nothing in progress')
@@ -1147,14 +1169,14 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         handleSubmit(`Create a project called "${name}"`)
       } else if (cmd === '/drop') {
         const target = args.join(' ').trim()
-        if (!target) { toast.neutral('Usage: /drop [project code]'); return }
-        const t = products.find(p => p.code?.toUpperCase() === target.toUpperCase() || p.name.toUpperCase() === target.toUpperCase())
+        if (!target) { toast.neutral('Usage: /drop [project name]'); return }
+        const t = resolveProjectByReference(products, target)
         if (!t) { toast.neutral(`Project "${target}" not found.`); return }
-        handleSubmit(`Delete the project ${t.code ?? t.name}`)
+        handleSubmit(`Delete the project ${t.name}`)
       } else if (cmd === '/edit') {
         const target = args.join(' ').trim()
         if (target) {
-          const t = products.find(p => p.code?.toUpperCase() === target.toUpperCase() || p.name.toUpperCase() === target.toUpperCase())
+          const t = resolveProjectByReference(products, target)
           if (t) { setSelectedId(t.id); setShowEditProduct(true) }
           else toast.neutral(`Project "${target}" not found.`)
         } else {
@@ -1163,8 +1185,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         }
       } else if (cmd === '/switch') {
         const target = args.join(' ').trim()
-        if (!target) { toast.neutral('Usage: /switch [project code]'); return }
-        const t = products.find(p => p.code?.toUpperCase() === target.toUpperCase() || p.name.toUpperCase() === target.toUpperCase())
+        if (!target) { toast.neutral('Usage: /switch [project name]'); return }
+        const t = resolveProjectByReference(products, target)
         if (t) setSelectedId(t.id)
         else toast.neutral(`Project "${target}" not found.`)
       } else toast.neutral(`Unknown command: ${cmd}`)
@@ -1223,7 +1245,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           return {
             ...m,
             text: displayText,
-            spokenText: voice.voiceActive ? toVoiceSpokenText(displayText) : undefined,
+            // Derived once, at turn end — mid-stream text is display-only.
+            spokenText: voice.voiceActive && !chunk.isStreaming ? toVoiceSpokenText(displayText) : undefined,
             insight: chunk.insight || m.insight,
             thoughts: newThoughts,
             isStreaming: chunk.isStreaming,
@@ -1257,7 +1280,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         if (chunk.clientAction) {
           const action = chunk.clientAction
           if (action.action === 'switch_project' && action.target) {
-            const t = products.find(p => p.code?.toUpperCase() === action.target?.toUpperCase() || p.name.toUpperCase() === action.target?.toUpperCase())
+            const t = resolveProjectByReference(products, action.target)
             if (t) { orbSwitchingRef.current = true; setSelectedId(t.id) }
           } else if (action.action === 'open_settings') router.push('/settings')
           else if (action.action === 'open_help') openHelp()
@@ -2060,7 +2083,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           placeholder="Search projects…"
           items={adminProjects.map(p => ({
             id: p.id,
-            label: p.code ? `${p.code} — ${p.name}` : p.name,
+            label: p.name,
             detail: isAdmin && p.owner_name && p.owner_name !== 'Unknown' ? p.owner_name : undefined,
             active: p.id === selectedId,
           }))}

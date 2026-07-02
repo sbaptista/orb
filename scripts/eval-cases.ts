@@ -170,7 +170,8 @@ export const EVAL_CASES: EvalCase[] = [
     input: 'Delete the first five todos',
     tier: 1,
     expectNoTool: true,
-    speechContains: ['Confirm', 'delete 5 todos from TEST'],
+    // 3 items = all must match: the confirm itemizes the exact targets
+    speechContains: ['Confirm', 'delete 5 todos from TEST', '- delete TEST-1'],
   },
 
   {
@@ -187,6 +188,53 @@ export const EVAL_CASES: EvalCase[] = [
     tier: 1,
     expectTool: {
       name: 'confirm_mutation',
+    },
+  },
+
+  {
+    id: 'confirm-mutation-doubled-affirmation',
+    description: 'A stacked voice-style affirmation ("Confirm confirm") still calls confirm_mutation',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    history: [
+      { role: 'user', text: 'Delete the project testp' },
+      { role: 'assistant', text: 'I\'ll permanently delete testp and all its todos. Go ahead?' },
+    ],
+    pendingSummary: 'permanently delete the project "testp" and all of its todos',
+    input: 'Confirm confirm',
+    tier: 1,
+    expectTool: {
+      name: 'confirm_mutation',
+    },
+  },
+
+  {
+    id: 'no-session-record-looks-up-before-delete',
+    description: 'With a cleared session record, "delete the todos you created" triggers a lookup — the model must not fabricate task codes by sequence',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    backlogOverride: 'Stokely Test [code: STOKE]:\n  SUMMARY: active_count=2 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)',
+    input: 'Do you remember the two test todos you created in Stokely Test earlier? If so, delete them.',
+    tier: 1,
+    expectTool: {
+      name: 'query_todos',
+    },
+  },
+
+  {
+    id: 'upfront-permission-still-emits-creates',
+    description: 'Granting permission in the requesting message still emits create_todo calls (the server then executes them pre-authorized instead of asking to confirm)',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    input: 'Create two test todos — make up the names yourself, you have my permission to create them.',
+    tier: 1,
+    expectTool: {
+      name: 'create_todo',
+      params: { product_code: 'ORB' },
+    },
+    expectToolCount: {
+      name: 'create_todo',
+      count: 2,
     },
   },
 
@@ -220,6 +268,19 @@ export const EVAL_CASES: EvalCase[] = [
     expectTool: {
       name: 'delete_project',
       params: { name: 'TEST2' },
+    },
+  },
+
+  {
+    id: 'switch-project-partial-name-resolves',
+    description: 'A shortened/partial project name reference still resolves to the one matching project for switch_project (project code is internal-only; the user should never need to type or say it)',
+    productCode: 'ORB',
+    backlogOverride: evalBacklog([{ name: 'Mr. Stokely from Boston', code: 'STOKELYFRO' }]),
+    input: 'Switch to Mr. Stokely',
+    tier: 1,
+    expectTool: {
+      name: 'client_action',
+      params: { action: 'switch_project', target: 'STOKELYFRO' },
     },
   },
 

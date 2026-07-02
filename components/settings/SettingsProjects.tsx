@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
 import { getAdminProjects, getUserProjects, createProject, deleteProject, deleteProjects, updateProject } from '@/app/actions/manage-project'
@@ -18,75 +18,17 @@ type Project = {
 
 type ProjectForm = {
   name: string
-  code: string
   description: string
   is_dormant: boolean
   ownerId: string
 }
 
-const EMPTY_FORM: ProjectForm = { name: '', code: '', description: '', is_dormant: false, ownerId: '' }
+const EMPTY_FORM: ProjectForm = { name: '', description: '', is_dormant: false, ownerId: '' }
 const PAGE_SIZE = 25
-const PROJECT_CODE_MAX_LENGTH = 10
 
-function getProjectCodeError(code: string, required: boolean): string | null {
-  if (!code) return required ? 'Code is required for an existing project' : null
-  if (code.length > PROJECT_CODE_MAX_LENGTH) return `Code must be ${PROJECT_CODE_MAX_LENGTH} characters or fewer`
-  if (!/^[A-Z0-9]+$/.test(code)) return 'Code may only use uppercase letters and numbers'
-  return null
-}
-
-function ProjectCodeInput({
-  value,
-  required,
-  describedBy,
-  onChange,
-}: {
-  value: string
-  required: boolean
-  describedBy: string
-  onChange: (value: string) => void
-}) {
-  const [attemptError, setAttemptError] = useState<string | null>(null)
-  const error = attemptError ?? getProjectCodeError(value, required)
-
-  function handleChange(rawValue: string) {
-    const uppercase = rawValue.toUpperCase()
-    const validCharacters = uppercase.replace(/[^A-Z0-9]/g, '')
-
-    if (uppercase !== validCharacters) {
-      setAttemptError('Code may only use uppercase letters and numbers')
-    } else if (validCharacters.length > PROJECT_CODE_MAX_LENGTH) {
-      setAttemptError(`Code must be ${PROJECT_CODE_MAX_LENGTH} characters or fewer`)
-    } else {
-      setAttemptError(null)
-    }
-
-    onChange(validCharacters.slice(0, PROJECT_CODE_MAX_LENGTH))
-  }
-
-  return (
-    <>
-      <input
-        className="input"
-        value={value}
-        onChange={e => handleChange(e.target.value)}
-        placeholder={required ? 'ORB' : 'Auto-generated'}
-        maxLength={PROJECT_CODE_MAX_LENGTH + 1}
-        aria-describedby={describedBy}
-        aria-invalid={!!error}
-        style={{ fontFamily: 'var(--font-mono)' }}
-      />
-      <p id={describedBy} className={error ? 'text-xs text-error' : 'text-xs text-muted'} role={error ? 'alert' : undefined} style={{ margin: 'var(--sp-xs) 0 0' }}>
-        {error ?? `Uppercase letters and numbers only, maximum ${PROJECT_CODE_MAX_LENGTH} characters. Used in task references.`}
-      </p>
-    </>
-  )
-}
-
-export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?: boolean; userId?: string }) {
+export default function SettingsProjects({ isAdmin = false }: { isAdmin?: boolean }) {
   const [showTextSearch, setShowTextSearch] = useState(false)
   const [textSearchTerm, setTextSearchTerm] = useState('')
-  const projectCodeHelpId = useId()
 
   return (
     <>
@@ -117,7 +59,6 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
           </button>
         ),
         tableColumns: [
-          { label: 'Code',        width: '90px',  sortKey: 'code',  sortValue: (p: Project) => p.code ?? '' },
           { label: 'Name',        width: '180px', sortKey: 'name',  sortValue: (p: Project) => p.name },
           { label: 'Description', width: '240px' },
           ...(isAdmin ? [
@@ -147,23 +88,13 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
           }
         },
 
-        validate: (form, items, editingId) => {
+        validate: (form) => {
           if (!form.name.trim()) return 'Name is required'
-          const code = form.code.toUpperCase()
-          const codeError = getProjectCodeError(code, !!editingId)
-          if (codeError) return codeError
-          if (code) {
-            // Scope conflict check to same owner (per-user uniqueness)
-            const targetOwner = form.ownerId || userId
-            if (items.some(p => p.id !== editingId && p.code?.toUpperCase() === code && (!targetOwner || p.created_by === targetOwner)))
-              return `Code "${code}" is already in use`
-          }
           return null
         },
 
         toRecord: (form) => ({
           name: form.name.trim(),
-          code: form.code || null,
           description: form.description.trim() || null,
           is_dormant: form.is_dormant,
           created_by: form.ownerId || null,
@@ -171,7 +102,6 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
 
         toForm: (item) => ({
           name: item.name,
-          code: item.code ?? '',
           description: item.description ?? '',
           is_dormant: item.is_dormant ?? false,
           ownerId: item.created_by ?? '',
@@ -182,7 +112,6 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
         onAdd: async (_supabase, record) => {
           const res = await createProject({
             name: record.name,
-            code: record.code,
             description: record.description ?? null,
             ownerId: record.created_by,
           })
@@ -192,7 +121,6 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
         onSave: async (_supabase, id, record) => {
           const res = await updateProject(id, {
             name: record.name,
-            code: record.code,
             description: record.description,
             is_dormant: record.is_dormant,
             created_by: record.created_by,
@@ -218,29 +146,18 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
           },
         },
 
-        renderForm: ({ form, onChange, extra, mode }) => {
+        renderForm: ({ form, onChange, extra }) => {
           return (
           <>
-            <div className="grid-2col mb-md">
-              <div>
-                <label className="label">Name *</label>
-                <input
-                  className="input"
-                  value={form.name}
-                  onChange={e => onChange({ ...form, name: e.target.value })}
-                  autoFocus
-                  placeholder="My Project"
-                />
-              </div>
-              <div>
-                <label className="label">Code{mode === 'add' ? ' (Optional)' : ''}</label>
-                <ProjectCodeInput
-                  value={form.code}
-                  required={mode === 'edit'}
-                  describedBy={projectCodeHelpId}
-                  onChange={code => onChange({ ...form, code })}
-                />
-              </div>
+            <div className="mb-md">
+              <label className="label">Name *</label>
+              <input
+                className="input"
+                value={form.name}
+                onChange={e => onChange({ ...form, name: e.target.value })}
+                autoFocus
+                placeholder="My Project"
+              />
             </div>
             <div className="mb-md">
               <label className="label">Description</label>
@@ -288,9 +205,6 @@ export default function SettingsProjects({ isAdmin = false, userId }: { isAdmin?
         renderRow: ({ item, onEdit, onDelete, extra, checkbox }) => (
           <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', opacity: item.is_dormant ? 'var(--opacity-muted)' : 1, cursor: 'pointer' }}>
             {checkbox}
-            <td className="audit-td" style={{ fontFamily: 'var(--font-mono)', fontWeight: 'var(--fw-semibold)', color: 'var(--text2)' }}>
-              {item.code}
-            </td>
             <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }}>
               {item.name}
             </td>

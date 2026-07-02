@@ -163,8 +163,7 @@ On narrow viewports (iPhone, mobile screens), the individual top nav buttons (Pr
 | `nav-btn-label` | Text label — hidden on mobile (`@media max-width: 767px`) |
 
 ### TodoView Top Bar (`tv-topbar`)
-**Status:** Will be absorbed into Unified Dashboard list toolbar  
-**Files:** `components/TodoView.tsx`
+**Status:** Deprecated — `components/TodoView.tsx` and the standalone `/dashboard/[productId]` and `/dashboard/classic` routes it served were deleted (2026-07-01); Unified Dashboard is the only dashboard surface now, and any future split rebuilds from it. The `tv-topbar*` CSS classes remain in `globals.css` unused pending cleanup — do not build against them.
 
 | Class | Purpose |
 |---|---|
@@ -174,7 +173,7 @@ On narrow viewports (iPhone, mobile screens), the individual top nav buttons (Pr
 | `tv-topbar-nav` | Back button / breadcrumb |
 
 ### Change Project Modal (`SearchModal`)
-**Used in:** Unified Dashboard command bar, TodoView top bar
+**Used in:** Unified Dashboard command bar
 
 Searchable modal for switching projects. The dashboard command bar labels this action "Change Project"; the modal title is also "Change Project". Admins see all projects with owner names; users see only their own.
 
@@ -277,6 +276,8 @@ The Orb sphere has two voice-specific visual states that temporarily override ur
 | **Speaking** | Warm gold (`orbMid: #f0e8d0`, glow: `rgba(200,170,80,0.5)`) | `orb-speaking` — rhythmic ripple pulse at 2.5s | SPEAKING |
 | **Gathering data** | Current urgency/voice palette | `ud-voice-progress-sweep` indeterminate bar above the icon | GATHERING DATA |
 
+Since v0.6.113, voice speaks each response once, after it finishes streaming: **Gathering data** covers the whole thinking + streaming window (transcript text may visibly stream during it), and **Speaking** begins only when the complete spoken summary starts playing. No visual classes changed — only the timing of when each state is active.
+
 A thin `orb-voice-ring` animation pulses around the Orb sphere whenever voice mode is active, regardless of listening/speaking/idle state.
 
 The conversation transcript remains readable in voice mode (`oc-thread` is not blurred) so the user can scan what the Orb said while the large voice Orb remains the primary state indicator.
@@ -343,7 +344,7 @@ Tables are a desktop/iPad-landscape scanning tool; cards are the narrow touch re
 - **No one-offs:** Prefer `SettingsCrudList` default mobile cards, explicit `renderMobileRow` only for rich exceptions, or a documented `tv-*` task-card pattern.
 
 ### Todo Table (`tv-table`)
-**File:** `components/TodoView.tsx`, `components/UnifiedDashboard.tsx`  
+**File:** `components/UnifiedDashboard.tsx`  
 **CSS prefix:** `tv-`
 
 Responsive task list table. iPhone-first: actions collapse below title on mobile, expand to own column on desktop.

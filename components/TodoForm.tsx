@@ -7,7 +7,7 @@ import { logAudit } from '@/app/actions/log-audit'
 import { useToast } from '@/components/ui/Toast'
 import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
 import { collectSystemInfo } from '@/lib/system-info'
-import type { Todo, Product, Priority } from './TodoView'
+import type { Todo, Product, Priority } from '@/lib/todo-types'
 
 type Props = {
   productId?: string

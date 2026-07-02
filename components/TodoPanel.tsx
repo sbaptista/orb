@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useId } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Todo, Product, Priority, StatusDef } from './TodoView'
+import type { Todo, Product, Priority, StatusDef } from '@/lib/todo-types'
 import DistillModal from './DistillModal'
 import { logAudit } from '@/app/actions/log-audit'
 import { collectSystemInfo } from '@/lib/system-info'

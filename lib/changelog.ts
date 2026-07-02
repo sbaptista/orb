@@ -6,6 +6,51 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.117',
+    date: '2026-07-01',
+    changes: [
+      'Project code is now purely an internal handle: it composes todo codes (e.g. ORB-73) and nothing else. Removed it from every place it appeared as a second user-facing label — the switch-project list, ticket/knowledge project pickers, the Settings → Projects table, printed reports, and the Orb project-switch voice/transcript message. Project names are the only thing users see or type.',
+      'The Code field is gone from every project create/edit form (new project modal, Settings → Projects, admin user-detail project editor). Codes are now generated automatically and silently from the project name, with the existing collision-safe suffixing.',
+      'Project references — typed commands, Orb tool calls, and conversation — now resolve by exact name, exact code, or partial/fuzzy name match, in that order, so "Switch to Mr. Stokely" resolves the same project as "Switch to Mr. Stokely from Boston."',
+      'Deleted the orphaned pre-Unified-Dashboard routes (`/dashboard/classic`, `/dashboard/[productId]`) and their components (DashboardProducts, TodoView) — unreachable from any in-app link since the Unified Dashboard shipped. Any future split-view rebuild starts from UnifiedDashboard.',
+      'Added an eval case for partial project-name resolution via Orb conversation.',
+    ]
+  },
+  {
+    version: 'v0.6.116',
+    date: '2026-07-01',
+    changes: [
+      'Bulk confirmation messages now list the exact target todos (code and title) in the transcript, so "see the transcript for the exact items" actually shows them. Large sets show the first 10 plus a total count instead of an unbounded list.',
+    ]
+  },
+  {
+    version: 'v0.6.115',
+    date: '2026-07-01',
+    changes: [
+      'Identifier provenance is now enforced as a general rule: Orb may only use task codes it has actually seen (backlog, tool results, or your own words) — never constructed by pattern or remembered from a cleared session.',
+      'The server now rejects any mutation targeting a task code that never appeared in the conversation, instructing Orb to look up the real tasks instead.',
+      'When a conversation starts with no history (e.g. after an update or refresh cleared the transcript), Orb is told its session record is empty, so references to earlier actions trigger a lookup instead of a guess.',
+      'Added an eval case asserting that "delete the todos you created" with a cleared record performs a lookup.',
+    ]
+  },
+  {
+    version: 'v0.6.114',
+    date: '2026-07-01',
+    changes: [
+      'Stacked or repeated affirmations ("Confirm confirm", "yes go ahead") now count as confirmation, so voice transcripts no longer trigger a second confirmation ask.',
+      'Granting permission up front ("you have my permission", "no need to confirm") now executes the requested todo actions directly, with Orb acknowledging the pre-given go-ahead instead of asking again. Stop remains the escape hatch.',
+      'Added eval cases for stacked affirmations and upfront permission.',
+    ]
+  },
+  {
+    version: 'v0.6.113',
+    date: '2026-07-01',
+    changes: [
+      'Voice mode now speaks each Orb response exactly once, after the response completes, instead of speaking sentence-by-sentence while it streams. This removes the repeated/overlapping speech heard when a confirmation or correction replaced the streamed text mid-response.',
+      'The speech queue was simplified to a single utterance per response: spoken-progress tracking, mid-stream recovery, and the unused status speech path were removed. Mic handback now always follows the single completed utterance.',
+    ]
+  },
+  {
     version: 'v0.6.112',
     date: '2026-06-30',
     changes: [

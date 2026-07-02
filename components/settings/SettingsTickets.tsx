@@ -594,7 +594,7 @@ export default function SettingsTickets() {
                             <option value="">— Select project</option>
                             {projects.map(p => (
                               <option key={p.id} value={p.id}>
-                                {p.code ? `${p.code} — ${p.name}` : p.name}
+                                {p.name}
                               </option>
                             ))}
                           </select>

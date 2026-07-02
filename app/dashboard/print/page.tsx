@@ -181,7 +181,7 @@ export default async function PrintPage({
       {grouped.map(({ project, groups, total }) => (
         <section key={project.id} className="print-project">
           <div className="print-project-header">
-            <h2>{project.name}{project.code ? ` (${project.code})` : ''}</h2>
+            <h2>{project.name}</h2>
             {project.description && (
               <div className="print-project-desc">{project.description}</div>
             )}
@@ -246,7 +246,7 @@ export default async function PrintPage({
         <h2>Summary</h2>
         {grouped.map(({ project, groups, total }) => (
           <div key={project.id} className="print-summary-row">
-            <span>{project.name}{project.code ? ` (${project.code})` : ''}</span>
+            <span>{project.name}</span>
             <span>
               {total} todo{total !== 1 ? 's' : ''}
               {' — '}

@@ -11,7 +11,18 @@ v0.6.108 implemented the first runtime pass:
 - Displayed transcript text and spoken TTS text can now differ.
 - Voice mode derives shorter operator-style spoken text from longer transcript answers.
 - Bulk confirmation speech points to the transcript for exact items.
-- The speech queue tracks per-response spoken character progress so final transcript updates do not replay already-spoken chunks.
+
+v0.6.113 replaced streaming speech reconciliation with speak-once-per-turn:
+
+- Voice speaks each Orb response exactly once, after the response completes. The screen carries streaming progress; voice never chases the stream.
+- This removed the per-response spoken-character tracking and shrink recovery from v0.6.108–v0.6.109. That mechanism assumed spoken text only ever grows with a stable prefix, but the server deliberately replaces streamed narration with deterministic text (mutation confirmations, phantom-code corrections) — the "recovery" re-spoke replaced text and was the source of the repeated speech heard on all platforms, worst on iPhone/iPad where slower per-sentence TTS meant the doomed narration was still playing when the replacement landed.
+- The speech queue is now one utterance per response: derive once, chunk for output, drain, hand the mic back. Fewer TTS API calls per turn (one instead of one per sentence) and a structurally deterministic mic handback on iOS.
+- Removed dead paths: `speakStatus`/status mode (no call sites) and the unread `prevStreamingRef`.
+- Trade-off accepted: first audio waits for stream end. The "Gathering data..." visual state covers the wait; if latency proves unacceptable in device testing, a bounded early-speech special case can be reconsidered — but measured first.
+
+v0.6.116 implemented the Phase 4 confirmation itemization:
+
+- Deterministic confirm messages ("Confirm: delete N todos from X?") now append the exact target list — code and title per operation — capped at 10 lines with an "…and N more (total)" tail for large sets. Voice keeps speaking the compact summary; the transcript now genuinely carries the audit detail it points to.
 
 Remaining work:
 

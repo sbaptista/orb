@@ -24,27 +24,14 @@ export default function AddProductModal({
   const isEdit = !!project
   const toast = useToast()
   const [name, setName]             = useState(project?.name ?? '')
-  const [code, setCode]             = useState(project?.code ?? '')
   const [description, setDescription] = useState(project?.description ?? '')
-  const [codeAutoSync, setCodeAutoSync] = useState(!isEdit)
   const [saving, setSaving]         = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError]           = useState('')
 
-  function handleNameChange(value: string) {
-    setName(value)
-    if (codeAutoSync) setCode(value.slice(0, 6).toUpperCase().replace(/[^A-Z0-9]/g, ''))
-  }
-
-  function handleCodeChange(value: string) {
-    setCodeAutoSync(false)
-    setCode(value.toUpperCase().replace(/[^A-Z0-9]/g, ''))
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) { setError('Name is required'); return }
-    if (!code.trim()) { setError('Code is required'); return }
     setSaving(true)
     setError('')
 
@@ -52,7 +39,6 @@ export default function AddProductModal({
       if (isEdit) {
         const result = await updateProject(project.id, {
           name: name.trim(),
-          code: code.trim() || null,
           description: description.trim() || null,
         })
         setSaving(false)
@@ -61,7 +47,6 @@ export default function AddProductModal({
       } else {
         const result = await createProject({
           name: name.trim(),
-          code: code.trim() || null,
           description: description.trim() || null,
           ownerId,
         })
@@ -104,22 +89,9 @@ export default function AddProductModal({
               id="apm-name"
               className="pf-input"
               value={name}
-              onChange={e => handleNameChange(e.target.value)}
+              onChange={e => setName(e.target.value)}
               placeholder="My project"
               autoFocus
-            />
-          </div>
-
-          <div>
-            <label htmlFor="apm-code" className="pf-label" style={{ marginBottom: 'var(--sp-xs)' }}>Code</label>
-            <input
-              id="apm-code"
-              className="pf-input"
-              style={{ fontFamily: 'var(--font-mono)' }}
-              value={code}
-              onChange={e => handleCodeChange(e.target.value)}
-              placeholder="PROJ"
-              maxLength={6}
             />
           </div>
 

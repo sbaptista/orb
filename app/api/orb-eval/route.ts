@@ -6,7 +6,7 @@ import path from 'path'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
+import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { DB_SCHEMA } from '@/lib/db-schema'
@@ -384,12 +384,16 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     ...(history?.map(h => ({ role: h.role, content: h.text })) ?? []),
     { role: 'user', content: input },
   ]
+  // Mirror production's record-state transparency note (orb-converse.ts).
+  if ((history ?? []).length === 0) {
+    messages.push({ role: 'user', content: ORB_NO_SESSION_RECORD_NOTE })
+  }
   const disambiguationInstruction = inferProjectDisambiguationInstruction(history, input)
   if (disambiguationInstruction) messages.push({ role: 'user', content: disambiguationInstruction })
 
   // Mirror production's server-held pending-mutation injection (lib/orb-mutations.ts flow).
   if (pendingSummary) {
-    messages.push({ role: 'user', content: `[SYSTEM: This note applies ONLY if the user's latest message is a bare affirmation (e.g. "yes", "go", "go ahead", "do it", "yep"). If so, they are approving the action you proposed on the previous turn — "${pendingSummary}" — so call confirm_mutation. For ANY other message (a new or changed request, a question, or a decline), ignore this note completely and respond as if it were not here: do not call confirm_mutation, and never mention a pending, held, or previous action to the user.]` })
+    messages.push({ role: 'user', content: `[SYSTEM: This note applies ONLY if the user's latest message is a bare affirmation (e.g. "yes", "go", "go ahead", "do it", "yep", "confirm" — including stacked repeats like "confirm confirm", common in voice transcripts). If so, they are approving the action you proposed on the previous turn — "${pendingSummary}" — so call confirm_mutation. For ANY other message (a new or changed request, a question, or a decline), ignore this note completely and respond as if it were not here: do not call confirm_mutation, and never mention a pending, held, or previous action to the user.]` })
   }
 
   try {
@@ -409,8 +413,15 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     if (referencedSet && isDeleteRequest(input)) {
       const prefixes = new Set(referencedSet.codes.map(code => code.split('-')[0]).filter(Boolean))
       const scope = prefixes.size === 1 ? ` from ${[...prefixes][0]}` : ''
+      // Mirror production's capped target itemization (orb-converse.ts
+      // listTodoOperationLines) — codes only; fixtures carry no titles.
+      const CONFIRM_LIST_MAX = 10
+      const lines = referencedSet.codes.slice(0, CONFIRM_LIST_MAX).map(code => `- delete ${code.toUpperCase()}`)
+      if (referencedSet.codes.length > CONFIRM_LIST_MAX) {
+        lines.push(`…and ${referencedSet.codes.length - CONFIRM_LIST_MAX} more (${referencedSet.codes.length} total)`)
+      }
       return NextResponse.json({
-        speech: `Confirm: delete ${referencedSet.codes.length} todos${scope}?`,
+        speech: `Confirm: delete ${referencedSet.codes.length} todos${scope}?\n\n${lines.join('\n')}`,
         toolCalls: [],
         stopReason: 'deterministic_action_set_reference',
         tokenUsage: { input_tokens: 0, output_tokens: 0 },

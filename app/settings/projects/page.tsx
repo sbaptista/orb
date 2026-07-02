@@ -15,5 +15,5 @@ export default async function ProjectsPage() {
     isAdmin = data?.role_id === 1 || data?.role_id === 3
   }
 
-  return <SettingsProjects isAdmin={isAdmin} userId={user?.id} />
+  return <SettingsProjects isAdmin={isAdmin} />
 }

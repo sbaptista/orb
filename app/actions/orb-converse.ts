@@ -8,7 +8,7 @@ import { headers } from 'next/headers'
 import { getAuthContext, type AuthContext } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, buildAdaptationsPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
+import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, buildAdaptationsPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 // computeInsights suspended — code preserved in lib/insights.ts for future use
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
@@ -107,12 +107,23 @@ function pendingTodoOperations(pending: PendingMutation | undefined): PendingMut
   return []
 }
 
+// Voice transcripts often stack or repeat affirmations ("Confirm confirm",
+// "yes go ahead", "okay do it"). Accept any input made up solely of
+// affirmation phrases, in any combination — mixed content still falls
+// through to the model.
 function isBareAffirmation(input: string): boolean {
-  return /^(yes|yep|yeah|sure|ok|okay|go ahead|do it|confirm|confirmed|please do|sounds good|that's right|that is right)$/i.test(input.trim())
+  return /^(?:(?:yes|yep|yeah|yup|sure|okay|ok|go ahead|do it|go|confirmed|confirm|please do|please|sounds good|that['’]?s right|that is right)[,.!\s]*)+$/i.test(input.trim())
 }
 
 function isBareDecline(input: string): boolean {
-  return /^(no|nope|cancel|stop|don't|do not|never mind|nevermind|leave it|skip it)$/i.test(input.trim())
+  return /^(?:(?:no|nope|nah|cancel|stop|don['’]?t|do not|never mind|nevermind|leave it|skip it|forget it)[,.!\s]*)+$/i.test(input.trim())
+}
+
+// The user granted permission up front, in the same message that asked for
+// the action ("you have my permission", "no need to confirm"). Execute the
+// held operations directly instead of asking them to confirm again.
+function grantsUpfrontPermission(input: string): boolean {
+  return /\b(?:you have my permission|i give you (?:my )?permission|you(?:'re| are) authorized|no need to (?:ask|confirm|check)|without (?:asking|confirming|confirmation)|don['’]?t ask(?: me)?(?: for confirmation| to confirm)?|just do it)\b/i.test(input)
 }
 
 function isPendingStatusQuestion(input: string): boolean {
@@ -679,6 +690,31 @@ export async function orbConverse(req: OrbRequest) {
         return ops.map((op, i) => `${i + 1}. ${describeTodoOperation(op)}`).join('; ')
       }
 
+      // Itemize the exact targets under a confirm message. The operator
+      // contract: voice speaks the compact summary, the transcript carries
+      // the audit detail. Large sets show a capped preview plus the total —
+      // the user always sees what a "yes" will do, without a 1,000-line list.
+      const CONFIRM_LIST_MAX = 10
+      function listTodoOperationLines(ops: PendingMutationOperation[]): string {
+        const lines = ops.slice(0, CONFIRM_LIST_MAX).map(op => {
+          const p = op.params ?? {}
+          if (op.tool === 'create_todo') {
+            const project = p.product_code ? String(p.product_code).toUpperCase() : ctx.current?.code
+            return `- create "${p.title ?? 'untitled'}"${project ? ` in ${project}` : ''}`
+          }
+          const code = p.code ? String(p.code).toUpperCase() : '?'
+          const todo = ctx.todoList.find((t: any) => todoCode(t, ctx.productList).toUpperCase() === code)
+          const title = todo?.title ? ` — ${todo.title}` : ''
+          if (op.tool === 'delete_todo') return `- delete ${code}${title}`
+          if (op.tool === 'move_todo') return `- move ${code}${title} to ${p.target_project_code ?? '?'}`
+          return `- ${describeTodoOperation(op)}${title}`
+        })
+        if (ops.length > CONFIRM_LIST_MAX) {
+          lines.push(`…and ${ops.length - CONFIRM_LIST_MAX} more (${ops.length} total)`)
+        }
+        return lines.join('\n')
+      }
+
       async function executeTodoOperation(op: PendingMutationOperation): Promise<{
         ok: true
         summary: string
@@ -851,8 +887,8 @@ export async function orbConverse(req: OrbRequest) {
         return { ok: false, summary: `${todoActionNoun(op.tool)} failed`, error: `Unsupported todo action: ${op.tool}` }
       }
 
-      async function executeTodoOperationsAndFinish(ops: PendingMutationOperation[]): Promise<void> {
-        stream.update({ speech: '', thought: 'Confirming...', isStreaming: true })
+      async function executeTodoOperationsAndFinish(ops: PendingMutationOperation[], opts?: { preAuthorized?: boolean }): Promise<void> {
+        stream.update({ speech: '', thought: opts?.preAuthorized ? 'Going ahead...' : 'Confirming...', isStreaming: true })
         const results = []
         for (const op of ops) {
           const result = await executeTodoOperation(op)
@@ -895,7 +931,9 @@ export async function orbConverse(req: OrbRequest) {
             }
           : undefined
         const speech = failures.length === 0
-          ? `Done — ${successSummary}.`
+          ? opts?.preAuthorized
+            ? `You'd given me the go-ahead, so it's done — ${successSummary}.`
+            : `Done — ${successSummary}.`
           : successes.length > 0
             ? `Partially done — ${successSummary}. ${failures.map(r => `${r.summary}: ${r.error}`).join('; ')}.`
             : `I couldn't complete that — ${failures.map(r => `${r.summary}: ${r.error}`).join('; ')}.`
@@ -986,7 +1024,7 @@ export async function orbConverse(req: OrbRequest) {
           operations,
           summary,
         }
-        const speech = `Confirm: ${summary}?`
+        const speech = `Confirm: ${summary}?\n\n${listTodoOperationLines(operations)}`
         recordModelRequest(speech)
         recordMetrics(speech.length)
         stream.done({ speech, isStreaming: false, pendingMutation: pending })
@@ -998,6 +1036,13 @@ export async function orbConverse(req: OrbRequest) {
         { role: 'user', content: req.input },
       ]
 
+      // Record-state transparency: an empty history means the session record
+      // was cleared (update, refresh) or never existed. Say so, keyed to the
+      // state — not to any particular phrasing of "the ones you created".
+      if ((req.history ?? []).length === 0) {
+        messages.push({ role: 'user', content: ORB_NO_SESSION_RECORD_NOTE })
+      }
+
       // Server-held pending PROJECT mutation (propose/confirm/execute). The client
       // echoes nothing — the server is the source of truth for what's awaiting confirmation.
       const pendingMutation: PendingMutationRow | null = await getPendingMutation(auth.admin, auth.user.id)
@@ -1007,7 +1052,7 @@ export async function orbConverse(req: OrbRequest) {
         // confirm_mutation) so it can never linger and be confirmed on a later, unrelated
         // turn. If the user doesn't confirm this turn, it's already gone — fail-safe.
         await clearPendingMutation(auth.admin, auth.user.id)
-        messages.push({ role: 'user', content: `[SYSTEM: This note applies ONLY if the user's latest message is a bare affirmation (e.g. "yes", "go", "go ahead", "do it", "yep"). If so, they are approving the action you proposed on the previous turn — "${pendingMutation.summary}" — so call confirm_mutation. For ANY other message (a new or changed request, a question, or a decline), ignore this note completely and respond as if it were not here: do not call confirm_mutation, and never mention a pending, held, or previous action to the user.]` })
+        messages.push({ role: 'user', content: `[SYSTEM: This note applies ONLY if the user's latest message is a bare affirmation (e.g. "yes", "go", "go ahead", "do it", "yep", "confirm" — including stacked repeats like "confirm confirm", common in voice transcripts). If so, they are approving the action you proposed on the previous turn — "${pendingMutation.summary}" — so call confirm_mutation. For ANY other message (a new or changed request, a question, or a decline), ignore this note completely and respond as if it were not here: do not call confirm_mutation, and never mention a pending, held, or previous action to the user.]` })
       }
 
       const routeRole = routeOrbRequest(req.input, aiPolicy.routingEnabled, aiPolicy.strategicReadsEnabled)
@@ -1040,6 +1085,15 @@ export async function orbConverse(req: OrbRequest) {
       let repairedNoToolMutationClaim = false
       const toolErrors: string[] = []
       const heldTodoOperations: PendingMutationOperation[] = []
+
+      // Provenance: every task code the model has actually been shown — the
+      // conversation, and (below, per turn) the system prompt and tool results.
+      // Mutations may only target shown codes; this is the structural side of
+      // the IDENTIFIER PROVENANCE law (codes fabricated by pattern are rejected
+      // with a corrective instruction instead of reaching the database).
+      const shownCodes = new Set<string>([
+        ...extractCitedCodes((req.history ?? []).map(h => h.text).join(' ') + ' ' + req.input),
+      ])
 
       // Heartbeat to open the pipe
       stream.update({ speech: '', isStreaming: true })
@@ -1126,6 +1180,10 @@ When the user signals they want to end the voice conversation — "that's enough
             ? `STRATEGIC READ MODE: The user explicitly asked for strategic guidance. You have no tools and cannot create, update, delete, or otherwise change anything. Base recommendations only on the supplied context, state uncertainty when evidence is incomplete, and wrap the core recommendation in [INSIGHT:strategic]...[/INSIGHT].`
             : '',
         ].filter(Boolean).join('\n\n')
+
+        // Everything in the prompt (backlog, knowledge teasers, changelog) is
+        // legitimately "shown" — register its codes for the provenance gate.
+        for (const c of extractCitedCodes(stablePrompt + ' ' + dynamicPrompt)) shownCodes.add(c)
 
         if (turnCount === 1 && routeRole === 'strategic' && metricProvider === 'google') {
           stream.update({ speech: '', thought: 'Preparing strategic read...', isStreaming: true })
@@ -1344,6 +1402,16 @@ When the user signals they want to end the voice conversation — "that's enough
           // next bare affirmation executes exactly these operations before another
           // model call; a status question gets a deterministic "not yet" answer.
           if (GATED_MUTATIONS.has(tc.name)) {
+            // Provenance gate: a mutation may only target a code the model has
+            // been shown (prompt, tool result, or user text this conversation).
+            const targetCode = typeof input.code === 'string' ? input.code.toUpperCase().trim() : null
+            if (targetCode && !shownCodes.has(targetCode)) {
+              output = {
+                error: `Task code ${targetCode} has not appeared in this conversation — do not construct codes from memory or by sequence. Call query_todos to find the actual tasks, then retry using codes from the results.`,
+              }
+              toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
+              continue
+            }
             heldTodoOperations.push({ tool: tc.name, params: input })
             output = {
               _held: true,
@@ -2048,13 +2116,20 @@ When the user signals they want to end the voice conversation — "that's enough
           if (output?.new_code) toolProducedCodes.add(output.new_code)
         }
         if (heldTodoOperations.length > 0) {
+          // Permission granted in the requesting message itself — don't make
+          // the user confirm what they already authorized. Stop remains the
+          // escape hatch, and deletes are soft.
+          if (grantsUpfrontPermission(req.input)) {
+            await executeTodoOperationsAndFinish(heldTodoOperations, { preAuthorized: true })
+            return
+          }
           const summary = summarizeTodoOperations(heldTodoOperations)
           const pending: PendingMutation = {
             kind: 'todo_action_transaction',
             operations: heldTodoOperations,
             summary,
           }
-          const speech = `Confirm: ${summary}?`
+          const speech = `Confirm: ${summary}?\n\n${listTodoOperationLines(heldTodoOperations)}`
           recordModelRequest(speech)
           recordMetrics(speech.length)
           stream.done({ speech, isStreaming: false, pendingMutation: pending })
@@ -2062,6 +2137,12 @@ When the user signals they want to end the voice conversation — "that's enough
         }
         if (!hasMutated && toolErrors.length > 0) {
           toolOutputs.push({ type: 'text' as const, text: `[SYSTEM: No data was modified. Errors occurred: ${toolErrors.join('; ')}. Report these errors to the user. Do NOT claim success.]` })
+        }
+        // Tool results are about to be shown to the model — register their
+        // codes as legitimate provenance for subsequent mutation calls.
+        for (const to of toolOutputs) {
+          const text = typeof to.content === 'string' ? to.content : typeof to.text === 'string' ? to.text : ''
+          for (const c of extractCitedCodes(text)) shownCodes.add(c)
         }
         messages.push({ role: 'user', content: toolOutputs })
 

@@ -21,8 +21,6 @@ type Product = {
 
 type ItemForm = {
   name: string
-  code: string
-  codeAutoSync: boolean
   description: string
   color: string
   sort_order: string
@@ -30,8 +28,6 @@ type ItemForm = {
 
 const EMPTY_FORM: ItemForm = {
   name: '',
-  code: '',
-  codeAutoSync: true,
   description: '',
   color: '#6366f1',
   sort_order: '0',
@@ -52,16 +48,6 @@ function ProductForm({
   submitLabel: string
   saving: boolean
 }) {
-  function handleNameChange(value: string) {
-    const updated: ItemForm = { ...form, name: value }
-    if (form.codeAutoSync) updated.code = value.slice(0, 6).toUpperCase().replace(/[^A-Z0-9]/g, '')
-    onChange(updated)
-  }
-
-  function handleCodeChange(value: string) {
-    onChange({ ...form, code: value.toUpperCase().replace(/[^A-Z0-9]/g, ''), codeAutoSync: false })
-  }
-
   return (
     <div className="s-form">
       <div className="mb-md">
@@ -69,20 +55,9 @@ function ProductForm({
         <input
           className="input"
           value={form.name}
-          onChange={e => handleNameChange(e.target.value)}
+          onChange={e => onChange({ ...form, name: e.target.value })}
           autoFocus
           placeholder="Project name"
-        />
-      </div>
-      <div className="mb-md">
-        <label className="label">Code *</label>
-        <input
-          className="input"
-          style={{ fontFamily: 'var(--font-mono)', width: '120px' }}
-          value={form.code}
-          onChange={e => handleCodeChange(e.target.value)}
-          placeholder="PROJ"
-          maxLength={6}
         />
       </div>
       <div className="mb-md">
@@ -185,8 +160,6 @@ export default function SettingsUserDetail({ userId }: { userId: string }) {
     setEditingId(p.id)
     setEditForm({
       name: p.name,
-      code: p.code ?? '',
-      codeAutoSync: false,
       description: p.description ?? '',
       color: p.color ?? '#6366f1',
       sort_order: String(p.sort_order),
@@ -199,12 +172,10 @@ export default function SettingsUserDetail({ userId }: { userId: string }) {
 
   async function handleSave(id: string) {
     if (!editForm.name.trim()) { setError('Name is required'); return }
-    if (!editForm.code.trim()) { setError('Code is required'); return }
     setSaving(true)
     setError('')
     const res = await updateProject(id, {
       name: editForm.name.trim(),
-      code: editForm.code.trim() || null,
       description: editForm.description.trim() || null,
       color: editForm.color,
       sort_order: Number(editForm.sort_order) || 0,
@@ -228,12 +199,10 @@ export default function SettingsUserDetail({ userId }: { userId: string }) {
 
   async function handleAdd() {
     if (!addForm.name.trim()) { setError('Name is required'); return }
-    if (!addForm.code.trim()) { setError('Code is required'); return }
     setSaving(true)
     setError('')
     const res = await createProject({
       name: addForm.name.trim(),
-      code: addForm.code.trim() || null,
       description: addForm.description.trim() || null,
       color: addForm.color,
       sort_order: Number(addForm.sort_order) || 0,

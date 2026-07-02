@@ -188,7 +188,7 @@ export default function SettingsKnowledge() {
                 >
                   <option value="">— Select Project</option>
                   {extra.projects?.map((p: any) => (
-                    <option key={p.id} value={p.id}>{p.code} — {p.name}</option>
+                    <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
               </div>
