@@ -24,6 +24,8 @@ v0.6.116 implemented the Phase 4 confirmation itemization:
 
 - Deterministic confirm messages ("Confirm: delete N todos from X?") now append the exact target list — code and title per operation — capped at 10 lines with an "…and N more (total)" tail for large sets. Voice keeps speaking the compact summary; the transcript now genuinely carries the audit detail it points to.
 
+v0.6.118 fixed a false-completion-claim gap caught live in voice — Orb narrating "Switching to X... Done." for `client_action`/`switch_project` without ever calling the tool, so the wrong project stayed active while Orb claimed success. Root cause: the structural guard that checks for this (a mutation/action claimed with no backing tool call) existed only in the eval test harness's copy — production's copy was missing exactly this check, so it never caught the failure. The two copies are now one shared module (`lib/orb-model/false-claim-guard.ts`), and the check itself is now tool-agnostic (any unbacked completion claim, not just todo/project code citations) rather than a switch_project-specific patch. Also fixed in the same pass: the server's own switch_project resolver was exact-match-only (a weaker duplicate of the client's fuzzy resolver from v0.6.117); both now share one resolver (`lib/projects.ts`). `switch_project`'s target is now a project name, not a code, closing an inconsistency with `update_project`/`delete_project`. See the MUTATION VERIFICATION PROTOCOL in `lib/orb-prompt.ts`, now extended to cover `client_action`.
+
 Remaining work:
 
 - Formalize the full `VoiceRuntimeState` type and move all voice state labels to it.

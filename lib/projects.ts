@@ -4,7 +4,39 @@
  * filtering is applied in exactly one place.
  */
 
+import { fuzzyMatch } from '@/lib/fuzzy-search'
+
 type SupabaseClient = { from: (table: string) => any }
+
+// Resolves a user-typed or Orb-spoken project reference to exactly one
+// project. Exact name → exact code → fuzzy/partial name, so "Stokely" and
+// "Mr. Stokely from Boston" both resolve to the same project. A tier is used
+// only if it yields exactly one match — ambiguous or empty tiers fall
+// through rather than guessing, since a misfire here silently switches the
+// user's project (client-side) or fails a switch_project tool call
+// (server-side). Shared between the client (UnifiedDashboard.tsx: /switch,
+// /drop, /edit, and rendering the switch_project result) and the server
+// (orb-converse.ts: resolving switch_project's target before it succeeds) —
+// previously two separate implementations that had silently diverged in
+// strength (server was exact-match-only).
+export function resolveProjectByReference<T extends { name: string; code?: string | null }>(
+  products: T[],
+  reference: string,
+): T | null {
+  const ref = reference.trim().toUpperCase()
+  if (!ref) return null
+
+  const byName = products.filter(p => p.name.toUpperCase() === ref)
+  if (byName.length === 1) return byName[0]
+
+  const byCode = products.filter(p => (p.code ?? '').toUpperCase() === ref)
+  if (byCode.length === 1) return byCode[0]
+
+  const byFuzzy = products.filter(p => fuzzyMatch(reference, p.name))
+  if (byFuzzy.length === 1) return byFuzzy[0]
+
+  return null
+}
 
 export function visibleProjectsQuery(supabase: SupabaseClient, select = '*') {
   return supabase

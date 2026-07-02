@@ -86,7 +86,7 @@ info:
         type: object
         properties:
           action: { type: string, enum: ['switch_project', 'open_settings', 'open_help', 'set_voice', 'exit_voice'] }
-          target: { type: string, description: 'Project code for switch_project, voice name for set_voice.' }
+          target: { type: string, description: 'Project name for switch_project (the user speaks in names; the server resolves it — do not translate to a code), voice name for set_voice.' }
         required: ['action']
 
     search_knowledge:

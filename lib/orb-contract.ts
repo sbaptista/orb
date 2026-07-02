@@ -214,7 +214,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         },
         "target": {
           "type": "string",
-          "description": "Project code for switch_project, voice name for set_voice."
+          "description": "Project name for switch_project (the user speaks in names; the server resolves it — do not translate to a code), voice name for set_voice."
         }
       },
       "required": [

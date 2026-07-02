@@ -10,7 +10,7 @@ import { logAuditEvent } from '@/lib/audit'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
 import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, buildAdaptationsPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 // computeInsights suspended — code preserved in lib/insights.ts for future use
-import { visibleProjectsQuery } from '@/lib/projects'
+import { visibleProjectsQuery, resolveProjectByReference } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { computeUrgency, type Urgency } from '@/lib/orb-state'
 import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
@@ -32,6 +32,7 @@ import { routeOrbRequest, type OrbRouteRole } from '@/lib/orb-model/routing'
 import { checkOrbBudget, budgetBlockMessage } from '@/lib/orb-model/budget'
 import { classifyProviderFailure, notifyOrbIncident } from '@/lib/orb-model/incidents'
 import type { OrbModelProviderId } from '@/lib/orb-model/types'
+import { extractCitedCodes, isFalseCompletionClaim } from '@/lib/orb-model/false-claim-guard'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -87,18 +88,11 @@ const GATED_MUTATIONS = new Set([
 // ── Structural mutation guard (false-claim detection) ──
 // Instead of guessing intent from user input (fragile regex), we check what
 // actually happened: did the model cite a task/project code that no tool
-// produced, or claim completion language when no mutation tool ran at all?
-// See ORB-288 and knowledge repo entry for the design rationale.
-
-function extractCitedCodes(speech: string): Set<string> {
-  const matches = speech.match(/\b[A-Z][A-Z0-9]{1,15}-\d+\b/g)
-  return new Set(matches ?? [])
-}
-
-function isFalseMutationClaim(speech: string, toolProducedCodes: Set<string>, historyCodes: Set<string>): boolean {
-  const cited = extractCitedCodes(speech)
-  return [...cited].some(code => !toolProducedCodes.has(code) && !historyCodes.has(code))
-}
+// produced, or claim completion language when nothing actually ran? See
+// ORB-288 and lib/orb-model/false-claim-guard.ts for the design rationale —
+// shared with the eval mirror so the two can't silently drift apart again
+// (they had: eval had the completion-language check, production never did,
+// which is exactly how a false switch_project claim shipped undetected).
 
 function pendingTodoOperations(pending: PendingMutation | undefined): PendingMutationOperation[] {
   if (!pending) return []
@@ -612,6 +606,14 @@ export async function orbConverse(req: OrbRequest) {
       }
       const beforeUrgency = await snapshotUrgency(supabase, auth.user.id)
       let hasMutated = false
+      // True once ANY tool call in this request actually took effect — a
+      // superset of hasMutated (data mutations) that also includes
+      // client_action successes. Used only to gate the false-completion-claim
+      // check below; kept separate from hasMutated so navigation actions
+      // don't spuriously trigger the urgency-escalation check, which is
+      // specifically about data mutations. A held-but-not-executed
+      // GATED_MUTATIONS call does NOT set this — being held isn't being done.
+      let hasActed = false
       const statusNames = ctx.statusList.map((s: any) => `${s.name}${s.is_closed ? ' (closed)' : s.is_open ? ' (default)' : ''}`).join(', ')
       const priorityInfo = ctx.priorityList.map((p: any) => `${p.value}:${p.label}${p.is_urgent ? ' (URGENT)' : ''}`).join(', ')
 
@@ -897,7 +899,7 @@ export async function orbConverse(req: OrbRequest) {
             if (result.code) toolProducedCodes.add(result.code)
             if (result.old_code) toolProducedCodes.add(result.old_code)
             if (result.new_code) toolProducedCodes.add(result.new_code)
-            hasMutated = true
+            hasMutated = true; hasActed = true
             stream.update({
               speech: '',
               thought: result.summary,
@@ -1135,7 +1137,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         const dynamicPrompt = [
           `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
           ctx.currentUser ? `USER CONTEXT: You are talking to ${ctx.currentUser.email} (Name: ${ctx.currentUser.name || 'Unknown'}, Role: ${userRole || 'Unknown'}).` : '',
-          `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${ctx.current?.name}" unless the user explicitly names a different project.\n- An unqualified request to create a task already has a project: the currently selected project. Do not ask which project; just create it there.\n- When calling tools that need a project identifier, look up the project code from the backlog (shown as [code: XXX] next to each project name) and pass that. The user speaks in names — you translate to codes for tool calls.\n- When speaking to the user, ALWAYS use project names, never codes.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${ctx.current?.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${ctx.currentUser.name || ctx.currentUser.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
+          `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${ctx.current?.name}" unless the user explicitly names a different project.\n- An unqualified request to create a task already has a project: the currently selected project. Do not ask which project; just create it there.\n- PROJECT IDENTIFIER BY TOOL: todo-level tools (create_todo, query_todos, move_todo) take the project's short internal code as product_code/target_project_code — look it up from the backlog (shown as [code: XXX] next to each project name) and pass that. Project-level tools (update_project, delete_project, and client_action's switch_project target) take the project NAME, not the code — pass exactly what the user means by name; the server resolves it, including shortened/partial names. Never invent or guess a code for a project-level tool.\n- When speaking to the user, ALWAYS use project names, never codes.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${ctx.current?.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${ctx.currentUser.name || ctx.currentUser.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
           req.uiContext ? `UI STATE: The user is viewing: ${req.uiContext.viewMode ?? 'list'} view | filter: ${req.uiContext.filterStatus ?? 'active'} | priority filter: ${req.uiContext.filterPriority ?? 'all'} | sort: ${req.uiContext.sortAsc ? 'oldest first' : 'newest first'} | orb pane: ${req.uiContext.orbPaneVisible ? 'visible' : 'hidden'} | list pane: ${req.uiContext.listPaneVisible ? 'visible' : 'hidden'} | device: ${req.uiContext.isMobile ? 'mobile' : 'desktop'}. Use this to understand what the user sees when they say "this view", "the list", "that column", etc.` : '',
           req.uiContext?.voiceMode ? `VOICE CONVERSATION: You are in an ongoing voice conversation. The user speaks, you speak back. This is a continuous dialogue — NOT a series of independent requests.
 CURRENT VOICE OUTPUT CONFIG:
@@ -1285,10 +1287,11 @@ When the user signals they want to end the voice conversation — "that's enough
               .catch(err => console.error('[orbConverse] Push check failed:', err))
           }
           const parsed = extractInsight(accumulatedSpeech)
-          if (isFalseMutationClaim(parsed.speech, toolProducedCodes, historyCodes)) {
-            console.error('[orbConverse] Blocked phantom code citation', {
+          if (isFalseCompletionClaim(parsed.speech, toolProducedCodes, historyCodes, hasActed)) {
+            console.error('[orbConverse] Blocked unverified completion claim', {
               toolProducedCodes: [...toolProducedCodes],
               citedCodes: [...extractCitedCodes(parsed.speech)],
+              hasActed,
               speech: parsed.speech.slice(0, 300),
             })
             if (!repairedNoToolMutationClaim && turnCount < MAX_TURNS) {
@@ -1296,7 +1299,7 @@ When the user signals they want to end the voice conversation — "that's enough
               accumulatedSpeech = ''
               messages.push({
                 role: 'user',
-                content: 'SYSTEM CORRECTION: Your response cited a task or project code that no tool produced. Do not invent codes. Only cite codes returned by a tool call in this conversation.',
+                content: 'SYSTEM CORRECTION: Your response claimed an outcome that no tool call in this request actually produced — either a task/project code no tool returned, or completion language ("Done", "I\'ve switched...", "X is now active") with no tool call behind it at all. If you intend to take an action, call the actual tool now and wait for its result before describing any outcome. Do not restate the same claim without calling the tool.',
               })
               stream.update({ speech: '', thought: 'Correcting...', isStreaming: true })
               continue
@@ -1378,7 +1381,7 @@ When the user signals they want to end the voice conversation — "that's enough
               toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
               continue
             }
-            hasMutated = true
+            hasMutated = true; hasActed = true
             if (result.code) toolProducedCodes.add(result.code)
             // Discard premature pre-confirm speech ("Renaming X now.") so the result reads cleanly.
             accumulatedSpeech = ''
@@ -1450,7 +1453,7 @@ When the user signals they want to end the voice conversation — "that's enough
               else {
                 output = { ok: true, code: `${product.code}-${data.todo_number}` }
                 stream.update({ speech: accumulatedSpeech, thought: `Created ${product.code}-${data.todo_number}`, refresh: true, mutatedProductId: product.id, mutationType: 'create' })
-                hasMutated = true
+                hasMutated = true; hasActed = true
                 await logAuditEvent({
                   action: 'todo_create',
                   table_name: 'todos',
@@ -1564,7 +1567,7 @@ When the user signals they want to end the voice conversation — "that's enough
                   ...(ticketNum && closingStatus ? { linked_ticket: `TICKETS-${ticketNum}`, is_closing: true } : {})
                 }
                 stream.update({ speech: accumulatedSpeech, thought: `Updated ${input.code}`, refresh: true, mutatedProductId: todo.product_id, mutationType: 'update' })
-                hasMutated = true
+                hasMutated = true; hasActed = true
                 await logAuditEvent({
                   action: closingStatus && !todo.closed_at ? 'todo_close' : 'todo_update',
                   table_name: 'todos',
@@ -1652,7 +1655,7 @@ When the user signals they want to end the voice conversation — "that's enough
               else {
                 output = { ok: true, code: input.code }
                 stream.update({ speech: accumulatedSpeech, thought: `Deleted ${input.code}`, refresh: true, mutatedProductId: todo.product_id, mutationType: 'delete' })
-                hasMutated = true
+                hasMutated = true; hasActed = true
                 await logAuditEvent({
                   action: 'todo_delete',
                   table_name: 'todos',
@@ -1721,7 +1724,7 @@ When the user signals they want to end the voice conversation — "that's enough
                   const newCode = `${targetProject.code}-${nextNum}`
                   output = { ok: true, old_code: oldCode, new_code: newCode }
                   stream.update({ speech: accumulatedSpeech, thought: `Moved ${oldCode} → ${newCode}`, refresh: true, mutatedProductId: sourceProject?.id, mutationType: 'update' })
-                  hasMutated = true
+                  hasMutated = true; hasActed = true
                   await logAuditEvent({
                     action: 'todo_move',
                     table_name: 'todos',
@@ -1737,15 +1740,26 @@ When the user signals they want to end the voice conversation — "that's enough
             }
           } else if (tc.name === 'client_action') {
             if (input.action === 'switch_project' && input.target) {
-              const targetUpper = String(input.target).toUpperCase()
-              const match = ctx.productList.find((p: any) => p.code?.toUpperCase() === targetUpper || p.name?.toUpperCase() === targetUpper)
+              // Shared with the client (lib/projects.ts): exact name → exact
+              // code → fuzzy/partial name. Was exact-match-only here, a
+              // weaker duplicate of the client's resolver — a target the
+              // client would have fuzzy-matched fine could fail server-side
+              // first, and the model's target convention (name vs code) was
+              // inconsistent with update_project/delete_project.
+              const match = resolveProjectByReference(ctx.productList, String(input.target))
               if (!match) {
                 output = { ok: false, error: `Project "${input.target}" not found or you don't have access to it.` }
               } else {
-                stream.update({ speech: accumulatedSpeech, thought: `Switched to ${match.name}`, clientAction: { action: input.action, target: input.target } })
+                hasActed = true
+                // Pass back the resolved NAME, not code — client_action is
+                // name-first like update_project/delete_project. The client
+                // re-resolves defensively but should never need to fall back
+                // to fuzzy-matching a code here.
+                stream.update({ speech: accumulatedSpeech, thought: `Switched to ${match.name}`, clientAction: { action: input.action, target: match.name } })
                 output = { ok: true }
               }
             } else {
+              hasActed = true
               const label = input.action === 'check_update' ? 'Checking for updates…'
                 : input.action === 'apply_update' ? 'Updating…'
                 : 'Navigating...'

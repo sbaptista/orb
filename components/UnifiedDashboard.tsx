@@ -5,8 +5,7 @@ import { readStreamableValue } from 'ai/rsc'
 import { useRouter } from 'next/navigation'
 // Link removed — global nav moved to AppNav
 import { createClient } from '@/lib/supabase/client'
-import { visibleProjectsQuery, clampProjectName } from '@/lib/projects'
-import { fuzzyMatch } from '@/lib/fuzzy-search'
+import { visibleProjectsQuery, clampProjectName, resolveProjectByReference } from '@/lib/projects'
 import AddProductModal from './AddProductModal'
 import AppNav from './AppNav'
 import SearchModal from './ui/SearchModal'
@@ -86,31 +85,6 @@ const PAGE_SIZE         = 40
 
 function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-}
-
-// Resolves a user-typed or Orb-spoken project reference to exactly one
-// project. Priority mirrors the server's resolveProjectReference (exact
-// name → exact code → fuzzy/partial name), so "Stokely" and "Mr. Stokely
-// from Boston" both resolve to the same project. A tier is used only if it
-// yields exactly one match — ambiguous or empty tiers fall through rather
-// than guessing, since a misfire here silently switches the user's project.
-function resolveProjectByReference<T extends { name: string; code?: string | null }>(
-  products: T[],
-  reference: string,
-): T | null {
-  const ref = reference.trim().toUpperCase()
-  if (!ref) return null
-
-  const byName = products.filter(p => p.name.toUpperCase() === ref)
-  if (byName.length === 1) return byName[0]
-
-  const byCode = products.filter(p => (p.code ?? '').toUpperCase() === ref)
-  if (byCode.length === 1) return byCode[0]
-
-  const byFuzzy = products.filter(p => fuzzyMatch(reference, p.name))
-  if (byFuzzy.length === 1) return byFuzzy[0]
-
-  return null
 }
 
 function makeOrbGreeting(firstName: string | undefined | null) {

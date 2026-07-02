@@ -273,15 +273,16 @@ export const EVAL_CASES: EvalCase[] = [
 
   {
     id: 'switch-project-partial-name-resolves',
-    description: 'A shortened/partial project name reference still resolves to the one matching project for switch_project (project code is internal-only; the user should never need to type or say it)',
+    description: 'A shortened/partial project name reference still resolves to the one matching project for switch_project. Target must be a NAME, not a code — client_action is name-first like update_project/delete_project (the server resolves it, including partial names); the model must not invent or guess a code. Also guards against the false-completion-claim bug: Orb narrating a switch without actually calling the tool.',
     productCode: 'ORB',
     backlogOverride: evalBacklog([{ name: 'Mr. Stokely from Boston', code: 'STOKELYFRO' }]),
     input: 'Switch to Mr. Stokely',
     tier: 1,
     expectTool: {
       name: 'client_action',
-      params: { action: 'switch_project', target: 'STOKELYFRO' },
+      params: { action: 'switch_project' },
     },
+    speechNotContains: ['done', "i've switched", 'is now active', 'stokelyfro'],
   },
 
   {

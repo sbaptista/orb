@@ -19,6 +19,7 @@ import { STRATEGIC_CONTEXT_PACKETS } from '@/lib/orb-model/strategic-eval-packet
 import type { OrbModelUsage } from '@/lib/orb-model/types'
 import { routeOrbRequest } from '@/lib/orb-model/routing'
 import { budgetBlockMessage, type OrbBudgetCheck } from '@/lib/orb-model/budget'
+import { extractCitedCodes, isFalseCompletionClaim, EFFECTFUL_TOOL_NAMES } from '@/lib/orb-model/false-claim-guard'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 
@@ -33,23 +34,11 @@ function checkAuth(request: NextRequest): NextResponse | null {
   return null
 }
 
-// Structural mutation guard — mirrors orb-converse.ts
-function extractCitedCodes(speech: string): Set<string> {
-  const matches = speech.match(/\b[A-Z][A-Z0-9]{1,15}-\d+\b/g)
-  return new Set(matches ?? [])
-}
-
-function hasCompletionLanguage(speech: string): boolean {
-  return /\b(done —|done\.|created as|i'?ve (created|added|filed|updated|changed|closed|completed|deleted|removed|moved|archived|deferred|saved)|successfully (created|added|updated|deleted|moved))\b/i.test(speech)
-}
-
-function isFalseMutationClaim(speech: string, hasMutated: boolean, toolProducedCodes: Set<string>, historyCodes: Set<string>): boolean {
-  const cited = extractCitedCodes(speech)
-  const hasPhantomCode = [...cited].some(code => !toolProducedCodes.has(code) && !historyCodes.has(code))
-  if (hasPhantomCode) return true
-  if (!hasMutated && hasCompletionLanguage(speech)) return true
-  return false
-}
+// Structural mutation guard — shared with orb-converse.ts via
+// lib/orb-model/false-claim-guard.ts (see that file for why: the two copies
+// used to be independent and had drifted, which is how a real bug —
+// client_action/switch_project claimed without a backing tool call — shipped
+// undetected).
 
 function isBroadProjectStateQuestion(input: string): boolean {
   return /\b(state|status|snapshot|summary|overview|how (are|is)|what'?s going on)\b/i.test(input)
@@ -331,7 +320,7 @@ export async function POST(request: NextRequest) {
     STATUS_VOCABULARY,
     `The BACKLOG below gives a SUMMARY line for each project and then separates ACTIVE from PARKED. When answering counts or project-health questions, copy the SUMMARY counts exactly; do not recalculate by counting visible lines. When the user asks "how many tasks" or "my tasks" without specifying, report the active_count. If parked_count is above zero, mention it separately. If you list tasks, make sure the number you claim matches the number of listed items, or say "including" instead of implying a complete list.`,
     buildUrgencyRules(24),
-    `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${current.name}" unless the user explicitly names a different project.\n- An unqualified request to create a task already has a project: the currently selected project. Do not ask which project; just create it there.\n- When calling tools that need a project identifier, look up the project code from the backlog (shown as [code: XXX] next to each project name) and pass that. The user speaks in names — you translate to codes for tool calls.\n- When speaking to the user, ALWAYS use project names, never codes.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${current.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${auth.user.name || auth.user.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
+    `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${current.name}" unless the user explicitly names a different project.\n- An unqualified request to create a task already has a project: the currently selected project. Do not ask which project; just create it there.\n- PROJECT IDENTIFIER BY TOOL: todo-level tools (create_todo, query_todos, move_todo) take the project's short internal code as product_code/target_project_code — look it up from the backlog (shown as [code: XXX] next to each project name) and pass that. Project-level tools (update_project, delete_project, and client_action's switch_project target) take the project NAME, not the code — pass exactly what the user means by name; the server resolves it, including shortened/partial names. Never invent or guess a code for a project-level tool.\n- When speaking to the user, ALWAYS use project names, never codes.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${current.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${auth.user.name || auth.user.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
     uiCatalog ? `UI CATALOG & NAVIGATION:\n${uiCatalog}` : '',
     `BACKLOG:\n${contextString}`,
     `KNOWLEDGE BASE (Recent):\n${knowledgeList.slice(0, 5).map((k: any) => {
@@ -570,12 +559,25 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     const historyCodes = extractCitedCodes(
       `${(history ?? []).map(h => h.text).join(' ')} ${input} ${todoList.map(todoCode).join(' ')} ${contextPacket?.backlog ?? ''}`,
     )
+    // Codes this response's own tool calls are working with count as
+    // legitimate provenance too — a delete_todo call citing TEST-1 in its
+    // params isn't a phantom code just because TEST-1 wasn't in history.
     const toolProducedCodes = new Set<string>()
-    if (isFalseMutationClaim(speech, false, toolProducedCodes, historyCodes)) {
+    for (const tc of toolCalls) {
+      for (const key of ['code', 'old_code', 'new_code'] as const) {
+        const value = tc.params?.[key]
+        if (typeof value === 'string') toolProducedCodes.add(value.toUpperCase())
+      }
+    }
+    // Single-shot harness: this response's own tool calls are the whole
+    // picture (no multi-turn hold/confirm here), so any effectful tool call
+    // in THIS response is sufficient evidence something was actually acted on.
+    const hasActed = toolCalls.some(tc => EFFECTFUL_TOOL_NAMES.has(tc.name))
+    if (isFalseCompletionClaim(speech, toolProducedCodes, historyCodes, hasActed)) {
       return NextResponse.json({
-        speech: 'I did not actually complete that — no mutation tool ran, so nothing was written.',
+        speech: 'I did not actually complete that — no tool call backed it up, so nothing happened.',
         toolCalls: [],
-        stopReason: 'blocked_no_tool_mutation_claim',
+        stopReason: 'blocked_unverified_completion_claim',
         tokenUsage,
         modelUsage,
         routeRole,

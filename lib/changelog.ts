@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.118',
+    date: '2026-07-01',
+    changes: [
+      'Fixed a real bug caught live in voice: Orb could narrate "Switching to X... Done." without ever calling the tool that actually switches projects, leaving the wrong project active while claiming success. The safeguard that would have caught this (checking for completion language with no backing tool call) existed only in the eval test harness and had silently never made it into the live app — the two copies are now one shared module so they cannot drift apart again.',
+      'That same safeguard is now general — it applies to any tool-backed claim (a project switch, a navigation, a mutation), not just todo/project code citations, closing the specific gap this bug exploited.',
+      'Fixed a second, related bug: the server-side project switch only matched exact names, a weaker duplicate of the fuzzy name matching shipped in v0.6.117 for the rest of the app. Both now share one resolver.',
+      'client_action\'s switch_project now takes a project name, not a code, consistent with how update_project and delete_project already work — closing an inconsistency in how Orb was told to address projects internally.',
+      'Extended the mutation verification protocol (present tense before a tool runs, confirm only after a real result) to cover navigation actions like switching projects, not just data mutations.',
+    ]
+  },
+  {
     version: 'v0.6.117',
     date: '2026-07-01',
     changes: [
