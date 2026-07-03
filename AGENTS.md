@@ -14,6 +14,7 @@ This app is a piece of art. Art and technique are inseparable — great art requ
 6. What AI Role are you?
 7. List every file from HANDOFF.md's "Uncommitted Changes" section that you re-read. Confirm all were loaded.
 8. What is the release documentation protocol for production releases? (Repeat the rule verbatim)
+9. Concurrency: answer from `docs/multi-agent-concurrency-protocol.md` (the single source of truth — do not answer from this file or from memory): (a) How many writable agents may work concurrently, and what makes an agent "writable"? (b) What must you do in `ACTIVE_WORK/` before starting any write/mutating work, and which file may you write to? (c) When is your claim removed? (d) Report any active claims currently in the other agent's ledger file.
 
 **Instructions:**
 - **Never build/implement changes without explicit permission/confirmation from Stan.**
@@ -352,15 +353,7 @@ Before any production release or code push, you must document all changes in the
 
 # Multi-Agent Concurrency Protocol (two writable agents)
 
-Two AI tools (currently Claude Code and Codex) may work in the main directory **at the same time**. This is governed by `docs/multi-agent-concurrency-protocol.md` — adopted 2026-07-02, binding. Read it before working concurrently. The load-bearing rules:
-
-1. **Ceiling: 2 writable agents.** An agent that edits repo files, runs evals, mutates DB state, or touches the dev server is writable. Read-only research agents don't count. Never add a third writable agent — the serialized lanes (release bookkeeping, dev server, migrations, Stan's verification) make it reduce throughput, not add it.
-2. **Active Work Ledger — `ACTIVE_WORK/`, read all, write one.** Before any write/mutating work: read every file in `ACTIVE_WORK/`, then append a claim block (timestamp, Surface, Files, Intent, `Long-running: yes/no`) to **your own** file (`claude-code.md` or `codex.md`). Never edit the other agent's file. Remove your claim when the work is **committed**. Template in `ACTIVE_WORK/README.md`.
-3. **Overlap = stop.** If the other agent's file claims the surface/files you want, pick different work or ask Stan. First claim wins. Claims older than 2 hours are stale (unless `Long-running: yes`, freshly timestamped) — note the staleness in your own file, verify no real uncommitted diff exists, then proceed.
-4. **`Release bookkeeping` claim is exclusive.** `HANDOFF.md`, `package.json`, `lib/version.ts`, `lib/changelog.ts` — one holder at a time. Take it only when staged and ready to commit; re-read the canonical `package.json` version immediately before bumping; commit promptly; release.
-5. **High-risk work gets a task branch** (required): migrations, broad refactors, dependency upgrades, bulk rewrites, cross-feature changes. The ledger claim is still required — branching and claiming are complementary.
-6. **Dev server/eval suite: single consumer.** Check the ledger before requesting an eval run. DB **schema** claims (DDL) are exclusive; DB **data** claims (content/maintenance) are declared but non-blocking.
-7. **Commit small and frequent** — one claim per commit where practical, to shorten the window a claim blocks the other agent.
+Two AI tools (currently Claude Code and Codex) may work in the main directory **at the same time**. This is governed by **`docs/multi-agent-concurrency-protocol.md`** — adopted 2026-07-02, binding, and the **single source of truth** for all concurrency rules (ceiling, `ACTIVE_WORK/` claim ledger, release bookkeeping, branch policy, arbitration, DB claims). Read that file before doing any write/mutating work when another agent may be active. Rules are deliberately not restated here — do not rely on memory or summaries; when in doubt, re-read the protocol doc.
 
 ---
 

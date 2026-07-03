@@ -1,6 +1,6 @@
 # Claude Code — Active Claims
 
-Written only by Claude Code. Rules: `ACTIVE_WORK/README.md`.
+Written only by Claude Code. Rules: `docs/multi-agent-concurrency-protocol.md`.
 
 ## Active Claims
 

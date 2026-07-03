@@ -1,8 +1,9 @@
 # Multi-Agent Concurrency Protocol
 
 **Status:** Adopted 2026-07-02 by Stan. Binding on all writable AI agents working in this repo.
-**Origin:** `docs/multi-agent-concurrency-protocol-proposal.md` — drafted by Claude Code, refined to consensus with Codex, approved by Stan. Consult the proposal only for history/rationale; this file is the operative rule set.
-**Referenced from:** `AGENTS.md` → "Multi-Agent Concurrency Protocol".
+**Amended 2026-07-02** (post-adoption polish, requested by Codex, approved by Stan): clarified claim-file commit semantics in §2 — claims are working-tree signals, not audit records.
+**Origin:** `docs/multi-agent-concurrency-protocol-proposal.md` — drafted by Claude Code, refined to consensus with Codex, approved by Stan. Consult the proposal only for history/rationale.
+**Single source of truth:** this file holds ALL concurrency rules. `AGENTS.md` ("Multi-Agent Concurrency Protocol") and `ACTIVE_WORK/README.md` are thin pointers to this file and deliberately restate nothing. Any change to the protocol is made **here only** — never introduce rule text, summaries, or templates in the pointer files, or they will drift.
 
 This protocol lets two AI tools (currently Claude Code and Codex) work in the Orb main directory **at the same time** without corrupting each other's work. The goal is not to prevent all overlap — it is to make overlap visible early enough to avoid it.
 
@@ -20,7 +21,7 @@ Root-level directory, tracked in git:
 
 ```text
 ACTIVE_WORK/
-  README.md        — template + condensed rules
+  README.md        — thin pointer to this document (no rule text)
   claude-code.md   — Claude Code's claims only
   codex.md         — Codex's claims only
 ```
@@ -31,7 +32,9 @@ ACTIVE_WORK/
 
 1. Read every file in `ACTIVE_WORK/`.
 2. Append a claim block to your own file: timestamp, **Surface** (conceptual feature area — Orb features routinely span actions/components/CSS/docs/changelog, so file paths alone are not enough), **Files** (paths/globs), one-line **Intent**, and `Long-running: yes/no`.
-3. Remove your claim block once the work is **committed** (not just finished in memory). Claim additions may ride along with the next real commit; removals happen with the commit that completes the claimed work.
+3. Remove your claim block in the **same commit that completes the claimed work** (not just when finished in memory).
+
+**Claim-file commit semantics:** claims are **real-time working-tree signals, not permanent audit records**. A claim normally exists only uncommitted while work is active — the other agent reads it from disk, so it never needs its own commit. The commit that completes the work removes the claim as part of that commit, leaving the agent's claim file back at `*(none)*` in committed state. If a long-running claim spans several small commits, intermediate commits may incidentally include the active claim — harmless, but not required or relied upon. Do **not** make separate claim/release commits; v1 deliberately keeps no audit history of claims (if that is ever wanted, it would require dedicated claim/release commits — not recommended).
 
 **Claim block format:**
 
