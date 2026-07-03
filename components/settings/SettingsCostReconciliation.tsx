@@ -29,7 +29,7 @@ function providerLabel(provider: string) {
   return PROVIDERS.find(option => option.value === provider)?.label ?? provider
 }
 
-export default function SettingsCostReconciliation({ onSaved }: { onSaved?: () => void }) {
+export default function SettingsCostReconciliation({ onLoaded, onSaved }: { onLoaded?: (success: boolean, error?: string) => void; onSaved?: () => void }) {
   const toast = useToast()
   const [items, setItems] = useState<OrbCostReconciliation[]>([])
   const [provider, setProvider] = useState('anthropic')
@@ -42,12 +42,14 @@ export default function SettingsCostReconciliation({ onSaved }: { onSaved?: () =
   async function load() {
     try {
       setItems(await getOrbCostReconciliations())
+      onLoaded?.(true)
     } catch (error) {
+      onLoaded?.(false, error instanceof Error ? error.message : 'Failed to load actual costs.')
       toast.error(error instanceof Error ? error.message : 'Failed to load actual costs.')
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function save() {
     setSaving(true)

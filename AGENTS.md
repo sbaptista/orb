@@ -59,6 +59,7 @@ The Knowledge Repo stores distilled lessons, decisions, and resolution notes acr
 - **API URL:** `https://livwkbnkdlrbmzgythys.supabase.co`
 - **Key:** `SUPABASE_SECRET_KEY` (service role) located in `/Users/stanleybaptista/Projects/orb/.env.local`
 - **Rule:** Bypasses RLS to guarantee complete results. Never query using the publishable/anon key.
+- **Network sandbox note:** If a required Knowledge Repo read hits a sandbox DNS/network failure, do not treat it as a blocker or re-diagnose it. Immediately retry the same read with network approval/escalation, then continue the task after the read succeeds.
 - **Schema:** Columns are `id`, `product_id`, `origin_todo_id`, `title`, `content`, `tags` (text[]), `created_at`, `updated_at`. There is no `project_id` column — use `product_id`.
 
 **Database table names:**
@@ -306,6 +307,28 @@ Test design decisions across all three form factors. When in doubt, err on the s
 - **New critical user-facing flow, or a flow found to have a latency problem** → add/update the relevant row in Part 2 (Flow/Performance Matrix) in the same change. A single slow flow is grounds to audit related flows, not just fix the one reported.
 - **Do not assume a blank cell is intentional.** If an object or flow has no coverage on some surface and the reason isn't already documented, ask Stan rather than guessing — record the answer in the matrix once given.
 - Do not defer this to a later session, same as the UI catalog and eval suite rules above.
+
+---
+
+# Performance Instrumentation — Build Rule
+
+Every new feature or meaningful behavior change must decide whether performance instrumentation is required before implementation. State the decision in the implementation plan or work summary.
+
+Instrumentation is required when the change does any of the following:
+- Adds or changes a user-clickable/tappable workflow, route transition, form submit, modal open/save/delete flow, bulk action, search/filter/sort/pagination path, voice interaction, login/auth step, or Settings page.
+- Adds or changes initialization work on route load, dashboard mount, Settings mount, app shell/provider mount, or background startup.
+- Adds a new server action, API route, Supabase query/RPC, model/TTS call, file/network request, or any sequential async chain that affects perceived user response.
+- Adds platform-dependent behavior where Mac, iPad, and iPhone may differ in latency, rendering cost, touch handling, or network behavior.
+- Touches an existing flow already listed in `docs/object-capability-matrix.md` Part 2 or `docs/orb-309-initialization-performance-plan.md`.
+- Is reported by Stan as slow, sluggish, delayed, stuck, or slow to initialize.
+
+Instrumentation is usually not required for copy-only changes, static documentation, purely visual CSS tweaks with no new interaction or loading path, type-only refactors, or dead-code deletion. If uncertain, instrument or explicitly ask Stan before building.
+
+When instrumentation is required:
+- Use the ORB-309 focus-area model (`auth`, `dashboard-init`, `dashboard-clicks`, `settings`, `voice`, `background`) rather than turning on every measurement indiscriminately.
+- Capture platform dimensions for Mac, iPad, and iPhone analysis.
+- Update `docs/object-capability-matrix.md` Part 2 when adding a new critical flow or changing performance coverage.
+- Use existing Settings/UI catalog patterns for any performance telemetry UI; do not invent parallel tables, search controls, modals, or CSS.
 
 ---
 

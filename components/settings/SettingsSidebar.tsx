@@ -9,6 +9,7 @@ const NAV: SidebarItem[] = [
   { id: 'voice',         href: '/settings/voice',         label: 'Voice',         icon: '🔊', active: false },
   { id: 'memory',     href: '/settings/memory',     label: 'AI Memory', icon: '🧠', active: false },
   { id: 'metrics',   href: '/settings/metrics',   label: 'AI Metrics', icon: '📊', active: false },
+  { id: 'performance', href: '/settings/performance', label: 'Performance', icon: '◷', active: false },
   { id: 'ai',        href: '/settings/ai',        label: 'AI Settings', icon: '◉', active: false },
   { id: 'projects',   href: '/settings/projects',   label: 'Projects',   icon: '◈', active: false },
   { id: 'users',      href: '/settings/users',      label: 'Users',      icon: '◎', active: false },
@@ -26,7 +27,7 @@ export default function SettingsSidebar({ isAdmin }: { isAdmin?: boolean }) {
   const pathname = usePathname()
   const items = NAV
     .filter(item => {
-      if (['users', 'invitations', 'tickets', 'maintenance', 'knowledge', 'memory', 'metrics', 'ai', 'audit'].includes(item.id)) return !!isAdmin
+      if (['users', 'invitations', 'tickets', 'maintenance', 'knowledge', 'memory', 'metrics', 'performance', 'ai', 'audit'].includes(item.id)) return !!isAdmin
       return true
     })
     .map(item => ({ ...item, active: pathname === item.href || pathname.startsWith(item.href + '/') }))

@@ -6,6 +6,136 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.137',
+    date: '2026-07-02',
+    changes: [
+      'Improved Performance Settings filters with visible captions, styled dropdown controls, narrow-width wrapping, and browser filtering/grouping in the Latency Summary.',
+      'Added spacing and numeric alignment to the Latency Summary table so platform, browser, count, percentile, and max cells no longer run together.',
+    ]
+  },
+  {
+    version: 'v0.6.136',
+    date: '2026-07-02',
+    changes: [
+      'Fixed Performance Settings narrow-width layout so the Matching Events, Slowest P95, Worst Platform, and Recording summary cards remain visible instead of being hidden by the generic metrics mobile rule.',
+    ]
+  },
+  {
+    version: 'v0.6.135',
+    date: '2026-07-02',
+    changes: [
+      'Extended ORB-309 performance instrumentation to the main dashboard click surface: project switching now records click-to-list-settled timing, list sort/filter/view changes are measured, todo create/edit/delete/toggle/status/bulk actions record round-trip timings, project create/update/delete is timed, and Orb submit plus voice start now emit stage-level telemetry.',
+      'Updated the object capability performance matrix so project switch and todo CRUD are tracked as instrumented dashboard-click flows with baselines still pending.',
+    ]
+  },
+  {
+    version: 'v0.6.134',
+    date: '2026-07-02',
+    changes: [
+      'Clarified the Performance Settings Latency Summary copy with inline definitions for latency, Settings focus, flow, count, and P50/P75/P95 percentile timings.',
+    ]
+  },
+  {
+    version: 'v0.6.133',
+    date: '2026-07-02',
+    changes: [
+      'Improved the Performance Settings UX: measurement controls and filters now wrap cleanly on narrow Settings layouts, the latency summary has a clear title and explanation, summary rows convert to mobile cards, event rows use the established CRUD card styling on mobile, and table column navigation uses the existing Settings column-control pattern instead of pagination controls.',
+      'Updated the UI catalog with the Performance telemetry responsive classes and clarified that `crud-scroll-controls` is the existing column controller for horizontally overflowing Settings tables.',
+    ]
+  },
+  {
+    version: 'v0.6.132',
+    date: '2026-07-02',
+    changes: [
+      'Added central SettingsCrudList performance instrumentation for initial/search/filter/sort/pagination loads plus modal open/close, add, save, delete, move, and bulk-delete actions, so Settings pages inherit ORB-309 timing coverage without one-off wiring.',
+      'Updated the ORB-309 plan and object capability matrix to reflect the implemented telemetry foundation and remaining performance-measurement gaps before optimization work begins.',
+    ]
+  },
+  {
+    version: 'v0.6.131',
+    date: '2026-07-02',
+    changes: [
+      'Added a full perceived AI Metrics page-load measurement from Settings navigation through component mount, AI accounting load, metrics table load, and provider reconciliation load, so ORB-309 captures the multi-second wait Stan sees rather than only one individual server action.',
+    ]
+  },
+  {
+    version: 'v0.6.130',
+    date: '2026-07-02',
+    changes: [
+      'Fixed the Performance Event detail modal layout so summary fields and JSON textareas render as separated readable cards instead of overlapping labels and controls.',
+    ]
+  },
+  {
+    version: 'v0.6.129',
+    date: '2026-07-02',
+    changes: [
+      'Restyled the Performance Settings measurement controls so browser recording state, sample rate, focus areas, and probe/flush actions are visually distinct instead of reading like plain run-on text.',
+    ]
+  },
+  {
+    version: 'v0.6.128',
+    date: '2026-07-02',
+    changes: [
+      'Made AI Metrics and Settings navigation performance events flush immediately after measurement so short-lived page transitions cannot leave ORB-309 timings sitting in the browser queue.',
+    ]
+  },
+  {
+    version: 'v0.6.127',
+    date: '2026-07-02',
+    changes: [
+      'Fixed an ORB-309 telemetry setup gap for existing browsers: previously saved focus-area selections now get the new Settings focus added once, and the Performance Settings page warns when Settings focus is off so Settings navigation/page-load measurements do not fail silently.',
+    ]
+  },
+  {
+    version: 'v0.6.126',
+    date: '2026-07-02',
+    changes: [
+      'Extended ORB-309 instrumentation to Settings navigation and AI Metrics loads, including the AI accounting server actions and the paged metrics table load, lowered the browser telemetry flush delay, and made local HTTPS dev tolerate the self-signed certificate used by the dev server so Server Action responses do not fail certificate verification.',
+    ]
+  },
+  {
+    version: 'v0.6.125',
+    date: '2026-07-02',
+    changes: [
+      'Hardened the ORB-309 performance collector after live dev testing: server-side ingestion now generates a valid correlation ID when the browser does not provide one, returns the real insert message in development, and the Performance Settings page includes probe/flush controls so collection failures are visible immediately.',
+    ]
+  },
+  {
+    version: 'v0.6.124',
+    date: '2026-07-02',
+    changes: [
+      'Built the first ORB-309 performance instrumentation slice: performance_events migration, sanitized ingestion API, client telemetry helper with focus areas and platform metadata, admin Performance Settings page using existing SettingsCrudList/search/modal patterns, and initial auth/dashboard-init timing hooks.',
+    ]
+  },
+  {
+    version: 'v0.6.123',
+    date: '2026-07-02',
+    changes: [
+      'Added a standing performance-instrumentation build rule to AGENTS and ORB-309: every new feature or meaningful behavior change must decide whether timing instrumentation is required, with explicit criteria covering clickable flows, initialization work, async chains, platform-dependent behavior, and Stan-reported slowness.',
+    ]
+  },
+  {
+    version: 'v0.6.122',
+    date: '2026-07-02',
+    changes: [
+      'Refined the ORB-309 performance plan to require focus-area telemetry controls, a full Settings page for performance events using existing SettingsCrudList/search/modal patterns, and platform-specific Mac/iPad/iPhone analysis as a first-class requirement.',
+    ]
+  },
+  {
+    version: 'v0.6.121',
+    date: '2026-07-02',
+    changes: [
+      'Added the ORB-309 initialization and interaction performance instrumentation plan, covering dev/production toggles, durable timing logs, stage-level measurements, click-surface coverage, database impact, and a phased build path before optimization.',
+    ]
+  },
+  {
+    version: 'v0.6.120',
+    date: '2026-07-02',
+    changes: [
+      'Documented the expected Knowledge Repo sandbox DNS/network failure path for agents: retry the required read with network approval/escalation immediately instead of re-diagnosing the same roadblock each session.',
+    ]
+  },
+  {
     version: 'v0.6.119',
     date: '2026-07-01',
     changes: [

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
 import DateSearchModal, { type CreatedFilter } from './DateSearchModal'
@@ -10,6 +10,7 @@ import { getAiCostSummary, type AiCostDateMode, type AiCostSummary } from '@/app
 import { getOrbAiSettings, saveOrbModelRateCard } from '@/app/actions/orb-ai-settings'
 import type { OrbModelRateCard } from '@/lib/orb-model/policy'
 import { useToast } from '@/components/ui/Toast'
+import { getPerformanceNavigationStart, startInteraction } from '@/lib/performance/telemetry'
 
 type MetricsRow = {
   id: string
@@ -142,6 +143,8 @@ function estimateTTSCost(chars: number): string {
 export default function SettingsMetrics() {
   const toast = useToast()
   const timeZone = useSyncExternalStore(subscribeToTimeZone, getBrowserTimeZone, () => 'UTC')
+  const fullLoadPerf = useRef<ReturnType<typeof startInteraction> | null>(null)
+  const fullLoadState = useRef({ accounting: false, table: false, reconciliation: false, ended: false })
 
   const [showTextSearch, setShowTextSearch] = useState(false)
   const [textSearchTerm, setTextSearchTerm] = useState('')
@@ -157,8 +160,54 @@ export default function SettingsMetrics() {
   const [aiMonth, setAiMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [aiModelKey, setAiModelKey] = useState('all')
 
-  async function loadAiAccounting() {
+  function markFullLoad(part: 'accounting' | 'table' | 'reconciliation', success: boolean, failureCode?: string | null) {
+    const perf = fullLoadPerf.current
+    if (!perf || fullLoadState.current.ended) return
+    perf.mark(`${part}_${success ? 'completed' : 'failed'}`)
+    if (!success) {
+      fullLoadState.current.ended = true
+      perf.end(false, failureCode ?? `${part}_failed`, { failedPart: part })
+      return
+    }
+    fullLoadState.current[part] = true
+    if (fullLoadState.current.accounting && fullLoadState.current.table && fullLoadState.current.reconciliation) {
+      fullLoadState.current.ended = true
+      perf.end(true)
+    }
+  }
+
+  useEffect(() => {
+    fullLoadState.current = { accounting: false, table: false, reconciliation: false, ended: false }
+    fullLoadPerf.current = startInteraction({
+      focus: 'settings',
+      flow: 'settings-ai-metrics',
+      interaction: 'page_full_load',
+      surface: 'settings-metrics',
+      startTimeMs: getPerformanceNavigationStart('/settings/metrics') ?? undefined,
+      immediateFlush: true,
+    })
+    fullLoadPerf.current.mark('component_mounted')
+    return () => {
+      if (!fullLoadState.current.ended) {
+        fullLoadState.current.ended = true
+        fullLoadPerf.current?.end(false, 'unmounted_before_full_load')
+      }
+    }
+  }, [])
+
+  const loadAiAccounting = useCallback(async () => {
     setAccountingLoading(true)
+    const perf = startInteraction({
+      focus: 'settings',
+      flow: 'settings-ai-metrics',
+      interaction: 'ai_accounting_load',
+      surface: 'settings-metrics',
+      immediateFlush: true,
+      metadata: {
+        dateMode: aiDateMode,
+        modelKey: aiModelKey,
+      },
+    })
     try {
       const [summary, settings] = await Promise.all([
         getAiCostSummary({
@@ -170,16 +219,21 @@ export default function SettingsMetrics() {
         }),
         getOrbAiSettings(),
       ])
+      perf.mark('server_actions_completed')
       setCostSummary(summary)
       setRateCards(settings.rateCards)
+      markFullLoad('accounting', true)
+      perf.end(true, null, { requestCount: summary.requestCount, rateCards: settings.rateCards.length })
     } catch (error) {
+      markFullLoad('accounting', false, error instanceof Error ? error.message : 'ai_accounting_load_failed')
+      perf.end(false, error instanceof Error ? error.message : 'ai_accounting_load_failed')
       toast.error(error instanceof Error ? error.message : 'Failed to load AI cost accounting.')
     } finally {
       setAccountingLoading(false)
     }
-  }
+  }, [aiDateMode, aiDateFrom, aiDateTo, aiMonth, aiModelKey, toast])
 
-  useEffect(() => { loadAiAccounting() }, [aiDateMode, aiDateFrom, aiDateTo, aiMonth, aiModelKey])
+  useEffect(() => { loadAiAccounting() }, [loadAiAccounting])
 
   function patchRateCard(id: string, patch: Partial<EditableRateCard>) {
     setRateCards(cards => cards.map(card => card.id === id ? { ...card, ...patch } : card))
@@ -480,7 +534,7 @@ export default function SettingsMetrics() {
           },
           externalSearchTerm: textSearchTerm,
           searchCaption: 'Actions',
-          externalFilterActive: !!textSearchTerm || !!dateFilter,
+          externalFilterActive: hasAnyFilter,
           tableNavCaption: 'prev/next columns',
           externalFilterKey: `${dateFilter?.from ?? ''}|${dateFilter?.to ?? ''}|${dateFilter?.before ?? ''}`,
           onResetFilters: resetAll,
@@ -537,6 +591,20 @@ export default function SettingsMetrics() {
           ],
 
           load: async (_supabase, pagination) => {
+            const perf = startInteraction({
+              focus: 'settings',
+              flow: 'settings-ai-metrics',
+              interaction: 'metrics_table_load',
+              surface: 'settings-metrics',
+              immediateFlush: true,
+              metadata: {
+                page: pagination?.page ?? 0,
+                sortKey: pagination?.sortKey ?? 'date',
+                sortDir: pagination?.sortDir ?? 'desc',
+                search: Boolean(pagination?.search),
+                dateFilter: Boolean(dateFilter),
+              },
+            })
             const res = await getOrbMetrics({
               page: pagination?.page,
               pageSize: pagination?.pageSize,
@@ -547,9 +615,16 @@ export default function SettingsMetrics() {
               createdTo: dateFilter?.to,
               createdBefore: dateFilter?.before,
             })
-            if (res.error) throw new Error(res.error)
+            if (res.error) {
+              markFullLoad('table', false, res.error)
+              perf.end(false, res.error)
+              throw new Error(res.error)
+            }
+            perf.mark('server_action_completed')
             const items = (res.data ?? []) as MetricsRow[]
             setSummaryData((res.summary ?? []) as MetricsSummaryRow[])
+            markFullLoad('table', true)
+            perf.end(true, null, { rows: items.length, total: res.count ?? 0 })
             return {
               items,
               totalCount: res.count ?? 0,
@@ -622,7 +697,7 @@ export default function SettingsMetrics() {
         onClear={() => { setDateFilter(null); setShowDateFilter(false) }}
         currentFilter={dateFilter}
       />
-      <SettingsCostReconciliation onSaved={loadAiAccounting} />
+      <SettingsCostReconciliation onLoaded={(success, error) => markFullLoad('reconciliation', success, error)} onSaved={loadAiAccounting} />
     </>
   )
 }

@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/Toast'
 import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
 import { useDirtyForm } from '@/lib/hooks/useDirtyForm'
 import EditorModal from '@/components/ui/EditorModal'
+import { startInteraction } from '@/lib/performance/telemetry'
 
 type Props = {
   todo: Todo
@@ -86,8 +87,17 @@ export default function TodoPanel({
   })()
 
   async function handleSave(andClose = false): Promise<boolean> {
+    const measurement = startInteraction({
+      focus: 'dashboard-clicks',
+      flow: 'dashboard-todos',
+      interaction: 'todo_panel_save',
+      surface: 'dashboard',
+      immediateFlush: true,
+      metadata: { todoId: todo.id, projectId: form.product_id, status: form.status, closesModal: andClose },
+    })
     setSaving(true)
     const beforeUrgency = await getUrgencySnapshot()
+    measurement.mark('urgency_snapshot_loaded')
     const urls = normalizedUrls(urlInput)
     const { data, error: err } = await supabase
       .from('todos')
@@ -110,13 +120,15 @@ export default function TodoPanel({
       .eq('id', todo.id)
       .select('*, groups(name), categories(name)')
       .single()
+    measurement.mark('supabase_update_completed')
     setSaving(false)
     // Fire-and-forget: check urgency escalation
     if (beforeUrgency) notifyIfEscalated(beforeUrgency)
     if (err) {
-      if (isAuthError(err.message)) { handleSessionExpired(toast); return false }
+      if (isAuthError(err.message)) { measurement.end(false, 'auth_error'); handleSessionExpired(toast); return false }
       const isRLS = err.message?.includes('row-level security') || err.code === 'PGRST116'
       toast.error(isRLS ? 'You do not have permission to modify this item.' : 'Failed to save. Try again.')
+      measurement.end(false, 'todo_panel_save_failed', { error: err.message })
       return false
     }
     if (data) {
@@ -137,18 +149,30 @@ export default function TodoPanel({
       } else if (andClose) {
         onClose()
       }
+      measurement.end(true, null, { todoId: data.id, justClosed })
       return true
     }
+    measurement.end(false, 'todo_panel_save_no_data')
     return false
   }
 
   async function handleDelete() {
+    const measurement = startInteraction({
+      focus: 'dashboard-clicks',
+      flow: 'dashboard-todos',
+      interaction: 'todo_panel_delete',
+      surface: 'dashboard',
+      immediateFlush: true,
+      metadata: { todoId: todo.id, projectId: todo.product_id, status: todo.status },
+    })
     setDeleting(true)
     const beforeUrgency = await getUrgencySnapshot()
+    measurement.mark('urgency_snapshot_loaded')
     const { error: err } = await supabase.from('todos').delete().eq('id', todo.id)
+    measurement.mark('supabase_delete_completed')
     if (err) {
-      if (isAuthError(err.message)) { handleSessionExpired(toast); return }
-      toast.error('Failed to delete. Try again.'); setDeleting(false); return
+      if (isAuthError(err.message)) { measurement.end(false, 'auth_error'); handleSessionExpired(toast); return }
+      toast.error('Failed to delete. Try again.'); setDeleting(false); measurement.end(false, 'todo_panel_delete_failed', { error: err.message }); return
     }
     logAudit({
       action: 'todo_delete',
@@ -161,6 +185,7 @@ export default function TodoPanel({
     toast.success('Todo deleted.')
     if (beforeUrgency) notifyIfEscalated(beforeUrgency)
     onDelete(todo.id)
+    measurement.end(true)
   }
 
   function copyId() {

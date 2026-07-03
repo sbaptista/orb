@@ -27,6 +27,7 @@ Legend: ✅ covered · 🟡 covered but unverified/low-confidence · ⚠️ fall
 | **priorities** | ✅ `priorities` | ❌ no Orb tool | ✅ (read fallback only) | ❌ none | ❌ **no Settings page at all** | — | ❌ none | ❌ none found |
 | **invitations** | ✅ `invitations` | ❌ deliberately excluded (sensitive, per `DB_SCHEMA` comment) | ❌ excluded | ❌ none | ✅ `SettingsInvitations` — `onDelete`+`onResend`+`onCopyDecline` (revoke/resend model, not plain update) | — | ❌ none | ❌ none found |
 | **users** | ✅ `users` | ❌ deliberately excluded (sensitive) | ❌ excluded | ❌ none | ✅ `SettingsUsers`/`SettingsUserDetail` — `onEdit`+`onDelete`+`canDelete`; create is via signup/invitation, not direct | — | ❌ none | ❌ none found |
+| **performance_events** | ✅ `performance_events` | ❌ no Orb tool; telemetry system-owned | ❌ not in `ALLOWED_TABLES` | 🟡 create-only `/api/performance-events` ingestion endpoint, not external-agent CRUD | ✅✅✅✅ `SettingsPerformance` — full admin CRUD/search/filter/sort/detail for telemetry rows | — | ❌ none | ❌ none found |
 
 ### Deliberate exclusions (not gaps)
 `users` and `invitations` are intentionally kept out of Orb tools and `query_db` — `lib/db-schema.ts`'s own `DB_SCHEMA` comment marks them `EXCLUDED (sensitive)`. Confirmed by design, not by omission.
@@ -50,17 +51,17 @@ Speed is a flow property, not an object property — login isn't one of the 11 d
 
 | Flow | Instrumented? | Measured baseline | Budget/target | Known issues |
 |---|---|---|---|---|
-| **Login/auth → app visible** | ❌ no timing instrumentation found | Unmeasured | TBD | Stan-reported: "sometimes much longer than it should be" — see **ORB-304** |
-| **Initial dashboard load** (products + todos fetch) | ❌ | Unmeasured | TBD | — |
-| **Project switch** | ❌ | Unmeasured | TBD | — |
-| **Settings page loads** | ❌ | Unmeasured | TBD | — |
+| **Login/auth → app visible** | 🟡 initial `auth` focus instrumentation added for login mount, passkey, OTP request, OTP verify | Baseline pending | TBD | Stan-reported: "sometimes much longer than it should be" — see **ORB-304/ORB-309** |
+| **Initial dashboard load** (products + todos fetch) | 🟡 initial `dashboard-init` instrumentation added for client profile/projects/priorities/statuses/todo loads | Baseline pending | TBD | — |
+| **Project switch** | 🟡 dashboard click instrumentation added for project selection through resulting list-settled timing | Baseline pending | TBD | — |
+| **Settings page loads and CRUD** | 🟡 central Settings CRUD instrumentation added for initial/search/filter/sort/pagination loads plus modal/add/save/delete/move/bulk actions; Settings navigation and AI Metrics full page load instrumented | Early dev samples visible for Performance Settings and AI Metrics; production baseline pending | TBD after p50/p75/p95 by platform | AI Metrics still feels slower than first table-action sample showed; full perceived page-load event now captures the broader wait |
 | **Voice-mode start** (greeting latency) | ❌ | Unmeasured | TBD | Per HANDOFF.md "Next Priorities" — latency breakdown by stage already flagged as needed |
-| **Todo CRUD round-trip** (confirm → execute → UI update) | ❌ | Unmeasured | TBD | — |
+| **Todo CRUD round-trip** (confirm → execute → UI update) | 🟡 dashboard click instrumentation added for create, panel save/delete, toggle done, status move, bulk close/delete, sort/filter/view/list controls, and project create/update/delete | Baseline pending | TBD | — |
 
-**Tracked:** **ORB-304** — Systematic time-to-interactive instrumentation across critical flows. Login is the first known case, not the whole scope.
+**Tracked:** **ORB-304** — Systematic time-to-interactive instrumentation across critical flows. **ORB-309** — Improve Initialization Speed, the concrete follow-up to measure all user-clickable initialization/interaction paths in both dev and production. Login is the first known case, not the whole scope.
 
 ---
 
 ## Maintenance
 
-See AGENTS.md → "Object Capability Matrix — Maintenance Rule." Short version: touching any object's mutation surface (new table, new Orb tool, new REST endpoint, new Settings page, new eval case) or any critical flow updates this file in the same change.
+See AGENTS.md → "Object Capability Matrix — Maintenance Rule" and "Performance Instrumentation — Build Rule." Short version: touching any object's mutation surface (new table, new Orb tool, new REST endpoint, new Settings page, new eval case) or any critical flow updates this file in the same change, and new user-facing functionality must explicitly decide whether performance instrumentation is required.

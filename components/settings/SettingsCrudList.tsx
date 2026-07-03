@@ -10,10 +10,47 @@ import FilterKebab from '@/components/ui/FilterKebab'
 import EditorModal from '@/components/ui/EditorModal'
 import PaginationController from '@/components/ui/PaginationController'
 import SearchController from '@/components/ui/SearchController'
+import { startInteraction } from '@/lib/performance/telemetry'
 
 export type EditorSearchMatch = { label: string; value: string }
 
 const PILL_THRESHOLD = 4
+
+type CrudLoadParams = {
+  page: number
+  pageSize?: number
+  serverSearchTerm: string
+  sortKey: string | null
+  sortDir: 'asc' | 'desc'
+  usesServerSearch: boolean
+  usesServerSort: boolean
+  activeCursor: string | null
+  usesCursorPagination: boolean
+  externalFilterKey?: string
+}
+
+function crudLoadInteraction(params: CrudLoadParams) {
+  if (params.serverSearchTerm.trim()) return 'crud_search_load'
+  if (params.externalFilterKey) return 'crud_filter_load'
+  if (params.page > 0 || params.activeCursor) return 'crud_pagination_load'
+  if (params.sortKey) return 'crud_sort_load'
+  return 'crud_initial_load'
+}
+
+function crudMetadata<T, F>(config: CrudConfig<T, F>, extras: Record<string, string | number | boolean | null | undefined> = {}) {
+  const metadata: Record<string, string | number | boolean | null> = {
+    table: config.table,
+    title: config.title,
+    itemLabel: config.itemLabel,
+    layout: config.layout ?? 'list',
+    hasCustomLoader: !!config.load,
+    hasServerPagination: !!config.pagination,
+  }
+  for (const [key, value] of Object.entries(extras)) {
+    if (value !== undefined) metadata[key] = value
+  }
+  return metadata
+}
 
 export function highlightText(node: React.ReactNode, term: string): React.ReactNode {
   if (!term) return node
@@ -390,15 +427,30 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
 
   // --- Stable load function (reads params from refs/current values) -------
   const activeCursor = cursorHistory[page] ?? null
-  const loadParamsRef = useRef({ page, pageSize, serverSearchTerm, sortKey, sortDir, usesServerSearch, usesServerSort, activeCursor, usesCursorPagination })
-  loadParamsRef.current = { page, pageSize, serverSearchTerm, sortKey, sortDir, usesServerSearch, usesServerSort, activeCursor, usesCursorPagination }
+  const loadParamsRef = useRef<CrudLoadParams>({ page, pageSize, serverSearchTerm, sortKey, sortDir, usesServerSearch, usesServerSort, activeCursor, usesCursorPagination, externalFilterKey })
+  loadParamsRef.current = { page, pageSize, serverSearchTerm, sortKey, sortDir, usesServerSearch, usesServerSort, activeCursor, usesCursorPagination, externalFilterKey }
 
   const load = useCallback(async () => {
     const requestId = ++loadRequestId.current
     setLoading(true)
+    const cfg = configRef.current
+    const p = loadParamsRef.current
+    const measurement = startInteraction({
+      focus: 'settings',
+      flow: `settings-${cfg.table}`,
+      interaction: crudLoadInteraction(p),
+      surface: cfg.title,
+      immediateFlush: true,
+      metadata: crudMetadata(cfg, {
+        page: p.page,
+        pageSize: p.pageSize,
+        searchActive: !!p.serverSearchTerm.trim(),
+        sortActive: !!p.sortKey,
+        filterActive: !!p.externalFilterKey,
+        cursorPagination: p.usesCursorPagination,
+      }),
+    })
     try {
-      const cfg = configRef.current
-      const p = loadParamsRef.current
       if (cfg.load) {
         const paginationArg = p.pageSize ? {
           page: p.page,
@@ -409,23 +461,41 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           cursor: p.usesCursorPagination ? p.activeCursor : null,
         } : undefined
         const result = await cfg.load(supabase, paginationArg)
-        if (requestId !== loadRequestId.current) return
+        measurement.mark('custom_loader_completed')
+        if (requestId !== loadRequestId.current) {
+          measurement.end(false, 'stale_request', { staleRequest: true })
+          return
+        }
         setItems(result.items)
         if (result.extra) setExtra(result.extra)
         if (result.totalCount !== undefined) setTotalCount(result.totalCount)
         if (p.usesCursorPagination) setNextCursor(result.nextCursor ?? null)
         setError('')
+        measurement.end(true, null, {
+          rowCount: result.items.length,
+          totalCount: result.totalCount ?? result.items.length,
+          hasNextCursor: !!result.nextCursor,
+        })
       } else {
         const { data, error: loadError } = await supabase.from(cfg.table).select('*').order(cfg.orderBy ?? 'sort_order')
         if (loadError) throw loadError
-        if (requestId !== loadRequestId.current) return
+        measurement.mark('supabase_select_completed')
+        if (requestId !== loadRequestId.current) {
+          measurement.end(false, 'stale_request', { staleRequest: true })
+          return
+        }
         setItems(data ?? [])
         setError('')
+        measurement.end(true, null, { rowCount: data?.length ?? 0 })
       }
     } catch (loadError) {
-      if (requestId !== loadRequestId.current) return
+      if (requestId !== loadRequestId.current) {
+        measurement.end(false, 'stale_request', { staleRequest: true })
+        return
+      }
       const message = loadError instanceof Error ? loadError.message : String(loadError)
       setError(`Could not load ${configRef.current.title}: ${message}`)
+      measurement.end(false, 'load_failed', { error: message })
     } finally {
       if (requestId === loadRequestId.current) setLoading(false)
     }
@@ -513,6 +583,14 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const usePills = allScopes.length <= PILL_THRESHOLD
 
   function openAddModal() {
+    const measurement = startInteraction({
+      focus: 'settings',
+      flow: `settings-${config.table}`,
+      interaction: 'crud_modal_open',
+      surface: config.title,
+      immediateFlush: true,
+      metadata: crudMetadata(config, { mode: 'add' }),
+    })
     let form = { ...config.emptyForm }
     if (config.scopeFilter?.applyToForm) {
       form = config.scopeFilter.applyToForm(form, scope)
@@ -523,10 +601,19 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     setConfirmDeleteId(null)
     setError('')
     setOpenSearchMatch(null)
+    measurement.end(true)
   }
 
   function openEditModal(item: T) {
     if (!config.toForm || !config.renderForm) return
+    const measurement = startInteraction({
+      focus: 'settings',
+      flow: `settings-${config.table}`,
+      interaction: 'crud_modal_open',
+      surface: config.title,
+      immediateFlush: true,
+      metadata: crudMetadata(config, { mode: 'edit', itemId: config.getId(item) }),
+    })
     const form = config.toForm(item)
     setEditingId(config.getId(item))
     editor.begin(form)
@@ -534,25 +621,44 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     setConfirmDeleteId(null)
     setError('')
     setOpenSearchMatch(null)
+    measurement.end(true)
   }
 
   function closeModal() {
+    const measurement = startInteraction({
+      focus: 'settings',
+      flow: `settings-${config.table}`,
+      interaction: 'crud_modal_close',
+      surface: config.title,
+      immediateFlush: true,
+      metadata: crudMetadata(config, { mode: modalMode, dirty: isDirty }),
+    })
     setModalMode(null)
     setEditingId(null)
     setError('')
     setOpenSearchMatch(null)
     config.onClose?.()
+    measurement.end(true)
   }
 
   async function handleAdd(): Promise<boolean> {
     if (!config.toRecord) return false
+    const measurement = startInteraction({
+      focus: 'settings',
+      flow: `settings-${config.table}`,
+      interaction: 'crud_add',
+      surface: config.title,
+      immediateFlush: true,
+      metadata: crudMetadata(config),
+    })
     const err = config.validate?.(modalForm, items, null)
-    if (err) { setError(err); return false }
+    if (err) { setError(err); measurement.end(false, 'validation_failed'); return false }
     setSaving(true)
     setError('')
     try {
       if (config.onAdd) {
         await config.onAdd(supabase, config.toRecord(modalForm, items), items)
+        measurement.mark('custom_add_completed')
         toast.success(`${config.itemLabel} added.`)
         await load()
       } else {
@@ -561,7 +667,8 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           .insert(config.toRecord(modalForm, items))
           .select()
           .single()
-        if (dbErr) { setError(dbErr.message); setSaving(false); return false }
+        measurement.mark('supabase_insert_completed')
+        if (dbErr) { setError(dbErr.message); setSaving(false); measurement.end(false, 'insert_failed', { error: dbErr.message }); return false }
         if (data) {
           toast.success(`${config.itemLabel} added.`)
           setItems(prev => [...prev, data as T])
@@ -571,22 +678,33 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
       setSaving(false)
+      measurement.end(false, 'add_failed', { error: msg })
       return false
     }
     setSaving(false)
     closeModal()
+    measurement.end(true)
     return true
   }
 
   async function handleSave(id: string, closeAfterSave: boolean): Promise<boolean> {
     if (!config.toRecord) return false
+    const measurement = startInteraction({
+      focus: 'settings',
+      flow: `settings-${config.table}`,
+      interaction: 'crud_save',
+      surface: config.title,
+      immediateFlush: true,
+      metadata: crudMetadata(config, { itemId: id, closeAfterSave }),
+    })
     const err = config.validate?.(modalForm, items, id)
-    if (err) { setError(err); return false }
+    if (err) { setError(err); measurement.end(false, 'validation_failed'); return false }
     setSaving(true)
     setError('')
     try {
       if (config.onSave) {
         await config.onSave(supabase, id, config.toRecord(modalForm, items), items)
+        measurement.mark('custom_save_completed')
         toast.success(`${config.itemLabel} saved.`)
         await load()
       } else {
@@ -596,7 +714,8 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           .eq(idCol, id)
           .select()
           .single()
-        if (dbErr) { setError(dbErr.message); setSaving(false); return false }
+        measurement.mark('supabase_update_completed')
+        if (dbErr) { setError(dbErr.message); setSaving(false); measurement.end(false, 'update_failed', { error: dbErr.message }); return false }
         if (data) {
           toast.success(`${config.itemLabel} saved.`)
           setItems(prev => prev.map(item => config.getId(item) === id ? data as T : item))
@@ -605,42 +724,74 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     } catch (e: any) {
       setError(e.message)
       setSaving(false)
+      measurement.end(false, 'save_failed', { error: e.message })
       return false
     }
     setSaving(false)
     if (closeAfterSave) closeModal()
     else editor.markSaved()
+    measurement.end(true)
     return true
   }
 
   async function handleDelete(item: T) {
+    const id = config.getId(item)
+    const measurement = startInteraction({
+      focus: 'settings',
+      flow: `settings-${config.table}`,
+      interaction: 'crud_delete',
+      surface: config.title,
+      immediateFlush: true,
+      metadata: crudMetadata(config, { itemId: id }),
+    })
     setSaving(true)
-    if (config.onDelete) {
-      await config.onDelete(supabase, item, items)
+    setError('')
+    try {
+      if (config.onDelete) {
+        await config.onDelete(supabase, item, items)
+        measurement.mark('custom_delete_completed')
+        toast.success(`${config.itemLabel} deleted.`)
+        setConfirmDeleteId(null)
+        await load()
+      } else {
+        if (config.onBeforeDelete) await config.onBeforeDelete(supabase, item)
+        const { error: dbErr } = await supabase.from(config.table).delete().eq(idCol, id)
+        measurement.mark('supabase_delete_completed')
+        if (dbErr) throw dbErr
+        toast.success(`${config.itemLabel} deleted.`)
+        setItems(prev => prev.filter(i => config.getId(i) !== id))
+        setConfirmDeleteId(null)
+      }
+      measurement.end(true)
+    } catch (err: any) {
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message)
+      measurement.end(false, 'delete_failed', { error: message })
+    } finally {
       setSaving(false)
-      toast.success(`${config.itemLabel} deleted.`)
-      setConfirmDeleteId(null)
-      load()
-    } else {
-      const id = config.getId(item)
-      if (config.onBeforeDelete) await config.onBeforeDelete(supabase, item)
-      await supabase.from(config.table).delete().eq(idCol, id)
-      setSaving(false)
-      toast.success(`${config.itemLabel} deleted.`)
-      setItems(prev => prev.filter(i => config.getId(i) !== id))
-      setConfirmDeleteId(null)
     }
   }
 
   async function handleMove(item: T, direction: 'up' | 'down') {
     if (!config.onMove) return
+    const measurement = startInteraction({
+      focus: 'settings',
+      flow: `settings-${config.table}`,
+      interaction: 'crud_move',
+      surface: config.title,
+      immediateFlush: true,
+      metadata: crudMetadata(config, { itemId: config.getId(item), direction }),
+    })
     setSaving(true)
     setError('')
     try {
       await config.onMove(supabase, item, items, direction)
+      measurement.mark('custom_move_completed')
       await load()
+      measurement.end(true)
     } catch (err: any) {
       setError(`Failed to move: ${err.message}`)
+      measurement.end(false, 'move_failed', { error: err.message })
     }
     setSaving(false)
   }
@@ -659,14 +810,31 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     const count = selectedIds.length
     const msg = config.bulkDelete.confirmMessage?.(count) ?? `Permanently delete ${count} item${count > 1 ? 's' : ''}? This cannot be undone.`
     if (!confirm(msg)) return
+    const measurement = startInteraction({
+      focus: 'settings',
+      flow: `settings-${config.table}`,
+      interaction: 'crud_bulk_delete',
+      surface: config.title,
+      immediateFlush: true,
+      metadata: crudMetadata(config, { selectedCount: count }),
+    })
     setSaving(true)
     const toDelete = displayed.filter(item => selectedIds.includes(config.getId(item)))
-    const res = await config.bulkDelete.onDelete(supabase, toDelete)
-    setSaving(false)
-    if (res.error) { toast.error(res.error); return }
-    toast.success(`${count} item${count > 1 ? 's' : ''} deleted.`)
-    setSelectedIds([])
-    load()
+    try {
+      const res = await config.bulkDelete.onDelete(supabase, toDelete)
+      measurement.mark('custom_bulk_delete_completed')
+      setSaving(false)
+      if (res.error) { toast.error(res.error); measurement.end(false, 'bulk_delete_failed', { error: res.error }); return }
+      toast.success(`${count} item${count > 1 ? 's' : ''} deleted.`)
+      setSelectedIds([])
+      await load()
+      measurement.end(true)
+    } catch (err: any) {
+      const message = err instanceof Error ? err.message : String(err)
+      setSaving(false)
+      toast.error(message)
+      measurement.end(false, 'bulk_delete_failed', { error: message })
+    }
   }
 
   function resetPagination() {
@@ -1181,28 +1349,31 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
             </div>
           )}
           {isTable && !(hasMobileCards && cardRendererActive) && tableOverflows && (
-            <PaginationController info={config.tableNavCaption ?? 'Prev/Next Columns'}>
-              <button
-                type="button"
-                className="nav-circle-btn"
-                onClick={() => { if (canScrollTableLeft) scrollTable(-1) }}
-                aria-disabled={!canScrollTableLeft}
-                aria-label="Previous table columns"
-                data-tooltip="Previous table columns"
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                className="nav-circle-btn"
-                onClick={() => { if (canScrollTableRight) scrollTable(1) }}
-                aria-disabled={!canScrollTableRight}
-                aria-label="Next table columns"
-                data-tooltip="Next table columns"
-              >
-                ›
-              </button>
-            </PaginationController>
+            <div className="crud-scroll-controls" aria-label="Table column controls">
+              <div className="crud-scroll-controls-label">{config.tableNavCaption ?? 'Prev/Next Columns'}</div>
+              <div className="crud-scroll-buttons">
+                <button
+                  type="button"
+                  className="nav-circle-btn"
+                  onClick={() => { if (canScrollTableLeft) scrollTable(-1) }}
+                  aria-disabled={!canScrollTableLeft}
+                  aria-label="Previous table columns"
+                  data-tooltip="Previous table columns"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className="nav-circle-btn"
+                  onClick={() => { if (canScrollTableRight) scrollTable(1) }}
+                  aria-disabled={!canScrollTableRight}
+                  aria-label="Next table columns"
+                  data-tooltip="Next table columns"
+                >
+                  ›
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -1396,7 +1567,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
             {modalSearchMatches.length > 0 && (
               <div className="search-match-notice" role="status">
                 <span className="search-match-notice-swatch" aria-hidden="true" />
-                Found {modalSearchMatches.length} matching {modalSearchMatches.length === 1 ? 'field' : 'fields'} for "{modalSearchTerm}". Look for amber markers beside the field titles.
+                Found {modalSearchMatches.length} matching {modalSearchMatches.length === 1 ? 'field' : 'fields'} for &quot;{modalSearchTerm}&quot;. Look for amber markers beside the field titles.
               </div>
             )}
             {modalFormNode}

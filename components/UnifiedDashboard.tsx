@@ -43,6 +43,7 @@ import TaskChecklistView from './views/TaskChecklistView'
 import TaskKanbanView from './views/TaskKanbanView'
 import ViewSwitcher, { type ViewMode } from './views/ViewSwitcher'
 import { useSystemState } from '@/components/SystemStateProvider'
+import { startInteraction } from '@/lib/performance/telemetry'
 
 const TTS_CONFIG_CHANGED_EVENT = 'orb:tts-config-changed'
 
@@ -350,6 +351,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const orbSwitchingRef        = useRef(false)
   const projectSwitchingRef    = useRef(false)
   const listInitialLoadDone    = useRef(false)
+  const pendingListInteractionRef = useRef<ReturnType<typeof startInteraction> | null>(null)
   const [tick, setTick]        = useState(0)
 
   // ── Derived ──
@@ -372,6 +374,39 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const productCodeMap = useMemo(() => new Map(products.map(p => [p.id, p.code])), [products])
 
   // adminSearchResults removed — SearchModal handles its own filtering
+
+  function startDashboardInteraction(interaction: string, metadata: Record<string, string | number | boolean | null | undefined> = {}, focus: 'dashboard-clicks' | 'voice' = 'dashboard-clicks') {
+    return startInteraction({
+      focus,
+      flow: 'dashboard',
+      interaction,
+      surface: 'dashboard',
+      immediateFlush: true,
+      metadata: {
+        projectId: selectedId,
+        viewMode,
+        filterStatus,
+        filterPriority,
+        sortAsc,
+        selectedCount: selectedIds.length,
+        isMobile,
+        ...metadata,
+      },
+    })
+  }
+
+  function startListInteraction(interaction: string, metadata: Record<string, string | number | boolean | null | undefined> = {}) {
+    if (pendingListInteractionRef.current) pendingListInteractionRef.current.end(false, 'replaced_by_new_list_interaction')
+    pendingListInteractionRef.current = startDashboardInteraction(interaction, metadata)
+  }
+
+  function finishListInteraction(success: boolean, failureCode?: string | null, metadata: Record<string, string | number | boolean | null | undefined> = {}) {
+    const measurement = pendingListInteractionRef.current
+    if (!measurement) return
+    pendingListInteractionRef.current = null
+    measurement.mark('todo_list_settled')
+    measurement.end(success, failureCode, metadata)
+  }
 
   async function refreshProjects() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -561,25 +596,36 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   }, [])
 
   const handleOrbTap = useCallback(async () => {
-    if (noProject) return
-    if (!voice.supportsVoice) return
+    const measurement = startInteraction({
+      focus: 'voice',
+      flow: 'dashboard',
+      interaction: 'voice_start',
+      surface: 'dashboard',
+      immediateFlush: true,
+      metadata: { projectId: selectedId, isMobile },
+    })
+    if (noProject) { measurement.end(false, 'no_project'); return }
+    if (!voice.supportsVoice) { measurement.end(false, 'voice_not_supported'); return }
 
-    if (voice.voiceActive) return
+    if (voice.voiceActive) { measurement.end(false, 'voice_already_active'); return }
 
     messagesRef.current
       .filter(m => m.type === 'orb')
       .forEach(m => stoppedVoiceMessageIdsRef.current.add(m.id))
     setVoiceStarting(true)
     voice.startConversation()
+    measurement.mark('voice_runtime_started')
     setConversationActive(true)
     resetInactivity()
     const cfg = await refreshTtsConfig()
+    measurement.mark('tts_config_loaded')
     if (!cfg) {
       const msg = 'I could not load voice settings, so I did not start voice playback. Check your connection and try again.'
       setMessages(prev => [...prev, { id: genId(), type: 'orb', text: msg }])
       setConversationActive(true)
       voice.exitVoiceMode()
       setVoiceStarting(false)
+      measurement.end(false, 'tts_config_load_failed')
       return
     }
 
@@ -587,6 +633,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     if (existingOpening?.type === 'orb' && isOpeningGreetingText(existingOpening.text)) {
       lastSpokenVoiceMessageRef.current = { id: existingOpening.id, text: existingOpening.text }
       voice.speak(existingOpening.text)
+      measurement.end(true, null, { usedExistingGreeting: true })
       return
     }
 
@@ -596,6 +643,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     lastSpokenVoiceMessageRef.current = { id: greetingId, text: greeting }
     setMessages(prev => [...prev, { id: greetingId, type: 'orb', text: greeting }])
     voice.speak(greeting)
+    measurement.end(true, null, { usedExistingGreeting: false })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noProject, voice.voiceActive, voice.supportsVoice, user?.first_name, refreshTtsConfig])
 
@@ -716,8 +764,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // Load products + profile
   useEffect(() => {
     async function load() {
+      const perf = startInteraction({ focus: 'dashboard-init', flow: 'dashboard', interaction: 'client_init', surface: 'dashboard' })
       try {
         const { data: { user: authUser } } = await supabase.auth.getUser()
+        perf.mark('auth_user_loaded')
         if (authUser) {
           const savedUserId = sessionStorage.getItem('todos_user_id')
           if (!savedUserId || savedUserId !== authUser.id) {
@@ -733,6 +783,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             .select('first_name, last_name, onboarded_at, urgency_threshold_hours, release_stage, created_at')
             .eq('id', authUser.id)
             .single()
+          perf.mark('profile_loaded')
           const userWelcomeKey = `todos_welcome_shown_${authUser.id}`
           if (profile) {
             const full = [profile.first_name, profile.last_name].filter(Boolean).join(' ')
@@ -759,11 +810,13 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             const found = initialProducts.find(p => p.id === last)
             setSelectedId(found ? found.id : initialProducts[0].id)
           }
+          perf.end(true, null, { initialProducts: initialProducts.length })
           return
         }
 
         const q = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode')
         const { data } = (authUser && !isAdmin) ? await q.eq('created_by', authUser.id) : await q
+        perf.mark('projects_loaded')
         const list = (data ?? []) as Product[]
         setProducts(list)
         if (list.length > 0) {
@@ -771,8 +824,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           const found = list.find(p => p.id === last)
           setSelectedId(found ? found.id : list[0].id)
         }
+        perf.end(true, null, { products: list.length })
       } catch (err) {
         console.error('[UnifiedDashboard] Load failed:', err)
+        perf.end(false, 'dashboard_client_init_failed')
       }
     }
     load()
@@ -782,11 +837,14 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // Load priorities
   useEffect(() => {
     async function fetchPriorities() {
+      const perf = startInteraction({ focus: 'dashboard-init', flow: 'dashboard', interaction: 'priorities_load', surface: 'dashboard' })
       try {
         const { data } = await supabase.from('priorities').select('value, label, color, is_urgent').order('value')
         if (data) setPriorities(data)
+        perf.end(true, null, { count: data?.length ?? 0 })
       } catch (err) {
         console.error('[UnifiedDashboard] Load priorities failed:', err)
+        perf.end(false, 'priorities_load_failed')
       }
     }
     fetchPriorities()
@@ -795,11 +853,14 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // Load statuses
   useEffect(() => {
     async function fetchStatuses() {
+      const perf = startInteraction({ focus: 'dashboard-init', flow: 'dashboard', interaction: 'statuses_load', surface: 'dashboard' })
       try {
         const { data } = await supabase.from('statuses').select('id, name, sort_order, is_closed, is_open').order('sort_order')
         if (data) setStatuses(data as StatusDef[])
+        perf.end(true, null, { count: data?.length ?? 0 })
       } catch (err) {
         console.error('[UnifiedDashboard] Load statuses failed:', err)
+        perf.end(false, 'statuses_load_failed')
       }
     }
     fetchStatuses()
@@ -850,6 +911,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // Fetch orb todos (lighter query for urgency)
   const fetchOrbTodos = useCallback(async () => {
     if (!selectedId) return
+    const perf = startInteraction({ focus: 'dashboard-init', flow: 'dashboard', interaction: 'orb_todos_load', surface: 'dashboard' })
     try {
       const { data } = await supabase
         .from('todos')
@@ -857,8 +919,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         .eq('product_id', selectedId)
         .is('deleted_at', null)
       setOrbTodos((data ?? []) as typeof orbTodos)
+      perf.end(true, null, { count: data?.length ?? 0 })
     } catch (err) {
       console.error('[UnifiedDashboard] Fetch orb todos failed:', err)
+      perf.end(false, 'orb_todos_load_failed')
     }
   }, [selectedId, supabase])
 
@@ -871,14 +935,17 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // All-project todos for overall urgency (fetched once, refreshed on tab focus)
   const allTodosRef = useRef<{ status: string; priority_value: number | null; due_at: string | null; product_id: string }[]>([])
   const fetchAllTodos = useCallback(async () => {
+    const perf = startInteraction({ focus: 'dashboard-init', flow: 'dashboard', interaction: 'all_todos_load', surface: 'dashboard' })
     try {
       const { data } = await supabase
         .from('todos')
         .select('status, priority_value, due_at, product_id')
         .is('deleted_at', null)
       allTodosRef.current = (data ?? []) as typeof allTodosRef.current
+      perf.end(true, null, { count: data?.length ?? 0 })
     } catch (err) {
       console.error('[UnifiedDashboard] Fetch all todos failed:', err)
+      perf.end(false, 'all_todos_load_failed')
     }
   }, [supabase])
 
@@ -1048,6 +1115,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   const fetchTodos = useCallback(async (pageNum = 0, append = false) => {
     if (!selectedId) return
+    const perf = startInteraction({ focus: 'dashboard-init', flow: 'dashboard', interaction: append ? 'todo_list_load_more' : 'todo_list_load', surface: 'dashboard' })
     if (!append && !listInitialLoadDone.current) setListLoading(true)
     try {
       let todoQuery = supabase
@@ -1089,8 +1157,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       } else {
         setTodos(pageItems)
       }
+      perf.end(true, null, { count: pageItems.length, append, viewMode })
+      if (!append) finishListInteraction(true, null, { count: pageItems.length, viewMode })
     } catch (err) {
       console.error('Fetch todos failed:', err)
+      perf.end(false, 'todo_list_load_failed')
+      if (!append) finishListInteraction(false, 'todo_list_load_failed')
     } finally {
       if (!append) { setListLoading(false); listInitialLoadDone.current = true }
     }
@@ -1191,6 +1263,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       aborted: false,
     }
     activeConversationRequestRef.current = request
+    const submitMeasurement = startDashboardInteraction(
+      voice.voiceActive ? 'voice_orb_submit' : 'orb_submit',
+      { inputLength: text.length, hasPendingMutation: !!pendingMutationRef.current },
+      voice.voiceActive ? 'voice' : 'dashboard-clicks',
+    )
+    let submitMeasurementEnded = false
 
     setMessages(prev => [
       ...prev,
@@ -1207,10 +1285,17 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
       const outgoingMutation = pendingMutationRef.current
       pendingMutationRef.current = null
+      submitMeasurement.mark('server_action_start')
       const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError, systemInfo: systemInfoRef.current, pendingMutation: outgoingMutation ?? undefined, actionSets: actionSetsRef.current, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive, voiceMode: voice.voiceActive, availableVoices: voice.voiceActive ? voice.availableVoices.map(v => v.name) : undefined, currentVoice: voice.voiceActive ? voice.selectedVoiceName || undefined : undefined, ttsProvider: voice.voiceActive ? ttsConfig?.provider : undefined, ttsModel: voice.voiceActive ? ttsConfig?.model : undefined, ttsVoiceId: voice.voiceActive ? ttsConfig?.voiceId : undefined } })
+      submitMeasurement.mark('server_action_stream_opened')
+      let firstChunkSeen = false
       for await (const chunk of readStreamableValue(stream)) {
         if (request.aborted || cancelledConversationRequestIdsRef.current.has(request.id)) break
         if (!chunk) continue
+        if (!firstChunkSeen) {
+          firstChunkSeen = true
+          submitMeasurement.mark('first_chunk_received')
+        }
         setMessages(prev => prev.map(m => {
           if (m.id !== processingId) return m
           const newThoughts = m.thoughts ? [...m.thoughts] : []
@@ -1288,7 +1373,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       }
     } catch (err: any) {
       console.error('[orbSubmit]', err)
-      if (isAuthError(String(err))) { handleSessionExpired(toast); return }
+      if (isAuthError(String(err))) { submitMeasurement.end(false, 'auth_error'); submitMeasurementEnded = true; handleSessionExpired(toast); return }
       if (!request.aborted && !cancelledConversationRequestIdsRef.current.has(request.id)) {
         const msg = err instanceof TypeError && /(fetch|load failed|network)/i.test(err.message)
           ? 'Lost connection. Check your network and try again.'
@@ -1297,6 +1382,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             : 'Something went wrong. Try again?'
         setMessages(prev => prev.map(m => m.id === processingId ? { ...m, text: msg, spokenText: voice.voiceActive ? msg : undefined } : m))
       }
+      submitMeasurement.end(false, 'orb_submit_failed', { error: err?.message ?? String(err) })
+      submitMeasurementEnded = true
     } finally {
       const wasCancelled = request.aborted || cancelledConversationRequestIdsRef.current.has(request.id)
       if (activeConversationRequestRef.current?.id === request.id) {
@@ -1318,6 +1405,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         }
       }))
       cancelledConversationRequestIdsRef.current.delete(request.id)
+      if (!submitMeasurementEnded) {
+        if (wasCancelled) submitMeasurement.end(false, 'orb_submit_stopped')
+        else submitMeasurement.end(true, null, { voiceMode: voice.voiceActive })
+      }
     }
   }
 
@@ -1327,9 +1418,11 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   async function handleToggleDone(e: React.MouseEvent, todo: Todo) {
     e.stopPropagation()
+    const measurement = startDashboardInteraction('todo_toggle_done', { todoId: todo.id, currentStatus: todo.status })
     let beforeUrgency: Urgency | null = null
     try {
       beforeUrgency = await getUrgencySnapshot()
+      measurement.mark('urgency_snapshot_loaded')
     } catch (err) {
       console.error('[UnifiedDashboard] getUrgencySnapshot failed:', err)
     }
@@ -1342,9 +1435,11 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       .eq('id', todo.id)
       .select('*, groups(name), categories(name)')
       .single()
+    measurement.mark('supabase_update_completed')
     if (error) {
-      if (isAuthError(error.message)) { handleSessionExpired(toast); return }
+      if (isAuthError(error.message)) { measurement.end(false, 'auth_error'); handleSessionExpired(toast); return }
       toast.error('Failed to update. Try again.')
+      measurement.end(false, 'todo_toggle_failed', { error: error.message })
       return
     }
     if (data) {
@@ -1363,10 +1458,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       if (isClosed(newStatus)) setDistillTodo(updated)
 
       fetchOrbTodos()
+      measurement.end(true, null, { newStatus })
     }
   }
 
   async function handleStatusChange(todo: Todo, newStatus: string) {
+    const measurement = startDashboardInteraction('todo_status_change', { todoId: todo.id, currentStatus: todo.status, newStatus })
     const isClosing = isClosed(newStatus) && !isClosed(todo.status)
     const { data, error } = await supabase
       .from('todos')
@@ -1377,9 +1474,11 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       .eq('id', todo.id)
       .select('*, groups(name), categories(name)')
       .single()
+    measurement.mark('supabase_update_completed')
     if (error) {
-      if (isAuthError(error.message)) { handleSessionExpired(toast); return }
+      if (isAuthError(error.message)) { measurement.end(false, 'auth_error'); handleSessionExpired(toast); return }
       toast.error('Failed to move task. Try again.')
+      measurement.end(false, 'todo_status_change_failed', { error: error.message })
       return
     }
     if (data) {
@@ -1392,10 +1491,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
       fetchOrbTodos()
       toast.success(`Moved to ${newStatus}`)
+      measurement.end(true, null, { isClosing, newStatus })
     }
   }
 
   async function handleSetViewMode(mode: ViewMode) {
+    startListInteraction('view_mode_change', { nextViewMode: mode })
     setViewMode(mode)
     if (selectedId) {
       await supabase.from('projects').update({ view_mode: mode }).eq('id', selectedId)
@@ -1403,27 +1504,72 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     }
   }
 
+  function handleSortToggle() {
+    startListInteraction('sort_change', { nextSortAsc: !sortAsc })
+    setSortAsc(v => !v)
+  }
+
+  function handleStatusFilterChange(value: string) {
+    startListInteraction('filter_status_change', { nextFilterStatus: value })
+    setFilterStatus(value)
+  }
+
+  function handlePriorityFilterChange(value: string) {
+    startListInteraction('filter_priority_change', { nextFilterPriority: value })
+    setFilterPriority(value)
+  }
+
+  function handleProjectSelected(id: string) {
+    startListInteraction('project_switch', { nextProjectId: id })
+    setSelectedId(id)
+    listInitialLoadDone.current = false
+  }
+
+  function handleOpenTodo(todo: Todo) {
+    const measurement = startDashboardInteraction('todo_panel_open', { todoId: todo.id, todoStatus: todo.status })
+    setSelectedTodo(todo)
+    measurement.end(true)
+  }
+
+  function handleOpenNewTodo() {
+    const measurement = startDashboardInteraction('todo_create_modal_open')
+    if (products.length === 0) {
+      toast.neutral('Please create a project first.')
+      measurement.end(false, 'no_projects')
+    } else {
+      setShowNewTodo(true)
+      measurement.end(true)
+    }
+  }
+
   function toggleId(id: string) {
+    const measurement = startDashboardInteraction('todo_select_toggle', { todoId: id, selectedAfter: !selectedIds.includes(id) })
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    measurement.end(true)
   }
 
   function toggleSelectAll() {
+    const measurement = startDashboardInteraction('todo_select_all_toggle', { todoCount: todos.length })
     const all = todos.map(t => t.id)
     setSelectedIds(all.every(id => selectedIds.includes(id)) ? [] : all)
+    measurement.end(true)
   }
 
   async function handleBulkMarkDone() {
     if (selectedIds.length === 0) return
+    const measurement = startDashboardInteraction('todo_bulk_mark_done', { selectedCount: selectedIds.length })
     const ids = [...selectedIds]
     let beforeUrgency: Urgency | null = null
     try {
       beforeUrgency = await getUrgencySnapshot()
+      measurement.mark('urgency_snapshot_loaded')
     } catch (err) {
       console.error('[UnifiedDashboard] getUrgencySnapshot failed:', err)
     }
     const closedStatus = statuses.find(s => s.is_closed)?.name ?? 'closed'
     const { error } = await supabase.from('todos').update({ status: closedStatus, closed_at: new Date().toISOString() }).in('id', ids)
-    if (error) { if (isAuthError(error.message)) { handleSessionExpired(toast); return }; toast.error('Failed to close items.'); return }
+    measurement.mark('supabase_bulk_update_completed')
+    if (error) { if (isAuthError(error.message)) { measurement.end(false, 'auth_error'); handleSessionExpired(toast); return }; toast.error('Failed to close items.'); measurement.end(false, 'todo_bulk_mark_done_failed', { error: error.message }); return }
     if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
     logAudit({ action: 'todo_bulk_close', table_name: 'todos', after: { count: ids.length, ids }, system_info: systemInfoRef.current })
     if (beforeUrgency) {
@@ -1437,19 +1583,23 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     fetchOrbTodos()
 
     setSelectedIds([])
+    measurement.end(true, null, { closedStatus, selectedCount: ids.length })
   }
 
   async function handleBulkDelete() {
     if (selectedIds.length === 0) return
+    const measurement = startDashboardInteraction('todo_bulk_delete', { selectedCount: selectedIds.length })
     const ids = [...selectedIds]
     let beforeUrgency: Urgency | null = null
     try {
       beforeUrgency = await getUrgencySnapshot()
+      measurement.mark('urgency_snapshot_loaded')
     } catch (err) {
       console.error('[UnifiedDashboard] getUrgencySnapshot failed:', err)
     }
     const { error } = await supabase.from('todos').delete().in('id', ids)
-    if (error) { if (isAuthError(error.message)) { handleSessionExpired(toast); return }; toast.error('Failed to delete items.'); return }
+    measurement.mark('supabase_bulk_delete_completed')
+    if (error) { if (isAuthError(error.message)) { measurement.end(false, 'auth_error'); handleSessionExpired(toast); return }; toast.error('Failed to delete items.'); measurement.end(false, 'todo_bulk_delete_failed', { error: error.message }); return }
     if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
     logAudit({ action: 'todo_bulk_delete', table_name: 'todos', before: { count: ids.length, ids }, system_info: systemInfoRef.current })
     if (beforeUrgency) {
@@ -1464,6 +1614,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     setSelectedIds([])
     setConfirmBulkDelete(false)
     fetchOrbTodos()
+    measurement.end(true, null, { selectedCount: ids.length })
   }
 
   // ══════════════════════════════════════════════════════════
@@ -1708,12 +1859,24 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           userInitial={(user?.first_name || user?.email || '?').charAt(0).toUpperCase()}
           userName={[user?.first_name, user?.last_name].filter(Boolean).join(' ') || undefined}
           onSearchProjects={() => setProjectSearchOpen(true)}
-          onAddProject={() => setShowAddProduct(true)}
+          onAddProject={() => {
+            const measurement = startDashboardInteraction('project_create_modal_open')
+            setShowAddProduct(true)
+            measurement.end(true)
+          }}
           orbToggle={
             <button
               className="appnav-btn appnav-edge"
               data-tour="orb-toggle"
-              onClick={isMobile ? () => setActiveMobileTab('orb') : () => setOrbPaneVisible(v => !v)}
+              onClick={isMobile ? () => {
+                const measurement = startDashboardInteraction('mobile_tab_switch', { nextTab: 'orb' })
+                setActiveMobileTab('orb')
+                measurement.end(true)
+              } : () => {
+                const measurement = startDashboardInteraction('orb_pane_toggle', { visibleAfter: !orbPaneVisible })
+                setOrbPaneVisible(v => !v)
+                measurement.end(true)
+              }}
               data-tooltip={isMobile ? (activeMobileTab === 'orb' ? 'Viewing Orb' : 'Show Orb') : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')}
               aria-label={isMobile ? (activeMobileTab === 'orb' ? 'Viewing Orb' : 'Show Orb') : (orbPaneVisible ? 'Hide Orb' : 'Show Orb')}
               aria-pressed={isMobile ? activeMobileTab === 'orb' : orbPaneVisible}
@@ -1732,7 +1895,15 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           listToggle={
             <button
               className="appnav-btn appnav-edge"
-              onClick={isMobile ? () => setActiveMobileTab('list') : () => setListPaneVisible(v => !v)}
+              onClick={isMobile ? () => {
+                const measurement = startDashboardInteraction('mobile_tab_switch', { nextTab: 'list' })
+                setActiveMobileTab('list')
+                measurement.end(true)
+              } : () => {
+                const measurement = startDashboardInteraction('list_pane_toggle', { visibleAfter: !listPaneVisible })
+                setListPaneVisible(v => !v)
+                measurement.end(true)
+              }}
               data-tooltip={isMobile ? (activeMobileTab === 'list' ? 'Viewing List' : 'Show List') : (listPaneVisible ? 'Hide List' : 'Show List')}
               aria-label={isMobile ? (activeMobileTab === 'list' ? 'Viewing List' : 'Show List') : (listPaneVisible ? 'Hide List' : 'Show List')}
               aria-pressed={isMobile ? activeMobileTab === 'list' : listPaneVisible}
@@ -1768,10 +1939,18 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               onSubmit={handleSubmit}
               onStop={handleStop}
               onFocusChange={setIsInputFocused}
-              onSelectProject={id => { setSelectedId(id) }}
+              onSelectProject={handleProjectSelected}
               selectedProjectId={selectedId}
-              onShowEditProject={() => setShowEditProduct(true)}
-              onShowAddProject={() => setShowAddProduct(true)}
+              onShowEditProject={() => {
+                const measurement = startDashboardInteraction('project_edit_modal_open')
+                setShowEditProduct(true)
+                measurement.end(true)
+              }}
+              onShowAddProject={() => {
+                const measurement = startDashboardInteraction('project_create_modal_open')
+                setShowAddProduct(true)
+                measurement.end(true)
+              }}
               voiceActive={voice.voiceActive}
               voiceListening={voice.isListening}
               voiceSpeaking={voice.isSpeaking}
@@ -1809,7 +1988,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                     className="btn-overflow"
                     aria-label="Project actions"
                     data-tooltip="Project actions"
-                    onClick={() => { setProjectMenuOpen(v => !v); setConfirmProjectDelete(false) }}
+                    onClick={() => {
+                      const measurement = startDashboardInteraction('project_actions_menu_toggle', { openAfter: !projectMenuOpen })
+                      setProjectMenuOpen(v => !v)
+                      setConfirmProjectDelete(false)
+                      measurement.end(true)
+                    }}
                   >
                     &#x22EE;
                   </button>
@@ -1817,7 +2001,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                     <>
                       <div className="dropdown-backdrop" onClick={e => { e.stopPropagation(); setProjectMenuOpen(false); setConfirmProjectDelete(false) }} />
                       <div className="dropdown-menu" style={{ top: '100%', bottom: 'auto', marginTop: '2px', left: 0, right: 'auto' }}>
-                        <button className="dropdown-item" onClick={() => { setProjectMenuOpen(false); setShowEditProduct(true) }}>
+                        <button className="dropdown-item" onClick={() => {
+                          const measurement = startDashboardInteraction('project_edit_modal_open')
+                          setProjectMenuOpen(false)
+                          setShowEditProduct(true)
+                          measurement.end(true)
+                        }}>
                           Edit Project
                         </button>
                         <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
@@ -1826,13 +2015,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                             className="dropdown-item"
                             style={{ color: 'var(--error)', fontWeight: 'var(--fw-medium)' } as React.CSSProperties}
                             onClick={async () => {
+                              const measurement = startDashboardInteraction('project_delete', { projectId: selected.id })
                               const result = await deleteProject(selected.id)
-                              if (result.error) { toast.error('Failed to delete project.'); return }
+                              measurement.mark('server_action_completed')
+                              if (result.error) { toast.error('Failed to delete project.'); measurement.end(false, 'project_delete_failed', { error: result.error }); return }
                               toast.success('Project deleted.')
                               const list = await refreshProjects()
                               setSelectedId(list.find(p => p.id !== selected.id)?.id ?? null)
                               setProjectMenuOpen(false)
                               setConfirmProjectDelete(false)
+                              measurement.end(true)
                             }}
                           >
                             Confirm Delete
@@ -1849,27 +2041,31 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               )}
               <div style={{ flex: 1 }} />
               <div className="tv-toolbar">
-                <button className="tv-toolbar-btn" onClick={() => setSortAsc(v => !v)} aria-label={sortAsc ? 'Sort newest first' : 'Sort oldest first'} data-tooltip={sortAsc ? 'Oldest first' : 'Newest first'}>
+                <button className="tv-toolbar-btn" onClick={handleSortToggle} aria-label={sortAsc ? 'Sort newest first' : 'Sort oldest first'} data-tooltip={sortAsc ? 'Oldest first' : 'Newest first'}>
                   Sort
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     {sortAsc ? <path d="M12 19V5M5 12l7-7 7 7"/> : <path d="M12 5v14M5 12l7 7 7-7"/>}
                   </svg>
                 </button>
-                <button className="tv-toolbar-btn" aria-pressed={showFilters} onClick={() => { setShowFilters(f => !f); setShowListViews(false) }} aria-label="Toggle filters" data-tooltip="Filter tasks">
+                <button className="tv-toolbar-btn" aria-pressed={showFilters} onClick={() => {
+                  const measurement = startDashboardInteraction('filters_panel_toggle', { openAfter: !showFilters })
+                  setShowFilters(f => !f)
+                  setShowListViews(false)
+                  measurement.end(true)
+                }} aria-label="Toggle filters" data-tooltip="Filter tasks">
                   Filter <span className="tv-badge">{todos.length}</span>
                 </button>
-                <button className="tv-toolbar-btn" data-tour="views" aria-pressed={showListViews} onClick={() => { setShowListViews(v => !v); setShowFilters(false) }} data-tooltip="List views">
+                <button className="tv-toolbar-btn" data-tour="views" aria-pressed={showListViews} onClick={() => {
+                  const measurement = startDashboardInteraction('views_panel_toggle', { openAfter: !showListViews })
+                  setShowListViews(v => !v)
+                  setShowFilters(false)
+                  measurement.end(true)
+                }} data-tooltip="List views">
                   Views
                 </button>
                 <button
                   className="tv-toolbar-primary"
-                  onClick={() => {
-                    if (products.length === 0) {
-                      toast.neutral('Please create a project first.')
-                    } else {
-                      setShowNewTodo(true)
-                    }
-                  }}
+                  onClick={handleOpenNewTodo}
                   style={products.length === 0 ? { opacity: 'var(--opacity-disabled)', cursor: 'not-allowed' } : undefined}
                   data-tooltip="Create a new task"
                 >
@@ -1883,7 +2079,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               <div className="tv-filterbar">
                 <FilterKebab
                   value={filterStatus}
-                  onChange={setFilterStatus}
+                  onChange={handleStatusFilterChange}
                   ariaLabel="Filter by status"
                   options={[
                     { value: 'all', label: 'All statuses' },
@@ -1898,7 +2094,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                 />
                 <FilterKebab
                   value={filterPriority}
-                  onChange={setFilterPriority}
+                  onChange={handlePriorityFilterChange}
                   ariaLabel="Filter by priority"
                   options={[
                     { value: 'all', label: 'All priorities' },
@@ -1951,7 +2147,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                   isClosed={isClosed}
                   statusColor={statusColor}
                   productCodeMap={productCodeMap}
-                  onSelectTodo={setSelectedTodo}
+                  onSelectTodo={handleOpenTodo}
                   onToggleDone={handleToggleDone}
                   selectedTodo={selectedTodo}
                   selectedIds={selectedIds}
@@ -1967,7 +2163,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                   isClosed={isClosed}
                   statusColor={statusColor}
                   productCodeMap={productCodeMap}
-                  onSelectTodo={setSelectedTodo}
+                  onSelectTodo={handleOpenTodo}
                   onToggleDone={handleToggleDone}
                   onStatusChange={handleStatusChange}
                   selectedTodo={selectedTodo}
@@ -1984,7 +2180,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                   isClosed={isClosed}
                   statusColor={statusColor}
                   productCodeMap={productCodeMap}
-                  onSelectTodo={setSelectedTodo}
+                  onSelectTodo={handleOpenTodo}
                   onToggleDone={handleToggleDone}
                   selectedTodo={selectedTodo}
                   selectedIds={selectedIds}
@@ -1997,7 +2193,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
               {hasMore && (
                 <div style={{ display: 'flex', justifyContent: 'center', margin: 'var(--sp-xl) 0' }}>
-                  <button onClick={() => fetchTodos(page + 1, true)} className="tv-toolbar-btn">
+                  <button onClick={() => {
+                    const measurement = startDashboardInteraction('todo_list_load_more', { nextPage: page + 1 })
+                    fetchTodos(page + 1, true).finally(() => measurement.end(true, null, { nextPage: page + 1 }))
+                  }} className="tv-toolbar-btn">
                     Load more tasks
                   </button>
                 </div>
@@ -2061,7 +2260,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             detail: isAdmin && p.owner_name && p.owner_name !== 'Unknown' ? p.owner_name : undefined,
             active: p.id === selectedId,
           }))}
-          onSelect={id => { setSelectedId(id); listInitialLoadDone.current = false }}
+          onSelect={handleProjectSelected}
           onClose={() => setProjectSearchOpen(false)}
           emptyMessage="No matching projects"
           errorMessage={projectsLoadError ? 'Projects failed to load.' : undefined}

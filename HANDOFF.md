@@ -10,13 +10,73 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.119
+- **Version:** 0.6.137
 
 ---
 
 ### Last Session Completed
 
-**Voice Speak-Once, Confirm-Loop Fixes, Identifier Provenance, Project-Code UI Audit — 2026-07-01 (Claude Code, Fable 5) — v0.6.113–v0.6.119**
+**ORB-309 Performance Instrumentation Foundation — 2026-07-02 (Codex, GPT-5) — v0.6.120-v0.6.137**
+
+Stan stopped new feature work to address the basic performance problem systemically: login was one visible symptom, but the task became instrumentation for every user-clickable flow, with dev and production measurements, focus-area controls, platform/browser context, and a Settings surface for analysis.
+
+**What changed:**
+- Created **ORB-309 — Improve Initialization Speed** and kept it open. This commit ships the measurement foundation, not the final optimization work.
+- Added `performance_events` storage, ingestion, querying, deletion, and summary actions with RLS, indexes, platform/browser/viewport metadata, focus areas, sampling, batching, correlation IDs, and immediate flush for measured interactions.
+- Added **Settings -> Performance** with measurement controls, focus-area toggles, sample rate, probe/flush actions, event CRUD/search/filter/table/cards, event detail modal, latency summary, P50/P75/P95/Max, platform/browser grouping, and narrow-width card layouts.
+- Instrumented auth/login, OTP verification, Settings navigation, AI Metrics, Orb Metrics reconciliation, generic `SettingsCrudList` lifecycle/actions, dashboard initialization, project switching, todo CRUD, bulk delete, dashboard list controls, Orb submit, and voice start.
+- Updated the ORB-309 plan, Object Capability Matrix, UI catalog, and AGENTS process rules so new functionality must explicitly decide whether performance instrumentation is required.
+- Improved Performance Settings UX based on Stan's testing: styled measurement controls and filters, fixed detail modal overlap, used the existing Settings column controller, added table/card titles, preserved summary cards on narrow widths, made latency-summary rows readable, and added browser collection/filtering.
+
+**First dev findings:**
+- AI Metrics is the current standout slow surface. Local dev data showed `settings-ai-metrics / ai_accounting_load` and `metrics_table_load` with multi-second medians and very high P95/Max outliers.
+- Some Performance Settings views can become analysis targets themselves as the events table grows.
+- Failed/stale/interrupted events are now captured, but successful latency analysis should separate them from completed events.
+- Production data is still required before choosing remedies because dev and production timings may differ materially.
+
+**Tracking:**
+- Added Knowledge Repo entry `ORB-309 performance instrumentation foundation and first dev findings` (`b197fe48-46fd-4428-b283-a02e612bc0ce`).
+- ORB-309 remains **open**. Do not close it until production data has been collected and the remaining analysis/optimization work below is complete.
+
+**Verification:**
+- `npx tsc --noEmit` passed during the session.
+- `node scripts/verify-ui-catalog.js` passed.
+- `git diff --check` passed during the session.
+- `npm run build` passed at v0.6.137.
+- Browser/device testing happened iteratively on dev with Stan. Production collection is the reason for this commit/push.
+
+### Uncommitted Changes
+
+- `AGENTS.md`
+- `app/actions/performance-events.ts`
+- `app/api/performance-events/route.ts`
+- `app/auth/login/page.tsx`
+- `app/auth/verify-otp/page.tsx`
+- `app/globals.css`
+- `app/settings/performance/page.tsx`
+- `components/AddProductModal.tsx`
+- `components/CollapsibleSidebar.tsx`
+- `components/TodoForm.tsx`
+- `components/TodoPanel.tsx`
+- `components/UnifiedDashboard.tsx`
+- `components/settings/NavLink.tsx`
+- `components/settings/SettingsCostReconciliation.tsx`
+- `components/settings/SettingsCrudList.tsx`
+- `components/settings/SettingsMetrics.tsx`
+- `components/settings/SettingsPerformance.tsx`
+- `components/settings/SettingsSidebar.tsx`
+- `docs/object-capability-matrix.md`
+- `docs/orb-309-initialization-performance-plan.md`
+- `docs/ui-catalog.md`
+- `lib/changelog.ts`
+- `lib/performance/telemetry.ts`
+- `lib/version.ts`
+- `package.json`
+- `scripts/migrations/20260702_performance_events.sql`
+
+---
+
+### Prior Session: Voice Speak-Once, Confirm-Loop Fixes, Identifier Provenance, Project-Code UI Audit — 2026-07-01 (Claude Code, Fable 5) — v0.6.113-v0.6.119
 
 Four connected pieces of work, each surfaced by Stan testing the prior session's voice operator runtime live and reporting exactly what broke, then asked to be fixed as a general class rather than a one-off patch.
 
@@ -231,10 +291,11 @@ v0.6.67–v0.6.71: silent TTS fix, build gate for TTS keys, iPhone AudioContext 
 
 ## Next Priorities
 
-1. **Device testing for v0.6.113–v0.6.119:** this session's work was server/prompt-side and non-interactive UI removal, verified only by `tsc`/`eslint`/eval — no browser testing happened. Spot-check on Mac/iPad/iPhone: voice speak-once timing (first audio now waits for stream end — confirm the "Gathering data..." wait feels acceptable on mobile), the "Confirm confirm" and upfront-permission fixes in a live voice session, an itemized bulk-delete confirm card, project switching by partial name, and that the project-code-free UI (switch list, Settings → Projects, ticket/knowledge pickers, print) reads correctly with no leftover blank/broken labels.
-2. **Scope ORB-301/302/303/304 implementation:** Stan has not yet decided when to pick these up — ask before starting any of them. ORB-304 (systematic flow instrumentation) supersedes/encompasses voice latency breakdown — fold that work into ORB-304 rather than doing it separately.
-3. **Production verification for v0.6.111+ voice operator runtime and ORB-300 release coherency:** still pending from the prior session — after the next deploy, test both on Mac/iPad/iPhone per the notes in the "Prior Session" section below.
-4. **Consider persistence design later:** pronunciation/user behavior preferences need a separate product design if they should survive beyond the current conversation. Do not imply persistence without a real tool.
+1. **Collect production data for ORB-309:** enable targeted Performance recording on production and gather Mac, iPad, and iPhone samples for login, dashboard, Settings navigation, AI Metrics, Performance Settings, todo CRUD, project switching, Orb submit, and voice start. Compare production against dev before optimizing.
+2. **Build the next analysis layer:** add page-level views for bottlenecks, platform/browser comparison, outliers, failures/interrupted events, session/time-window filtering, and clearer threshold badges. Keep P95 as the primary planning signal and Max as outlier evidence.
+3. **Optimize AI Metrics from measured evidence:** current dev data points to `settings-ai-metrics / ai_accounting_load` and `metrics_table_load` as the biggest slow spots, but remedies should wait for production measurements.
+4. **Watch Performance Settings scale:** if production confirms the events page itself is heavy, optimize query/table behavior and add indexes or pagination/server filtering as needed.
+5. **Add deeper instrumentation primitives:** build a reusable server-action timing helper and more detailed voice-stage measurements so future work gets consistent timing data by default.
 
 ---
 
@@ -263,7 +324,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-07-01 — Claude Code (Fable 5)`
+`2026-07-02 — Codex (GPT-5)`
 
 ---
 

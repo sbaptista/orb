@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import HScrollNav from '@/components/ui/HScrollNav'
 import { useUnsavedChanges } from '@/lib/hooks/useUnsavedChanges'
+import { flushPerformanceEvents, markPerformanceNavigation, startInteraction } from '@/lib/performance/telemetry'
 
 export type SidebarItem = {
   id: string
@@ -32,7 +33,20 @@ export default function CollapsibleSidebar({ items, defaultOpen = true }: Props)
     setMobileMenuOpen(false)
     if (!item || item.active) return
     if ('href' in item && item.href) {
-      confirmNavigation(() => router.push(item.href))
+      const perf = startInteraction({
+        focus: 'settings',
+        flow: 'settings-navigation',
+        interaction: 'settings_mobile_nav_select',
+        surface: 'settings-sidebar-mobile',
+        immediateFlush: true,
+        metadata: { href: item.href },
+      })
+      confirmNavigation(() => {
+        perf.end(true)
+        flushPerformanceEvents()
+        markPerformanceNavigation(item.href)
+        router.push(item.href)
+      })
       return
     }
     if (typeof item.onClick === 'function') item.onClick()

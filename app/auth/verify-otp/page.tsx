@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { startInteraction } from '@/lib/performance/telemetry'
 
 function VerifyOtpContent() {
   const searchParams = useSearchParams()
@@ -15,12 +16,14 @@ function VerifyOtpContent() {
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault()
+    const perf = startInteraction({ focus: 'auth', flow: 'login', interaction: 'otp_verify', surface: 'auth-verify-otp' })
     setLoading(true)
     setError('')
 
     if (!navigator.onLine) {
       setError('You appear to be offline. Check your connection and try again.')
       setLoading(false)
+      perf.end(false, 'offline')
       return
     }
 
@@ -32,19 +35,24 @@ function VerifyOtpContent() {
         token: otp,
         type: 'email',
       })
+      perf.mark('otp_verified')
 
       if (error) {
         setError(error.message)
         setLoading(false)
+        perf.end(false, 'otp_verify_error')
       } else {
         setVerified(true)
+        perf.end(true)
         router.push('/dashboard')
       }
     } catch (err: any) {
       if (!navigator.onLine || err?.message?.includes('fetch')) {
         setError('You appear to be offline. Check your connection and try again.')
+        perf.end(false, 'network_error')
       } else {
         setError(err?.message || 'Something went wrong. Please try again.')
+        perf.end(false, 'unexpected_error')
       }
       setLoading(false)
     }

@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/Toast'
 import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
 import { collectSystemInfo } from '@/lib/system-info'
 import type { Todo, Product, Priority } from '@/lib/todo-types'
+import { startInteraction } from '@/lib/performance/telemetry'
 
 type Props = {
   productId?: string
@@ -39,14 +40,24 @@ export default function TodoForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!title.trim()) { setError('Title is required.'); return }
+    const measurement = startInteraction({
+      focus: 'dashboard-clicks',
+      flow: 'dashboard-todos',
+      interaction: 'todo_create',
+      surface: 'dashboard',
+      immediateFlush: true,
+      metadata: { projectId: selectedProduct, hasDueDate: !!dueAt, hasPriority: priorityValue !== '' },
+    })
+    if (!title.trim()) { setError('Title is required.'); measurement.end(false, 'validation_failed'); return }
     setSaving(true)
     setError('')
 
     const beforeUrgency = await getUrgencySnapshot()
+    measurement.mark('urgency_snapshot_loaded')
 
     const { data: openStatus } = await supabase
       .from('statuses').select('name').eq('is_open', true).limit(1).single()
+    measurement.mark('open_status_loaded')
 
     const urls = urlInput.split('\n').map(u => u.trim()).filter(Boolean)
     const { data, error: err } = await supabase
@@ -66,11 +77,14 @@ export default function TodoForm({
       })
       .select('*, groups(name), categories(name)')
       .single()
+    measurement.mark('supabase_insert_completed')
 
     setSaving(false)
     if (err) {
-      if (isAuthError(err.message)) { handleSessionExpired(toast); return }
-      toast.error('Failed to create todo. Try again.'); return
+      if (isAuthError(err.message)) { measurement.end(false, 'auth_error'); handleSessionExpired(toast); return }
+      toast.error('Failed to create todo. Try again.')
+      measurement.end(false, 'todo_create_failed', { error: err.message })
+      return
     }
     if (data) {
       toast.success('Todo created')
@@ -84,6 +98,7 @@ export default function TodoForm({
       })
       if (beforeUrgency) notifyIfEscalated(beforeUrgency)
       onCreate(data as Todo)
+      measurement.end(true, null, { todoId: data.id, status: data.status })
     }
   }
 

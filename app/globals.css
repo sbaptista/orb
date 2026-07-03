@@ -661,10 +661,163 @@ a, button, [role="button"], input, select, textarea {
     letter-spacing: normal;
     color: var(--muted);
   }
-  .metrics-summary-list .metrics-summary-value {
+.metrics-summary-list .metrics-summary-value {
     font-family: var(--font-mono);
     font-weight: var(--fw-semibold);
     color: var(--text);
+  }
+}
+
+/* ── Performance settings responsive controls and cards ── */
+.perf-controls-form {
+  display: grid;
+  gap: var(--sp-lg);
+  border-bottom: 0;
+}
+
+.perf-stats-grid {
+  display: grid;
+}
+
+.perf-control-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 240px);
+  gap: var(--sp-md);
+}
+
+.perf-control-card {
+  display: grid;
+  gap: var(--sp-sm);
+  padding: var(--sp-md);
+  background: var(--bg2);
+}
+
+.perf-section-heading {
+  margin-bottom: var(--sp-md);
+}
+
+.perf-summary-section {
+  margin-bottom: var(--sp-lg);
+}
+
+.perf-summary-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.perf-summary-table {
+  min-width: 1080px;
+}
+
+.perf-summary-table th,
+.perf-summary-table td {
+  padding: 10px var(--sp-lg);
+  vertical-align: top;
+}
+
+.perf-summary-table td {
+  border-bottom: 1px solid var(--border);
+  color: var(--text2);
+  line-height: var(--lh-snug);
+  white-space: nowrap;
+}
+
+.perf-summary-table td:nth-child(2),
+.perf-summary-table td:nth-child(3) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 190px;
+}
+
+.perf-summary-table td:nth-child(n+6) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.perf-summary-cards {
+  display: none;
+}
+
+.perf-filter-field {
+  display: grid;
+  gap: var(--sp-xs);
+  flex: 1 1 150px;
+  min-width: 0;
+  max-width: 220px;
+}
+
+.perf-filter-label {
+  color: var(--text3);
+  font-size: var(--fs-version);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-wide);
+  line-height: var(--lh-tight);
+  text-transform: uppercase;
+}
+
+.perf-filter-control {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.perf-filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: var(--touch);
+  padding-right: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--accent) 50%),
+    linear-gradient(135deg, var(--accent) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 12px) calc(50% - 2px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.perf-event-card,
+.perf-summary-card {
+  text-align: left;
+}
+
+@media (max-width: 767px), ((pointer: coarse) and (max-width: 900px)) {
+  .perf-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .perf-control-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .perf-filter-control {
+    width: 100%;
+  }
+
+  .perf-filter-field {
+    flex-basis: 100%;
+    max-width: 100%;
+  }
+
+  .perf-summary-table-wrap {
+    display: none;
+  }
+
+  .perf-summary-cards {
+    display: grid;
+    gap: var(--sp-sm);
+  }
+}
+
+@media (max-width: 420px) {
+  .perf-stats-grid {
+    grid-template-columns: 1fr;
   }
 }
 

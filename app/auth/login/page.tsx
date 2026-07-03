@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { checkLoginAllowed } from '@/app/actions/auth-actions'
 import { devLogin } from '@/app/actions/dev-login'
 import { isPasskeyAvailable, isConditionalMediationSupported, authenticateWithPasskey, authenticateWithConditionalMediation } from '@/lib/passkey'
+import { startInteraction } from '@/lib/performance/telemetry'
 
 const DEV_USERS = process.env.NODE_ENV === 'development' ? [
   { label: 'Stan', email: 'stan.baptista@gmail.com' },
@@ -28,8 +29,15 @@ function LoginForm() {
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    setMounted(true)
-    setPasskeyAvailable(isPasskeyAvailable())
+    const perf = startInteraction({ focus: 'auth', flow: 'login', interaction: 'login_mount', surface: 'auth-login' })
+    const id = window.setTimeout(() => {
+      setMounted(true)
+      setPasskeyAvailable(isPasskeyAvailable())
+      perf.mark('passkey_availability_checked')
+      perf.end(true)
+    }, 0)
+
+    return () => window.clearTimeout(id)
   }, [])
 
   // ── Conditional mediation: background passkey autofill ──
@@ -39,16 +47,24 @@ function LoginForm() {
     abortRef.current = controller
 
     async function startConditionalMediation() {
+      const perf = startInteraction({ focus: 'auth', flow: 'login', interaction: 'conditional_passkey', surface: 'auth-login' })
       const supported = await isConditionalMediationSupported()
-      if (!supported || cancelled) return
+      perf.mark('support_checked')
+      if (!supported || cancelled) {
+        perf.end(true, null, { supported })
+        return
+      }
 
       const result = await authenticateWithConditionalMediation(supabase, controller)
+      perf.mark('conditional_mediation_completed')
 
       if (cancelled) return
       if (result.ok) {
+        perf.end(true)
         router.push('/dashboard')
         return
       }
+      perf.end(false, result.error ?? 'conditional_passkey_failed')
       // All failures are silent — aborted, cancelled, no credentials, errors.
       // User continues with email/OTP normally.
     }
@@ -109,18 +125,22 @@ function LoginForm() {
   }, [searchParams])
 
   async function handlePasskeyLogin() {
+    const perf = startInteraction({ focus: 'auth', flow: 'login', interaction: 'passkey_click', surface: 'auth-login' })
     abortRef.current?.abort()
     setPasskeyLoading(true)
     setError('')
 
     const result = await authenticateWithPasskey(supabase)
+    perf.mark('passkey_auth_completed')
 
     if (result.ok) {
+      perf.end(true)
       router.push('/dashboard')
       return
     }
 
     setPasskeyLoading(false)
+    perf.end(false, result.error ?? 'passkey_failed')
 
     if (result.error === 'cancelled') return
 
@@ -140,6 +160,7 @@ function LoginForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    const perf = startInteraction({ focus: 'auth', flow: 'login', interaction: 'otp_request', surface: 'auth-login' })
     // Abort any pending conditional mediation — user chose OTP path
     abortRef.current?.abort()
     setLoading(true)
@@ -148,16 +169,19 @@ function LoginForm() {
     if (!navigator.onLine) {
       setError('You appear to be offline. Check your connection and try again.')
       setLoading(false)
+      perf.end(false, 'offline')
       return
     }
 
     try {
       const check = await checkLoginAllowed(email)
+      perf.mark('login_allowed_checked')
       if (!check.allowed) {
         setError(
           'Orb is by invitation only at this stage. If you have an invitation, please check your inbox for the registration link or ask Stan for access.'
         )
         setLoading(false)
+        perf.end(false, check.reason ?? 'not_allowed')
         return
       }
 
@@ -165,9 +189,11 @@ function LoginForm() {
         email,
         options: { shouldCreateUser: false },
       })
+      perf.mark('otp_requested')
 
       if (otpError) {
         setError(otpError.message)
+        perf.end(false, 'otp_error')
       } else {
         try {
           localStorage.setItem('last_otp_email', email)
@@ -175,6 +201,7 @@ function LoginForm() {
         } catch (e) {
           console.error('[LoginForm] Failed to save cooldown to localStorage:', e)
         }
+        perf.end(true)
         router.push(`/auth/verify-otp?email=${encodeURIComponent(email)}`)
         return
       }
@@ -186,8 +213,10 @@ function LoginForm() {
           : String(err)
       if (!navigator.onLine || errMsg.includes('fetch')) {
         setError('You appear to be offline. Check your connection and try again.')
+        perf.end(false, 'network_error')
       } else {
         setError(errMsg || 'Something went wrong. Please try again.')
+        perf.end(false, 'unexpected_error')
       }
     }
 

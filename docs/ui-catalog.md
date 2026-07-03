@@ -83,6 +83,7 @@ Standard settings layout with centered content card.
 - **AI Settings Group:** Keep every embedded-assistant page adjacent in the sidebar: `AI Memory`, `AI Metrics`, and `AI Settings`. Use “AI” for the assistant settings cluster so “Orb” can remain the app/product name and the ambient object.
 - **AI Settings:** Admin-only policy page for model roles, live routing activation, and monthly limits. Model choices come from the production-ready model catalog; one compatible model may serve both roles. Use the standard `s-page`, `s-header`, `s-card`, and `s-form` settings assembly. Accounting inputs belong to AI Metrics.
 - **AI Metrics Cost Reporting:** The Metrics page owns the token-ledger app-cost summary, date/model filters, provider/model/role/source breakdowns, rate cards, and optional provider bill reconciliation. Rate cards are the primary app-cost assumptions; provider bill entries are secondary calibration or external AI operating cost context. The summary must always show both the requested filter range and the actual row range used, and eval traffic is included as real AI spend while remaining distinguishable in the source breakdown.
+- **Performance Settings:** Admin-only telemetry page for ORB-309. Uses the existing Settings shell, `SettingsCrudList`, `TextSearchModal`, `DateSearchModal`, `EditorModal`, `metrics-summary-*` summary cards, server-side pagination/search/sort/filter, `crud-card` mobile cards, `perf-*` responsive telemetry controls/cards, and platform table-width overrides. Do not create separate telemetry table/search/modal shells.
 - **Mobile Settings Picker:** On iPhone and narrow/coarse-pointer iPad, the settings sidebar becomes a compact icon trigger with a down arrow and version label. Tapping it opens a vertical section menu. This preserves unsaved-change confirmation and avoids long horizontal nav menus without duplicating the page title.
 - **Version Badge:** Located in the bottom corner of the Settings page sidebar (e.g. displaying `v0.5.127`). Non-clickable.
 - **What's New Screen:** Located under Settings. Displays recent release notes and contains:
@@ -205,7 +206,27 @@ Paired controls above collection content: a search/action controller and a pagin
 
 - `SearchController` has an optional informational top row and a control row. Use `enclosed` for the bordered, shaded settings treatment or `minimal` when only a divider is appropriate.
 - `PaginationController` has a page-information top row and optional navigation row. Pass `infoOnly` for a single-page result; it renders only the information row, without an empty control area.
+- Table column navigation uses the existing column controller classes: `crud-scroll-controls`, `crud-scroll-controls-label`, and `crud-scroll-buttons`. It belongs in the table toolbar only when the table horizontally overflows; do not use `PaginationController` for column movement.
 - Collection owners decide whether pagination exists. The standard offset rule is `totalCount > pageSize`; do not render disabled First/Previous/Next/Last controls when all results fit on one page.
+
+### Telemetry Controls And Cards (`perf-*`)
+**Files:** `components/settings/SettingsPerformance.tsx`, `app/globals.css`
+Settings Performance uses a thin responsive layer over established Settings cards and CRUD cards.
+
+| Class | Purpose |
+|---|---|
+| `perf-controls-form` | Measurement controls layout; grid gap with no extra form divider |
+| `perf-control-grid` | Responsive measurement-control grid; collapses to one column on iPhone/narrow coarse layouts |
+| `perf-control-card` | `s-card` treatment for individual telemetry controls |
+| `perf-section-heading` | Title/description block above telemetry sections |
+| `perf-summary-section` | Card container for latency summary |
+| `perf-summary-table-wrap` | Desktop/tablet horizontal wrapper for the latency summary table |
+| `perf-summary-cards` | Mobile card renderer for latency summary rows |
+| `perf-filter-field` | Labeled filter wrapper so controls keep captions and wrap cleanly |
+| `perf-filter-label` | Uppercase filter caption |
+| `perf-filter-control` | Responsive filter control sizing; full-width on narrow/coarse layouts |
+| `perf-filter-select` | Select/dropdown treatment with visible dropdown affordance |
+| `perf-event-card` / `perf-summary-card` | Performance-specific cards built from the existing `crud-card` pattern |
 
 ---
 

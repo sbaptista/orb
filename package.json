@@ -1,10 +1,10 @@
 {
   "name": "orb",
-  "version": "0.6.119",
+  "version": "0.6.137",
   "private": true,
   "scripts": {
     "prebuild": "node scripts/generate-repository-bundle.mjs",
-    "dev": "rm -rf .next && next dev --experimental-https --experimental-https-cert localhost+1.pem --experimental-https-key localhost+1-key.pem -H 0.0.0.0 -p 3001",
+    "dev": "rm -rf .next && NODE_TLS_REJECT_UNAUTHORIZED=0 next dev --experimental-https --experimental-https-cert localhost+1.pem --experimental-https-key localhost+1-key.pem -H 0.0.0.0 -p 3001",
     "build": "next build",
     "start": "next start",
     "lint": "eslint && node scripts/verify-ui-catalog.js",
