@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.138',
+    date: '2026-07-02',
+    changes: [
+      'Added a Performance Analysis panel to Settings -> Performance that separates completed latency samples from failed, stale, or interrupted events and highlights data coverage, completed events, failures, top bottlenecks, attention rows, and platform differences.',
+      'Updated the latency summary so P50/P75/P95 are calculated from successful completed events while failures remain visible as their own reliability signal.',
+      'Added a production telemetry collection checklist to Measurement Controls so the required deploy, Vercel env var, per-browser recording, focus-area selection, and production-row confirmation steps are visible where measurement is configured.',
+      'Documented the new Performance analysis classes in the UI catalog.',
+    ]
+  },
+  {
     version: 'v0.6.137',
     date: '2026-07-02',
     changes: [

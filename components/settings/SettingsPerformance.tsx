@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
 import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
 import DateSearchModal, { type CreatedFilter } from './DateSearchModal'
@@ -71,11 +71,23 @@ type SummaryRow = {
   platform: string
   browser: string
   count: number
+  totalCount: number
   failures: number
+  failureRate: number
   p50: number
   p75: number
   p95: number
   max: number
+}
+
+type CoverageRow = {
+  environment: string
+  platform: string
+  browser: string
+  count: number
+  successes: number
+  failures: number
+  latestAt: string
 }
 
 const PAGE_SIZE = 50
@@ -123,6 +135,10 @@ function formatDateTime(value: string, timeZone: string) {
 
 function ms(value: number) {
   return `${value.toLocaleString()}ms`
+}
+
+function pct(value: number) {
+  return `${Math.round(value * 100)}%`
 }
 
 function compactJson(value: unknown): string {
@@ -278,6 +294,8 @@ export default function SettingsPerformance() {
   const [success, setSuccess] = useState<'all' | 'success' | 'failure'>('all')
   const [version, setVersion] = useState('all')
   const [summary, setSummary] = useState<SummaryRow[]>([])
+  const [coverage, setCoverage] = useState<CoverageRow[]>([])
+  const [totals, setTotals] = useState<{ events: number; successes: number; failures: number; environments: string[] }>({ events: 0, successes: 0, failures: 0, environments: [] })
   const [viewingRow, setViewingRow] = useState<PerfRow | null>(null)
   const [clientEnabled, setClientEnabled] = useState(false)
   const [clientFocus, setClientFocus] = useState<PerfFocus[]>([])
@@ -325,10 +343,39 @@ export default function SettingsPerformance() {
   useEffect(() => {
     let cancelled = false
     getPerformanceSummary(queryOptions).then(result => {
-      if (!cancelled && result.ok) setSummary((result.data ?? []) as SummaryRow[])
+      if (!cancelled && result.ok) {
+        setSummary((result.data ?? []) as SummaryRow[])
+        setCoverage((result.coverage ?? []) as CoverageRow[])
+        setTotals((result.totals ?? { events: 0, successes: 0, failures: 0, environments: [] }) as { events: number; successes: number; failures: number; environments: string[] })
+      }
     })
     return () => { cancelled = true }
   }, [filterKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const completedSummary = useMemo(() => summary.filter(row => row.count > 0), [summary])
+  const analysis = useMemo(() => {
+    const topBottleneck = completedSummary[0]
+    const largestOutlier = completedSummary
+      .map(row => ({ row, gap: Math.max(0, row.max - row.p95) }))
+      .sort((a, b) => b.gap - a.gap)[0]
+    const attention = summary
+      .filter(row => row.count > 0 && (row.p95 >= 5000 || row.max >= 10000 || row.failureRate >= 0.2 || row.failures >= 3))
+      .slice(0, 6)
+    const productionEvents = coverage.filter(row => row.environment === 'production').reduce((sum, row) => sum + row.count, 0)
+    const platformGroups = new Map<string, SummaryRow[]>()
+    for (const row of completedSummary) {
+      const key = [row.environment, row.focus, row.flow, row.interaction, row.browser].join('|')
+      platformGroups.set(key, [...(platformGroups.get(key) ?? []), row])
+    }
+    const platformGap = [...platformGroups.values()]
+      .filter(rows => rows.length > 1)
+      .map(rows => {
+        const sorted = [...rows].sort((a, b) => b.p95 - a.p95)
+        return { slow: sorted[0], fast: sorted[sorted.length - 1], gap: sorted[0].p95 - sorted[sorted.length - 1].p95 }
+      })
+      .sort((a, b) => b.gap - a.gap)[0]
+    return { topBottleneck, largestOutlier, attention, productionEvents, platformGap }
+  }, [completedSummary, coverage, summary])
 
   function setEnabled(next: boolean) {
     setClientEnabled(next)
@@ -393,8 +440,8 @@ export default function SettingsPerformance() {
   }
 
   const hasAnyFilter = !!textSearchTerm || !!createdFilter || environment !== 'all' || focus !== 'all' || platform !== 'all' || browser !== 'all' || success !== 'all' || version !== 'all'
-  const totalEvents = summary.reduce((sum, row) => sum + row.count, 0)
-  const worst = summary[0]
+  const totalEvents = totals.events
+  const worst = analysis.topBottleneck
 
   return (
     <>
@@ -499,6 +546,23 @@ export default function SettingsPerformance() {
                     </div>
                   </div>
 
+                  <div className="s-card perf-production-card">
+                    <div>
+                      <div className="metrics-summary-label">Production Collection Checklist</div>
+                      <p className="text-sm text-muted" style={{ margin: 'var(--sp-xs) 0 0' }}>
+                        Production rows appear only after the deployed server accepts telemetry and each testing browser records locally.
+                      </p>
+                    </div>
+                    <ol className="perf-checklist">
+                      <li>Deploy the latest app version.</li>
+                      <li>Set <code>ORB_PERF_TELEMETRY_ENABLED=true</code> in Vercel Production.</li>
+                      <li>Redeploy if Vercel requires it for the environment variable to take effect.</li>
+                      <li>On each Mac, iPad, or iPhone browser, set Local Browser Measurement to On.</li>
+                      <li>Select the focus areas being measured, then run the target flows.</li>
+                      <li>Confirm new rows appear with environment set to production.</li>
+                    </ol>
+                  </div>
+
                   {probeStatus && <p className="text-sm text-muted" style={{ margin: 0 }}>{probeStatus}</p>}
                   {clientEnabled && !clientFocus.includes('settings') && (
                     <p className="text-sm" style={{ margin: 0, color: 'var(--warning)' }}>
@@ -507,6 +571,71 @@ export default function SettingsPerformance() {
                   )}
                 </div>
               </div>
+              {summary.length > 0 && (
+                <div className="s-card perf-analysis-section">
+                  <div className="perf-section-heading">
+                    <h2 className="s-card-title">Performance Analysis</h2>
+                    <p className="s-card-desc">
+                      Completed events drive latency percentiles. Failed, stale, and interrupted events are counted separately so they point to reliability problems without distorting P50/P75/P95.
+                    </p>
+                  </div>
+                  <div className="metrics-summary-grid perf-analysis-grid">
+                    <StatCard label="Data Coverage" value={analysis.productionEvents > 0 ? `${analysis.productionEvents.toLocaleString()} production` : 'Dev only'} />
+                    <StatCard label="Completed Events" value={totals.successes.toLocaleString()} />
+                    <StatCard label="Failed / Interrupted" value={totals.failures.toLocaleString()} />
+                    <StatCard label="Top Bottleneck" value={analysis.topBottleneck ? `${analysis.topBottleneck.interaction} ${ms(analysis.topBottleneck.p95)}` : '—'} />
+                  </div>
+                  <div className="perf-analysis-columns">
+                    <div className="s-card perf-analysis-card">
+                      <div className="metrics-summary-label">Needs Attention</div>
+                      {analysis.attention.length === 0 ? (
+                        <p className="text-sm text-muted" style={{ margin: 0 }}>No matching groups crossed the current attention thresholds.</p>
+                      ) : (
+                        <div className="perf-attention-list">
+                          {analysis.attention.map(row => (
+                            <div className="perf-attention-row" key={`${row.environment}-${row.focus}-${row.flow}-${row.interaction}-${row.platform}-${row.browser}`}>
+                              <div>
+                                <div className="perf-attention-title">{row.flow} / {row.interaction}</div>
+                                <div className="perf-attention-meta">{row.environment} · {row.platform} · {row.browser} · {row.count} completed · {row.failures} failed</div>
+                              </div>
+                              <div className="crud-card-pills">
+                                {row.p95 >= 5000 && <span className="crud-card-pill">P95 {ms(row.p95)}</span>}
+                                {row.max >= 10000 && <span className="crud-card-pill">Max {ms(row.max)}</span>}
+                                {row.failureRate >= 0.2 && <span className="crud-card-pill">Fail {pct(row.failureRate)}</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="s-card perf-analysis-card">
+                      <div className="metrics-summary-label">Platform Differences</div>
+                      {analysis.platformGap && analysis.platformGap.gap > 0 ? (
+                        <div className="perf-attention-row">
+                          <div>
+                            <div className="perf-attention-title">{analysis.platformGap.slow.flow} / {analysis.platformGap.slow.interaction}</div>
+                            <div className="perf-attention-meta">
+                              {analysis.platformGap.slow.platform} P95 {ms(analysis.platformGap.slow.p95)} vs {analysis.platformGap.fast.platform} P95 {ms(analysis.platformGap.fast.p95)}
+                            </div>
+                          </div>
+                          <span className="crud-card-pill">Gap {ms(analysis.platformGap.gap)}</span>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted" style={{ margin: 0 }}>Need matching flow samples on more than one platform.</p>
+                      )}
+                      <div className="metrics-summary-label" style={{ marginTop: 'var(--sp-md)' }}>Coverage</div>
+                      <div className="perf-coverage-list">
+                        {coverage.slice(0, 6).map(row => (
+                          <div className="perf-coverage-row" key={`${row.environment}-${row.platform}-${row.browser}`}>
+                            <span>{row.environment} · {row.platform} · {row.browser}</span>
+                            <strong>{row.count.toLocaleString()}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               {summary.length > 0 && (
                 <div className="s-card perf-summary-section">
                   <div className="perf-section-heading">
@@ -524,7 +653,8 @@ export default function SettingsPerformance() {
                           <th className="audit-th">Interaction</th>
                           <th className="audit-th">Platform</th>
                           <th className="audit-th">Browser</th>
-                          <th className="audit-th">Count</th>
+                          <th className="audit-th">Completed</th>
+                          <th className="audit-th">Failed</th>
                           <th className="audit-th">P50</th>
                           <th className="audit-th">P75</th>
                           <th className="audit-th">P95</th>
@@ -540,6 +670,7 @@ export default function SettingsPerformance() {
                             <td>{row.platform}</td>
                             <td>{row.browser}</td>
                             <td>{row.count}</td>
+                            <td>{row.failures}</td>
                             <td>{ms(row.p50)}</td>
                             <td>{ms(row.p75)}</td>
                             <td>{ms(row.p95)}</td>
@@ -564,7 +695,8 @@ export default function SettingsPerformance() {
                         </div>
                         <div className="crud-card-meta">
                           <span><strong>Flow:</strong> <span className="crud-card-meta-value">{row.flow}</span></span>
-                          <span><strong>Count:</strong> <span className="crud-card-meta-value">{row.count}</span></span>
+                          <span><strong>Completed:</strong> <span className="crud-card-meta-value">{row.count}</span></span>
+                          <span><strong>Failed:</strong> <span className="crud-card-meta-value">{row.failures}</span></span>
                           <span><strong>P50:</strong> <span className="crud-card-meta-value">{ms(row.p50)}</span></span>
                           <span><strong>P75:</strong> <span className="crud-card-meta-value">{ms(row.p75)}</span></span>
                           <span><strong>P95:</strong> <span className="crud-card-meta-value">{ms(row.p95)}</span></span>

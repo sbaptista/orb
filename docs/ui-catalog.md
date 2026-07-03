@@ -218,7 +218,11 @@ Settings Performance uses a thin responsive layer over established Settings card
 | `perf-controls-form` | Measurement controls layout; grid gap with no extra form divider |
 | `perf-control-grid` | Responsive measurement-control grid; collapses to one column on iPhone/narrow coarse layouts |
 | `perf-control-card` | `s-card` treatment for individual telemetry controls |
+| `perf-production-card` / `perf-checklist` | Production telemetry checklist card inside Measurement Controls |
 | `perf-section-heading` | Title/description block above telemetry sections |
+| `perf-analysis-section` / `perf-analysis-grid` / `perf-analysis-columns` / `perf-analysis-card` | Performance analysis panel for coverage, bottlenecks, attention rows, and platform differences |
+| `perf-attention-list` / `perf-attention-row` / `perf-attention-title` / `perf-attention-meta` | Compact analysis rows for slow P95, high Max, or failure-rate signals |
+| `perf-coverage-list` / `perf-coverage-row` | Environment/platform/browser sample coverage rows |
 | `perf-summary-section` | Card container for latency summary |
 | `perf-summary-table-wrap` | Desktop/tablet horizontal wrapper for the latency summary table |
 | `perf-summary-cards` | Mobile card renderer for latency summary rows |

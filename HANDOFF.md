@@ -10,13 +10,56 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.137
+- **Version:** 0.6.138
 
 ---
 
 ### Last Session Completed
 
-**ORB-309 Performance Instrumentation Foundation — 2026-07-02 (Codex, GPT-5) — v0.6.120-v0.6.137**
+**ORB-309 Performance Analysis UI + Production Telemetry Checkpoint — 2026-07-02 (Codex, GPT-5) — v0.6.138**
+
+Stan resumed ORB-309 after the instrumentation foundation shipped and asked to work through the remaining tasks without closing ORB-309. This checkpoint adds the first analysis layer to Settings -> Performance and records the first production telemetry lesson: production collection needs both deployed code/server env enablement and per-browser local measurement.
+
+**What changed:**
+- Added a **Performance Analysis** section above Latency Summary in Settings -> Performance.
+- Changed summary calculations so P50/P75/P95 are based on successful completed events only; failed, stale, aborted, and interrupted events stay visible as reliability signals instead of contaminating latency percentiles.
+- Added analysis cards for data coverage, completed events, failed/interrupted events, and top bottleneck.
+- Added **Needs Attention** rows for high P95, high Max, and high failure-rate groups.
+- Added platform-difference and environment/platform/browser coverage summaries.
+- Added a **Production Collection Checklist** under Measurement Controls and to the ORB-309 plan: deploy latest app version, set `ORB_PERF_TELEMETRY_ENABLED=true` in Vercel Production, redeploy if needed, turn on Local Browser Measurement per browser/device, select focus areas, and confirm `environment = production` rows.
+- Updated the UI catalog and changelog for the new Performance Settings analysis/checklist classes.
+
+**What we learned:**
+- Production telemetry ingestion is working once server-side ingestion is enabled and the testing browser has Local Browser Measurement turned on.
+- A code deploy alone does not enable production telemetry. Vercel Production must have `ORB_PERF_TELEMETRY_ENABLED=true`.
+- First production sample observed: **36 production events on v0.6.137** from Mac/Chrome between `2026-07-03 06:55:11` and `06:58:19 UTC`.
+- Early production signals: `auth / login / passkey_click` had one slow sample around 8.5s; AI Metrics showed first samples around 4.3s `page_full_load` and 3.4s `ai_accounting_load`; Settings Performance filter loads had 11 samples with p50 about 1.2s, p95 about 3.1s, and max about 4.2s; dashboard init looked much faster in production than dev so far.
+- Production is still on v0.6.137 until this commit is pushed/deployed; v0.6.138 analysis UI/checklist has been verified in dev only.
+
+**Tracking:**
+- Added Knowledge Repo entry `ORB-309 production telemetry and analysis UI checkpoint` (`c34e99e4-470f-42f6-9b2d-657b34160d48`).
+- ORB-309 remains **open**. Do not close it until production samples exist across Mac/iPad/iPhone, a measured bottleneck is improved, and before/after data confirms the result.
+
+**Verification:**
+- Stan manually verified the dev UI: Performance Analysis appears above Latency Summary, coverage/counts look plausible, Needs Attention shows expected rows, and narrow-width cards stack without disappearing controls/text.
+- `npx tsc --noEmit` passed.
+- `node scripts/verify-ui-catalog.js` passed.
+- `git diff --check` passed.
+
+### Uncommitted Changes
+
+- `app/actions/performance-events.ts`
+- `app/globals.css`
+- `components/settings/SettingsPerformance.tsx`
+- `docs/orb-309-initialization-performance-plan.md`
+- `docs/ui-catalog.md`
+- `lib/changelog.ts`
+- `lib/version.ts`
+- `package.json`
+
+---
+
+### Prior Session: ORB-309 Performance Instrumentation Foundation — 2026-07-02 (Codex, GPT-5) — v0.6.120-v0.6.137
 
 Stan stopped new feature work to address the basic performance problem systemically: login was one visible symptom, but the task became instrumentation for every user-clickable flow, with dev and production measurements, focus-area controls, platform/browser context, and a Settings surface for analysis.
 
@@ -44,37 +87,6 @@ Stan stopped new feature work to address the basic performance problem systemica
 - `git diff --check` passed during the session.
 - `npm run build` passed at v0.6.137.
 - Browser/device testing happened iteratively on dev with Stan. Production collection is the reason for this commit/push.
-
-### Uncommitted Changes
-
-- `AGENTS.md`
-- `app/actions/performance-events.ts`
-- `app/api/performance-events/route.ts`
-- `app/auth/login/page.tsx`
-- `app/auth/verify-otp/page.tsx`
-- `app/globals.css`
-- `app/settings/performance/page.tsx`
-- `components/AddProductModal.tsx`
-- `components/CollapsibleSidebar.tsx`
-- `components/TodoForm.tsx`
-- `components/TodoPanel.tsx`
-- `components/UnifiedDashboard.tsx`
-- `components/settings/NavLink.tsx`
-- `components/settings/SettingsCostReconciliation.tsx`
-- `components/settings/SettingsCrudList.tsx`
-- `components/settings/SettingsMetrics.tsx`
-- `components/settings/SettingsPerformance.tsx`
-- `components/settings/SettingsSidebar.tsx`
-- `docs/object-capability-matrix.md`
-- `docs/orb-309-initialization-performance-plan.md`
-- `docs/ui-catalog.md`
-- `lib/changelog.ts`
-- `lib/performance/telemetry.ts`
-- `lib/version.ts`
-- `package.json`
-- `scripts/migrations/20260702_performance_events.sql`
-
----
 
 ### Prior Session: Voice Speak-Once, Confirm-Loop Fixes, Identifier Provenance, Project-Code UI Audit — 2026-07-01 (Claude Code, Fable 5) — v0.6.113-v0.6.119
 
@@ -291,11 +303,11 @@ v0.6.67–v0.6.71: silent TTS fix, build gate for TTS keys, iPhone AudioContext 
 
 ## Next Priorities
 
-1. **Collect production data for ORB-309:** enable targeted Performance recording on production and gather Mac, iPad, and iPhone samples for login, dashboard, Settings navigation, AI Metrics, Performance Settings, todo CRUD, project switching, Orb submit, and voice start. Compare production against dev before optimizing.
-2. **Build the next analysis layer:** add page-level views for bottlenecks, platform/browser comparison, outliers, failures/interrupted events, session/time-window filtering, and clearer threshold badges. Keep P95 as the primary planning signal and Max as outlier evidence.
-3. **Optimize AI Metrics from measured evidence:** current dev data points to `settings-ai-metrics / ai_accounting_load` and `metrics_table_load` as the biggest slow spots, but remedies should wait for production measurements.
-4. **Watch Performance Settings scale:** if production confirms the events page itself is heavy, optimize query/table behavior and add indexes or pagination/server filtering as needed.
-5. **Add deeper instrumentation primitives:** build a reusable server-action timing helper and more detailed voice-stage measurements so future work gets consistent timing data by default.
+1. **Deploy and verify v0.6.138:** production is currently collecting telemetry on v0.6.137. After this push, confirm `/api/version` reports v0.6.138 and Settings -> Performance shows the new Performance Analysis panel and Production Collection Checklist.
+2. **Collect broader production data for ORB-309:** gather Mac, iPad, and iPhone samples for login, dashboard, Settings navigation, AI Metrics, Performance Settings, todo CRUD, project switching, Orb submit, and voice start. Compare production against dev before optimizing.
+3. **Choose the first optimization target from production evidence:** early production Mac/Chrome points to login passkey click, AI Metrics, and Performance Events filtering, but sample counts are too low for a final call.
+4. **Optimize the selected bottleneck and measure before/after:** likely AI Metrics unless broader production samples point elsewhere. Keep ORB-309 open until the measured improvement is confirmed.
+5. **Add deeper instrumentation primitives if needed:** reusable server-action timing helper, deeper voice listen/speak handoff timings, and any additional stage attribution required by the first optimization target.
 
 ---
 

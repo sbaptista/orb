@@ -692,6 +692,30 @@ a, button, [role="button"], input, select, textarea {
   background: var(--bg2);
 }
 
+.perf-production-card {
+  display: grid;
+  gap: var(--sp-md);
+  padding: var(--sp-md);
+  background: var(--bg2);
+}
+
+.perf-checklist {
+  display: grid;
+  gap: var(--sp-xs);
+  margin: 0;
+  padding-left: 1.35rem;
+  color: var(--text2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+}
+
+.perf-checklist code {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+  overflow-wrap: anywhere;
+}
+
 .perf-section-heading {
   margin-bottom: var(--sp-md);
 }
@@ -700,13 +724,89 @@ a, button, [role="button"], input, select, textarea {
   margin-bottom: var(--sp-lg);
 }
 
+.perf-analysis-section {
+  margin-bottom: var(--sp-lg);
+}
+
+.perf-analysis-grid {
+  margin-bottom: var(--sp-lg);
+}
+
+.perf-analysis-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+  gap: var(--sp-md);
+}
+
+.perf-analysis-card {
+  display: grid;
+  gap: var(--sp-md);
+  padding: var(--sp-md);
+  background: var(--bg2);
+}
+
+.perf-attention-list {
+  display: grid;
+  gap: var(--sp-sm);
+}
+
+.perf-attention-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-md);
+  padding: var(--sp-sm) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.perf-attention-row:last-child {
+  border-bottom: 0;
+}
+
+.perf-attention-title {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+
+.perf-attention-meta {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+}
+
+.perf-coverage-list {
+  display: grid;
+  gap: var(--sp-xs);
+}
+
+.perf-coverage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-sm);
+  color: var(--text2);
+  font-size: var(--fs-sm);
+}
+
+.perf-coverage-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.perf-coverage-row strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
 .perf-summary-table-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
 .perf-summary-table {
-  min-width: 1080px;
+  min-width: 1140px;
 }
 
 .perf-summary-table th,
@@ -794,6 +894,14 @@ a, button, [role="button"], input, select, textarea {
 
   .perf-control-grid {
     grid-template-columns: 1fr;
+  }
+
+  .perf-analysis-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .perf-attention-row {
+    display: grid;
   }
 
   .perf-filter-control {

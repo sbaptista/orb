@@ -1,6 +1,6 @@
 # ORB-309 — Initialization and Interaction Performance Instrumentation Plan
 
-**Status:** Instrumentation foundation in progress; initial auth, dashboard-init, Settings navigation, AI Metrics page-load, Performance Settings, and shared Settings CRUD timings are implemented for dev/prod collection.  
+**Status:** Instrumentation foundation plus first Settings analysis layer in progress; initial auth, dashboard-init, dashboard clicks, Settings navigation, AI Metrics page-load, Performance Settings, shared Settings CRUD timings, and voice-start markers are implemented for dev/prod collection.
 **Created:** 2026-07-02  
 **Scope:** Measure, analyze, and improve initialization and click/tap response times across the full Orb user surface in both development and production.
 
@@ -25,14 +25,26 @@ Completed foundation:
 - Settings navigation timings from sidebar/picker click to destination route.
 - AI Metrics timings for table load, AI accounting load, provider reconciliation load, and full perceived page load.
 - Shared `SettingsCrudList` timings for initial/search/filter/sort/pagination loads and CRUD/modal actions across Settings pages.
+- First Performance Settings analysis layer: completed-event percentiles are separated from failed/stale/interrupted events, with data coverage, top bottleneck, attention rows, platform differences, and environment/platform/browser coverage surfaced above the raw latency table.
 
 Still pending before optimization work is complete:
 
-- Dashboard click/tap interactions outside initialization.
-- Voice start/listen/speak handoff timings.
-- Main todo CRUD/project-switch/list-view timings.
-- Server-side timing helper for server actions/routes that need deeper DB/action stage attribution.
 - Production measurement pass with focus areas enabled narrowly.
+- Deeper analysis views for bottlenecks, outliers, failures/interrupted events, session/time-window filtering, and platform/browser comparison once production samples exist.
+- Server-side timing helper for server actions/routes that need deeper DB/action stage attribution.
+- Deeper voice listen/speak handoff timings beyond the current voice-start markers.
+- Optimization of AI Metrics and Performance Settings based on measured production evidence.
+
+## Production Collection Checklist
+
+Production measurement requires both server-side ingestion and per-browser local recording:
+
+1. Deploy the latest app version to production.
+2. Set `ORB_PERF_TELEMETRY_ENABLED=true` in Vercel Production.
+3. Redeploy if Vercel requires it for the environment variable to take effect.
+4. On each Mac, iPad, or iPhone browser being tested, set **Local Browser Measurement** to **On** in Settings -> Performance.
+5. Select the focus areas being measured, then run the target flows.
+6. Confirm rows appear in `performance_events` with `environment = 'production'`.
 
 ---
 
