@@ -189,9 +189,10 @@ The conversational Orb's behavior is protected by an **eval suite**, not unit te
 
 ## At session start
 
-1. **Read both files from the main directory:**
+1. **Read from the main directory:**
    - This file (`AGENTS.md`) → understand the system and shared conventions
    - `HANDOFF.md` → understand current state
+   - Every file in `ACTIVE_WORK/` → see what any other concurrent agent is working on right now (see **Multi-Agent Concurrency Protocol** below)
 
 2. **Answer the comprehension check** (top of this file)
 
@@ -346,6 +347,20 @@ Before any production release or code push, you must document all changes in the
 - **Action:** Bump the patch version in both `package.json` and `lib/version.ts`, and add a new entry to the `CHANGELOG` array in `lib/changelog.ts` with the new version string, release date, and detailed bullet points describing the changes.
 - **Eval gate:** Run the Orb eval suite (`NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts`) and confirm **Tier 1 is green** before pushing. See the **Orb Eval Suite** section above.
 - **Verification:** Ensure that clicking the "Update" button in the client forces a tab refresh and fetches the new server version cleanly.
+
+---
+
+# Multi-Agent Concurrency Protocol (two writable agents)
+
+Two AI tools (currently Claude Code and Codex) may work in the main directory **at the same time**. This is governed by `docs/multi-agent-concurrency-protocol.md` — adopted 2026-07-02, binding. Read it before working concurrently. The load-bearing rules:
+
+1. **Ceiling: 2 writable agents.** An agent that edits repo files, runs evals, mutates DB state, or touches the dev server is writable. Read-only research agents don't count. Never add a third writable agent — the serialized lanes (release bookkeeping, dev server, migrations, Stan's verification) make it reduce throughput, not add it.
+2. **Active Work Ledger — `ACTIVE_WORK/`, read all, write one.** Before any write/mutating work: read every file in `ACTIVE_WORK/`, then append a claim block (timestamp, Surface, Files, Intent, `Long-running: yes/no`) to **your own** file (`claude-code.md` or `codex.md`). Never edit the other agent's file. Remove your claim when the work is **committed**. Template in `ACTIVE_WORK/README.md`.
+3. **Overlap = stop.** If the other agent's file claims the surface/files you want, pick different work or ask Stan. First claim wins. Claims older than 2 hours are stale (unless `Long-running: yes`, freshly timestamped) — note the staleness in your own file, verify no real uncommitted diff exists, then proceed.
+4. **`Release bookkeeping` claim is exclusive.** `HANDOFF.md`, `package.json`, `lib/version.ts`, `lib/changelog.ts` — one holder at a time. Take it only when staged and ready to commit; re-read the canonical `package.json` version immediately before bumping; commit promptly; release.
+5. **High-risk work gets a task branch** (required): migrations, broad refactors, dependency upgrades, bulk rewrites, cross-feature changes. The ledger claim is still required — branching and claiming are complementary.
+6. **Dev server/eval suite: single consumer.** Check the ledger before requesting an eval run. DB **schema** claims (DDL) are exclusive; DB **data** claims (content/maintenance) are declared but non-blocking.
+7. **Commit small and frequent** — one claim per commit where practical, to shorten the window a claim blocks the other agent.
 
 ---
 
