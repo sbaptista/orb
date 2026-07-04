@@ -153,6 +153,8 @@ type CrudConfig<T, F> = {
 
   layout?: 'list' | 'table'
   tableColumns?: TableColumn<T>[]
+  /** Hide the built-in page header when the list is embedded under an existing page shell. */
+  hideHeader?: boolean
   /** Number of leading columns (including checkbox) to pin when scrolling horizontally. */
   stickyColumns?: number
   /** Platform-specific frozen-column counts. Falls back to stickyColumns. */
@@ -863,6 +865,21 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
     setSelectedIds([])
   }
 
+  function goToLastPage() {
+    if (!config.pagination) return
+    const lastPage = Math.max(0, Math.ceil(effectiveTotalCount / config.pagination.pageSize) - 1)
+    if (page >= lastPage) return
+    if (usesCursorPagination) {
+      setCursorHistory(history => {
+        const next = Array.from({ length: lastPage + 1 }, (_, index) => history[index] ?? null)
+        next[lastPage] = null
+        return next
+      })
+    }
+    setPage(lastPage)
+    setSelectedIds([])
+  }
+
   function renderPaginationButtons() {
     if (!config.pagination) return null
     const lastPage = Math.max(0, Math.ceil(effectiveTotalCount / config.pagination.pageSize) - 1)
@@ -892,14 +909,45 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         <button className="nav-circle-btn" onClick={goToNextPage} aria-disabled={usesCursorPagination ? !nextCursor : page >= lastPage} aria-label="Next page" data-tooltip="Next page">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-        <button className="nav-circle-btn" onClick={() => { if (!usesCursorPagination && page < lastPage) { setPage(lastPage); setSelectedIds([]) } }} aria-disabled={usesCursorPagination || page >= lastPage} aria-label="Last page" data-tooltip="Last page">
+        <button className="nav-circle-btn" onClick={goToLastPage} aria-disabled={page >= lastPage} aria-label="Last page" data-tooltip="Last page">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
         </button>
       </PaginationController>
     )
   }
 
-  if (loading && items.length === 0) return <div className="s-loading"><SkeletonRows rows={3} /></div>
+  function renderTableColumnControls() {
+    if (!isTable || (hasMobileCards && cardRendererActive) || !tableOverflows) return null
+    return (
+      <div className="crud-scroll-controls" aria-label="Table column controls">
+        <div className="crud-scroll-controls-label">{config.tableNavCaption ?? 'Prev/Next Columns'}</div>
+        <div className="crud-scroll-buttons">
+          <button
+            type="button"
+            className="nav-circle-btn"
+            onClick={() => { if (canScrollTableLeft) scrollTable(-1) }}
+            aria-disabled={!canScrollTableLeft}
+            aria-label="Previous table columns"
+            data-tooltip="Previous table columns"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            className="nav-circle-btn"
+            onClick={() => { if (canScrollTableRight) scrollTable(1) }}
+            aria-disabled={!canScrollTableRight}
+            aria-label="Next table columns"
+            data-tooltip="Next table columns"
+          >
+            ›
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const showInitialLoading = loading && items.length === 0
 
   const colCount = (config.tableColumns?.length ?? 1) + (hasBulk ? 1 : 0)
 
@@ -1190,23 +1238,25 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
 
   return (
     <div className={config.pageClass ?? 'settings-page s-page'}>
-      <div className="s-header">
-        <div>
-          <h2 className="s-title">{config.title}</h2>
-          {config.subtitle && !config.pagination && (
-            <div className="flex-row gap-sm" style={{ alignItems: 'baseline' }}>
-              <p className="text-sm text-muted">{config.subtitle(displayed, effectiveTotalCount || undefined, { page, pageSize: pageSize ?? 0 })}</p>
-            </div>
-          )}
+      {!config.hideHeader && (
+        <div className="s-header">
+          <div>
+            <h2 className="s-title">{config.title}</h2>
+            {config.subtitle && !config.pagination && (
+              <div className="flex-row gap-sm" style={{ alignItems: 'baseline' }}>
+                <p className="text-sm text-muted">{config.subtitle(displayed, effectiveTotalCount || undefined, { page, pageSize: pageSize ?? 0 })}</p>
+              </div>
+            )}
+          </div>
+          <div className="flex-row gap-sm">
+            {hasForm && !config.hideAdd && !((config.searchFilter || usesServerSearch || hasExternalSearch) || isTable) && (
+              <button className="btn-primary" onClick={openAddModal}>
+                + {config.addButtonLabel ?? `Add ${config.itemLabel}`}
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex-row gap-sm">
-          {hasForm && !config.hideAdd && !((config.searchFilter || usesServerSearch || hasExternalSearch) || isTable) && (
-            <button className="btn-primary" onClick={openAddModal}>
-              + {config.addButtonLabel ?? `Add ${config.itemLabel}`}
-            </button>
-          )}
-        </div>
-      </div>
+      )}
 
       {config.headerExtra}
 
@@ -1250,6 +1300,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           >
             {config.toolbarLeading}
             {config.toolbarExtra}
+            {renderTableColumnControls()}
             {hasMobileCards && cardRendererActive && mobileSortOptions.length > 0 && (
               <FilterKebab
                 value={activeMobileSort ? `${activeMobileSort.sortKey}:${activeMobileSort.sortDir}` : `${mobileSortOptions[0].sortKey}:${mobileSortOptions[0].sortDir}`}
@@ -1348,33 +1399,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
               />
             </div>
           )}
-          {isTable && !(hasMobileCards && cardRendererActive) && tableOverflows && (
-            <div className="crud-scroll-controls" aria-label="Table column controls">
-              <div className="crud-scroll-controls-label">{config.tableNavCaption ?? 'Prev/Next Columns'}</div>
-              <div className="crud-scroll-buttons">
-                <button
-                  type="button"
-                  className="nav-circle-btn"
-                  onClick={() => { if (canScrollTableLeft) scrollTable(-1) }}
-                  aria-disabled={!canScrollTableLeft}
-                  aria-label="Previous table columns"
-                  data-tooltip="Previous table columns"
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  className="nav-circle-btn"
-                  onClick={() => { if (canScrollTableRight) scrollTable(1) }}
-                  aria-disabled={!canScrollTableRight}
-                  aria-label="Next table columns"
-                  data-tooltip="Next table columns"
-                >
-                  ›
-                </button>
-              </div>
-            </div>
-          )}
+          {renderTableColumnControls()}
         </div>
       )}
 
@@ -1405,7 +1430,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
       {error && !modalOpen && <p className="s-error">{error}</p>}
 
       {isTable ? (
-        displayed.length === 0 ? (
+        showInitialLoading ? (
+          <div className="s-card s-loading"><SkeletonRows rows={3} /></div>
+        ) : displayed.length === 0 ? (
           <div className="s-card s-empty">
             {(search.trim() || hasAnyExternalFilter) ? 'No matching entries.' : `No ${config.title.toLowerCase()} yet.`}
           </div>
@@ -1541,7 +1568,9 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         )
       ) : (
         <div className="s-list">
-          {displayed.length === 0 ? (
+          {showInitialLoading ? (
+            <div className="s-card s-loading"><SkeletonRows rows={3} /></div>
+          ) : displayed.length === 0 ? (
             <p className="s-empty">
               {(search.trim() || hasAnyExternalFilter) ? 'No matching entries.' : `No ${config.title.toLowerCase()} yet.`}
             </p>

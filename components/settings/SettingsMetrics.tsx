@@ -4,66 +4,44 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
 import DateSearchModal, { type CreatedFilter } from './DateSearchModal'
-import { getOrbMetrics } from '@/app/actions/get-orb-metrics'
 import SettingsCostReconciliation from './SettingsCostReconciliation'
+import { getAiRequestLog, type AiRequestLogRow } from '@/app/actions/get-ai-request-log'
 import { getAiCostSummary, type AiCostDateMode, type AiCostSummary } from '@/app/actions/get-ai-cost-summary'
 import { getOrbAiSettings, saveOrbModelRateCard } from '@/app/actions/orb-ai-settings'
 import type { OrbModelRateCard } from '@/lib/orb-model/policy'
 import { useToast } from '@/components/ui/Toast'
-import { getPerformanceNavigationStart, startInteraction } from '@/lib/performance/telemetry'
-
-type MetricsRow = {
-  id: string
-  user_id: string
-  date: string
-  model: string
-  call_count: number
-  speech_chars: number
-  voice_speech_chars: number
-  input_chars: number
-  tool_call_count: number
-  ambient_chars: number
-  input_tokens: number
-  output_tokens: number
-  cache_creation_input_tokens: number
-  cache_read_input_tokens: number
-  created_at: string
-  user_email: string | null
-  user_name: string | null
-}
+import { startInteraction } from '@/lib/performance/telemetry'
 
 type MetricsForm = Record<string, never>
 type EditableRateCard = OrbModelRateCard & { saving?: boolean }
-type MetricsSummaryRow = Pick<MetricsRow,
-  'model' | 'call_count' | 'speech_chars' | 'voice_speech_chars' | 'input_chars' |
-  'tool_call_count' | 'ambient_chars' | 'input_tokens' | 'output_tokens' |
-  'cache_creation_input_tokens' | 'cache_read_input_tokens'
->
+type DraftRateCard = {
+  provider: string
+  model: string
+  effectiveFrom: string
+  inputPerMillion: string
+  outputPerMillion: string
+  cachedInputPerMillion: string
+  cacheWritePerMillion: string
+  notes: string
+  saving?: boolean
+}
 
 const EMPTY_FORM: MetricsForm = {}
 const PAGE_SIZE = 50
-
-type ModelRates = { input: number; output: number; cacheCreate: number; cacheRead: number }
-
-const MODEL_RATES: Record<string, ModelRates> = {
-  'claude-haiku-4-5': { input: 1, output: 5, cacheCreate: 1.25, cacheRead: 0.10 },
-  'claude-sonnet-4-6': { input: 3, output: 15, cacheCreate: 3.75, cacheRead: 0.30 },
-  'claude-opus-4-6': { input: 5, output: 25, cacheCreate: 6.25, cacheRead: 0.50 },
-  'claude-opus-4-7': { input: 5, output: 25, cacheCreate: 6.25, cacheRead: 0.50 },
-  'claude-opus-4-8': { input: 5, output: 25, cacheCreate: 6.25, cacheRead: 0.50 },
-}
-const FALLBACK_RATES: ModelRates = { input: 1, output: 5, cacheCreate: 1.25, cacheRead: 0.10 }
-
-function getRates(model: string): ModelRates {
-  return MODEL_RATES[model] ?? FALLBACK_RATES
-}
+const todayDate = () => new Date().toISOString().slice(0, 10)
+const emptyNewRateCard = (): DraftRateCard => ({
+  provider: '',
+  model: '',
+  effectiveFrom: todayDate(),
+  inputPerMillion: '',
+  outputPerMillion: '',
+  cachedInputPerMillion: '',
+  cacheWritePerMillion: '',
+  notes: '',
+})
 
 function subscribeToTimeZone() { return () => {} }
 function getBrowserTimeZone(): string { return Intl.DateTimeFormat().resolvedOptions().timeZone }
-
-function formatDate(value: string, timeZone: string): string {
-  return new Date(value + 'T00:00:00').toLocaleDateString(undefined, { timeZone, month: 'short', day: 'numeric', year: 'numeric' })
-}
 
 function formatDateTime(value: string | null, timeZone: string): string {
   if (!value) return 'No matching rows'
@@ -72,12 +50,6 @@ function formatDateTime(value: string | null, timeZone: string): string {
 
 function formatNumber(n: number): string {
   return n.toLocaleString()
-}
-
-function formatCharsAsK(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
-  return String(n)
 }
 
 function formatTokensAsK(n: number): string {
@@ -90,6 +62,18 @@ function formatCost(dollars: number): string {
   if (dollars === 0) return '$0.00'
   if (dollars < 0.01) return '$' + dollars.toFixed(4)
   return '$' + dollars.toFixed(2)
+}
+
+function formatNullableCost(value: AiRequestLogRow['estimated_cost_usd']): string {
+  if (value === null || value === undefined) return '—'
+  const amount = typeof value === 'number' ? value : Number(value)
+  if (Number.isNaN(amount)) return '—'
+  return formatCost(amount)
+}
+
+function formatMs(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  return `${formatNumber(value)}ms`
 }
 
 function formatModel(provider: string, model: string) {
@@ -118,6 +102,7 @@ function roleLabel(role: string) {
 function sourceLabel(source: string) {
   return source === 'eval' ? 'Eval'
     : source === 'strategic_review' ? 'Strategic review'
+      : source === 'voice_tts' ? 'Voice TTS'
       : source === 'conversation' ? 'Conversation'
         : source.replace(/_/g, ' ')
 }
@@ -125,19 +110,6 @@ function sourceLabel(source: string) {
 function actualRangeText(summary: AiCostSummary, timeZone: string) {
   if (!summary.actualStart || !summary.actualEnd) return 'No matching rows'
   return `${formatDateTime(summary.actualStart, timeZone)} to ${formatDateTime(summary.actualEnd, timeZone)}`
-}
-
-const TTS_RATES = [
-  { label: 'OpenAI tts-1', perMChar: 15 },
-  { label: 'ElevenLabs', perMChar: 66 },
-  { label: 'Google WaveNet', perMChar: 16 },
-]
-
-function estimateTTSCost(chars: number): string {
-  return TTS_RATES.map(r => {
-    const cost = (chars / 1_000_000) * r.perMChar
-    return `${r.label}: ${formatCost(cost)}`
-  }).join(' · ')
 }
 
 export default function SettingsMetrics() {
@@ -150,9 +122,10 @@ export default function SettingsMetrics() {
   const [textSearchTerm, setTextSearchTerm] = useState('')
   const [showDateFilter, setShowDateFilter] = useState(false)
   const [dateFilter, setDateFilter] = useState<CreatedFilter | null>(null)
-  const [summaryData, setSummaryData] = useState<MetricsSummaryRow[]>([])
   const [costSummary, setCostSummary] = useState<AiCostSummary | null>(null)
   const [rateCards, setRateCards] = useState<EditableRateCard[]>([])
+  const [newRateCard, setNewRateCard] = useState<DraftRateCard>(() => emptyNewRateCard())
+  const [showRequestLog, setShowRequestLog] = useState(true)
   const [accountingLoading, setAccountingLoading] = useState(true)
   const [aiDateMode, setAiDateMode] = useState<AiCostDateMode>('all_tracked')
   const [aiDateFrom, setAiDateFrom] = useState('')
@@ -183,7 +156,6 @@ export default function SettingsMetrics() {
       flow: 'settings-ai-metrics',
       interaction: 'page_full_load',
       surface: 'settings-metrics',
-      startTimeMs: getPerformanceNavigationStart('/settings/metrics') ?? undefined,
       immediateFlush: true,
     })
     fullLoadPerf.current.mark('component_mounted')
@@ -194,6 +166,15 @@ export default function SettingsMetrics() {
       }
     }
   }, [])
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 767px), ((pointer: coarse) and (max-width: 900px))')
+    if (query.matches) setShowRequestLog(false)
+  }, [])
+
+  useEffect(() => {
+    if (!showRequestLog) markFullLoad('table', true)
+  }, [showRequestLog])
 
   const loadAiAccounting = useCallback(async () => {
     setAccountingLoading(true)
@@ -252,47 +233,35 @@ export default function SettingsMetrics() {
     }
   }
 
+  async function saveNewRateCard() {
+    setNewRateCard(card => ({ ...card, saving: true }))
+    try {
+      await saveOrbModelRateCard({
+        provider: newRateCard.provider,
+        model: newRateCard.model,
+        effectiveFrom: newRateCard.effectiveFrom,
+        inputPerMillion: Number(newRateCard.inputPerMillion || 0),
+        outputPerMillion: Number(newRateCard.outputPerMillion || 0),
+        cachedInputPerMillion: newRateCard.cachedInputPerMillion === '' ? null : Number(newRateCard.cachedInputPerMillion),
+        cacheWritePerMillion: newRateCard.cacheWritePerMillion === '' ? null : Number(newRateCard.cacheWritePerMillion),
+        notes: newRateCard.notes,
+      })
+      toast.success(`${formatModel(newRateCard.provider, newRateCard.model)} rate created.`)
+      setNewRateCard(emptyNewRateCard())
+      await loadAiAccounting()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to create rate card.')
+    } finally {
+      setNewRateCard(card => ({ ...card, saving: false }))
+    }
+  }
+
   function resetAll() {
     setTextSearchTerm('')
     setDateFilter(null)
   }
 
   const hasAnyFilter = !!textSearchTerm || !!dateFilter
-
-  const totals = summaryData.reduce((acc, row) => ({
-    calls: acc.calls + row.call_count,
-    speech: acc.speech + row.speech_chars,
-    voice: acc.voice + row.voice_speech_chars,
-    input: acc.input + row.input_chars,
-    tools: acc.tools + row.tool_call_count,
-    ambient: acc.ambient + row.ambient_chars,
-    inputTokens: acc.inputTokens + row.input_tokens,
-    outputTokens: acc.outputTokens + row.output_tokens,
-    cacheCreateTokens: acc.cacheCreateTokens + row.cache_creation_input_tokens,
-    cacheReadTokens: acc.cacheReadTokens + row.cache_read_input_tokens,
-  }), { calls: 0, speech: 0, voice: 0, input: 0, tools: 0, ambient: 0, inputTokens: 0, outputTokens: 0, cacheCreateTokens: 0, cacheReadTokens: 0 })
-
-  const llmCost = summaryData.reduce((sum, row) => {
-    const r = getRates(row.model)
-    return sum
-      + (row.input_tokens / 1_000_000) * r.input
-      + (row.output_tokens / 1_000_000) * r.output
-      + (row.cache_creation_input_tokens / 1_000_000) * r.cacheCreate
-      + (row.cache_read_input_tokens / 1_000_000) * r.cacheRead
-  }, 0)
-
-  const summaryItems = [
-    { label: 'Calls', value: formatNumber(totals.calls) },
-    { label: 'Speech Chars', value: formatCharsAsK(totals.speech) },
-    { label: 'Voice Chars', value: formatCharsAsK(totals.voice) },
-    { label: 'Input Chars', value: formatCharsAsK(totals.input) },
-    { label: 'Tool Calls', value: formatNumber(totals.tools) },
-    { label: 'Ambient Chars', value: formatCharsAsK(totals.ambient) },
-    { label: 'In Tokens', value: formatTokensAsK(totals.inputTokens) },
-    { label: 'Out Tokens', value: formatTokensAsK(totals.outputTokens) },
-    { label: 'Cache Write', value: formatTokensAsK(totals.cacheCreateTokens) },
-    { label: 'Cache Read', value: formatTokensAsK(totals.cacheReadTokens) },
-  ]
 
   const tokenCards = costSummary ? [
     {
@@ -317,16 +286,35 @@ export default function SettingsMetrics() {
     },
   ] : []
 
+  const aiModelOptions = (() => {
+    const options = new Map<string, { key: string; label: string }>()
+    for (const option of costSummary?.modelOptions ?? []) {
+      options.set(option.key, { key: option.key, label: option.label })
+    }
+    for (const card of rateCards) {
+      const key = `${card.provider}:${card.model}`
+      if (!options.has(key)) options.set(key, { key, label: formatModel(card.provider, card.model) })
+    }
+    return Array.from(options.values()).sort((a, b) => a.label.localeCompare(b.label))
+  })()
+
+  const appAiSummaryItems = costSummary ? [
+    { label: 'Estimated AI Cost', value: formatCost(costSummary.estimatedLiveCostUsd) },
+    { label: 'Requests', value: formatNumber(costSummary.requestCount) },
+    ...tokenCards.map(card => ({ label: card.label, value: card.value, tooltip: card.tooltip })),
+    { label: 'Provider Bills', value: formatCost(costSummary.reconciledTotalUsd) },
+  ] : []
+
   const aiCostSummary = (
     <div className="metrics-summary" style={{ marginBottom: 'var(--sp-lg)' }}>
       <div style={{ marginBottom: 'var(--sp-md)' }}>
-        <h2 className="s-card-title" style={{ margin: 0 }}>AI Cost Summary</h2>
+        <h2 className="s-card-title" style={{ margin: 0 }}>App AI Cost Accounting</h2>
         <p className="s-card-desc" style={{ marginTop: 'var(--sp-xs)' }}>
-          App AI cost from tracked request tokens multiplied by the configured rate cards.
+          Request ledger for conversation and TTS API models.
         </p>
       </div>
       <div className="s-card flex-col gap-md" style={{ marginBottom: 'var(--sp-md)' }}>
-        <div className="s-form" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 'var(--sp-md)' }}>
+        <div className="s-form metrics-filter-grid">
           <label>
             <span className="label">Date filter</span>
             <select
@@ -350,7 +338,7 @@ export default function SettingsMetrics() {
               onChange={event => setAiModelKey(event.target.value)}
             >
               <option value="all">All models</option>
-              {costSummary?.modelOptions.map(option => (
+              {aiModelOptions.map(option => (
                 <option key={option.key} value={option.key}>{option.label}</option>
               ))}
             </select>
@@ -371,82 +359,103 @@ export default function SettingsMetrics() {
                 <input type="date" value={aiDateTo} onChange={event => setAiDateTo(event.target.value)} />
               </label>
             </>
-          ) : (
-            <div className="s-card-desc" style={{ alignSelf: 'end', margin: 0 }}>Eval and day-to-day calls are included.</div>
-          )}
+          ) : null}
         </div>
+        <p className="s-card-desc" style={{ margin: 0 }}>Eval and day-to-day calls are included.</p>
       </div>
       {accountingLoading || !costSummary ? (
         <div className="metrics-cost-bar">Loading AI cost accounting…</div>
       ) : (
         <>
-          <div className="metrics-summary-grid">
-            <div className="metrics-summary-card">
-              <div className="metrics-summary-label">Estimated AI Cost</div>
-              <div className="metrics-summary-value">{formatCost(costSummary.estimatedLiveCostUsd)}</div>
+          <div className="s-card metrics-summary-panel">
+            <div className="metrics-details-card" role="table" aria-label="App AI cost accounting summary">
+              {appAiSummaryItems.map(item => (
+                <div key={item.label} className="metrics-details-row" role="row" data-tooltip={'tooltip' in item ? item.tooltip : undefined}>
+                  <span className="metrics-details-label" role="cell">{item.label}</span>
+                  <span className="metrics-details-value metrics-summary-value" role="cell">{item.value}</span>
+                </div>
+              ))}
             </div>
-            <div className="metrics-summary-card">
-              <div className="metrics-summary-label">Requests</div>
-              <div className="metrics-summary-value">{formatNumber(costSummary.requestCount)}</div>
-            </div>
-            {tokenCards.map(card => (
-              <div key={card.label} className="metrics-summary-card" data-tooltip={card.tooltip}>
-                <div className="metrics-summary-label">{card.label}</div>
-                <div className="metrics-summary-value">{card.value}</div>
+          </div>
+
+          <div className="metrics-details-section">
+            <h3 className="s-card-title metrics-details-title">Accounting Details</h3>
+            <div className="s-card metrics-details-card" role="table" aria-label="AI cost accounting details">
+              <div className="metrics-details-row" role="row">
+                <span className="metrics-details-label" role="cell">Requested range</span>
+                <span className="metrics-details-value" role="cell">{costSummary.periodStart} to {costSummary.periodEnd}</span>
               </div>
-            ))}
-            <div className="metrics-summary-card">
-              <div className="metrics-summary-label">Provider Bills</div>
-              <div className="metrics-summary-value">{formatCost(costSummary.reconciledTotalUsd)}</div>
+              <div className="metrics-details-row" role="row">
+                <span className="metrics-details-label" role="cell">Actual row range</span>
+                <span className="metrics-details-value" role="cell">{actualRangeText(costSummary, timeZone)}</span>
+              </div>
+              {costSummary.providerBreakdown.length > 0 && (
+                <div className="metrics-details-row" role="row">
+                  <span className="metrics-details-label" role="cell">By provider</span>
+                  <span className="metrics-details-value" role="cell">{costSummary.providerBreakdown.map(row => `${providerLabel(row.provider)} ${formatCost(row.estimatedCostUsd)}`).join(' · ')}</span>
+                </div>
+              )}
+              {costSummary.roleBreakdown.length > 0 && (
+                <div className="metrics-details-row" role="row">
+                  <span className="metrics-details-label" role="cell">By role</span>
+                  <span className="metrics-details-value" role="cell">{costSummary.roleBreakdown.map(row => `${roleLabel(row.routeRole)} ${formatCost(row.estimatedCostUsd)}`).join(' · ')}</span>
+                </div>
+              )}
+              {costSummary.sourceBreakdown.length > 0 && (
+                <div className="metrics-details-row" role="row">
+                  <span className="metrics-details-label" role="cell">By source</span>
+                  <span className="metrics-details-value" role="cell">{costSummary.sourceBreakdown.map(row => `${sourceLabel(row.source)} ${formatCost(row.estimatedCostUsd)}`).join(' · ')}</span>
+                </div>
+              )}
+              <div className="metrics-details-row" role="row">
+                <span className="metrics-details-label" role="cell">TTS source label</span>
+                <span className="metrics-details-value" role="cell">Voice TTS includes OpenAI and ElevenLabs API speech requests.</span>
+              </div>
+              {costSummary.reconciliations.length > 0 && (
+                <div className="metrics-details-row" role="row">
+                  <span className="metrics-details-label" role="cell">Provider bills</span>
+                  <span className="metrics-details-value" role="cell">{costSummary.reconciliations.map(row => `${providerLabel(row.provider)} ${formatCost(row.actualOrbCostUsd)}`).join(' · ')}</span>
+                </div>
+              )}
             </div>
           </div>
-
-          <ul className="metrics-summary-list">
-            <li><span className="metrics-summary-label">Estimated AI Cost:</span> <span className="metrics-summary-value">{formatCost(costSummary.estimatedLiveCostUsd)}</span></li>
-            <li><span className="metrics-summary-label">Requests:</span> <span className="metrics-summary-value">{formatNumber(costSummary.requestCount)}</span></li>
-            {tokenCards.map(card => (
-              <li key={card.label} data-tooltip={card.tooltip}><span className="metrics-summary-label">{card.label}:</span> <span className="metrics-summary-value">{card.value}</span></li>
-            ))}
-            <li><span className="metrics-summary-label">Provider Bills:</span> <span className="metrics-summary-value">{formatCost(costSummary.reconciledTotalUsd)}</span></li>
-          </ul>
-
-          <div className="metrics-cost-bar">
-            Requested range · {costSummary.periodStart} to {costSummary.periodEnd}
-          </div>
-          <div className="metrics-cost-bar">
-            Actual row range · {actualRangeText(costSummary, timeZone)}
-          </div>
-          {costSummary.providerBreakdown.length > 0 && (
-            <div className="metrics-cost-bar">
-              By provider · {costSummary.providerBreakdown.map(row => `${providerLabel(row.provider)} ${formatCost(row.estimatedCostUsd)}`).join(' · ')}
-            </div>
-          )}
-          {costSummary.roleBreakdown.length > 0 && (
-            <div className="metrics-cost-bar">
-              By role · {costSummary.roleBreakdown.map(row => `${roleLabel(row.routeRole)} ${formatCost(row.estimatedCostUsd)}`).join(' · ')}
-            </div>
-          )}
-          {costSummary.sourceBreakdown.length > 0 && (
-            <div className="metrics-cost-bar">
-              By source · {costSummary.sourceBreakdown.map(row => `${sourceLabel(row.source)} ${formatCost(row.estimatedCostUsd)}`).join(' · ')}
-            </div>
-          )}
-          {costSummary.reconciliations.length > 0 && (
-            <div className="metrics-cost-bar">
-              Provider bill entries · {costSummary.reconciliations.map(row => `${providerLabel(row.provider)} ${formatCost(row.actualOrbCostUsd)}`).join(' · ')}
-            </div>
-          )}
         </>
       )}
     </div>
   )
 
   const rateCardEditor = (
-    <section className="s-card flex-col gap-lg" style={{ marginBottom: 'var(--sp-lg)' }}>
-      <div>
-        <h2 className="s-card-title">Rate Cards</h2>
-        <p className="s-card-desc">These rates are the cost assumptions behind the app AI estimate. Future request records use the current provider/model rate at call time.</p>
+    <section className="metrics-rate-section">
+      <div className="metrics-section-heading">
+        <h2 className="s-card-title" style={{ margin: 0 }}>Rate Cards</h2>
+        <p className="s-card-desc" style={{ marginTop: 'var(--sp-xs)' }}>Rates used for future app AI cost estimates.</p>
       </div>
+      <div className="s-card metrics-new-rate-card">
+        <div>
+          <div className="s-card-title">New Rate Card</div>
+          <p className="s-card-desc" style={{ marginTop: 'var(--sp-xs)' }}>Add a provider/model rate that future requests can use.</p>
+        </div>
+        <div className="s-form metrics-rate-form">
+          <label>
+            <span className="label">Provider</span>
+            <select value={newRateCard.provider} onChange={event => setNewRateCard(card => ({ ...card, provider: event.target.value }))}>
+              <option value="">Select provider</option>
+              {['anthropic', 'google', 'mistral', 'openai', 'elevenlabs'].map(provider => <option key={provider} value={provider}>{providerLabel(provider)}</option>)}
+            </select>
+          </label>
+          <label><span className="label">Model</span><input value={newRateCard.model} onChange={event => setNewRateCard(card => ({ ...card, model: event.target.value }))} placeholder="provider-model-id" /></label>
+          <label><span className="label">Effective from</span><input type="date" value={newRateCard.effectiveFrom} onChange={event => setNewRateCard(card => ({ ...card, effectiveFrom: event.target.value }))} /></label>
+          <label><span className="label">Input / 1M tokens</span><input type="number" min="0" step="0.0001" value={newRateCard.inputPerMillion} onChange={event => setNewRateCard(card => ({ ...card, inputPerMillion: event.target.value }))} placeholder="0.0000" /></label>
+          <label><span className="label">Output / 1M tokens</span><input type="number" min="0" step="0.0001" value={newRateCard.outputPerMillion} onChange={event => setNewRateCard(card => ({ ...card, outputPerMillion: event.target.value }))} placeholder="0.0000" /></label>
+          <label><span className="label">Cached input / 1M</span><input type="number" min="0" step="0.0001" value={newRateCard.cachedInputPerMillion} onChange={event => setNewRateCard(card => ({ ...card, cachedInputPerMillion: event.target.value }))} placeholder="optional" /></label>
+          <label><span className="label">Cache write / 1M</span><input type="number" min="0" step="0.0001" value={newRateCard.cacheWritePerMillion} onChange={event => setNewRateCard(card => ({ ...card, cacheWritePerMillion: event.target.value }))} placeholder="optional" /></label>
+          <label><span className="label">Notes</span><input value={newRateCard.notes ?? ''} onChange={event => setNewRateCard(card => ({ ...card, notes: event.target.value }))} placeholder="Optional pricing note" /></label>
+        </div>
+        <div className="flex-center gap-md">
+          <button type="button" className="btn-primary" onClick={saveNewRateCard} disabled={newRateCard.saving}>{newRateCard.saving ? 'Creating...' : 'Create Rate'}</button>
+        </div>
+      </div>
+      <div className="s-card flex-col gap-lg" style={{ marginBottom: 'var(--sp-lg)' }}>
       {rateCards.map(card => (
         <div key={card.id} style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--sp-lg)' }}>
           <div style={{ fontWeight: 'var(--fw-medium)', marginBottom: 'var(--sp-md)' }}>
@@ -465,152 +474,148 @@ export default function SettingsMetrics() {
           </div>
         </div>
       ))}
+      </div>
     </section>
   )
 
-  const summaryCards = summaryData.length > 0 ? (
-    <div className="metrics-summary" style={{ marginBottom: 'var(--sp-lg)' }}>
-      <div className="metrics-summary-grid">
-        {summaryItems.map(card => (
-          <div key={card.label} className="metrics-summary-card">
-            <div className="metrics-summary-label">{card.label}</div>
-            <div className="metrics-summary-value">{card.value}</div>
-          </div>
-        ))}
+  const requestLogHeader = (
+    <section className="metrics-request-log-heading">
+      <div>
+        <h2 className="s-card-title" style={{ margin: 0 }}>AI Request Log</h2>
+        <p className="s-card-desc" style={{ marginTop: 'var(--sp-xs)' }}>
+          Request-level ledger for conversation and TTS API model calls.
+        </p>
       </div>
+      <button
+        type="button"
+        className="btn-primary"
+        onClick={() => setShowRequestLog(value => !value)}
+        aria-expanded={showRequestLog}
+      >
+        {showRequestLog ? 'Hide Log' : 'Show Log'}
+      </button>
+    </section>
+  )
 
-      <ul className="metrics-summary-list">
-        {summaryItems.map(item => (
-          <li key={item.label}>
-            <span className="metrics-summary-label">{item.label}:</span>{' '}
-            <span className="metrics-summary-value">{item.value}</span>
-          </li>
-        ))}
-        <li>
-          <span className="metrics-summary-label">LLM Cost:</span>{' '}
-          <span className="metrics-summary-value">{formatCost(llmCost)}</span>
-        </li>
-        <li>
-          <span className="metrics-summary-label">TTS est:</span>{' '}
-          <span className="metrics-summary-value">{estimateTTSCost(totals.speech)}</span>
-        </li>
-      </ul>
-
-      <div className="metrics-cost-bar">
-        <span style={{ fontWeight: 'var(--fw-semibold)', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>LLM Cost Estimate</span>
-        {' · '}
-        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>
-          <strong>{formatCost(llmCost)}</strong>
-        </span>
-        {' · '}
-        <span>per-model rates</span>
+  const settingsHeader = (
+    <div className="settings-page s-page-wide">
+      <div className="s-header">
+        <div>
+          <h2 className="s-title">AI Metrics</h2>
+        </div>
       </div>
-
-      <div className="metrics-cost-bar">
-        TTS cost estimate (speech chars) · {estimateTTSCost(totals.speech)}
-      </div>
+      {aiCostSummary}
+      {rateCardEditor}
+      {requestLogHeader}
+      {!showRequestLog && (
+        <div className="s-card metrics-request-log-collapsed">
+          The request log is hidden. Use Show Log when you need row-level request detail.
+        </div>
+      )}
     </div>
-  ) : null
+  )
 
   return (
     <>
-      <SettingsCrudList<MetricsRow, MetricsForm>
-        config={{
-          title: 'AI Metrics',
-          table: 'orb_metrics',
-          itemLabel: 'Entry',
-          emptyForm: EMPTY_FORM,
-          pageClass: 'settings-page s-page-wide',
-          layout: 'table',
-          pagination: { pageSize: PAGE_SIZE, serverSearch: true, serverSort: true },
-          subtitle: (_items, total, pageInfo) => {
-            if (!total) return 'No metrics recorded yet.'
-            const ps = pageInfo?.pageSize ?? PAGE_SIZE
-            const pg = pageInfo?.page ?? 0
-            const start = pg * ps + 1
-            const end = Math.min(start + _items.length - 1, total)
-            if (start === end) return `Row ${start} of ${total}.`
-            return `Rows ${start}–${end} of ${total}.`
-          },
-          externalSearchTerm: textSearchTerm,
-          searchCaption: 'Actions',
-          externalFilterActive: hasAnyFilter,
-          tableNavCaption: 'prev/next columns',
-          externalFilterKey: `${dateFilter?.from ?? ''}|${dateFilter?.to ?? ''}|${dateFilter?.before ?? ''}`,
-          onResetFilters: resetAll,
-          headerExtra: (
-            <>
-              {aiCostSummary}
-              {rateCardEditor}
-              {summaryCards}
-            </>
-          ),
-          toolbarExtra: (
-            <>
-              <button
-                type="button"
-                className={textSearchTerm ? 'btn-primary btn-primary-clamped' : 'btn-primary'}
-                onClick={() => setShowTextSearch(true)}
-              >
-                {textSearchTerm || 'Search by User'}
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => setShowDateFilter(true)}
-                aria-label={dateFilter ? `Change date filter: ${dateFilter.label}` : 'Search by date'}
-              >
-                {dateFilter ? (
-                  dateFilter.label2 ? (
-                    <span className="audit-date-stack">
-                      <span>{dateFilter.label} –</span>
-                      <span>{dateFilter.label2}</span>
-                    </span>
-                  ) : dateFilter.label
-                ) : 'Search by Date'}
-              </button>
-            </>
-          ),
+      {settingsHeader}
+      {showRequestLog && (
+        <SettingsCrudList<AiRequestLogRow, MetricsForm>
+          config={{
+            title: 'AI Metrics',
+            table: 'orb_model_requests',
+            itemLabel: 'Request',
+            emptyForm: EMPTY_FORM,
+            pageClass: 'settings-page s-page-wide metrics-request-log-shell',
+            hideHeader: true,
+            layout: 'table',
+            pagination: { pageSize: PAGE_SIZE, serverSearch: true, serverSort: true, mode: 'cursor' },
+            subtitle: (_items, total, pageInfo) => {
+              const ps = pageInfo?.pageSize ?? PAGE_SIZE
+              const pg = pageInfo?.page ?? 0
+              if (_items.length === 0) return 'No request rows found.'
+              const start = pg * ps + 1
+              const end = start + _items.length - 1
+              if (typeof total === 'number' && total > 0) {
+                if (start === end) return `Row ${start} of ${total}.`
+                return `Rows ${start}–${Math.min(end, total)} of ${total}.`
+              }
+              if (start === end) return `Row ${start}.`
+              return `Rows ${start}–${end}.`
+            },
+            externalSearchTerm: textSearchTerm,
+            searchCaption: 'Actions',
+            externalFilterActive: hasAnyFilter,
+            tableNavCaption: 'prev/next columns',
+            externalFilterKey: `${dateFilter?.from ?? ''}|${dateFilter?.to ?? ''}|${dateFilter?.before ?? ''}`,
+            onResetFilters: resetAll,
+            toolbarExtra: (
+              <>
+                <button
+                  type="button"
+                  className={textSearchTerm ? 'btn-primary btn-primary-clamped' : 'btn-primary'}
+                  onClick={() => setShowTextSearch(true)}
+                >
+                  {textSearchTerm || 'Search Log'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setShowDateFilter(true)}
+                  aria-label={dateFilter ? `Change date filter: ${dateFilter.label}` : 'Search by date'}
+                >
+                  {dateFilter ? (
+                    dateFilter.label2 ? (
+                      <span className="audit-date-stack">
+                        <span>{dateFilter.label} –</span>
+                        <span>{dateFilter.label2}</span>
+                      </span>
+                    ) : dateFilter.label
+                  ) : 'Search by Date'}
+                </button>
+              </>
+            ),
 
           selectionColumnWidth: 38,
           selectionColumnWidths: { ipad: 38, iphone: 38 },
           tableColumns: [
-            { label: 'Date',         width: '120px', platformWidths: { ipad: '120px', iphone: '120px' }, sortKey: 'date',              sortValue: (r: MetricsRow) => new Date(r.date).getTime() },
-            { label: 'Model',        width: '160px', platformWidths: { ipad: '160px', iphone: '140px' }, sortKey: 'model' },
-            { label: 'User',         width: '140px', platformWidths: { ipad: '140px', iphone: '140px' } },
-            { label: 'Calls',        width: '80px',  platformWidths: { ipad: '80px',  iphone: '80px'  }, sortKey: 'call_count',        sortValue: (r: MetricsRow) => r.call_count },
-            { label: 'Speech',       width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'speech_chars',      sortValue: (r: MetricsRow) => r.speech_chars },
-            { label: 'Voice',        width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'voice_speech_chars', sortValue: (r: MetricsRow) => r.voice_speech_chars },
-            { label: 'Input',        width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'input_chars',       sortValue: (r: MetricsRow) => r.input_chars },
-            { label: 'Tools',        width: '80px',  platformWidths: { ipad: '80px',  iphone: '80px'  }, sortKey: 'tool_call_count',   sortValue: (r: MetricsRow) => r.tool_call_count },
-            { label: 'Ambient',      width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'ambient_chars',     sortValue: (r: MetricsRow) => r.ambient_chars },
-            { label: 'In Tokens',    width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'input_tokens',      sortValue: (r: MetricsRow) => r.input_tokens },
-            { label: 'Out Tokens',   width: '100px', platformWidths: { ipad: '100px', iphone: '100px' }, sortKey: 'output_tokens',     sortValue: (r: MetricsRow) => r.output_tokens },
-            { label: 'Cache Write',  width: '110px', platformWidths: { ipad: '110px', iphone: '100px' }, sortKey: 'cache_creation_input_tokens', sortValue: (r: MetricsRow) => r.cache_creation_input_tokens },
-            { label: 'Cache Read',   width: '110px', platformWidths: { ipad: '110px', iphone: '100px' }, sortKey: 'cache_read_input_tokens',     sortValue: (r: MetricsRow) => r.cache_read_input_tokens },
+            { label: 'Created',      width: '170px', platformWidths: { ipad: '170px', iphone: '160px' }, sortKey: 'created_at', sortValue: (r: AiRequestLogRow) => new Date(r.created_at).getTime() },
+            { label: 'Provider',     width: '110px', platformWidths: { ipad: '110px', iphone: '110px' } },
+            { label: 'Model',        width: '180px', platformWidths: { ipad: '180px', iphone: '170px' } },
+            { label: 'Source',       width: '120px', platformWidths: { ipad: '120px', iphone: '120px' } },
+            { label: 'Role',         width: '110px', platformWidths: { ipad: '110px', iphone: '110px' } },
+            { label: 'Status',       width: '90px',  platformWidths: { ipad: '90px',  iphone: '90px'  } },
+            { label: 'Latency',      width: '100px', platformWidths: { ipad: '100px', iphone: '100px' } },
+            { label: 'Input',        width: '100px', platformWidths: { ipad: '100px', iphone: '100px' } },
+            { label: 'Output',       width: '100px', platformWidths: { ipad: '100px', iphone: '100px' } },
+            { label: 'Cache Read',   width: '110px', platformWidths: { ipad: '110px', iphone: '100px' } },
+            { label: 'Cache Write',  width: '110px', platformWidths: { ipad: '110px', iphone: '100px' } },
+            { label: 'Cost',         width: '100px', platformWidths: { ipad: '100px', iphone: '100px' } },
+            { label: 'Failure',      width: '180px', platformWidths: { ipad: '180px', iphone: '170px' } },
           ],
 
           load: async (_supabase, pagination) => {
             const perf = startInteraction({
               focus: 'settings',
               flow: 'settings-ai-metrics',
-              interaction: 'metrics_table_load',
+              interaction: 'request_log_load',
               surface: 'settings-metrics',
               immediateFlush: true,
               metadata: {
                 page: pagination?.page ?? 0,
-                sortKey: pagination?.sortKey ?? 'date',
+                sortKey: pagination?.sortKey ?? 'created_at',
                 sortDir: pagination?.sortDir ?? 'desc',
                 search: Boolean(pagination?.search),
                 dateFilter: Boolean(dateFilter),
+                cursorPage: Boolean(pagination?.cursor),
               },
             })
-            const res = await getOrbMetrics({
+            const res = await getAiRequestLog({
               page: pagination?.page,
               pageSize: pagination?.pageSize,
               search: pagination?.search,
               sortKey: pagination?.sortKey,
               sortDir: pagination?.sortDir,
+              cursor: pagination?.cursor,
               createdFrom: dateFilter?.from,
               createdTo: dateFilter?.to,
               createdBefore: dateFilter?.before,
@@ -621,13 +626,13 @@ export default function SettingsMetrics() {
               throw new Error(res.error)
             }
             perf.mark('server_action_completed')
-            const items = (res.data ?? []) as MetricsRow[]
-            setSummaryData((res.summary ?? []) as MetricsSummaryRow[])
+            const items = (res.data ?? []) as AiRequestLogRow[]
             markFullLoad('table', true)
-            perf.end(true, null, { rows: items.length, total: res.count ?? 0 })
+            perf.end(true, null, { rows: items.length, total: res.count ?? items.length, hasNextCursor: Boolean(res.nextCursor) })
             return {
               items,
-              totalCount: res.count ?? 0,
+              totalCount: res.count ?? items.length,
+              nextCursor: res.nextCursor,
             }
           },
 
@@ -637,31 +642,21 @@ export default function SettingsMetrics() {
             <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
               {checkbox}
               <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)' }}>
-                {formatDate(item.date, timeZone)}
+                {formatDateTime(item.created_at, timeZone)}
               </td>
               <td className="audit-td" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text2)' }}>
-                {item.model.replace('claude-', '')}
+                {providerLabel(item.provider)}
               </td>
               <td className="audit-td" style={{ color: 'var(--text2)' }}>
-                {item.user_name || item.user_email || '—'}
+                {formatModel(item.provider, item.model)}
+              </td>
+              <td className="audit-td">{sourceLabel(item.source)}</td>
+              <td className="audit-td">{roleLabel(item.route_role)}</td>
+              <td className="audit-td" style={{ color: item.success ? 'var(--success)' : 'var(--error)', fontWeight: 'var(--fw-semibold)' }}>
+                {item.success ? 'OK' : 'Failed'}
               </td>
               <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
-                {formatNumber(item.call_count)}
-              </td>
-              <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
-                {formatNumber(item.speech_chars)}
-              </td>
-              <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: item.voice_speech_chars > 0 ? 'var(--text)' : 'var(--muted)' }}>
-                {formatNumber(item.voice_speech_chars)}
-              </td>
-              <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
-                {formatNumber(item.input_chars)}
-              </td>
-              <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
-                {formatNumber(item.tool_call_count)}
-              </td>
-              <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: item.ambient_chars > 0 ? 'var(--text)' : 'var(--muted)' }}>
-                {formatNumber(item.ambient_chars)}
+                {formatMs(item.latency_ms)}
               </td>
               <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
                 {formatTokensAsK(item.input_tokens)}
@@ -669,16 +664,23 @@ export default function SettingsMetrics() {
               <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
                 {formatTokensAsK(item.output_tokens)}
               </td>
-              <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: item.cache_creation_input_tokens > 0 ? 'var(--text)' : 'var(--muted)' }}>
-                {formatTokensAsK(item.cache_creation_input_tokens)}
+              <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: item.cached_input_tokens ? 'var(--text)' : 'var(--muted)' }}>
+                {formatTokensAsK(item.cached_input_tokens ?? 0)}
               </td>
-              <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: item.cache_read_input_tokens > 0 ? 'var(--text)' : 'var(--muted)' }}>
-                {formatTokensAsK(item.cache_read_input_tokens)}
+              <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: item.cache_write_tokens ? 'var(--text)' : 'var(--muted)' }}>
+                {formatTokensAsK(item.cache_write_tokens ?? 0)}
+              </td>
+              <td className="audit-td" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
+                {formatNullableCost(item.estimated_cost_usd)}
+              </td>
+              <td className="audit-td" style={{ color: item.failure_code ? 'var(--text2)' : 'var(--muted)' }}>
+                {item.failure_code ?? '—'}
               </td>
             </tr>
-          ),
-        }}
-      />
+            ),
+          }}
+        />
+      )}
 
       <TextSearchModal
         open={showTextSearch}
@@ -686,8 +688,8 @@ export default function SettingsMetrics() {
         onApply={term => { setTextSearchTerm(term); setShowTextSearch(false) }}
         onClear={() => { setTextSearchTerm(''); setShowTextSearch(false) }}
         currentTerm={textSearchTerm}
-        placeholder="Search by user name or email"
-        ariaLabel="Search metrics by user"
+        placeholder="Search provider, model, source, role, or failure"
+        ariaLabel="Search AI request log"
       />
 
       <DateSearchModal

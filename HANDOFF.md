@@ -10,13 +10,77 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.138
+- **Version:** 0.6.139
 
 ---
 
 ### Last Session Completed
 
-**ORB-309 Performance Analysis UI + Production Telemetry Checkpoint — 2026-07-02 (Codex, GPT-5) — v0.6.138**
+**AI Metrics Cost Accounting Labels + ORB-310 First Redesign Slice — 2026-07-03 (Codex, GPT-5) — v0.6.139**
+
+Stan asked why OpenAI/ElevenLabs TTS usage was not visible in AI Metrics. Direct DB inspection showed TTS usage is present in `orb_model_requests` with `source = voice_tts`; the UI was unclear because the newer request-ledger cost accounting area was titled generically while the visible table below is the older `orb_metrics` daily metrics surface.
+
+**What changed:**
+- Renamed the top AI Metrics cost section to **App AI Cost Accounting** and clarified that it is the newer request ledger for model calls and API TTS usage, including OpenAI and ElevenLabs.
+- Mapped `voice_tts` to the visible source label **Voice TTS**.
+- Created **ORB-310 — AI Metrics Redesign** to redesign Settings -> AI Metrics piece by piece, remove or demote legacy `orb_metrics` data, make the request ledger primary, and address AI Metrics performance while redesigning.
+- Started ORB-310 at the top of the page: tightened the App AI Cost Accounting caption, populated Model from request-ledger models plus configured rate cards, moved the eval/day-to-day note under the filter controls, replaced duplicate summary card/list renderings with one ledger-style summary card, added an **Accounting Details** card, aligned the shorter top cards to the same width, moved the Rate Cards header/caption outside the card list, shortened the rate-card caption, and restored a visually distinct **New Rate Card** form above the existing rate-card list.
+- Removed the legacy `orb_metrics` daily summary from the visible AI Metrics page.
+- Replaced the visible logging table with **AI Request Log**, a paginated/searchable/sortable request-level `orb_model_requests` ledger with provider, model, source, role, status, latency, token/character counts, cost estimate, and failure columns.
+- Kept the shared `SettingsCrudList` pagination and column navigation controllers for the request log.
+- Fixed `SettingsCrudList` so tables using external search modals still render the column navigation controller when the table overflows; AI Request Log uses that path.
+- Added a show/hide toggle for **AI Request Log** and defaulted it collapsed on narrow/coarse-pointer screens to reduce iPhone scrolling when the log renders as cards.
+- Fixed the narrow-width **Show Log** jump by keeping `SettingsCrudList` page headers and header extras mounted during initial table loading instead of replacing the whole page shell with skeleton rows.
+- Restyled **Provider Bill Reconciliation** with the same section-header/card pattern, visible input outlines, editable recorded bill rows, and audited delete support.
+- Started ORB-311 by checking AI Metrics performance telemetry before optimizing: production samples still show `ai_accounting_load` as the larger page-load signal, while `request_log_load` is the growing-table risk.
+- Converted **AI Request Log** from exact-count offset paging to cursor pagination on indexed `created_at`, returning `nextCursor` to `SettingsCrudList` and dropping table counts from the hot request-log fetch.
+- Limited request-log server sorting to created-time order for this first optimization pass so the query can stay on the append-heavy log-table access pattern instead of encouraging arbitrary large-table sorts.
+- Continued ORB-311 after Stan tested the cursor path: new `request_log_load` samples showed the cursor path reduced the ugly tail on iPhone Chrome, while `ai_accounting_load` remained the larger initialization bottleneck.
+- Added `get_ai_cost_summary_rollups`, a service-role-only database rollup RPC for App AI Cost Accounting totals, provider/model breakdowns, role breakdowns, source breakdowns, actual row range, and model options.
+- Updated `getAiCostSummary` to consume compact rollup rows instead of fetching and reducing thousands of raw `orb_model_requests` rows in the server action.
+- Fixed AI Metrics `page_full_load` telemetry so it measures the component load lifecycle directly instead of relying on a stale Settings navigation timestamp that produced misleading `0ms` samples.
+- Tightened performance telemetry platform detection so iPhone/iPad analysis prefers browser device signals before falling back to viewport width and coarse-pointer heuristics.
+- Updated the UI catalog to document cursor pagination as the preferred pattern for log-style or append-heavy settings tables such as AI Request Log, Audit Log, and future Knowledge Repo-style tables.
+- Updated the UI catalog and object capability performance matrix to document the reusable large-table fetch pattern: database-side rollups for summary cards/breakdowns and cursor pagination for detail rows.
+- Updated the UI catalog with the AI Metrics accounting, rate-card, and request-log patterns used by the redesign.
+- Updated AGENTS so required Supabase, psql, Orb API, and Knowledge Repo reads go directly to approved/escalated network access when the current AI tool is known to be sandboxed, instead of first recreating the expected DNS failure.
+
+**What we learned:**
+- Rate cards contain ElevenLabs Turbo v2.5 at `50` input-per-million and OpenAI TTS rows at `15`/`30` input-per-million.
+- TTS usage exists in `orb_model_requests`: OpenAI `tts-1` and ElevenLabs `eleven_turbo_v2_5` rows are present under `source = voice_tts`.
+- Provider bill reconciliation should record actual plan/bill amounts for the period; rate cards remain the per-unit estimate.
+
+**Tracking:**
+- ORB-309 remains **open**. The AI Metrics performance optimization work has not been done yet.
+- ORB-310 is **closed** as of 2026-07-04 01:07 UTC. Knowledge Repo entry: `ORB-310 AI Metrics redesign completed` (`9b765610-a483-4d7c-aee6-2a5b07b76a66`).
+- ORB-311 is **open**. Request Log has received the first scalable-fetch change, but before/after production samples still need to confirm improvement and decide whether App AI Cost Accounting summary queries are the next optimization target.
+
+**Verification:**
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+### Uncommitted Changes
+
+- `AGENTS.md`
+- `app/actions/get-ai-request-log.ts`
+- `app/actions/get-ai-cost-summary.ts`
+- `app/actions/orb-ai-settings.ts`
+- `app/globals.css`
+- `components/settings/SettingsCrudList.tsx`
+- `components/settings/SettingsCostReconciliation.tsx`
+- `components/settings/SettingsMetrics.tsx`
+- `docs/object-capability-matrix.md`
+- `docs/ui-catalog.md`
+- `HANDOFF.md`
+- `lib/changelog.ts`
+- `lib/performance/telemetry.ts`
+- `lib/version.ts`
+- `package.json`
+- `scripts/migrations/20260703_ai_cost_summary_rollups.sql`
+
+---
+
+### Prior Session: ORB-309 Performance Analysis UI + Production Telemetry Checkpoint — 2026-07-02 (Codex, GPT-5) — v0.6.138
 
 Stan resumed ORB-309 after the instrumentation foundation shipped and asked to work through the remaining tasks without closing ORB-309. This checkpoint adds the first analysis layer to Settings -> Performance and records the first production telemetry lesson: production collection needs both deployed code/server env enablement and per-browser local measurement.
 
@@ -45,17 +109,6 @@ Stan resumed ORB-309 after the instrumentation foundation shipped and asked to w
 - `npx tsc --noEmit` passed.
 - `node scripts/verify-ui-catalog.js` passed.
 - `git diff --check` passed.
-
-### Uncommitted Changes
-
-- `app/actions/performance-events.ts`
-- `app/globals.css`
-- `components/settings/SettingsPerformance.tsx`
-- `docs/orb-309-initialization-performance-plan.md`
-- `docs/ui-catalog.md`
-- `lib/changelog.ts`
-- `lib/version.ts`
-- `package.json`
 
 ---
 

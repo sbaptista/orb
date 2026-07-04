@@ -6,6 +6,26 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.139',
+    date: '2026-07-03',
+    changes: [
+      'Relabeled AI Metrics cost accounting so the newer request-ledger section is clearly titled App AI Cost Accounting and calls out API TTS usage from OpenAI and ElevenLabs.',
+      'Mapped the voice_tts source label to Voice TTS and clarified that the older daily metrics summary does not own API TTS provider cost accounting.',
+      'Started the ORB-310 AI Metrics redesign from the top section: tightened the App AI Cost Accounting caption, populated the model filter from request-ledger models plus configured rate cards, moved the eval/day-to-day note beneath the filter controls, used one ledger-style summary card instead of duplicate card/list renderings, added an Accounting Details card, aligned top-section card widths, and restored a distinct New Rate Card form above the existing rate-card list.',
+      'Removed the legacy orb_metrics daily summary from AI Metrics and replaced the visible logging table with a paginated, searchable request-level orb_model_requests ledger that keeps the shared pagination and column navigation controls.',
+      'Fixed shared SettingsCrudList table controls so tables using external search modals, including AI Request Log, still render the column navigation controller when their columns overflow.',
+      'Added a show/hide toggle for the AI Request Log and defaulted it collapsed on narrow/coarse-pointer screens to reduce iPhone scrolling.',
+      'Kept SettingsCrudList page headers and header extras mounted during initial table loading so showing the AI Request Log on narrow screens no longer collapses the page shell and jumps to the top.',
+      'Finished the visible AI Metrics redesign by restyling Provider Bill Reconciliation with an external section header, outlined inputs, editable recorded bill rows, and audited delete support.',
+      'Started ORB-311 by moving AI Request Log from exact-count offset paging to cursor pagination on indexed creation time, so the growing request ledger loads like an operational log instead of recounting the table on each page.',
+      'Continued ORB-311 by moving App AI Cost Accounting summary math into a service-role-only database rollup RPC, returning compact totals and breakdowns instead of fetching thousands of raw request rows during page initialization.',
+      'Fixed AI Metrics page_full_load telemetry to measure the component load lifecycle directly, avoiding stale navigation timestamps that produced misleading 0ms samples.',
+      'Tightened performance telemetry platform detection so iPhone/iPad analysis uses device signals before falling back to viewport width and coarse-pointer heuristics.',
+      'Updated the UI catalog with the AI Metrics accounting, rate-card, and request-log patterns used by the redesign.',
+      'Documented the known sandboxed network path in AGENTS so required Supabase, psql, Orb API, and Knowledge Repo reads go directly to approved network access when the current AI tool is known to be sandboxed.',
+    ]
+  },
+  {
     version: 'v0.6.138',
     date: '2026-07-02',
     changes: [

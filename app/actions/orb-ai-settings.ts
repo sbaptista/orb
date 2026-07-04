@@ -198,3 +198,31 @@ export async function saveOrbCostReconciliation(input: Omit<OrbCostReconciliatio
   await logAuditEvent({ action: input.id ? 'orb_cost_reconciliation_update' : 'orb_cost_reconciliation_save', table_name: 'orb_cost_reconciliations', record_id: input.id, before, after: payload, actor: 'web-ui', user_id: ctx.user.id })
   return { ok: true }
 }
+
+export async function deleteOrbCostReconciliation(id: string) {
+  const ctx = await requireAdmin()
+  const { data: before, error: beforeError } = await ctx.admin
+    .from('orb_cost_reconciliations')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (beforeError) throw beforeError
+  if (!before) throw new Error('Provider bill entry not found.')
+
+  const { error } = await ctx.admin
+    .from('orb_cost_reconciliations')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
+
+  await logAuditEvent({
+    action: 'orb_cost_reconciliation_delete',
+    table_name: 'orb_cost_reconciliations',
+    record_id: id,
+    before,
+    after: null,
+    actor: 'web-ui',
+    user_id: ctx.user.id,
+  })
+  return { ok: true }
+}

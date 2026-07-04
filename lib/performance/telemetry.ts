@@ -144,6 +144,12 @@ export function getPerformanceNavigationStart(href: string) {
 
 function platformClass() {
   if (typeof window === 'undefined') return 'unknown'
+  const ua = navigator.userAgent
+  const platform = navigator.platform
+  const touchPoints = navigator.maxTouchPoints || 0
+  if (/iPhone|iPod/.test(ua) || platform === 'iPhone' || platform === 'iPod') return 'iphone'
+  if (/iPad/.test(ua) || platform === 'iPad') return 'ipad'
+  if (platform === 'MacIntel' && touchPoints > 1) return 'ipad'
   const coarse = window.matchMedia('(pointer: coarse)').matches
   if (window.innerWidth <= 767) return 'iphone'
   if (coarse) return 'ipad'

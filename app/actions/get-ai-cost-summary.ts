@@ -128,39 +128,8 @@ function asNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0
 }
 
-function emptyBreakdown(key: string, row: any): AiCostBreakdownRow {
-  return {
-    key,
-    provider: row.provider ?? 'unknown',
-    model: row.model ?? 'unknown',
-    routeRole: row.route_role ?? 'operational',
-    source: row.source ?? 'conversation',
-    requestCount: 0,
-    inputTokens: 0,
-    outputTokens: 0,
-    cachedInputTokens: 0,
-    cacheWriteTokens: 0,
-    estimatedCostUsd: 0,
-    avgLatencyMs: null,
-  }
-}
-
-function addToBreakdown(map: Map<string, AiCostBreakdownRow & { latencyTotal: number }>, key: string, row: any) {
-  const existing = map.get(key) ?? { ...emptyBreakdown(key, row), latencyTotal: 0 }
-  existing.requestCount += 1
-  existing.inputTokens += asNumber(row.input_tokens)
-  existing.outputTokens += asNumber(row.output_tokens)
-  existing.cachedInputTokens += asNumber(row.cached_input_tokens)
-  existing.cacheWriteTokens += asNumber(row.cache_write_tokens)
-  existing.estimatedCostUsd += asNumber(row.estimated_cost_usd)
-  existing.latencyTotal += asNumber(row.latency_ms)
-  existing.avgLatencyMs = Math.round(existing.latencyTotal / existing.requestCount)
-  map.set(key, existing)
-}
-
-function cleanBreakdown(map: Map<string, AiCostBreakdownRow & { latencyTotal: number }>) {
-  return Array.from(map.values())
-    .map(({ latencyTotal: _latencyTotal, ...row }) => row)
+function cleanBreakdown(rows: AiCostBreakdownRow[]) {
+  return rows
     .sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd)
 }
 
@@ -174,22 +143,51 @@ function formatModel(provider: string, model: string) {
   return model
 }
 
+type AiCostRollupRow = {
+  group_type: 'total' | 'provider' | 'role' | 'source' | 'model_option'
+  key: string
+  provider: string | null
+  model: string | null
+  route_role: string | null
+  source: string | null
+  request_count: number | string | null
+  input_tokens: number | string | null
+  output_tokens: number | string | null
+  cached_input_tokens: number | string | null
+  cache_write_tokens: number | string | null
+  estimated_cost_usd: number | string | null
+  avg_latency_ms: number | string | null
+  actual_start: string | null
+  actual_end: string | null
+}
+
+function rollupToBreakdown(row: AiCostRollupRow): AiCostBreakdownRow {
+  return {
+    key: row.key,
+    provider: row.provider ?? 'unknown',
+    model: row.model ?? 'unknown',
+    routeRole: row.route_role ?? 'operational',
+    source: row.source ?? 'conversation',
+    requestCount: asNumber(row.request_count),
+    inputTokens: asNumber(row.input_tokens),
+    outputTokens: asNumber(row.output_tokens),
+    cachedInputTokens: asNumber(row.cached_input_tokens),
+    cacheWriteTokens: asNumber(row.cache_write_tokens),
+    estimatedCostUsd: asNumber(row.estimated_cost_usd),
+    avgLatencyMs: row.avg_latency_ms === null || row.avg_latency_ms === undefined ? null : Math.round(asNumber(row.avg_latency_ms)),
+  }
+}
+
 export async function getAiCostSummary(options: AiCostSummaryOptions = {}): Promise<AiCostSummary> {
   const ctx = await requireAdmin()
   const window = resolveWindow(options)
   const modelKey = options.modelKey ?? 'all'
-
-  let requestQuery = ctx.admin
-    .from('orb_model_requests')
-    .select('created_at, provider, model, route_role, source, input_tokens, output_tokens, cached_input_tokens, cache_write_tokens, latency_ms, estimated_cost_usd')
-    .eq('success', true)
-    .order('created_at', { ascending: true })
-    .limit(10000)
-  if (window.startIso) requestQuery = requestQuery.gte('created_at', window.startIso)
-  if (window.endIso) requestQuery = requestQuery.lt('created_at', window.endIso)
+  let modelProvider: string | null = null
+  let modelName: string | null = null
   if (modelKey && modelKey !== 'all') {
     const [provider, ...modelParts] = modelKey.split(':')
-    requestQuery = requestQuery.eq('provider', provider).eq('model', modelParts.join(':'))
+    modelProvider = provider
+    modelName = modelParts.join(':')
   }
 
   let reconciliationQuery = ctx.admin
@@ -202,24 +200,23 @@ export async function getAiCostSummary(options: AiCostSummaryOptions = {}): Prom
       .gte('period_end', window.startDate)
   }
 
-  const [{ data: requests, error: requestsError }, { data: reconciliations, error: reconciliationsError }, { data: models, error: modelsError }] = await Promise.all([
-    requestQuery,
+  const [{ data: rollups, error: rollupsError }, { data: reconciliations, error: reconciliationsError }] = await Promise.all([
+    ctx.admin.rpc('get_ai_cost_summary_rollups', {
+      p_start: window.startIso,
+      p_end: window.endIso,
+      p_provider: modelProvider,
+      p_model: modelName,
+    }),
     reconciliationQuery,
-    ctx.admin
-      .from('orb_model_requests')
-      .select('provider, model')
-      .eq('success', true)
-      .order('provider')
-      .order('model')
-      .limit(10000),
   ])
 
-  if (requestsError) throw requestsError
+  if (rollupsError) throw rollupsError
   if (reconciliationsError) throw reconciliationsError
-  if (modelsError) throw modelsError
 
   const modelMap = new Map<string, AiCostModelOption>()
-  for (const row of models ?? []) {
+  const rows = (rollups ?? []) as AiCostRollupRow[]
+  for (const row of rows.filter(row => row.group_type === 'model_option')) {
+    if (!row.provider || !row.model) continue
     const key = `${row.provider}:${row.model}`
     if (!modelMap.has(key)) {
       modelMap.set(key, {
@@ -231,30 +228,10 @@ export async function getAiCostSummary(options: AiCostSummaryOptions = {}): Prom
     }
   }
 
-  const byProvider = new Map<string, AiCostBreakdownRow & { latencyTotal: number }>()
-  const byRole = new Map<string, AiCostBreakdownRow & { latencyTotal: number }>()
-  const bySource = new Map<string, AiCostBreakdownRow & { latencyTotal: number }>()
-
-  let estimatedLiveCostUsd = 0
-  let inputTokens = 0
-  let outputTokens = 0
-  let cachedInputTokens = 0
-  let cacheWriteTokens = 0
-  let actualStart: string | null = null
-  let actualEnd: string | null = null
-
-  for (const row of requests ?? []) {
-    actualStart ??= row.created_at
-    actualEnd = row.created_at
-    estimatedLiveCostUsd += asNumber(row.estimated_cost_usd)
-    inputTokens += asNumber(row.input_tokens)
-    outputTokens += asNumber(row.output_tokens)
-    cachedInputTokens += asNumber(row.cached_input_tokens)
-    cacheWriteTokens += asNumber(row.cache_write_tokens)
-    addToBreakdown(byProvider, `${row.provider}:${row.model}`, row)
-    addToBreakdown(byRole, row.route_role ?? 'operational', row)
-    addToBreakdown(bySource, row.source ?? 'conversation', row)
-  }
+  const total = rows.find(row => row.group_type === 'total')
+  const providerBreakdown = rows.filter(row => row.group_type === 'provider').map(rollupToBreakdown)
+  const roleBreakdown = rows.filter(row => row.group_type === 'role').map(rollupToBreakdown)
+  const sourceBreakdown = rows.filter(row => row.group_type === 'source').map(rollupToBreakdown)
 
   const reconciliationRows = (reconciliations ?? []).map(row => ({
     id: row.id,
@@ -269,19 +246,19 @@ export async function getAiCostSummary(options: AiCostSummaryOptions = {}): Prom
     dateMode: window.mode,
     periodStart: window.startDate,
     periodEnd: window.endDate,
-    actualStart,
-    actualEnd,
+    actualStart: total?.actual_start ?? null,
+    actualEnd: total?.actual_end ?? null,
     modelKey,
     modelOptions: Array.from(modelMap.values()).sort((a, b) => a.label.localeCompare(b.label)),
-    requestCount: requests?.length ?? 0,
-    estimatedLiveCostUsd,
-    inputTokens,
-    outputTokens,
-    cachedInputTokens,
-    cacheWriteTokens,
-    providerBreakdown: cleanBreakdown(byProvider),
-    roleBreakdown: cleanBreakdown(byRole),
-    sourceBreakdown: cleanBreakdown(bySource),
+    requestCount: asNumber(total?.request_count),
+    estimatedLiveCostUsd: asNumber(total?.estimated_cost_usd),
+    inputTokens: asNumber(total?.input_tokens),
+    outputTokens: asNumber(total?.output_tokens),
+    cachedInputTokens: asNumber(total?.cached_input_tokens),
+    cacheWriteTokens: asNumber(total?.cache_write_tokens),
+    providerBreakdown: cleanBreakdown(providerBreakdown),
+    roleBreakdown: cleanBreakdown(roleBreakdown),
+    sourceBreakdown: cleanBreakdown(sourceBreakdown),
     reconciliations: reconciliationRows,
     reconciledTotalUsd: reconciliationRows.reduce((sum, row) => sum + row.actualOrbCostUsd, 0),
   }

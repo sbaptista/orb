@@ -60,7 +60,7 @@ The Knowledge Repo stores distilled lessons, decisions, and resolution notes acr
 - **API URL:** `https://livwkbnkdlrbmzgythys.supabase.co`
 - **Key:** `SUPABASE_SECRET_KEY` (service role) located in `/Users/stanleybaptista/Projects/orb/.env.local`
 - **Rule:** Bypasses RLS to guarantee complete results. Never query using the publishable/anon key.
-- **Network sandbox note:** If a required Knowledge Repo read hits a sandbox DNS/network failure, do not treat it as a blocker or re-diagnose it. Immediately retry the same read with network approval/escalation, then continue the task after the read succeeds.
+- **Known sandboxed network path:** Required Supabase, psql, Orb API, or Knowledge Repo reads need outbound DNS/network access. If the current AI tool runs in a sandbox where these calls are known to fail, do not perform a doomed first attempt just to rediscover the DNS failure. Go directly to the tool's approved/escalated network path, then continue the task after the read succeeds. If escalation/network access is not available, say so and provide the exact fallback content Stan can run manually.
 - **Schema:** Columns are `id`, `product_id`, `origin_todo_id`, `title`, `content`, `tags` (text[]), `created_at`, `updated_at`. There is no `project_id` column — use `product_id`.
 
 **Database table names:**
