@@ -14,6 +14,13 @@ export interface PasskeyEntry {
   created_at: string
 }
 
+export type PasskeyAuthStage =
+  | 'challenge_started'
+  | 'credential_options_parsed'
+  | 'credential_received'
+  | 'credential_serialized'
+  | 'authentication_verified'
+
 // ── Support Detection ──
 
 /** The only domain where the WebAuthn RP ID is configured. */
@@ -200,24 +207,59 @@ export async function authenticateWithConditionalMediation(
  * via Supabase SDK. Returns session data on success.
  */
 export async function authenticateWithPasskey(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  onStage?: (stage: PasskeyAuthStage) => void
 ): Promise<PasskeyResult<{ session: any }>> {
   try {
-    const { data, error } = await (supabase.auth as any).signInWithPasskey()
-
-    if (error) {
-      if (error.message?.includes('AbortError') || error.message?.includes('cancelled') || error.message?.includes('canceled')) {
+    const { data, error } = await (supabase.auth as any).passkey.startAuthentication()
+    onStage?.('challenge_started')
+    if (error || !data) {
+      const message = error?.message ?? 'Failed to start authentication'
+      if (message.includes('AbortError') || message.includes('cancelled') || message.includes('canceled')) {
         return { ok: false, error: 'cancelled' }
       }
-      if (error.message?.includes('no credentials') || error.message?.includes('NotAllowedError')) {
+      if (message.includes('no credentials') || message.includes('NotAllowedError')) {
         return { ok: false, error: 'no_credentials' }
       }
-      return { ok: false, error: error.message }
+      return { ok: false, error: message }
     }
 
-    return { ok: true, data: { session: data?.session } }
+    const publicKeyOptions = parseRequestOptions(data.options)
+    onStage?.('credential_options_parsed')
+    const credential = await navigator.credentials.get({ publicKey: publicKeyOptions })
+    onStage?.('credential_received')
+    if (!credential) {
+      return { ok: false, error: 'no_credentials' }
+    }
+
+    const serialized = serializeCredentialResponse(credential)
+    onStage?.('credential_serialized')
+    const verify = await (supabase.auth as any).passkey.verifyAuthentication({
+      challengeId: data.challenge_id,
+      credential: serialized,
+    })
+    onStage?.('authentication_verified')
+
+    if (verify.error) {
+      const message = verify.error.message ?? 'Passkey verification failed'
+      if (message.includes('AbortError') || message.includes('cancelled') || message.includes('canceled')) {
+        return { ok: false, error: 'cancelled' }
+      }
+      if (message.includes('no credentials') || message.includes('NotAllowedError')) {
+        return { ok: false, error: 'no_credentials' }
+      }
+      return { ok: false, error: message }
+    }
+
+    return { ok: true, data: { session: verify.data?.session } }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes('AbortError') || msg.includes('cancelled') || msg.includes('canceled')) {
+      return { ok: false, error: 'cancelled' }
+    }
+    if (msg.includes('no credentials') || msg.includes('NotAllowedError')) {
+      return { ok: false, error: 'no_credentials' }
+    }
     return { ok: false, error: msg }
   }
 }

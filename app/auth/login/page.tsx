@@ -130,7 +130,7 @@ function LoginForm() {
     setPasskeyLoading(true)
     setError('')
 
-    const result = await authenticateWithPasskey(supabase)
+    const result = await authenticateWithPasskey(supabase, stage => perf.mark(stage))
     perf.mark('passkey_auth_completed')
 
     if (result.ok) {

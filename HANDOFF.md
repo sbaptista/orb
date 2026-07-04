@@ -10,13 +10,31 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.149 (uncommitted — commit/push happening now)
+- **Version:** 0.6.150
 
 ---
 
 ### Last Session Completed
 
-**ORB-302: knowledge_repo update + read tools, two real bugs found and fixed under live testing — 2026-07-04 (Claude Code, Fable 5) — v0.6.140(cont.)–v0.6.149**
+**ORB-309: passkey login timing breakdown — 2026-07-04 (Codex, GPT-5) — v0.6.150**
+
+Stan asked to continue ORB-309 after production telemetry showed login/passkey timings were consistently slow across platforms. Production data before this change showed `auth / login / passkey_click` in the multi-second range on iPad, iPhone, and Mac; OTP-only was not tested in that sample set.
+
+**What changed:**
+- `passkey_click` now records internal passkey ceremony stage marks: `challenge_started`, `credential_options_parsed`, `credential_received`, `credential_serialized`, `authentication_verified`, and `passkey_auth_completed`.
+- Modal passkey login now uses the explicit Supabase passkey start/get/verify flow rather than the one-shot SDK helper, so the existing telemetry event can identify whether the delay is browser/biometric prompt time, Supabase challenge creation, credential serialization, or verification.
+- The Flow / Performance Matrix now documents the passkey-stage breakdown and explicitly notes that OTP was not evaluated in this pass.
+
+**Tracking:**
+- ORB-309 remains **open**. The next meaningful step is to collect production passkey samples on v0.6.150 and use the new stages to decide whether the remedy belongs in browser/platform UX, Supabase passkey round trips, or post-auth app initialization.
+- Existing ORB-309 Knowledge Repo checkpoints remain current: `c34e99e4-470f-42f6-9b2d-657b34160d48` and `b197fe48-46fd-4428-b283-a02e612bc0ce`. No closure entry was created because ORB-309 is not closed.
+
+**Verification:**
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+- Stan verified dev login before requesting commit and push.
+
+### Prior Session: ORB-302 knowledge_repo update + read tools, two real bugs found and fixed under live testing — 2026-07-04 (Claude Code, Fable 5) — v0.6.140(cont.)–v0.6.149
 
 Continuation of the same session as the entry below (concurrency protocol + ORB-301) — Stan asked to check ORB-302 next, then said "go ahead" and "I changed the description because I couldn't remember if it was done for another task. But please build this then I'll test." What followed was three build-test-fix cycles, each driven by Stan's own live testing, not by anything the eval suite caught (the eval harness structurally cannot execute handlers — same finding as ORB-301 — so every real bug here was live-only).
 
@@ -45,7 +63,6 @@ Continuation of the same session as the entry below (concurrency protocol + ORB-
 ### Uncommitted Changes
 
 - `.claude/settings.local.json` — harness-recorded permission allowlist additions only; the `git push` gate remains in `ask`. Deliberately left uncommitted, as always.
-- Everything else in this session (ORB-302 work) is being committed now — see commit hash once pushed.
 
 ---
 

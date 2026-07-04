@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.150',
+    date: '2026-07-04',
+    changes: [
+      'Added ORB-309 passkey-login stage timing for the production bottleneck now visible across Mac, iPhone, and iPad. The passkey click event now records challenge start, credential option parsing, browser credential return, credential serialization, Supabase verification, and overall completion so the next pass can distinguish browser/biometric delay from Supabase round trips.',
+      'Scoped the new breakdown to passkey login only; OTP remains covered by its existing request-level timing and has not been evaluated as part of this pass.',
+    ]
+  },
+  {
     version: 'v0.6.149',
     date: '2026-07-04',
     changes: [
