@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.151',
+    date: '2026-07-04',
+    changes: [
+      'Closed ORB-309 after production samples confirmed the performance instrumentation foundation is working across dev and production for login, Settings, dashboard, AI Metrics, large tables, todo actions, Orb submit, and voice start.',
+      'Recorded the ORB-309 baseline lesson: passkey login latency is dominated by the browser/OS credential ceremony inside navigator.credentials.get rather than Orb app initialization; OTP verification is fast, OTP request is acceptable from the collected samples, and early iPad Safari outliers were treated as stale cache/state contamination after clearing cache fixed the behavior.',
+      'Documented the future performance-pass rule: start from Settings > Performance, choose one measured target, collect platform/browser baselines, make one focused change, compare before/after, and record the result instead of reopening broad performance work from feel alone.',
+    ]
+  },
+  {
     version: 'v0.6.150',
     date: '2026-07-04',
     changes: [

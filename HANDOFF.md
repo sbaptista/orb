@@ -10,29 +10,38 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.150
+- **Version:** 0.6.151
 
 ---
 
 ### Last Session Completed
 
-**ORB-309: passkey login timing breakdown — 2026-07-04 (Codex, GPT-5) — v0.6.150**
+**ORB-309: closed after production performance instrumentation and baseline pass — 2026-07-04 (Codex, GPT-5) — v0.6.151**
 
-Stan asked to continue ORB-309 after production telemetry showed login/passkey timings were consistently slow across platforms. Production data before this change showed `auth / login / passkey_click` in the multi-second range on iPad, iPhone, and Mac; OTP-only was not tested in that sample set.
+Stan closed ORB-309 after the final production samples confirmed the important outcome: Orb now has data-driven tools for performance work, and the current broad initialization concern has enough evidence to stop being treated as an open-ended optimization project.
 
 **What changed:**
-- `passkey_click` now records internal passkey ceremony stage marks: `challenge_started`, `credential_options_parsed`, `credential_received`, `credential_serialized`, `authentication_verified`, and `passkey_auth_completed`.
-- Modal passkey login now uses the explicit Supabase passkey start/get/verify flow rather than the one-shot SDK helper, so the existing telemetry event can identify whether the delay is browser/biometric prompt time, Supabase challenge creation, credential serialization, or verification.
-- The Flow / Performance Matrix now documents the passkey-stage breakdown and explicitly notes that OTP was not evaluated in this pass.
+- ORB-309 was closed through the Orb API with attributed resolution notes.
+- Added Knowledge Repo closure entry `686b9146-93df-431e-9421-20a4f469667b` documenting the durable performance lessons.
+- Updated the Flow / Performance Matrix to mark login/auth and Settings CRUD instrumentation as covered, with current baseline interpretation and future watch points.
+- Bumped release docs to `v0.6.151`.
+
+**What we learned:**
+- Passkey login latency is mostly inside the browser/OS credential ceremony (`navigator.credentials.get`), not Orb app initialization.
+- OTP verification is fast in production samples; OTP request is slower because it includes allowed-login check plus Supabase email send, but the collected samples were acceptable.
+- Early iPad Safari outliers were contaminated by stale cache/state; Stan cleared cache and later behavior looked normal.
+- Large-table coverage exists for AI Request Log, Audit Log, and Knowledge Repo. AI Request Log already received the scalable fetch pattern; Audit Log and Knowledge Repo are measured and currently acceptable, with future work driven by telemetry if they grow into a problem.
+- Background `conditional_passkey` aborted/expired rows can show very large durations because they wait in the background until navigation or OTP aborts them; analysis should treat those separately from user-facing failure latency.
 
 **Tracking:**
-- ORB-309 remains **open**. The next meaningful step is to collect production passkey samples on v0.6.150 and use the new stages to decide whether the remedy belongs in browser/platform UX, Supabase passkey round trips, or post-auth app initialization.
-- Existing ORB-309 Knowledge Repo checkpoints remain current: `c34e99e4-470f-42f6-9b2d-657b34160d48` and `b197fe48-46fd-4428-b283-a02e612bc0ce`. No closure entry was created because ORB-309 is not closed.
+- ORB-309 is **closed** as of 2026-07-04 23:12 UTC.
+- Knowledge Repo closure entry: `ORB-309 closed: performance instrumentation and baseline lessons` (`686b9146-93df-431e-9421-20a4f469667b`).
+- Future performance passes should be narrow: choose one target from Settings > Performance, collect platform/browser baseline samples, make one focused change, compare before/after, and record the result.
 
 **Verification:**
 - `npx tsc --noEmit` passed.
 - `git diff --check` passed.
-- Stan verified dev login before requesting commit and push.
+- Stan tested production login/passkey and OTP paths before closing ORB-309.
 
 ### Prior Session: ORB-302 knowledge_repo update + read tools, two real bugs found and fixed under live testing — 2026-07-04 (Claude Code, Fable 5) — v0.6.140(cont.)–v0.6.149
 
