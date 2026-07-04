@@ -369,11 +369,28 @@ export const EVAL_CASES: EvalCase[] = [
 
   {
     id: 'knowledge-search-tool',
-    description: 'Asking about a knowledge topic triggers search_knowledge',
+    description: 'Asking about a knowledge topic triggers search_knowledge in topic mode (query param, not title)',
     productCode: 'ORB',
     input: 'What do we know about the disk IO budget issue?',
     tier: 1,
     expectTool: { name: 'search_knowledge' },
+  },
+
+  {
+    id: 'knowledge-precise-read-after-update',
+    description: 'Asking to see an entry just referenced/updated calls search_knowledge with a title param — the CRUD read leg, distinct from topic search. Params vary by paraphrase so only the tool name is asserted here; live-verified separately that title (not query) is the key used.',
+    productCode: 'ORB',
+    history: [
+      { role: 'user', text: 'Update the knowledge entry titled "Disk IO budget: auth.flow_state accumulation from abandoned OTP flows (GoTrue cleanup gap)"' },
+      { role: 'assistant', text: 'Updating that entry now — want me to go ahead?' },
+      { role: 'user', text: 'yes' },
+      { role: 'assistant', text: 'Done — updated the entry.' },
+    ],
+    input: 'Show me that entry',
+    tier: 1,
+    expectTool: {
+      name: 'search_knowledge',
+    },
   },
 
   {
@@ -397,6 +414,67 @@ export const EVAL_CASES: EvalCase[] = [
       name: 'query_projects',
       params: { include_dormant: true },
     },
+  },
+
+  {
+    id: 'knowledge-entry-not-todo-cold-start',
+    description: 'A cold-start "update the X entry" request routes to search_knowledge, not query_todos — "entry" means knowledge_repo, not a task. Regression case: production originally called query_todos (found nothing, since no todo is titled that), when it should search knowledge first.',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    input: 'update the disk IO budget entry, it was actually 90% not 80%',
+    tier: 1,
+    expectTool: {
+      name: 'search_knowledge',
+    },
+  },
+
+  {
+    id: 'update-knowledge-correction-tool',
+    description: 'Correcting an entry by its EXACT title calls update_knowledge directly (server resolves the title, like update_project) — no search_knowledge round-trip needed when the title is already known',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    input: 'Update the knowledge entry titled "Disk IO budget: auth.flow_state accumulation from abandoned OTP flows (GoTrue cleanup gap)" — it was fixed by the ORB-159 cooldown timer, note that it is resolved now, not still open.',
+    tier: 1,
+    expectTool: {
+      name: 'update_knowledge',
+      params: { title: 'Disk IO budget: auth.flow_state accumulation from abandoned OTP flows (GoTrue cleanup gap)' },
+    },
+  },
+
+  {
+    id: 'update-knowledge-vague-reference-searches-first',
+    description: 'A vague reference ("that entry") from narrated (not tool-backed) history still calls search_knowledge first — the model does not trust a free-text conversational claim as grounding for a real title, matching the identifier-provenance principle used for todo codes',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    history: [
+      { role: 'user', text: 'What do we know about the disk IO budget issue?' },
+      { role: 'assistant', text: 'Disk IO budget issue: one Realtime postgres_changes subscription caused 80% of DB query time.' },
+    ],
+    input: 'Actually that entry is wrong — it was 90%, not 80%. Fix it.',
+    tier: 1,
+    expectTool: {
+      name: 'search_knowledge',
+    },
+  },
+
+  {
+    id: 'update-knowledge-no-self-attribution',
+    description: 'The model never writes its own attribution/timestamp into new_content — the server stamps updates automatically',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    input: 'Update the knowledge entry titled "Disk IO budget: auth.flow_state accumulation from abandoned OTP flows (GoTrue cleanup gap)" — it was fixed by the ORB-159 cooldown timer, note that it is resolved now, not still open.',
+    tier: 2,
+    speechNotContains: ['2026-', 'Orb (Haiku', 'Orb (Claude'],
+  },
+
+  {
+    id: 'no-knowledge-delete-tool',
+    description: 'There is no delete_knowledge tool — a request to delete a stale entry never claims deletion happened, and the response acknowledges deletion is admin-only (exact next step — ticket vs. update vs. asking which — is judgment, not asserted here)',
+    productCode: 'ORB',
+    input: 'Delete the knowledge entry about the disk IO budget issue, it is outdated.',
+    tier: 2,
+    speechContains: ['admin'],
+    speechNotContains: ['deleted the', 'has been deleted', "I've deleted"],
   },
 
   {

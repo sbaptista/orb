@@ -10,11 +10,75 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.139
+- **Version:** 0.6.149 (uncommitted — commit/push happening now)
 
 ---
 
 ### Last Session Completed
+
+**ORB-302: knowledge_repo update + read tools, two real bugs found and fixed under live testing — 2026-07-04 (Claude Code, Fable 5) — v0.6.140(cont.)–v0.6.149**
+
+Continuation of the same session as the entry below (concurrency protocol + ORB-301) — Stan asked to check ORB-302 next, then said "go ahead" and "I changed the description because I couldn't remember if it was done for another task. But please build this then I'll test." What followed was three build-test-fix cycles, each driven by Stan's own live testing, not by anything the eval suite caught (the eval harness structurally cannot execute handlers — same finding as ORB-301 — so every real bug here was live-only).
+
+**Built: knowledge_repo CRUD minus delete (v0.6.144, Stan: "delete is reserved for admins... Orb can file a ticket if staleness is detected").**
+- `update_knowledge`: held mutation (propose/confirm), same spine as `update_project`. Resolves by title via `resolveKnowledgeReference` in `lib/orb-mutations.ts`. Every successful update is signed and time-stamped **server-side, deterministically** — `[Updated: YYYY-MM-DD HH:MM UTC — Orb (Haiku 4.5)]` — never composed by the model, per Stan's explicit requirement, and a prior stamp is stripped before re-stamping so repeated updates don't stack.
+- No delete tool. Spec/prompt explicitly route staleness the model can't fix via update to `create_ticket` instead.
+
+**Bug 1 — wrong-target mutation, live and executed (v0.6.147).** Asked to update the entry titled "Disk IO budget: auth.flow_state accumulation...", the model paraphrased the reference down to something like "ORB-159" — and `resolveKnowledgeReference`'s one-directional substring check (`title.includes(ref)`) matched a **different, unrelated entry** ("Implementing Client-Side OTP Cooldown (ORB-159)") that just happened to contain that fragment. Stan confirmed live: audit_log showed the wrong row stamped, the right row untouched. Recovered the original content from `audit_log.before` and restored the wrongly-mutated row; logged the restoration as its own audit event. Fixed the resolver itself: now requires the reference to cover ~80% of its own significant words (punctuation-stripped, filler words excluded) within a candidate title before accepting a match — a short/generic fragment can no longer hijack a longer, unrelated title. Ambiguous/no-match now surfaces instead of guessing. Verified directly against the real function and live database (not a reimplementation).
+- Also fixed along the way: `update_knowledge` was forcing an unwanted `search_knowledge` round-trip even when the exact title was already quoted (tool description said "search first, always" instead of matching `update_project`'s "call directly, server resolves" pattern); and a cold-start "update the X entry" phrase was routing to `query_todos` instead of `search_knowledge` (added a VOCABULARY DISAMBIGUATION rule: "entry" means knowledge_repo, not a todo).
+- Also fixed a real relevance-ranking defect in `search_knowledge`'s topic search (found while chasing the routing bug, unrelated to it): with 234 entries, a short query like "disk IO budget" matched ~40% of the corpus with no ranking, so the actual best match could be crowded out of the 10-result cap by newer, loosely-matching entries. Added `scoreTextMatch` in `lib/fuzzy-search.ts` (title matches weighted far above content matches, generic meta-words like "entry"/"issue" excluded from scoring).
+
+**Stan reframed scope mid-session: "I see this as a knowledge repo CRUD task... a read tool can be used in many contexts... I'm also concerned about 'exact-title' lookup, it needs leeway."** Built `search_knowledge`'s `title` param (v0.6.148) — a genuine precise single-entry read, not just a side-effect of update. Reuses the exact same `resolveKnowledgeReference` (leeway-resolved, exact-match-first) so the wrong-target fix automatically covers both read and write. Ambiguous references list candidates and ask; not-found says so plainly.
+
+**Bug 2 — pre-existing RLS visibility bug, exposed by the new read tool (v0.6.149).** Live-testing the new read path, the model correctly *resolved* the target entry (via the admin/service-role client) but its content came back **empty**. Root cause: the entry has `product_id IS NULL` — the documented, valid convention for a cross-project knowledge entry — but `knowledge_repo`'s SELECT RLS policy does an `EXISTS` join against `projects.id = knowledge_repo.product_id`, which can **never** match a null product_id. **8 of 234 entries were invisible to every RLS-scoped read** (the Orb's own topic search included) for as long as they've existed — always visible in Settings → Knowledge only because that page reads via the service-role client. This explained the entire confusing prior transcript in one shot: topic search never had the real entry in its candidate pool at all. Fixed with `scripts/migrations/20260704_knowledge_repo_null_product_rls.sql` (SELECT policy now also allows `product_id IS NULL`, `(SELECT auth.uid())` initplan convention followed) — verified directly against the database under a simulated authenticated session, all 8 rows now visible, the other 226 unaffected. Also fixed the read handler itself to fetch the resolved entry via the admin client rather than the RLS-scoped conversation context list, so a correctly-resolved entry can't come back empty even in an edge case the RLS fix doesn't anticipate.
+
+**Full live re-verification by Stan, two separate conversations, no new bugs:** ambiguous disambiguation across 3 real disk-IO entries (correctly including the previously-invisible one), `query_audit_trail` correctly identifying what was actually updated and when, the exact stamp format read back and confirmed (`[Updated: 2026-07-04 18:38 UTC — Orb (Haiku 4.5)]`), not-found handling for a nonexistent topic, and topic-mode search still functioning distinctly from precise-read.
+
+**Verified:** Tier 1 **40/40** (Stan, terminal, two full runs across the session — 36/36 before this todo, 40/40 after). `npx tsc --noEmit` clean at every stage. Eslint 0 errors throughout (pre-existing warnings only).
+
+**Closed** with full attributed resolution notes (server-verified `closed_at`) + Knowledge Repo entry `8b70e226-90d7-405f-9ec3-0e90d44397dc` (five lessons: coverage-scored resolution over naive substring; share one resolver across read/write; RLS can silently break a documented NULL-able convention with no error; don't re-fetch an admin-resolved entity through an RLS-scoped list; a new read tool is a diagnostic instrument, not just a feature). Capability matrix knowledge_repo row updated to full CRUD (delete deliberately excluded).
+
+### Key Lesson (this session, continued)
+
+**A new read/display capability is a diagnostic instrument, not just a feature.** Both real bugs this session — the wrong-target mutation and the RLS visibility gap — existed before today, but neither was *observable* until a tool existed that could precisely resolve and display one specific entity. Building precise read capability for a domain object is often how latent bugs in that object surface for the first time. Watch for this pattern in ORB-303 (tickets) — the sharpest remaining capability-matrix gap, currently create-only.
+
+### Uncommitted Changes
+
+- `.claude/settings.local.json` — harness-recorded permission allowlist additions only; the `git push` gate remains in `ask`. Deliberately left uncommitted, as always.
+- Everything else in this session (ORB-302 work) is being committed now — see commit hash once pushed.
+
+---
+
+### Prior Session: Multi-Agent Concurrency Protocol + ORB-301 query_projects — 2026-07-03 (Claude Code, Fable 5) — v0.6.140–v0.6.143 + process commits
+
+> **First concurrent two-agent day.** Codex's v0.6.138–139 session (entry below) ran and pushed *during* this Claude Code session — the interleaving worked: the Release Bookkeeping re-read rule caught Codex's bumps mid-flight and versioned on top of the true canonical 0.6.139 with no collision.
+
+**Part 1 — Multi-Agent Concurrency Protocol (adopted, pushed: `2720203`, `30eea64`).** Stan wants Claude Code and Codex working in the main directory at the same time. Rules were negotiated to consensus in a shared proposal doc — Claude Code drafted and owned the protocol text, Codex responded in an append-only discussion log over two rounds, all seven questions resolved, Stan adopted.
+- **`docs/multi-agent-concurrency-protocol.md`** is the operative rule set and **single source of truth** — the `AGENTS.md` section and `ACTIVE_WORK/README.md` are deliberately thin pointers with zero restated rules (Stan's explicit call, to prevent drift). Protocol changes happen there ONLY.
+- **`ACTIVE_WORK/`** claim ledger: read every file before mutating work, write only your own (`claude-code.md` / `codex.md`). Claims are real-time working-tree signals, not audit records — the completing commit leaves your file back at `*(none)*`. 2-hour staleness with `Long-running: yes` override; exclusive **Release Bookkeeping** claim over `HANDOFF.md`/`package.json`/`lib/version.ts`/`lib/changelog.ts`; `main` default with task branches required for high-risk work; DB schema claims exclusive, DB data claims declared-only.
+- **Ceiling: 2 writable agents** (read-only research agents exempt) — both agents agreed; dev server, release bookkeeping, migrations, and Stan's verification bandwidth are serialized lanes a third writable agent would only queue behind.
+- **Comprehension check Q9 added to AGENTS.md:** every session must answer concurrency questions from the protocol doc (not memory) and report live claims in the other agent's ledger.
+- Proposal doc frozen as history with a full decision record.
+
+**Part 2 — ORB-301: `query_projects` built, eval-hardened, closed, deployed (v0.6.140–v0.6.143, commit `445119a`).** Session opened with an ORB-302 status check per Stan — **not done** (no update/delete knowledge tools exist; it stays open).
+- **The tool:** name-first project read tool mirroring `query_todos`. Defined in `docs/api-spec.yaml` — **`lib/orb-contract.ts` is GENERATED from the spec by `scripts/generate-orb-contract.ts`; never hand-edit it.** Handler in `orb-converse.ts` runs in-memory over already-loaded context (zero extra DB reads); visibility inherited (non-admin sees own projects; dormant list admin-only). Filters: `name` (partial/fuzzy), `include_dormant`, `max_results`. Returns name/code/description/owner/active+total counts/dormant flag; dormant rows include owner as of v0.6.143 (live testing found neither backlog nor tool carried dormant ownership).
+- **Routing (where the real bugs were):** first eval run failed because the routing rule had been added to `ORB_INTEGRITY_RULES` — which is **generated but imported by nothing, dead since inception** (filed **ORB-314**; its rules 1–7, including "backlog is orientation only," have never reached a prompt and contradict live behavior). The live rule set is `ORB_QUERY_ROUTING` in `lib/orb-prompt.ts` (shared by production and the eval harness), which mandates **BACKLOG DIRECT ACCESS**: answer from context when it fully answers, tools only otherwise. Fix aligned with that design; eval cases rebuilt on frozen `backlogOverride` fixtures that *lack* the answer, so the tool call is deterministically required.
+- **Fabrication caught and fixed (v0.6.142):** with no `[Owner: ...]` tags in the fixture, the model *invented* "owned by you (Stanley Baptista)" — third member of the fabrication family (phantom task codes, fabricated UUIDs, now assumed ownership). Added a **PROJECT FACT PROVENANCE** rule to the shared routing prompt: owner/description/dormant facts come only from explicit backlog tags or `query_projects` results; never assume the current user owns a project.
+- **Verified:** Tier 1 **36/36** (Stan, terminal). Ten live probes on Mac + iPhone dev all behaved per design — backlog-direct answers where context suffices is *correct*, and "Who owns CAN26?" forced the tool path end-to-end (important because **the eval harness asserts tool calls but never executes handlers** — a new handler's first real execution is live). Production v0.6.143 spot-checked: CAN26 owner question → `[Checking projects...]` → correct owner.
+- **Closed** with attributed resolution notes (server-verified `closed_at`) + Knowledge Repo entry `0a841090-dfff-4966-ba77-d4ec7a32f4ab`. Capability matrix projects row updated (read gap closed).
+- **Filed this session:** **ORB-314** (dead `ORB_INTEGRITY_RULES` — reconcile or delete), **ORB-315** (Orb speaks project codes like `[code: STOKELYFRO]` to the user despite the v0.6.117 name-first policy — needs prompt fix + Tier 2 case).
+
+(All files from this session were committed in `445119a`. Codex's v0.6.139 entry below lists files that were uncommitted at its writing — all since committed in `3d3f86e`/`651114d`.)
+
+### Key Lesson
+
+1. **Prompt rules only work where the prompt is assembled.** Rule text in a dead constant is invisible — trace the import chain before trusting a rule is live (`ORB_INTEGRITY_RULES` has been dead since inception).
+2. **The eval harness asserts tool calls but never executes handlers.** Every new tool needs one live test that forces the tool path (ask for a fact the context lacks), or the handler ships unexecuted.
+3. **When the model fills a data gap, suspect the gap, not just the model.** The ownership fabrication and the CAN26 dead-end were both missing-data problems wearing behavior-problem costumes.
+
+---
+
+### Prior Session: AI Metrics Cost Accounting Labels + ORB-310 First Redesign Slice — 2026-07-03 (Codex, GPT-5) — v0.6.139
 
 **AI Metrics Cost Accounting Labels + ORB-310 First Redesign Slice — 2026-07-03 (Codex, GPT-5) — v0.6.139**
 
@@ -59,24 +123,7 @@ Stan asked why OpenAI/ElevenLabs TTS usage was not visible in AI Metrics. Direct
 - `npx tsc --noEmit` passed.
 - `git diff --check` passed.
 
-### Uncommitted Changes
-
-- `AGENTS.md`
-- `app/actions/get-ai-request-log.ts`
-- `app/actions/get-ai-cost-summary.ts`
-- `app/actions/orb-ai-settings.ts`
-- `app/globals.css`
-- `components/settings/SettingsCrudList.tsx`
-- `components/settings/SettingsCostReconciliation.tsx`
-- `components/settings/SettingsMetrics.tsx`
-- `docs/object-capability-matrix.md`
-- `docs/ui-catalog.md`
-- `HANDOFF.md`
-- `lib/changelog.ts`
-- `lib/performance/telemetry.ts`
-- `lib/version.ts`
-- `package.json`
-- `scripts/migrations/20260703_ai_cost_summary_rollups.sql`
+**Uncommitted at time of writing** (all since committed in `3d3f86e`/`651114d`): `AGENTS.md`, `app/actions/get-ai-request-log.ts`, `app/actions/get-ai-cost-summary.ts`, `app/actions/orb-ai-settings.ts`, `app/globals.css`, `components/settings/SettingsCrudList.tsx`, `components/settings/SettingsCostReconciliation.tsx`, `components/settings/SettingsMetrics.tsx`, `docs/object-capability-matrix.md`, `docs/ui-catalog.md`, `HANDOFF.md`, `lib/changelog.ts`, `lib/performance/telemetry.ts`, `lib/version.ts`, `package.json`, `scripts/migrations/20260703_ai_cost_summary_rollups.sql`
 
 ---
 
@@ -356,11 +403,12 @@ v0.6.67–v0.6.71: silent TTS fix, build gate for TTS keys, iPhone AudioContext 
 
 ## Next Priorities
 
-1. **Deploy and verify v0.6.138:** production is currently collecting telemetry on v0.6.137. After this push, confirm `/api/version` reports v0.6.138 and Settings -> Performance shows the new Performance Analysis panel and Production Collection Checklist.
-2. **Collect broader production data for ORB-309:** gather Mac, iPad, and iPhone samples for login, dashboard, Settings navigation, AI Metrics, Performance Settings, todo CRUD, project switching, Orb submit, and voice start. Compare production against dev before optimizing.
-3. **Choose the first optimization target from production evidence:** early production Mac/Chrome points to login passkey click, AI Metrics, and Performance Events filtering, but sample counts are too low for a final call.
-4. **Optimize the selected bottleneck and measure before/after:** likely AI Metrics unless broader production samples point elsewhere. Keep ORB-309 open until the measured improvement is confirmed.
-5. **Add deeper instrumentation primitives if needed:** reusable server-action timing helper, deeper voice listen/speak handoff timings, and any additional stage attribution required by the first optimization target.
+1. **ORB-303 (tickets — sharpest remaining capability-matrix gap, create-only today):** read/update/delete tools for tickets. Given this session's pattern (ORB-301 and ORB-302 both had their real bugs surfaced only once a precise read/display capability existed), expect building the read tool here to expose whatever's currently invisible in the tickets table too — budget time for that, don't assume it'll be clean.
+2. **ORB-314 / ORB-315:** reconcile or delete the dead `ORB_INTEGRITY_RULES` constant (its rules contradict the live prompt), and stop Orb speaking project codes to users (prompt fix + Tier 2 case). Both still open, filed 2026-07-03.
+3. **Collect broader production data for ORB-309** (production is now on v0.6.143+ with all telemetry code deployed): gather Mac, iPad, and iPhone samples for login, dashboard, Settings navigation, AI Metrics, Performance Settings, todo CRUD, project switching, Orb submit, and voice start. Compare production against dev before optimizing.
+4. **ORB-311 continuation:** confirm with before/after production samples whether the AI Request Log cursor-pagination change improved `request_log_load`, and decide whether `ai_accounting_load` (still the larger initialization bottleneck) is the next optimization target.
+5. **Choose and fix the first ORB-309 bottleneck from production evidence:** early Mac/Chrome data points to login passkey click, AI Metrics, and Performance Events filtering, but sample counts are too low for a final call. Measure before/after; keep ORB-309 open until confirmed.
+6. **Consider an RLS audit pass on other NULL-able foreign keys**, given the ORB-302 finding: any table with a documented NULL-able FK convention (like `knowledge_repo.product_id` for cross-project entries) should have its RLS policies checked for whether an `EXISTS` join silently drops the NULL case. Not urgent, but worth a deliberate look rather than waiting for the next tool to accidentally expose one.
 
 ---
 
@@ -389,7 +437,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-07-02 — Codex (GPT-5)`
+`2026-07-04 — Claude Code (Fable 5)`
 
 ---
 

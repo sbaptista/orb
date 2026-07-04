@@ -161,6 +161,7 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   client_action: 'Navigating...',
   search_knowledge: 'Searching knowledge repository...',
   add_knowledge: 'Saving to knowledge repository...',
+  update_knowledge: 'Updating knowledge entry...',
   query_audit_trail: 'Checking history...',
   create_project: 'Creating project...',
   update_project: 'Updating project...',

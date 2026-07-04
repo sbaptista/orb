@@ -6,6 +6,63 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.149',
+    date: '2026-07-04',
+    changes: [
+      'Fixed a pre-existing data-visibility bug found while live-testing the new knowledge_repo read tool: cross-project knowledge entries (product_id IS NULL, the documented convention for entries not tied to one project) were invisible to every conversational Orb read — topic search and the new precise-entry lookup alike — because the SELECT RLS policy\'s join could never match a null product_id. 8 of 234 entries were affected. They were always visible in Settings -> Knowledge (which reads via the service-role client), so this was specific to the Orb conversation surface.',
+      'Widened the knowledge_repo SELECT RLS policy to also allow product_id IS NULL rows. Verified under a simulated authenticated session that all 8 previously-invisible entries are now visible, with no change to the other 226.',
+      'Fixed search_knowledge\'s precise-read mode to fetch the resolved entry directly via the admin client instead of depending on the RLS-scoped conversation context list — so a correctly-resolved entry can no longer come back with empty content even in edge cases the RLS fix does not anticipate.',
+    ]
+  },
+  {
+    version: 'v0.6.148',
+    date: '2026-07-04',
+    changes: [
+      'Reframed ORB-302 as full knowledge_repo CRUD (minus delete, which stays admin-only by design): search_knowledge is now the genuine read leg, not just a topic-search tool. Added a "title" parameter for precise single-entry lookup — "show me that entry", "show me the entry about X", verifying an update — separate from the existing "query" topic/discovery mode.',
+      'Precise lookup uses the same leeway resolution as update_knowledge (exact match, then a partial reference covering most of its own words) so a user who doesn\'t recall the exact title still gets a reliable result — and any future fix to that resolution logic automatically covers both the read and update paths, since they share one implementation.',
+      'Added Tier 1 eval coverage for the new precise-read routing path.',
+    ]
+  },
+  {
+    version: 'v0.6.147',
+    date: '2026-07-04',
+    changes: [
+      'Fixed a real wrong-target mutation bug in update_knowledge found in live testing: asking to update the entry titled "Disk IO budget: auth.flow_state accumulation..." instead updated an unrelated entry, "Implementing Client-Side OTP Cooldown (ORB-159)". Root cause: title resolution used a naive one-directional substring check, so a short/generic reference like "ORB-159" matched any title containing that fragment, regardless of how little of the title it actually covered.',
+      'Title resolution now requires the reference to cover most of its own significant words within a candidate title (punctuation-stripped, filler words excluded) before treating it as a confident match — a single generic fragment can no longer hijack an unrelated, much longer title. A weak/ambiguous reference now correctly falls back to not-found or asks the user to disambiguate instead of silently picking a match.',
+      'The confirmation step for knowledge updates now requires the model to state the exact resolved entry title verbatim (in quotes) before asking the user to approve, so a wrong resolution is visible before execution, not just structurally prevented.',
+      'The wrongly-mutated entry was restored to its original content from the audit trail; the incorrect original update and the manual restoration are both recorded in audit_log.',
+    ]
+  },
+  {
+    version: 'v0.6.146',
+    date: '2026-07-04',
+    changes: [
+      'Fixed update_knowledge forcing an unnecessary search_knowledge round-trip on every correction, even when the exact entry title was already quoted in the request — the tool description said "search first, then call this" instead of following the update_project pattern, where the model calls the mutation directly with a title/name reference and the server resolves it (exact, then fuzzy) and reports ambiguous/not-found.',
+      'update_knowledge now behaves like update_project: called directly when a title is already known, falling back to search_knowledge only when the reference is genuinely vague (e.g. "that entry" with no title anywhere in context) — verified live against both cases.',
+      'Corrected two eval cases that had asserted the old, overly strict behavior; added a case for the vague-reference fallback and for the no-delete-tool response no longer claiming a specific unconfirmed next step.',
+    ]
+  },
+  {
+    version: 'v0.6.145',
+    date: '2026-07-04',
+    changes: [
+      'Fixed two bugs found while live-testing update_knowledge: a cold-start "update the disk IO budget entry" request was routing to query_todos (searching tasks, not knowledge) instead of search_knowledge — added a vocabulary rule so "entry"/"that entry" means a Knowledge Repository entry, not a todo, even when phrased as "update" or "fix."',
+      'Fixed a real relevance-ranking bug in search_knowledge itself: with 200+ knowledge entries, short queries like "disk IO budget" matched ~40% of the entire repository (any entry containing "disk" OR "budget" anywhere in a long content block), and results were never ranked — so the actual best match could be crowded out of the 10-result cap by newer, loosely-matching entries. search_knowledge now scores and sorts results by relevance (exact/title matches weighted far above incidental content matches, generic meta-words like "entry"/"issue" excluded from scoring) before capping to 10.',
+      'Added a regression eval case (knowledge-entry-not-todo-cold-start) reproducing the exact failing input from live testing.',
+    ]
+  },
+  {
+    version: 'v0.6.144',
+    date: '2026-07-04',
+    changes: [
+      'Added an update_knowledge tool so the Orb can correct or amend an existing Knowledge Repository entry by title, instead of only ever creating new entries (ORB-302).',
+      'update_knowledge is held for confirmation like update_project — the Orb proposes the change and executes only after the user approves.',
+      'Every successful update is signed and time-stamped by the server automatically ("[Updated: YYYY-MM-DD HH:MM UTC — Orb (Haiku 4.5)]"), never composed by the model, so it can never be skipped or malformed.',
+      'Deliberately no delete_knowledge tool — deletion stays admin-only in Settings. If the Orb detects a stale or wrong entry it cannot fix with an update, it files a ticket for admin review instead of trying to remove the entry itself.',
+      'Added Tier 1 and Tier 2 eval cases covering the update-vs-create distinction, the no-self-attribution rule, and the missing-delete-routes-to-a-ticket behavior. Updated the Object Capability Matrix knowledge_repo row.',
+    ]
+  },
+  {
     version: 'v0.6.143',
     date: '2026-07-03',
     changes: [

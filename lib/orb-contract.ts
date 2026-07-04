@@ -245,22 +245,23 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "search_knowledge",
-    "description": "[Confidence: well-tested] Search the Knowledge Repository for lessons, decisions, and distilled insights from closed tasks. Optionally scope to a specific project.",
+    "description": "[Confidence: well-tested] Read the Knowledge Repository — the CRUD read tool for knowledge_repo, usable for topic discovery AND precise single-entry lookup. Use `query` for topic/discovery search (\"what do we know about X\") — ranked results, up to 10 returned. Use `title` instead when the user names or references ONE specific entry (e.g. \"show me that entry\", \"show me the entry titled X\", verifying an update just made) — this resolves with leeway like update_knowledge does (exact match, then a partial/fuzzy reference covering most of its own words), not a literal exact string. Provide `query` or `title`, not both. Optionally scope to a specific project.",
     "input_schema": {
       "type": "object",
       "properties": {
         "query": {
           "type": "string",
-          "description": "Search term."
+          "description": "Topic/discovery search term. Omit if using title."
+        },
+        "title": {
+          "type": "string",
+          "description": "A specific entry title reference for precise lookup — exact or approximate/partial is fine, leeway is intentional since the user may not recall the exact title. Resolves to one entry, asks to disambiguate if multiple match, or reports not found. Omit if using query."
         },
         "product_code": {
           "type": "string",
           "description": "Scope search to a specific project."
         }
-      },
-      "required": [
-        "query"
-      ]
+      }
     }
   },
   {
@@ -292,6 +293,30 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
       "required": [
         "title",
         "content"
+      ]
+    }
+  },
+  {
+    "name": "update_knowledge",
+    "description": "[Confidence: new] Correct or amend an existing Knowledge Repository entry. Like update_project, call this directly with the title reference you have (exact or approximate) — the server resolves it (exact match, then substring) and tells you if it is ambiguous or not found; you do not need to search_knowledge first as a separate step. Only call search_knowledge beforehand if you genuinely do not know which entry the user means and need to find it by topic. Held for user confirmation like update_project — never claim it is done until confirm_mutation succeeds. Do NOT include a date, timestamp, or attribution line in new_content — the server signs and stamps every update automatically. There is deliberately NO delete tool: if an entry looks stale or wrong and you cannot fix it with an update, use create_ticket to flag it for admin review instead.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "The existing entry title to update — partial/fuzzy matches resolve, like project names. Never a code or id."
+        },
+        "new_content": {
+          "type": "string",
+          "description": "Replacement content. Omit to leave content unchanged."
+        },
+        "new_title": {
+          "type": "string",
+          "description": "Replacement title. Omit to leave the title unchanged."
+        }
+      },
+      "required": [
+        "title"
       ]
     }
   },
@@ -481,6 +506,7 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   client_action: 'Navigating...',
   search_knowledge: 'Searching knowledge repository...',
   add_knowledge: 'Saving to knowledge repository...',
+  update_knowledge: 'Updating knowledge entry...',
   query_audit_trail: 'Checking history...',
   create_project: 'Creating project...',
   update_project: 'Updating project...',

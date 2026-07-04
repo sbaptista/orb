@@ -22,6 +22,12 @@ export const PENDING_TTL_MS = 5 * 60 * 1000
 // Project mutations routed through propose/confirm/execute this pass.
 export const PROJECT_MUTATIONS = new Set(['create_project', 'update_project', 'delete_project'])
 
+// Knowledge mutations ride the same spine. Update only — there is deliberately
+// NO knowledge delete tool: deletion is reserved for admins in the Settings UI,
+// and the Orb files a create_ticket when it detects staleness it cannot fix
+// with an update (ORB-302).
+export const KNOWLEDGE_MUTATIONS = new Set(['update_knowledge'])
+
 export type PendingMutationRow = {
   id: string
   user_id: string
@@ -77,6 +83,74 @@ export async function resolveProjectReference(
   return { status: 'not_found' }
 }
 
+// Knowledge entries are identified by title the way projects are identified by
+// name: a search key, not an identity. Match order: exact title → high-coverage
+// partial. Ambiguity and misses fall through to the caller — never guess.
+export type KnowledgeResolution =
+  | { status: 'found'; id: string; title: string }
+  | { status: 'ambiguous'; candidates: Array<{ id: string; title: string }> }
+  | { status: 'not_found' }
+
+// Grammatical/meta words that don't distinguish one title from another —
+// excluded before computing word-overlap coverage so they can't inflate a
+// weak match's score.
+const RESOLUTION_FILLER_WORDS = new Set(['the', 'a', 'an', 'of', 'for', 'about', 'that', 'this', 'entry', 'entries', 'issue', 'issues', 'item', 'items', 'note', 'notes', 'record', 'records'])
+
+// Strip leading/trailing punctuation per word (title case "budget:" and
+// "(gotrue" must equal "budget"/"gotrue" for overlap to count them) while
+// preserving internal punctuation that's part of the word itself (auth.flow_state).
+function significantWords(s: string): string[] {
+  return s
+    .split(/\s+/)
+    .map(w => w.replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, ''))
+    .filter(w => w.length > 0 && !RESOLUTION_FILLER_WORDS.has(w))
+}
+
+export async function resolveKnowledgeReference(
+  admin: Admin,
+  reference: string,
+): Promise<KnowledgeResolution> {
+  const ref = normalize(reference)
+  if (!ref) return { status: 'not_found' }
+
+  const { data } = await admin.from('knowledge_repo').select('id, title')
+  const entries = (data ?? []) as Array<{ id: string; title: string }>
+
+  const exact = entries.filter(e => normalize(e.title) === ref)
+  if (exact.length === 1) return { status: 'found', id: exact[0].id, title: exact[0].title }
+  if (exact.length > 1) return { status: 'ambiguous', candidates: exact.map(e => ({ id: e.id, title: e.title })) }
+
+  // No exact match — consider a partial reference, but ONLY when nearly all of
+  // the reference's significant words appear in the candidate title, and the
+  // reference itself is substantial (2+ significant words). A naive
+  // one-directional substring check (does the title contain the reference?)
+  // let a short/generic fragment like "ORB-159" match an unrelated 5-word title
+  // that happened to end in "(ORB-159)" while missing the actual intended
+  // entry — a real wrong-target mutation caught in ORB-302 live testing.
+  // Scoring by "fraction of the REFERENCE found in the title" (not penalized
+  // by how much longer the title is) lets a real partial reference like "Disk
+  // IO budget auth.flow_state accumulation" still resolve, while a single
+  // generic token cannot.
+  const REF_COVERAGE_THRESHOLD = 0.8
+  const MIN_REF_WORDS = 2
+  const refWords = significantWords(ref)
+  const candidates = refWords.length >= MIN_REF_WORDS
+    ? entries
+        .map(e => {
+          const titleWords = significantWords(normalize(e.title))
+          if (titleWords.length === 0) return null
+          const overlap = refWords.filter(w => titleWords.includes(w)).length
+          const refCoverage = overlap / refWords.length
+          return refCoverage >= REF_COVERAGE_THRESHOLD ? e : null
+        })
+        .filter((e): e is { id: string; title: string } => e !== null)
+    : []
+
+  if (candidates.length === 1) return { status: 'found', id: candidates[0].id, title: candidates[0].title }
+  if (candidates.length > 1) return { status: 'ambiguous', candidates: candidates.map(e => ({ id: e.id, title: e.title })) }
+  return { status: 'not_found' }
+}
+
 // ── Pending store (server-held; one row per user, superseded on each propose) ──
 
 export async function getPendingMutation(admin: Admin, userId: string): Promise<PendingMutationRow | null> {
@@ -117,8 +191,22 @@ export async function clearPendingMutation(admin: Admin, userId: string): Promis
 
 export type ProposeResult =
   | { kind: 'propose'; target_id: string | null; params: Record<string, any>; summary: string }
-  | { kind: 'ambiguous'; candidates: Array<{ name: string; code: string }> }
+  | { kind: 'ambiguous'; candidates: Array<{ name: string; code?: string }> }
   | { kind: 'error'; message: string }
+
+// Deterministic sign-and-stamp for any knowledge update — NOT model-composed,
+// so it can never be skipped, malformed, or omitted by the model. Matches the
+// "YYYY-MM-DD — Orb (Model)" attribution convention used elsewhere (resolution
+// notes, add_knowledge), but with a time component since updates can happen
+// multiple times same day. Strips any prior stamp so repeated updates show
+// only the current one — full history lives in audit_log, not stacked in content.
+const KNOWLEDGE_STAMP_RE = /^\[Updated: [^\]]+\]\n\n/
+
+function stampKnowledgeContent(content: string): string {
+  const stamp = `[Updated: ${new Date().toISOString().replace('T', ' ').slice(0, 16)} UTC — Orb (Haiku 4.5)]`
+  const stripped = content.replace(KNOWLEDGE_STAMP_RE, '')
+  return `${stamp}\n\n${stripped}`
+}
 
 export async function proposeProjectMutation(
   admin: Admin,
@@ -182,10 +270,40 @@ export async function proposeProjectMutation(
   return { kind: 'error', message: `I don't know how to ${tool}.` }
 }
 
+export async function proposeKnowledgeMutation(
+  admin: Admin,
+  tool: string,
+  input: any,
+): Promise<ProposeResult> {
+  if (tool !== 'update_knowledge') return { kind: 'error', message: `I don't know how to ${tool}.` }
+
+  const reference = String(input.title ?? '').trim()
+  if (!reference) return { kind: 'error', message: 'Which knowledge entry did you mean?' }
+
+  const res = await resolveKnowledgeReference(admin, reference)
+  if (res.status === 'not_found') return { kind: 'error', message: `I don't see a knowledge entry called "${reference}". Try search_knowledge to find the exact title.` }
+  if (res.status === 'ambiguous') {
+    return { kind: 'ambiguous', candidates: res.candidates.map(c => ({ name: c.title })) }
+  }
+
+  const hasContent = typeof input.new_content === 'string' && input.new_content.trim() !== ''
+  const hasTitle = typeof input.new_title === 'string' && input.new_title.trim() !== ''
+  if (!hasContent && !hasTitle) return { kind: 'error', message: 'What would you like to change about it?' }
+  const parts: string[] = []
+  if (hasContent) parts.push('update its content')
+  if (hasTitle) parts.push(`rename it to "${input.new_title.trim()}"`)
+  return {
+    kind: 'propose',
+    target_id: res.id,
+    params: { new_content: hasContent ? input.new_content.trim() : undefined, new_title: hasTitle ? input.new_title.trim() : undefined },
+    summary: `${parts.join(' and ')} for "${res.title}"`,
+  }
+}
+
 // ── Execute: run the EXACT stored intent against the resolved id ──────────────
 
 export type ExecuteResult =
-  | { ok: true; summary: string; mutationType: 'project_create' | 'project_update' | 'project_delete'; code?: string; newProject?: any }
+  | { ok: true; summary: string; mutationType: 'project_create' | 'project_update' | 'project_delete' | 'knowledge_update'; code?: string; newProject?: any }
   | { ok: false; error: string }
 
 export async function executePendingProjectMutation(
@@ -245,4 +363,40 @@ export async function executePendingProjectMutation(
   }
 
   return { ok: false, error: `I don't know how to ${tool}.` }
+}
+
+export async function executePendingKnowledgeMutation(
+  admin: Admin,
+  ctx: { userId: string },
+  pending: PendingMutationRow,
+): Promise<ExecuteResult> {
+  const { target_id, params } = pending
+  if (!target_id) return { ok: false, error: 'That action lost its target. Please ask again.' }
+
+  const { data: entry } = await admin
+    .from('knowledge_repo')
+    .select('id, title, content')
+    .eq('id', target_id)
+    .maybeSingle()
+  if (!entry) return { ok: false, error: 'That knowledge entry no longer exists.' }
+
+  const updates: Record<string, any> = {}
+  const hasNewContent = typeof params.new_content === 'string' && params.new_content.trim() !== ''
+  const hasNewTitle = typeof params.new_title === 'string' && params.new_title.trim() !== ''
+  if (!hasNewContent && !hasNewTitle) return { ok: false, error: 'There was nothing to change.' }
+
+  // Any successful update carries a fresh sign-and-timestamp, whether or not
+  // the content text itself changed — "any update" per the standing rule.
+  updates.content = stampKnowledgeContent(hasNewContent ? params.new_content.trim() : entry.content)
+  if (hasNewTitle) updates.title = params.new_title.trim()
+
+  const { data: updated, error } = await admin
+    .from('knowledge_repo')
+    .update(updates)
+    .eq('id', target_id)
+    .select('id, title')
+    .single()
+  if (error) return { ok: false, error: error.message }
+  await logAuditEvent({ action: 'knowledge_update', table_name: 'knowledge_repo', record_id: target_id, before: { title: entry.title, content: entry.content }, after: updates, actor: 'orb', user_id: ctx.userId })
+  return { ok: true, summary: `Updated "${updated.title}"`, mutationType: 'knowledge_update' }
 }

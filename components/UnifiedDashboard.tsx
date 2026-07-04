@@ -1325,6 +1325,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             } else if (list.length > 0 && !list.find(p => p.id === selectedId)) {
               setSelectedId(list[0].id)
             }
+          } else if (chunk.mutationType === 'knowledge_update') {
+            // No dashboard-visible list to refresh — Settings -> Knowledge fetches fresh on next visit.
+            toast.success('Knowledge entry updated.')
           } else {
             if (chunk.mutatedProductId === selectedId) { fetchOrbTodos(); fetchTodos() }
             if (!chunk.isStreaming) {

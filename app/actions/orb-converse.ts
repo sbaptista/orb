@@ -19,9 +19,9 @@ import { sendAdaptationEmail } from '@/lib/email'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 import { VERSION } from '@/lib/version'
-import { PROJECT_MUTATIONS, getPendingMutation, storePendingMutation, clearPendingMutation, proposeProjectMutation, executePendingProjectMutation, type PendingMutationRow } from '@/lib/orb-mutations'
+import { PROJECT_MUTATIONS, KNOWLEDGE_MUTATIONS, getPendingMutation, storePendingMutation, clearPendingMutation, proposeProjectMutation, proposeKnowledgeMutation, executePendingProjectMutation, executePendingKnowledgeMutation, resolveKnowledgeReference, type PendingMutationRow } from '@/lib/orb-mutations'
 import { DB_SCHEMA, ALLOWED_TABLES, SOFT_DELETE_TABLES, ALLOWED_OPS, COLUMN_NAME_RE } from '@/lib/db-schema'
-import { fuzzyMatch } from '@/lib/fuzzy-search'
+import { fuzzyMatch, scoreTextMatch } from '@/lib/fuzzy-search'
 import { CHANGELOG } from '@/lib/changelog'
 import { queryRepository } from '@/lib/repository-reader'
 import { normalizeAnthropicUsage } from '@/lib/orb-model/anthropic'
@@ -60,7 +60,7 @@ export type OrbResponse = {
   thought?: string // A discrete "work step" completed by the Orb
   refresh?: boolean
   mutatedProductId?: string
-  mutationType?: 'create' | 'update' | 'delete' | 'project_create' | 'project_update' | 'project_delete' | 'dormancy'
+  mutationType?: 'create' | 'update' | 'delete' | 'project_create' | 'project_update' | 'project_delete' | 'dormancy' | 'knowledge_update'
   clientAction?: { action: string; target?: string }
   error?: string
   isServiceError?: boolean // True when the error is a service-level issue (billing, overloaded, network)
@@ -1334,17 +1334,22 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             output = { error: 'Your tool call was truncated (incomplete JSON). The parameters were too long for the response limit. Try again with a shorter description, or create the task first with just a title and update it separately.' }
           } else
 
-          // ── Project mutation: PROPOSE (resolve + hold; never execute here) ──
-          if (PROJECT_MUTATIONS.has(tc.name)) {
-            const proposal = await proposeProjectMutation(auth.admin, { userId: auth.user.id, isAdmin: auth.isAdmin }, tc.name, input)
+          // ── Project / Knowledge mutation: PROPOSE (resolve + hold; never execute here) ──
+          if (PROJECT_MUTATIONS.has(tc.name) || KNOWLEDGE_MUTATIONS.has(tc.name)) {
+            const proposal = PROJECT_MUTATIONS.has(tc.name)
+              ? await proposeProjectMutation(auth.admin, { userId: auth.user.id, isAdmin: auth.isAdmin }, tc.name, input)
+              : await proposeKnowledgeMutation(auth.admin, tc.name, input)
             if (proposal.kind === 'error') {
               output = { error: proposal.message }
             } else if (proposal.kind === 'ambiguous') {
-              const list = proposal.candidates.map(c => `${c.name} (${c.code})`).join(', ')
+              const list = proposal.candidates.map(c => c.code ? `${c.name} (${c.code})` : c.name).join(', ')
               output = { needs_disambiguation: true, candidates: proposal.candidates, _instruction: `More than one project matches: ${list}. Ask the user which one they mean — refer to them by name. Do not act yet.` }
             } else {
               await storePendingMutation(auth.admin, auth.user.id, { tool: tc.name, target_id: proposal.target_id, params: proposal.params, summary: proposal.summary })
-              output = { proposed: true, _instruction: `Briefly tell the user you're about to ${proposal.summary}, and ask whether they want you to go ahead (e.g. "Want me to go ahead?"). You MUST end by asking for the go-ahead. Do NOT say it is already done — it has not run yet. Don't explain any internal mechanism or use the word "pending".` }
+              const targetVerification = KNOWLEDGE_MUTATIONS.has(tc.name)
+                ? ` You MUST include the exact resolved entry title in quotes in your confirmation, verbatim from "${proposal.summary}" — this is the only way the user can catch a wrong-entry resolution before it executes. Do not paraphrase or shorten the title.`
+                : ''
+              output = { proposed: true, _instruction: `Briefly tell the user you're about to ${proposal.summary}, and ask whether they want you to go ahead (e.g. "Want me to go ahead?"). You MUST end by asking for the go-ahead. Do NOT say it is already done — it has not run yet. Don't explain any internal mechanism or use the word "pending".${targetVerification}` }
             }
             // Discard any premature speech the model emitted before this propose call
             // (e.g. "Renaming X to Y now.") so only the clean proposal narration remains.
@@ -1364,7 +1369,9 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
               continue
             }
-            const result = await executePendingProjectMutation(auth.admin, { userId: auth.user.id, isAdmin: auth.isAdmin }, pend)
+            const result = PROJECT_MUTATIONS.has(pend.tool)
+              ? await executePendingProjectMutation(auth.admin, { userId: auth.user.id, isAdmin: auth.isAdmin }, pend)
+              : await executePendingKnowledgeMutation(auth.admin, { userId: auth.user.id }, pend)
             if (!result.ok) {
               toolErrors.push(`confirm_mutation: ${result.error}`)
               output = { error: result.error, _instruction: `This failed: ${result.error}. Tell the user plainly. Do NOT claim success.` }
@@ -1792,18 +1799,53 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               output = { ok: true }
             }
           } else if (tc.name === 'search_knowledge') {
-            let results = ctx.knowledgeList.slice()
-            if (input.product_code) {
-                const p = ctx.productList.find((pp: any) => pp.code?.toUpperCase() === String(input.product_code).toUpperCase())
-                if (p) results = results.filter((k: any) => k.product_id === p.id)
+            if (input.title) {
+              // Precise single-entry read — the CRUD "read one" leg. Shares the exact
+              // same leeway resolution as update_knowledge (resolveKnowledgeReference):
+              // exact match, then a partial reference covering most of its own words.
+              // Reusing it means a fix to one path (e.g. the wrong-target bug found in
+              // ORB-302 live testing) automatically applies to the other.
+              const res = await resolveKnowledgeReference(auth.admin, String(input.title))
+              if (res.status === 'not_found') {
+                output = { error: `I don't see a knowledge entry matching "${input.title}".` }
+                stream.update({ speech: accumulatedSpeech, thought: 'No matching entry found' })
+              } else if (res.status === 'ambiguous') {
+                const list = res.candidates.map(c => c.title).join(', ')
+                output = { needs_disambiguation: true, candidates: res.candidates, _instruction: `More than one entry matches: ${list}. Ask the user which one they mean — refer to them by title. Do not guess.` }
+                stream.update({ speech: accumulatedSpeech, thought: `${res.candidates.length} entries match — ambiguous` })
+              } else {
+                // Fetch via admin, not ctx.knowledgeList (RLS-scoped) — resolveKnowledgeReference
+                // already used the admin client to resolve this id, and ctx.knowledgeList can be
+                // missing rows RLS hides (found live: cross-project entries with product_id IS
+                // NULL were resolvable but then came back empty, because the RLS SELECT policy's
+                // join can never match a null product_id — fixed at the RLS layer too, but this
+                // path shouldn't depend on RLS visibility matching what admin already resolved).
+                const { data: entry } = await auth.admin.from('knowledge_repo').select('title, content, projects(code)').eq('id', res.id).maybeSingle()
+                const returned = [{ title: res.title, content: entry?.content ?? '', code: (entry as any)?.projects?.code }]
+                output = { count: 1, returned }
+                stream.update({ speech: accumulatedSpeech, thought: `Found "${res.title}"`, knowledgeResults: returned })
+              }
+            } else {
+              let results = ctx.knowledgeList.slice()
+              if (input.product_code) {
+                  const p = ctx.productList.find((pp: any) => pp.code?.toUpperCase() === String(input.product_code).toUpperCase())
+                  if (p) results = results.filter((k: any) => k.product_id === p.id)
+              }
+              if (input.query) {
+                  const q = String(input.query)
+                  // Score, don't just filter: with 200+ entries and short queries, "matches
+                  // at all" isn't enough — rank so the best-matching entries survive the
+                  // top-10 cap instead of being crowded out by loosely-matching newer ones.
+                  results = results
+                    .map((k: any) => ({ entry: k, score: scoreTextMatch(q, k.title, k.content) }))
+                    .filter((x: any) => x.score > 0)
+                    .sort((a: any, b: any) => b.score - a.score)
+                    .map((x: any) => x.entry)
+              }
+              const returned = results.slice(0, 10).map((k: any) => ({ title: k.title, content: k.content, code: k.projects?.code }))
+              output = { count: results.length, returned }
+              stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length} insights`, knowledgeResults: returned })
             }
-            if (input.query) {
-                const q = String(input.query)
-                results = results.filter((k: any) => fuzzyMatch(q, `${k.title} ${k.content}`))
-            }
-            const returned = results.slice(0, 10).map((k: any) => ({ title: k.title, content: k.content, code: k.projects?.code }))
-            output = { count: results.length, returned }
-            stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length} insights`, knowledgeResults: returned })
           } else if (tc.name === 'add_knowledge') {
             let pId = ctx.current?.id ?? null
             if (input.product_code) {
