@@ -377,6 +377,29 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
+    id: 'query-projects-tool',
+    description: 'Project facts the backlog cannot answer (owners) call query_projects, not query_db',
+    productCode: 'ORB',
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }, { name: 'Helm', code: 'HELM' }]),
+    input: 'Which projects do I have, and who owns each one?',
+    tier: 1,
+    expectTool: { name: 'query_projects' },
+  },
+
+  {
+    id: 'query-projects-dormant',
+    description: 'Dormant-project questions the backlog cannot answer call query_projects with include_dormant',
+    productCode: 'ORB',
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }, { name: 'Helm', code: 'HELM' }]),
+    input: 'Which of my projects are dormant right now?',
+    tier: 1,
+    expectTool: {
+      name: 'query_projects',
+      params: { include_dormant: true },
+    },
+  },
+
+  {
     id: 'repository-inspection-tool',
     description: 'Asking about implementation routes to the repository inspection tool',
     productCode: 'ORB',

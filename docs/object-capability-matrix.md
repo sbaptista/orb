@@ -17,7 +17,7 @@ Legend: ✅ covered · 🟡 covered but unverified/low-confidence · ⚠️ fall
 | Object | DB Table | Orb Tool (C/R/U/D) | `query_db` fallback | REST API (C/R/U/D) | Settings UI (C/R/U/D) | Print | Help | Test Coverage |
 |---|---|---|---|---|---|---|---|---|
 | **todos** | ✅ `todos` | ✅✅✅✅ `create_todo`/`query_todos`/`update_todo`/`delete_todo` + `move_todo`, all well-tested | ✅ | ✅✅✅✅ `/api/tasks` (soft delete) | Primary CRUD lives in the main dashboard (`TodoView`), not Settings — `SettingsProjectTodos` is a project-scoped view, not the canonical editor | ✅ "Print Backlog" (global nav) | ✅ `ask` topic covers C/R/U/D examples | ✅ Tier 1 + Tier 2 eval cases (tool correctness + speech behavior) |
-| **projects** | ✅ `projects` | ✅create / ⚠️**no read tool** / 🟡update / 🟡delete (held via propose/confirm) | ✅ | ❌ none | ✅✅✅✅ `SettingsProjects` — confirmed `onEdit`+`onDelete`, create via command-bar button | — | 🟡 generic only (`[project]` placeholder examples in `ask` topic, no dedicated topic) | ⚠️ not confirmed in `eval-cases.ts` — needs check |
+| **projects** | ✅ `projects` | ✅create / ✅read (`query_projects`, name-first, v0.6.140 — ORB-301) / 🟡update / 🟡delete (held via propose/confirm) | ✅ | ❌ none | ✅✅✅✅ `SettingsProjects` — confirmed `onEdit`+`onDelete`, create via command-bar button | — | 🟡 generic only (`[project]` placeholder examples in `ask` topic, no dedicated topic) | 🟡 Tier 1: `query-projects-tool`, `query-projects-dormant`, `delete-project-calls-tool`; update path still unasserted |
 | **knowledge_repo** | ✅ `knowledge_repo` | ✅create(`add_knowledge`) / ✅read(`search_knowledge`) / ❌**no update** / ❌**no delete** | ✅ | ❌ none | ✅✅✅✅ `SettingsKnowledge` — confirmed `onEdit`+`onDelete` (Settings UI exceeds Orb tool coverage) | — | ❌ none | ❌ none found |
 | **tickets** | ✅ `tickets` | ✅create(`create_ticket`) only / ❌**no read** / ❌**no update** / ❌**no delete** | ❌ not in `ALLOWED_TABLES` | ❌ none | ✅✅✅✅ `SettingsTickets` (admin-managed) — confirmed `onEdit`+`onDelete` | — | ❌ none | ❌ none found |
 | **audit_log** | ✅ `audit_log` | ✅read(`query_audit_trail`) only — correct, append-only by design | ✅ | ❌ none | ✅ read-only by design (`SettingsAudit`, "Open" to view, no mutation actions) | — | ❌ none | ❌ none found |
@@ -36,7 +36,7 @@ Legend: ✅ covered · 🟡 covered but unverified/low-confidence · ⚠️ fall
 `statuses` and `priorities` have **zero** surface anywhere (no Orb tool, no Settings page) outside the read-only `query_db` fallback. **Confirmed by Stan 2026-06-30: deliberately meant to stay fixed/unmanaged.** Not a gap — do not propose tools or a Settings page for these without a new explicit request.
 
 ### Tracked gaps (filed as ORB todos, 2026-06-30)
-- **ORB-301** — Add a read tool for projects (`query_projects`)
+- ~~**ORB-301** — Add a read tool for projects (`query_projects`)~~ **Closed v0.6.143 (2026-07-03)** — Tier 1 36/36 green, live-verified on Mac + iPhone
 - **ORB-302** — Add update/delete tools for `knowledge_repo` entries
 - **ORB-303** — Add read/update/delete tools for tickets (sharpest gap — create-only today)
 

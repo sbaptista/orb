@@ -276,7 +276,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     { data: orbAdaptations },
   ] = await Promise.all([
     visibleProjectsQuery(supabase, 'id, name, code, description, created_by'),
-    auth.isAdmin ? supabase.from('projects').select('id, name, code').eq('is_dormant', true).order('sort_order') : Promise.resolve({ data: [] }),
+    auth.isAdmin ? supabase.from('projects').select('id, name, code, created_by').eq('is_dormant', true).order('sort_order') : Promise.resolve({ data: [] }),
     supabase.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes, due_at, urls, group_id, category_id, ticket_id, groups(name), categories(name), tickets!ticket_id(ticket_number)').is('deleted_at', null),
     supabase.from('statuses').select('*').order('sort_order'),
     supabase.from('priorities').select('*').order('value'),
@@ -1137,7 +1137,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         const dynamicPrompt = [
           `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
           ctx.currentUser ? `USER CONTEXT: You are talking to ${ctx.currentUser.email} (Name: ${ctx.currentUser.name || 'Unknown'}, Role: ${userRole || 'Unknown'}).` : '',
-          `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${ctx.current?.name}" unless the user explicitly names a different project.\n- An unqualified request to create a task already has a project: the currently selected project. Do not ask which project; just create it there.\n- PROJECT IDENTIFIER BY TOOL: todo-level tools (create_todo, query_todos, move_todo) take the project's short internal code as product_code/target_project_code — look it up from the backlog (shown as [code: XXX] next to each project name) and pass that. Project-level tools (update_project, delete_project, and client_action's switch_project target) take the project NAME, not the code — pass exactly what the user means by name; the server resolves it, including shortened/partial names. Never invent or guess a code for a project-level tool.\n- When speaking to the user, ALWAYS use project names, never codes.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${ctx.current?.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${ctx.currentUser.name || ctx.currentUser.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
+          `SCOPE:\n- You can see and discuss ALL projects in the backlog.\n- When creating or updating todos, default to the currently selected project "${ctx.current?.name}" unless the user explicitly names a different project.\n- An unqualified request to create a task already has a project: the currently selected project. Do not ask which project; just create it there.\n- PROJECT IDENTIFIER BY TOOL: todo-level tools (create_todo, query_todos, move_todo) take the project's short internal code as product_code/target_project_code — look it up from the backlog (shown as [code: XXX] next to each project name) and pass that. Project-level tools (query_projects, update_project, delete_project, and client_action's switch_project target) take the project NAME, not the code — pass exactly what the user means by name; the server resolves it, including shortened/partial names. Never invent or guess a code for a project-level tool.\n- When speaking to the user, ALWAYS use project names, never codes.\n- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${ctx.current?.name}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.\n- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${ctx.currentUser.name || ctx.currentUser.email}"). Do NOT suggest or highlight tasks from projects owned by other users.`,
           req.uiContext ? `UI STATE: The user is viewing: ${req.uiContext.viewMode ?? 'list'} view | filter: ${req.uiContext.filterStatus ?? 'active'} | priority filter: ${req.uiContext.filterPriority ?? 'all'} | sort: ${req.uiContext.sortAsc ? 'oldest first' : 'newest first'} | orb pane: ${req.uiContext.orbPaneVisible ? 'visible' : 'hidden'} | list pane: ${req.uiContext.listPaneVisible ? 'visible' : 'hidden'} | device: ${req.uiContext.isMobile ? 'mobile' : 'desktop'}. Use this to understand what the user sees when they say "this view", "the list", "that column", etc.` : '',
           req.uiContext?.voiceMode ? buildVoiceConversationPrompt({
             ttsProvider: req.uiContext.ttsProvider,
@@ -1515,6 +1515,41 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             })
             output = { count: results.length, returned }
             stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length} items` })
+          } else if (tc.name === 'query_projects') {
+            // In-memory over the already-loaded context (like query_todos) —
+            // zero extra DB reads. Visibility is inherited: productList is
+            // ownership/admin-filtered at load, dormantList is admin-only.
+            const ref = input.name ? String(input.name).trim() : ''
+            const refUpper = ref.toUpperCase()
+            const matchesRef = (p: any) =>
+              !ref ||
+              p.name.toUpperCase().includes(refUpper) ||
+              (p.code ?? '').toUpperCase() === refUpper ||
+              fuzzyMatch(ref, p.name)
+            const results = ctx.productList.filter(matchesRef)
+            const dormantMatches = input.include_dormant ? ctx.dormantList.filter(matchesRef) : []
+            const limit = input.max_results ?? 50
+            const returned: any[] = results.slice(0, limit).map((p: any) => {
+              const ownerName = ctx.userMap.get(p.created_by)
+              const projectTodos = ctx.todoList.filter((t: any) => t.product_id === p.id)
+              const out: any = {
+                name: p.name,
+                code: p.code,
+                active_tasks: projectTodos.filter((t: any) => isActive(t.status)).length,
+                total_tasks: projectTodos.length,
+              }
+              if (p.description) out.description = p.description
+              if (ownerName) out.owner = ownerName
+              return out
+            })
+            for (const p of dormantMatches.slice(0, Math.max(0, limit - returned.length))) {
+              const dormantOwner = ctx.userMap.get(p.created_by)
+              const out: any = { name: p.name, code: p.code, dormant: true }
+              if (dormantOwner) out.owner = dormantOwner
+              returned.push(out)
+            }
+            output = { count: results.length + dormantMatches.length, returned }
+            stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length + dormantMatches.length} projects` })
           } else if (tc.name === 'update_todo') {
             const productCode = input.code?.split('-')[0]
             const todoNum = parseInt(input.code?.split('-')[1] || '0')

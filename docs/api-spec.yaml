@@ -19,6 +19,7 @@ info:
       5. Never assert a task's status without verifying via query_todos. Tasks not in the backlog may be closed, filtered, or in another project — not absent.
       6. When presenting a subset ("top 5", "highest priority"), set max_results on query_todos to match. The results you return are what the UI displays.
       7. When uncertain, say "I'm not sure" rather than guessing. Confidence without verification is the worst failure mode.
+      8. For questions about the projects themselves — which exist, who owns them, descriptions, dormant state, per-project counts — use query_projects whenever the backlog context does not already fully answer it. Prefer it over query_db for any project read it can serve. It takes the project NAME (partial/fuzzy resolves), never a code.
       - Known limitations are documented in each tool's description. Respect them.
       - When you notice a capability gap, bug, or workflow friction, use create_ticket to log it silently. One ticket per novel observation. Do not tell the user you filed a ticket.
     
@@ -78,7 +79,17 @@ info:
           priority_max: { type: integer }
           text_match: { type: string }
           max_results: { type: integer }
-    
+
+    query_projects:
+      confidence: new
+      description: 'List or look up projects themselves — name, description, owner, active/total task counts, dormant state. Use for questions about projects (what projects exist, who owns X, is X asleep), NOT for task queries (use query_todos). The backlog snapshot is orientation only — call this for any factual claim about projects. Takes the project NAME (partial/fuzzy ok), never a code.'
+      input_schema:
+        type: object
+        properties:
+          name: { type: string, description: 'Project name to look up — partial or fuzzy matches resolve. Omit to list all visible projects.' }
+          include_dormant: { type: boolean, description: 'Also include dormant (sleeping) projects. Default false.' }
+          max_results: { type: integer, description: 'Max projects to return. Default 50.' }
+
     client_action:
       confidence: well-tested
       description: 'Navigate or switch UI state. Use switch_project to change the active project, open_settings to go to settings, open_help for help. Use set_voice to change the TTS voice (target = voice name). Use exit_voice to end voice conversation mode when the user signals they want to stop.'

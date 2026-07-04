@@ -197,6 +197,27 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
     }
   },
   {
+    "name": "query_projects",
+    "description": "[Confidence: new] List or look up projects themselves — name, description, owner, active/total task counts, dormant state. Use for questions about projects (what projects exist, who owns X, is X asleep), NOT for task queries (use query_todos). The backlog snapshot is orientation only — call this for any factual claim about projects. Takes the project NAME (partial/fuzzy ok), never a code.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Project name to look up — partial or fuzzy matches resolve. Omit to list all visible projects."
+        },
+        "include_dormant": {
+          "type": "boolean",
+          "description": "Also include dormant (sleeping) projects. Default false."
+        },
+        "max_results": {
+          "type": "integer",
+          "description": "Max projects to return. Default 50."
+        }
+      }
+    }
+  },
+  {
     "name": "client_action",
     "description": "[Confidence: well-tested] Navigate or switch UI state. Use switch_project to change the active project, open_settings to go to settings, open_help for help. Use set_voice to change the TTS voice (target = voice name). Use exit_voice to end voice conversation mode when the user signals they want to stop.",
     "input_schema": {
@@ -453,6 +474,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
 export const ORB_TOOL_LABELS: Record<string, string> = {
   create_todo: 'Creating task...',
   query_todos: 'Searching backlog...',
+  query_projects: 'Checking projects...',
   update_todo: 'Updating task...',
   delete_todo: 'Deleting task...',
   move_todo: 'Moving task...',

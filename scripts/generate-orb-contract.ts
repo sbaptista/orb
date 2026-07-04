@@ -154,6 +154,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = ${JSON.stringify(tools, null, 2)}
 export const ORB_TOOL_LABELS: Record<string, string> = {
   create_todo: 'Creating task...',
   query_todos: 'Searching backlog...',
+  query_projects: 'Checking projects...',
   update_todo: 'Updating task...',
   delete_todo: 'Deleting task...',
   move_todo: 'Moving task...',

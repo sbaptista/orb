@@ -6,6 +6,37 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.143',
+    date: '2026-07-03',
+    changes: [
+      'query_projects now returns the owner for dormant projects, so questions like "who owns CAN26?" are answerable — live testing showed neither the backlog context nor the tool carried dormant-project ownership, leaving the Orb unable to answer without waking the project.',
+    ]
+  },
+  {
+    version: 'v0.6.142',
+    date: '2026-07-03',
+    changes: [
+      'Added a project-fact provenance rule to the shared query-routing prompt: owner, description, and dormant state may only come from explicit backlog tags or query_projects results — the Orb must never assume the current user owns a project when the backlog shows no owner tag. Caught by the query-projects-tool eval case, where the model fabricated ownership instead of calling the tool.',
+    ]
+  },
+  {
+    version: 'v0.6.141',
+    date: '2026-07-03',
+    changes: [
+      'Fixed query_projects routing: the rule now lives in the live QUERY ROUTING prompt shared by production and the eval harness, aligned with the existing backlog-direct-access design — the tool fires when the backlog context cannot fully answer a project question, rather than on every project mention.',
+      'Rewrote the query-projects eval cases on frozen backlog fixtures (no owner or dormant data in context) so the tool call is deterministically required, matching how other project-routing cases are built.',
+    ]
+  },
+  {
+    version: 'v0.6.140',
+    date: '2026-07-03',
+    changes: [
+      'Added a query_projects tool so the Orb can answer questions about projects themselves — what projects exist, who owns them, descriptions, active/total task counts, and dormant state — when the backlog context cannot answer (ORB-301).',
+      'query_projects follows the name-first convention: it takes a project name (partial and fuzzy matches resolve), never a code, consistent with update_project and delete_project.',
+      'Added Tier 1 eval cases for project listing and dormant-project queries, and updated the Object Capability Matrix projects row.',
+    ]
+  },
+  {
     version: 'v0.6.139',
     date: '2026-07-03',
     changes: [
