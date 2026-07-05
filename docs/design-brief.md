@@ -2,6 +2,7 @@
 
 > This document is the standard every design decision is measured against.  
 > Read it before building UI. Update it when the standard evolves.
+> Constitutional frame: `docs/orb-craft-and-art-doctrine.md`.
 
 ---
 

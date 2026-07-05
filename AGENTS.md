@@ -2,6 +2,8 @@
 
 This app is a piece of art. Art and technique are inseparable — great art requires great technique, and great technique without vision is just engineering. Every screen, every interaction, every detail should reflect care and intention. Don't just make it work. Make it beautiful. Read `docs/design-brief.md` before building any UI.
 
+Constitutional frame: `docs/orb-craft-and-art-doctrine.md`.
+
 ---
 
 ## Comprehension Check — Answer all questions below verbatim before any other response:

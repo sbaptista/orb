@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.152',
+    date: '2026-07-04',
+    changes: [
+      'Added a draft Orb Craft and Art Doctrine for Stan and multi-agent review, framing Orb as both a world-class AI-native application and a generative seed for future apps.',
+      'Captured the working principle that Orb needs technical systems to enforce reliability and metaphorical systems to enforce meaning: the app generator should behave like physics, not a rigid template factory.',
+      'Incorporated Claude/Gemini review into the doctrine: physics means laws and emergent forms, not simulation; every invariant needs an enforcement class; obligations scale by blast radius; and binding rule text must live in one operative place to avoid drift.',
+      'Added pointer-only references from AGENTS and the design brief to the new doctrine so it is discoverable without duplicating rule text.',
+    ]
+  },
+  {
     version: 'v0.6.151',
     date: '2026-07-04',
     changes: [
