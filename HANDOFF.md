@@ -10,11 +10,28 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.153
+- **Version:** 0.6.154
 
 ---
 
 ### Last Session Completed
+
+**Project count precision follow-up — 2026-07-04 (Codex, GPT-5) — v0.6.154**
+
+Stan live-tested the ORB-315 project-name fix and confirmed raw project codes were no longer leaking, but Orb still said "five active projects" while listing four projects with active tasks. Source inspection showed the likely ambiguity: the BACKLOG context includes all visible/non-dormant projects, even those with `active_count=0`, plus a separate DORMANT section. Orb was likely mixing "active project" as non-dormant with "project that has active tasks."
+
+**What changed:**
+- Added a project-count precision rule to the shared SCOPE prompt: distinguish visible/non-dormant projects, projects with active tasks (`active_count > 0`), and dormant projects.
+- Added Tier 2 eval coverage for a fixture with five visible projects, four with active tasks, and one dormant project, guarding against the exact "five active projects" phrasing.
+- Bumped release docs to `v0.6.154`.
+
+**Verification:**
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+- `npm run build` passed.
+- Stan ran targeted Tier 2 eval `project-count-distinguishes-visible-from-active-task-projects`: **1/1 passed**. Reported usage: ~99,968 tokens, estimated cost ~$0.1018, elapsed 27s, completed 2026-07-05T04:59:46.780Z.
+
+### Prior Session: ORB-314 / ORB-315 operating-rules cleanup + shared SCOPE builder — 2026-07-04 (Codex, GPT-5) — v0.6.153
 
 **ORB-314 / ORB-315 operating-rules cleanup + shared SCOPE builder — 2026-07-04 (Codex, GPT-5) — v0.6.153**
 
@@ -97,17 +114,11 @@ Continuation of the same session as the entry below (concurrency protocol + ORB-
 ### Uncommitted Changes
 
 - `.claude/settings.local.json` — harness-recorded permission allowlist additions only; the `git push` gate remains in `ask`. Deliberately left uncommitted, as always.
-- `ACTIVE_WORK/codex.md` — claim ledger returned to `*(none)*` after the ORB operating-rules implementation slice.
-- `HANDOFF.md` — updated for v0.6.153 session state.
-- `app/actions/orb-converse.ts` — production prompt assembly now uses shared `buildOrbScopePrompt`.
-- `app/api/orb-eval/route.ts` — eval prompt assembly now uses shared `buildOrbScopePrompt`.
-- `docs/api-spec.yaml` — `x-orb-agent-contract` reframed as REST/API integration guidance, not conversational prompt law.
-- `docs/orb-186-plan.md` — historical `ORB_INTEGRITY_RULES` references marked superseded.
-- `docs/orb-operating-rules-audit.md` — new doctrine-driven Orb AI operating-rules audit and implementation note.
-- `lib/changelog.ts`, `lib/version.ts`, `package.json` — v0.6.153 release bookkeeping.
-- `lib/orb-contract.ts`, `scripts/generate-orb-contract.ts` — removed dead generated `ORB_INTEGRITY_RULES` export path.
-- `lib/orb-prompt.ts` — added shared `buildOrbScopePrompt` and tightened project-name speech rule.
-- `scripts/eval-cases.ts` — added Tier 2 project code-tag leakage regression case.
+- `ACTIVE_WORK/codex.md` — claim ledger returned to `*(none)*` after the project count/scope precision prompt fix.
+- `HANDOFF.md` — updated for v0.6.154 follow-up state.
+- `lib/orb-prompt.ts` — added project-count precision language to the shared SCOPE prompt.
+- `scripts/eval-cases.ts` — added Tier 2 regression coverage for visible projects vs projects with active tasks.
+- `lib/changelog.ts`, `lib/version.ts`, `package.json` — v0.6.154 release bookkeeping.
 
 ---
 

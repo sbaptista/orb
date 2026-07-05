@@ -644,6 +644,42 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
+    id: 'project-count-distinguishes-visible-from-active-task-projects',
+    description: 'Project summaries distinguish visible/non-dormant projects from projects that actually have active tasks',
+    productCode: 'ORB',
+    backlogOverride: `Orb [code: ORB]:
+  SUMMARY: active_count=2 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ACTIVE:
+  ORB-1 [P2] [open] First active task
+  ORB-2 [P4] [in progress] Second active task
+
+Helm [code: HELM]:
+  SUMMARY: active_count=1 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ACTIVE:
+  HELM-1 [P4] [open] Packing list
+
+Pre-todos [code: PRE]:
+  SUMMARY: active_count=1 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ACTIVE:
+  PRE-1 [P5] [open] Triage item
+
+mrstokely-from-boston [code: STOKELYFRO]:
+  SUMMARY: active_count=1 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ACTIVE:
+  STOKELYFRO-1 [P5] [open] Fooberry
+
+Quiet Archive [code: QUIET]:
+  SUMMARY: active_count=0 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+
+DORMANT:
+  CAN26 [code: CAN26]`,
+    input: 'Which projects are shown in my backlog, and which have active tasks?',
+    tier: 2,
+    speechContains: ['5', 'Quiet Archive', 'active tasks'],
+    speechNotContains: ['five active projects', '5 active projects', '[code:', 'STOKELYFRO'],
+  },
+
+  {
     id: 'whats-new',
     description: 'The Orb can answer what\'s new from the changelog',
     productCode: 'ORB',

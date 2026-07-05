@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.154',
+    date: '2026-07-04',
+    changes: [
+      'Tightened Orb project-summary language so it distinguishes visible/non-dormant projects from projects that actually have active tasks, avoiding replies like "five active projects" when only four listed projects have active work.',
+      'Added Tier 2 eval coverage for the visible-project vs active-task-project distinction, including a fixture with five visible projects, four with active tasks, and one dormant project.',
+    ]
+  },
+  {
     version: 'v0.6.153',
     date: '2026-07-04',
     changes: [
