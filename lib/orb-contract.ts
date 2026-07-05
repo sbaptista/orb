@@ -5,8 +5,6 @@ import Anthropic from '@anthropic-ai/sdk'
 // DO NOT EDIT BY HAND! Edit docs/api-spec.yaml instead.
 // ──────────────────────────────────────────────────────────────────────────
 
-export const ORB_INTEGRITY_RULES = `INTEGRITY:\n`.trim()
-
 export const ORB_TOOLS: Anthropic.Tool[] = [
   {
     "name": "create_todo",

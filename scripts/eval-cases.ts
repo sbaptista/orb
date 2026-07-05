@@ -629,6 +629,21 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
+    id: 'project-list-hides-internal-code-tags',
+    description: 'Project-list answers use display names and do not echo internal [code: ...] backlog tags',
+    productCode: 'ORB',
+    backlogOverride: evalBacklog([
+      { name: 'Mr. Stokely from Boston', code: 'STOKELYFRO' },
+      { name: 'Ewe are My Sunshine', code: 'EWEAR' },
+      { name: 'Thunderbolt', code: 'THUNDERBOL' },
+    ]),
+    input: 'Which projects are shown in my backlog?',
+    tier: 2,
+    speechContains: ['Mr. Stokely from Boston', 'Ewe are My Sunshine', 'Thunderbolt'],
+    speechNotContains: ['[code:', 'STOKELYFRO', 'EWEAR', 'THUNDERBOL'],
+  },
+
+  {
     id: 'whats-new',
     description: 'The Orb can answer what\'s new from the changelog',
     productCode: 'ORB',

@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.153',
+    date: '2026-07-04',
+    changes: [
+      'Added the first doctrine-driven Orb operating rules audit, mapping Orb AI behavior rules across prompts, server guards, evals, tool contracts, preferences, memory, adaptations, Knowledge Repo entries, and model routing.',
+      'Classified major Orb rule families by enforcement class: Structural, Checked, or Arbitrated, and identified the highest-priority drift risks: ORB-314 dead integrity rules, ORB-315 project-code speech leakage, duplicated SCOPE prompt text, and ORB-308 eval/production context-builder divergence.',
+      'Resolved the first implementation slice from that audit: removed the dead generated ORB_INTEGRITY_RULES prompt export, reframed docs/api-spec.yaml as REST/API integration guidance rather than conversational prompt law, and centralized the duplicated dynamic SCOPE prompt in a shared buildOrbScopePrompt helper.',
+      'Tightened Orb project speech rules so project codes and raw [code: ...] backlog tags remain internal routing hints, while task codes such as ORB-123 remain acceptable when identifying tasks.',
+      'Added Tier 2 eval coverage for project-list answers to ensure display names are spoken without leaking internal project code tags.',
+    ]
+  },
+  {
     version: 'v0.6.152',
     date: '2026-07-04',
     changes: [

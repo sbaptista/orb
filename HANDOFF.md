@@ -10,11 +10,36 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.151
+- **Version:** 0.6.153
 
 ---
 
 ### Last Session Completed
+
+**ORB-314 / ORB-315 operating-rules cleanup + shared SCOPE builder — 2026-07-04 (Codex, GPT-5) — v0.6.153**
+
+Stan approved applying the Orb Craft and Art Doctrine to Orb AI itself, starting with the concrete rule-system cleanup already called out by prior work.
+
+**What changed:**
+- Added `docs/orb-operating-rules-audit.md`, mapping Orb AI behavior rules across prompt modules, server guards, evals, tool contracts, model routing, preferences, memory/adaptations, and Knowledge Repo surfaces.
+- Removed the dead generated `ORB_INTEGRITY_RULES` export path from `scripts/generate-orb-contract.ts` and `lib/orb-contract.ts`.
+- Reframed `docs/api-spec.yaml` so its `x-orb-agent-contract` block is REST/API integration guidance only, explicitly not live conversational prompt law.
+- Extracted the duplicated dynamic SCOPE prompt block from production and eval into shared `buildOrbScopePrompt` in `lib/orb-prompt.ts`.
+- Tightened project-speech behavior: project codes and raw `[code: ...]` tags are internal routing hints only; task codes remain acceptable when identifying tasks.
+- Added Tier 2 eval coverage (`project-list-hides-internal-code-tags`) to catch project-list answers that leak internal project code tags.
+- Marked the historical ORB-186 plan as superseded where it still recommended `ORB_INTEGRITY_RULES`.
+
+**Verification:**
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+- `npm run build` passed.
+- Stan ran `npm run eval:t1`: Tier 1 **40/40 passed**. Reported usage: ~1,312,151 tokens, estimated cost ~$1.3575, elapsed 6m 42s, completed 2026-07-05T04:47:29.459Z.
+
+**Tracking:**
+- ORB-314 and ORB-315 implementation work is complete in the working tree.
+- Larger ORB-308 eval/production context-builder consolidation remains separate and should not be considered done by this slice.
+
+### Prior Session: ORB-309 closed after production performance instrumentation and baseline pass — 2026-07-04 (Codex, GPT-5) — v0.6.151
 
 **ORB-309: closed after production performance instrumentation and baseline pass — 2026-07-04 (Codex, GPT-5) — v0.6.151**
 
@@ -65,13 +90,24 @@ Continuation of the same session as the entry below (concurrency protocol + ORB-
 
 **Closed** with full attributed resolution notes (server-verified `closed_at`) + Knowledge Repo entry `8b70e226-90d7-405f-9ec3-0e90d44397dc` (five lessons: coverage-scored resolution over naive substring; share one resolver across read/write; RLS can silently break a documented NULL-able convention with no error; don't re-fetch an admin-resolved entity through an RLS-scoped list; a new read tool is a diagnostic instrument, not just a feature). Capability matrix knowledge_repo row updated to full CRUD (delete deliberately excluded).
 
-### Key Lesson (this session, continued)
+### Key Lesson
 
-**A new read/display capability is a diagnostic instrument, not just a feature.** Both real bugs this session — the wrong-target mutation and the RLS visibility gap — existed before today, but neither was *observable* until a tool existed that could precisely resolve and display one specific entity. Building precise read capability for a domain object is often how latent bugs in that object surface for the first time. Watch for this pattern in ORB-303 (tickets) — the sharpest remaining capability-matrix gap, currently create-only.
+**Binding Orb behavior needs one live source plus an enforcement class.** The dead `ORB_INTEGRITY_RULES` path was the proof case: a rule can look official, be generated, and still have zero effect if it is not assembled into the live prompt or checked by an eval/guard. For future Orb AI rules, decide whether the rule is Structural, Checked, or Arbitrated before treating it as done.
 
 ### Uncommitted Changes
 
 - `.claude/settings.local.json` — harness-recorded permission allowlist additions only; the `git push` gate remains in `ask`. Deliberately left uncommitted, as always.
+- `ACTIVE_WORK/codex.md` — claim ledger returned to `*(none)*` after the ORB operating-rules implementation slice.
+- `HANDOFF.md` — updated for v0.6.153 session state.
+- `app/actions/orb-converse.ts` — production prompt assembly now uses shared `buildOrbScopePrompt`.
+- `app/api/orb-eval/route.ts` — eval prompt assembly now uses shared `buildOrbScopePrompt`.
+- `docs/api-spec.yaml` — `x-orb-agent-contract` reframed as REST/API integration guidance, not conversational prompt law.
+- `docs/orb-186-plan.md` — historical `ORB_INTEGRITY_RULES` references marked superseded.
+- `docs/orb-operating-rules-audit.md` — new doctrine-driven Orb AI operating-rules audit and implementation note.
+- `lib/changelog.ts`, `lib/version.ts`, `package.json` — v0.6.153 release bookkeeping.
+- `lib/orb-contract.ts`, `scripts/generate-orb-contract.ts` — removed dead generated `ORB_INTEGRITY_RULES` export path.
+- `lib/orb-prompt.ts` — added shared `buildOrbScopePrompt` and tightened project-name speech rule.
+- `scripts/eval-cases.ts` — added Tier 2 project code-tag leakage regression case.
 
 ---
 
@@ -429,12 +465,10 @@ v0.6.67–v0.6.71: silent TTS fix, build gate for TTS keys, iPhone AudioContext 
 
 ## Next Priorities
 
-1. **ORB-303 (tickets — sharpest remaining capability-matrix gap, create-only today):** read/update/delete tools for tickets. Given this session's pattern (ORB-301 and ORB-302 both had their real bugs surfaced only once a precise read/display capability existed), expect building the read tool here to expose whatever's currently invisible in the tickets table too — budget time for that, don't assume it'll be clean.
-2. **ORB-314 / ORB-315:** reconcile or delete the dead `ORB_INTEGRITY_RULES` constant (its rules contradict the live prompt), and stop Orb speaking project codes to users (prompt fix + Tier 2 case). Both still open, filed 2026-07-03.
-3. **Collect broader production data for ORB-309** (production is now on v0.6.143+ with all telemetry code deployed): gather Mac, iPad, and iPhone samples for login, dashboard, Settings navigation, AI Metrics, Performance Settings, todo CRUD, project switching, Orb submit, and voice start. Compare production against dev before optimizing.
-4. **ORB-311 continuation:** confirm with before/after production samples whether the AI Request Log cursor-pagination change improved `request_log_load`, and decide whether `ai_accounting_load` (still the larger initialization bottleneck) is the next optimization target.
-5. **Choose and fix the first ORB-309 bottleneck from production evidence:** early Mac/Chrome data points to login passkey click, AI Metrics, and Performance Events filtering, but sample counts are too low for a final call. Measure before/after; keep ORB-309 open until confirmed.
-6. **Consider an RLS audit pass on other NULL-able foreign keys**, given the ORB-302 finding: any table with a documented NULL-able FK convention (like `knowledge_repo.product_id` for cross-project entries) should have its RLS policies checked for whether an `EXISTS` join silently drops the NULL case. Not urgent, but worth a deliberate look rather than waiting for the next tool to accidentally expose one.
+1. **ORB-308:** plan the larger eval/production context-builder consolidation. The duplicated SCOPE block is gone, but eval still independently rebuilds broader context/backlog assembly.
+2. **Strategic Orb v1:** turn the doctrine/audit work into the strategic partnering product model: evidence boundaries, recommendation rubric, memory/adaptation influence, intervention thresholds, and eval packets.
+3. **ORB-303 (tickets — sharpest remaining capability-matrix gap, create-only today):** read/update/delete tools for tickets. Expect the read tool to expose whatever is currently invisible in the tickets table; budget time for real handler testing.
+4. **Consider an RLS audit pass on other NULL-able foreign keys**, given the ORB-302 finding: any table with a documented NULL-able FK convention should have its RLS policies checked for whether an `EXISTS` join silently drops the NULL case.
 
 ---
 
@@ -463,7 +497,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-07-04 — Claude Code (Fable 5)`
+`2026-07-04 — Codex (GPT-5)`
 
 ---
 

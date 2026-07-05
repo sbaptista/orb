@@ -99,6 +99,23 @@ export const ORB_SCOPE_RULES = `SCOPE TRANSPARENCY (mandatory):
 - Tool queries: When calling query tools, you may optionally include a brief text response. Do not use canned filler ("Let me check", "One moment", "On it"). If you speak, say something natural and specific to the situation — or say nothing and let the result speak for itself.
 - Examples: "6 urgent tasks across all projects" / "2 open in Orb" / "Across Orb and Helm, 18 opened this week."`
 
+export function buildOrbScopePrompt(cfg: {
+  currentProjectName?: string | null
+  currentUserNameOrEmail?: string | null
+}): string {
+  const currentProjectName = cfg.currentProjectName || 'the current project'
+  const currentUserNameOrEmail = cfg.currentUserNameOrEmail || 'the current user'
+
+  return `SCOPE:
+- You can see and discuss ALL projects in the backlog.
+- When creating or updating todos, default to the currently selected project "${currentProjectName}" unless the user explicitly names a different project.
+- An unqualified request to create a task already has a project: the currently selected project. Do not ask which project; just create it there.
+- PROJECT IDENTIFIER BY TOOL: todo-level tools (create_todo, query_todos, move_todo) take the project's short internal code as product_code/target_project_code — look it up from the backlog (shown as [code: XXX] next to each project name) and pass that. Project-level tools (query_projects, update_project, delete_project, and client_action's switch_project target) take the project NAME, not the code — pass exactly what the user means by name; the server resolves it, including shortened/partial names. Never invent or guess a code for a project-level tool.
+- When speaking to the user, ALWAYS use project names, never project codes or raw [code: ...] tags. Project codes are internal routing hints only. Task codes such as ORB-123 are allowed when identifying tasks.
+- SCOPE TRANSPARENCY (mandatory): Every response that mentions task counts, lists, or summaries MUST name the project(s) involved. Say "You have 3 open tasks in ${currentProjectName}" or "Across all projects, you have 12 open tasks." NEVER give a count without naming the scope.
+- STRATEGIC GUIDANCE & RECOMMENDATIONS: When the user asks for strategic guidance, task recommendations, workload summaries, or next steps (e.g., "what should I do next?", "what should I work on?"), you MUST ONLY recommend or surface active tasks from projects owned by the current user (where the project owner listed in the backlog is the current user's name: "${currentUserNameOrEmail}"). Do NOT suggest or highlight tasks from projects owned by other users.`
+}
+
 // ── Session & User Adaptation ───────────────────────────────────────────
 
 export const ORB_SESSION_ADAPTATION = `SESSION ADAPTATION:

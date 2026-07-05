@@ -70,9 +70,11 @@ Two layers of guidance:
 
 ## Current State Assessment
 
+**Superseded note, 2026-07-04:** This plan is historical. The live prompt architecture now uses `ORB_PRINCIPLES` and related prompt builders in `lib/orb-prompt.ts`; `ORB_INTEGRITY_RULES` was removed in v0.6.153 because it was a dead generated export and not part of the live prompt. See `docs/orb-operating-rules-audit.md` for the current operating-rules map.
+
 | Area | Current | Gap |
 |---|---|---|
-| **Principles** | `ORB_INTEGRITY_RULES` exists but is empty (just `"INTEGRITY:\n"`) | No governing principles defined |
+| **Principles** | Superseded: live principles now reside in `ORB_PRINCIPLES` in `lib/orb-prompt.ts` | Keep live rules in one operative source with explicit enforcement class |
 | **Per-user adaptation** | None — every user gets identical behavior | No preference storage, no pattern learning |
 | **Uncertainty handling** | Ad-hoc — some rules say "don't guess", but no protocol | No standard escalation pattern |
 | **Self-diagnostics** | `create_ticket` lets it file bugs, but no reasoning framework | Can't trace its own logic or identify root cause |
@@ -102,14 +104,14 @@ These replace the growing rule list. Every behavioral decision flows from these:
 
 **Goal:** Separate what the Orb knows from how it behaves. Make both maintainable.
 
-1. **Populate `ORB_INTEGRITY_RULES`** in `lib/orb-contract.ts` with the six design principles above. This is the stable, rarely-changed foundation.
+1. **Superseded:** use `ORB_PRINCIPLES` in `lib/orb-prompt.ts` as the stable foundation. Do not reintroduce `ORB_INTEGRITY_RULES`.
 
 2. **Extract domain knowledge into a structured section.** Move urgency rules, status vocabulary, query routing rules, and scope rules into clearly labeled blocks. Each block gets a purpose comment. This is documentation the Orb reads, not behavioral instructions.
 
 3. **Extract behavioral guidelines into a separate section.** Voice, tone, attribution, feedback style. These are *how* the Orb speaks, separate from *what* it knows.
 
 4. **Result:** The system prompt becomes three clean layers:
-   - **Principles** (from `ORB_INTEGRITY_RULES`) — stable, rarely changed
+   - **Principles** (from `ORB_PRINCIPLES`) — stable, rarely changed
    - **Domain knowledge** — urgency rules, schema, valid values, status vocabulary
    - **Behavioral guidelines** — voice, tone, proactivity level, attribution
 
