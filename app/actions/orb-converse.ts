@@ -1232,7 +1232,12 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           messages,
           tools: routeRole === 'strategic'
             ? []
-            : [...availableOrbTools.filter(t => t.name !== 'confirm_mutation' || !!pendingMutation), ...ORB_PREFERENCE_TOOLS, ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []), ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_ADAPTATION_TOOL],
+            // confirm_mutation is always offered (not filtered by pendingMutation): tools
+            // render ahead of the system prompt in the prompt-cache prefix, so toggling
+            // the tool set on every propose/confirm cycle voided the cache mid-conversation.
+            // The server already rejects a confirm with nothing pending, and the eval
+            // harness has always run with it unconditionally present.
+            : [...availableOrbTools, ...ORB_PREFERENCE_TOOLS, ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []), ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_ADAPTATION_TOOL],
           stream: true,
         }, { timeout: 60_000 })
 

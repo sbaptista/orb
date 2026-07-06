@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.157',
+    date: '2026-07-05',
+    changes: [
+      'Enabled prompt caching on the eval endpoint — 75% of all Anthropic token volume was eval traffic running with no cache marker at all (0% cached, confirmed by the request ledger and flagged by an Anthropic usage email). The eval system prompt is now split into a stable block (identical across every case in a run, cached once and read by all subsequent cases within the 5-minute window) and a per-case dynamic block, mirroring production\'s existing split. Expected to cut eval input cost by roughly 60%.',
+      'Fixed a production cache leak: the confirm_mutation tool was filtered out of the tool list except while a mutation was pending, and tool definitions sit ahead of the system prompt in the cache prefix — so every propose/confirm cycle changed the tool set and voided the cached prompt twice. The tool is now always offered; the server already rejects a confirm when nothing is pending, and the eval harness has always run with it unconditionally present.',
+      'The eval prompt assembly now also matches production\'s block order (it had drifted into an interleaved order), improving prompt parity between the harness and production.',
+    ]
+  },
+  {
     version: 'v0.6.156',
     date: '2026-07-05',
     changes: [

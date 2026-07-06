@@ -10,11 +10,30 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.156
+- **Version:** 0.6.157
 
 ---
 
 ### Last Session Completed
+
+**Eval prompt caching + production tool-array cache stability — 2026-07-05 (Claude Code, committed by Codex) — v0.6.157**
+
+Claude Code implemented eval prompt caching and then hit a usage limit. Stan ran Tier 1 after the change and confirmed the cache path is working: Tier 1 **40/40 passed**, estimated cost dropped to **~$0.9277**, and Anthropic usage reported **480,410 cache-read tokens** plus **13,726 cache-write tokens**.
+
+**What changed:**
+- Split the eval endpoint prompt into a stable cacheable block and per-case dynamic block, mirroring production's prompt boundary.
+- Added Anthropic `cache_control: { type: 'ephemeral' }` for the eval stable block so repeated Tier 1 cases can reuse the stable prompt prefix within the cache window.
+- Kept strategic evaluation prompts in single-string form because those runs use frozen packets or mode-specific prompts and are usually routed to Gemini.
+- Stopped filtering `confirm_mutation` out of the production tool list when no mutation is pending, because changing tool definitions can void the prompt-cache prefix during propose/confirm flows. The server still rejects invalid confirms.
+- Bumped release docs to `v0.6.157`.
+
+**Verification:**
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+- Stan ran Tier 1: **40/40 passed**. Reported usage: ~1,311,709 total tokens, estimated cost ~$0.9277, elapsed 7m 39s, completed 2026-07-06T03:56:40.105Z.
+
+**Note:**
+- Claude Code's `ACTIVE_WORK/claude-code.md` claim remains in the working tree because Codex does not edit another agent's ledger file under the concurrency protocol.
 
 **Strategic context packet starter slice — 2026-07-05 (Codex, GPT-5) — v0.6.156**
 

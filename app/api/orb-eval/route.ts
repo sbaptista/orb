@@ -309,38 +309,26 @@ export async function POST(request: NextRequest) {
   const observations = computeObservations(myTodos as any, myProducts as any)
   const guidanceLevel = preferenceList.find(p => p.key === 'guidance_level')?.value ?? 'standard'
 
-  // Build system prompt (same structure as orbConverse)
-  const systemPrompt = [
+  // Build system prompt (same structure as orbConverse), split into a stable
+  // block (byte-identical across every case in a run — the prompt-cache prefix)
+  // and a dynamic block (per-case: scope, fixtures, voice config). Mirrors
+  // production's stablePrompt/dynamicPrompt boundary in orb-converse.ts so the
+  // eval harness exercises the same prompt shape it asserts against. The 40-case
+  // suite runs well inside the cache's 5-minute TTL, so the stable block is
+  // written once and read by every subsequent case.
+  const stableSystemPrompt = [
     `You are the voice of the orb — the conversational layer of Orb.`,
     buildVoicePrompt('natural'),
-    `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
-    `USER CONTEXT: You are talking to ${auth.user.email} (Name: ${auth.user.name || 'Unknown'}, Role: ${auth.role}).`,
     ORB_PRINCIPLES,
     ORB_RESOLUTION_LAWS,
     `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,
     STATUS_VOCABULARY,
     `The BACKLOG below gives a SUMMARY line for each project and then separates ACTIVE from PARKED. When answering counts or project-health questions, copy the SUMMARY counts exactly; do not recalculate by counting visible lines. When the user asks "how many tasks" or "my tasks" without specifying, report the active_count. If parked_count is above zero, mention it separately. If you list tasks, make sure the number you claim matches the number of listed items, or say "including" instead of implying a complete list.`,
     buildUrgencyRules(24),
-    buildOrbScopePrompt({
-      currentProjectName: current.name,
-      currentUserNameOrEmail: auth.user.name || auth.user.email,
-    }),
-    uiCatalog ? `UI CATALOG & NAVIGATION:\n${uiCatalog}` : '',
-    `BACKLOG:\n${contextString}`,
-    `KNOWLEDGE BASE (Recent):\n${knowledgeList.slice(0, 5).map((k: any) => {
-      const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
-      return `- [${k.projects?.name ?? k.projects?.code ?? '?'}] ${k.title}${tags}: ${k.content.slice(0, 100)}...`
-    }).join('\n')}`,
-    voiceMode ? buildVoiceConversationPrompt({ ttsProvider, ttsModel, ttsVoiceId }) : '',
     ORB_QUERY_ROUTING,
     `REPOSITORY ACCESS: You may inspect the local working tree with query_repository source="local", or the current Vercel deployment with source="production".`,
     `DATABASE SCHEMA (for query_db):\n${DB_SCHEMA}`,
     ORB_SCOPE_RULES,
-    `WHAT'S NEW:\n${CHANGELOG.slice(0, 3).map(r => `${r.version} (${r.date}):\n${r.changes.map(c => `  - ${c}`).join('\n')}`).join('\n\n')}`,
-    buildMutationApprovalPrompt(preferenceList),
-    behaviorRuleList.length > 0
-      ? `BEHAVIORAL RULES (agreed with the user — always enforce):\n${behaviorRuleList.map((r: any) => `- **${r.title}:** ${r.content}`).join('\n')}`
-      : '',
     ORB_SESSION_ADAPTATION,
     ORB_SELF_DIAGNOSTICS,
     ORB_STRATEGIC_REASONING,
@@ -348,21 +336,44 @@ export async function POST(request: NextRequest) {
     ORB_PREFERENCE_DISCOVERY,
     ORB_COMMITMENT_INTEGRITY,
     ORB_ADAPTATION_BEHAVIOR,
-    buildPreferencesPrompt(preferenceList),
-    buildAdaptationsPrompt([]),
     `INSIGHT TAGGING:
 When you surface proactive observation, coaching, or strategic recommendation content, wrap only that sentence or short paragraph in one marker pair:
 [INSIGHT:observation]...[/INSIGHT], [INSIGHT:coaching]...[/INSIGHT], or [INSIGHT:strategic]...[/INSIGHT].
 Use observation for backlog facts worth noticing, coaching for work-rhythm guidance, and strategic for "what should I work on" recommendations. Do not wrap ordinary confirmations, errors, or direct answers with no proactive guidance.`,
     buildProactiveTonePrompt('natural'),
-    buildObservationsPrompt(observations, guidanceLevel),
     ORB_ATTRIBUTION,
     ORB_MUTATION_VERIFICATION,
     buildFeedbackTonePrompt('natural'),
-    buildMemoryPrompt([], 'full'),
-    ORB_MEMORY_BEHAVIOR,
     ORB_DEV_CHANNEL_PROMPT,
   ].filter(Boolean).join('\n\n')
+
+  const dynamicSystemPrompt = [
+    `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
+    `USER CONTEXT: You are talking to ${auth.user.email} (Name: ${auth.user.name || 'Unknown'}, Role: ${auth.role}).`,
+    buildOrbScopePrompt({
+      currentProjectName: current.name,
+      currentUserNameOrEmail: auth.user.name || auth.user.email,
+    }),
+    voiceMode ? buildVoiceConversationPrompt({ ttsProvider, ttsModel, ttsVoiceId }) : '',
+    uiCatalog ? `UI CATALOG & NAVIGATION:\n${uiCatalog}` : '',
+    `BACKLOG:\n${contextString}`,
+    `KNOWLEDGE BASE (Recent):\n${knowledgeList.slice(0, 5).map((k: any) => {
+      const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
+      return `- [${k.projects?.name ?? k.projects?.code ?? '?'}] ${k.title}${tags}: ${k.content.slice(0, 100)}...`
+    }).join('\n')}`,
+    `WHAT'S NEW:\n${CHANGELOG.slice(0, 3).map(r => `${r.version} (${r.date}):\n${r.changes.map(c => `  - ${c}`).join('\n')}`).join('\n\n')}`,
+    buildMutationApprovalPrompt(preferenceList),
+    behaviorRuleList.length > 0
+      ? `BEHAVIORAL RULES (agreed with the user — always enforce):\n${behaviorRuleList.map((r: any) => `- **${r.title}:** ${r.content}`).join('\n')}`
+      : '',
+    buildPreferencesPrompt(preferenceList),
+    buildAdaptationsPrompt([]),
+    buildObservationsPrompt(observations, guidanceLevel),
+    buildMemoryPrompt([], 'full'),
+    ORB_MEMORY_BEHAVIOR,
+  ].filter(Boolean).join('\n\n')
+
+  const systemPrompt = `${stableSystemPrompt}\n\n${dynamicSystemPrompt}`
 
   const messages: any[] = [
     ...(history?.map(h => ({ role: h.role, content: h.text })) ?? []),
@@ -484,7 +495,16 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       const response = await anthropic.messages.create({
         model: model ?? ANTHROPIC_HAIKU_REFERENCE_MODEL,
         max_tokens: 4096,
-        system: evalSystemPrompt,
+        // Mirror production's cache split (orb-converse.ts): breakpoint after the
+        // stable block so all cases in a run share one cached prefix. Strategic
+        // evals replace the whole prompt (frozen packet / mode suffix), so they
+        // keep the single-string form — rare and usually routed to Gemini anyway.
+        system: isStrategicEvaluation
+          ? evalSystemPrompt
+          : [
+              { type: 'text' as const, text: stableSystemPrompt, cache_control: { type: 'ephemeral' as const } },
+              { type: 'text' as const, text: dynamicSystemPrompt },
+            ],
         messages,
         tools,
       })
