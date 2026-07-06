@@ -22,6 +22,8 @@ type Result = {
   estimatedCostUsd: number | null
   provider: string
   model: string
+  contextPacketVersion: string | null
+  contextPacketId: string | null
   toolCalls: Array<{ name: string; params: Record<string, unknown> }>
 }
 
@@ -45,7 +47,7 @@ function writeBatch(outputName: string, results: Result[]) {
     manifest: STRATEGIC_EVAL_MANIFEST,
     generatedAt: new Date().toISOString(),
     review,
-    privateMetrics: orderedResults.map(({ reviewId, latencyMs, estimatedCostUsd, provider, model, toolCalls }) => ({ reviewId, latencyMs, estimatedCostUsd, provider, model, toolCalls })),
+    privateMetrics: orderedResults.map(({ reviewId, latencyMs, estimatedCostUsd, provider, model, contextPacketVersion, contextPacketId, toolCalls }) => ({ reviewId, latencyMs, estimatedCostUsd, provider, model, contextPacketVersion, contextPacketId, toolCalls })),
   }
   const outputPath = `/tmp/orb-265-strategic-${outputName}.json`
   fs.writeFileSync(outputPath, JSON.stringify(output, null, 2))
@@ -57,7 +59,7 @@ function loadCheckpoint(outputName: string): Result[] {
   if (!fs.existsSync(outputPath)) return []
   const parsed = JSON.parse(fs.readFileSync(outputPath, 'utf8')) as {
     review?: Array<Pick<Result, 'reviewId' | 'scenarioId' | 'run' | 'speech'>>
-    privateMetrics?: Array<Pick<Result, 'reviewId' | 'latencyMs' | 'estimatedCostUsd' | 'provider' | 'model' | 'toolCalls'>>
+    privateMetrics?: Array<Pick<Result, 'reviewId' | 'latencyMs' | 'estimatedCostUsd' | 'provider' | 'model' | 'contextPacketVersion' | 'contextPacketId' | 'toolCalls'>>
   }
   const metricsByReviewId = new Map((parsed.privateMetrics ?? []).map(metric => [metric.reviewId, metric]))
   const results = (parsed.review ?? []).flatMap(review => {
@@ -129,6 +131,8 @@ async function main() {
           estimatedCostUsd: body.modelUsage?.estimatedCostUsd ?? null,
           provider: candidate.provider,
           model: candidate.model,
+          contextPacketVersion: body.contextPacketVersion ?? null,
+          contextPacketId: body.contextPacketId ?? null,
           toolCalls: body.toolCalls ?? [],
         })
         recordedReviewIds.add(reviewId)

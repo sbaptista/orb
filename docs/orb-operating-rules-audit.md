@@ -204,6 +204,8 @@ Create a plan for **Strategic Orb v1**:
 
 **Implementation note, v0.6.153:** The first implementation slice is complete. ORB-314 was resolved by removing the dead generated `ORB_INTEGRITY_RULES` export path and reframing `docs/api-spec.yaml` as REST/API integration guidance rather than conversational prompt law. ORB-315 was addressed by tightening name-first project speech and adding a Tier 2 eval against raw `[code: ...]` leakage. The duplicated dynamic SCOPE prompt was extracted into `buildOrbScopePrompt` and is now shared by production and eval prompt assembly.
 
+**Planning note, v0.6.155:** Strategic Orb v1 now has a dedicated plan in `docs/strategic-orb-v1-plan.md`. ORB-308 should be treated as the context/eval architecture workstream inside that plan unless Strategic Orb stalls.
+
 1. Do not start by rewriting the whole prompt. Start by eliminating dead/duplicated/conflicting rule sources.
 2. Treat ORB-314 and ORB-315 as doctrine proof cases.
 3. Keep the audit doc as the map; do not promote it into another binding rule source.

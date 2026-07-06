@@ -10,11 +10,50 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.154
+- **Version:** 0.6.156
 
 ---
 
 ### Last Session Completed
+
+**Strategic context packet starter slice — 2026-07-05 (Codex, GPT-5) — v0.6.156**
+
+Continued the Strategic Orb v1 work by starting the ORB-308 context/eval architecture workstream without touching the production operational/CRUD prompt path.
+
+**What changed:**
+- Added `lib/orb-model/strategic-context.ts` with `STRATEGIC_ORB_CONTEXT_PACKET_VERSION`, a versioned `StrategicOrbContextPacket`, `buildStrategicContextPacket`, and `renderStrategicEvaluationPrompt`.
+- Updated the eval endpoint so frozen strategic `contextPacketId` cases render through the shared strategic context renderer instead of an inline prompt block.
+- Updated eval request-ledger recording to use the shared strategic context packet version instead of a hard-coded legacy packet version string.
+- Updated the strategic eval runner so blinded review packet rows preserve `contextPacketVersion` and `contextPacketId`.
+- Updated `docs/strategic-orb-v1-plan.md` with a v0.6.156 implementation note.
+- Bumped release docs to `v0.6.156`.
+
+**Verification:**
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npx tsc --noEmit` passed.
+
+### Prior Session: Strategic Orb v1 planning + ORB-308 folded into context/eval architecture — 2026-07-04 (Codex, GPT-5) — v0.6.155
+
+**Strategic Orb v1 planning + ORB-308 folded into context/eval architecture — 2026-07-04 (Codex, GPT-5) — v0.6.155**
+
+Stan decided ORB-308 can wait if it is intentionally subsumed into Strategic Orb v1. This session created the planning artifact that makes that real instead of leaving ORB-308 as a loose cleanup task.
+
+**What changed:**
+- Added `docs/strategic-orb-v1-plan.md`, defining the first Strategic Orb product role, strategic answer rubric, non-goals, proactivity boundaries, cost/routing posture, and phased implementation path.
+- Folded ORB-308 into the Strategic Orb v1 **Context and Eval Architecture** workstream: shared strategic context packet builder, packet versioning, eval/production parity, and debug packet output.
+- Updated `docs/orb-operating-rules-audit.md` with a planning note pointing to the Strategic Orb v1 plan.
+- Bumped release docs to `v0.6.155`.
+
+**Knowledge Repo check:**
+- Queried Strategic Orb / ORB-308 / context-builder lessons. Relevant result: ORB-212, which established strategic guidance must stay scoped to current-user-owned projects.
+
+**Verification:**
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+- `npm run build` passed.
+
+### Prior Session: Project count precision follow-up — 2026-07-04 (Codex, GPT-5) — v0.6.154
 
 **Project count precision follow-up — 2026-07-04 (Codex, GPT-5) — v0.6.154**
 
@@ -109,16 +148,19 @@ Continuation of the same session as the entry below (concurrency protocol + ORB-
 
 ### Key Lesson
 
-**Binding Orb behavior needs one live source plus an enforcement class.** The dead `ORB_INTEGRITY_RULES` path was the proof case: a rule can look official, be generated, and still have zero effect if it is not assembled into the live prompt or checked by an eval/guard. For future Orb AI rules, decide whether the rule is Structural, Checked, or Arbitrated before treating it as done.
+**Strategic Orb needs product architecture before plumbing.** ORB-308 is real, but its correct shape depends on what strategic context needs to mean. Folding it into Strategic Orb v1 prevents a tidy standalone refactor from being redone once the strategic product model is defined.
 
 ### Uncommitted Changes
 
 - `.claude/settings.local.json` — harness-recorded permission allowlist additions only; the `git push` gate remains in `ask`. Deliberately left uncommitted, as always.
-- `ACTIVE_WORK/codex.md` — claim ledger returned to `*(none)*` after the project count/scope precision prompt fix.
-- `HANDOFF.md` — updated for v0.6.154 follow-up state.
-- `lib/orb-prompt.ts` — added project-count precision language to the shared SCOPE prompt.
-- `scripts/eval-cases.ts` — added Tier 2 regression coverage for visible projects vs projects with active tasks.
-- `lib/changelog.ts`, `lib/version.ts`, `package.json` — v0.6.154 release bookkeeping.
+- `ACTIVE_WORK/codex.md` — claim ledger returned to `*(none)*` after Strategic Orb v1 context packet starter slice.
+- `app/api/orb-eval/route.ts` — strategic context packet eval cases now render through shared strategic context builder.
+- `docs/strategic-orb-v1-plan.md` — new Strategic Orb v1 product/architecture plan plus v0.6.156 implementation note.
+- `docs/orb-operating-rules-audit.md` — planning note pointing to Strategic Orb v1 and ORB-308 context/eval workstream.
+- `HANDOFF.md` — updated for v0.6.156 session state.
+- `lib/orb-model/strategic-context.ts` — new versioned strategic context packet builder and prompt renderer.
+- `scripts/run-strategic-eval.ts` — blinded review output now records context packet version/id.
+- `lib/changelog.ts`, `lib/version.ts`, `package.json` — v0.6.156 release bookkeeping.
 
 ---
 
@@ -476,8 +518,8 @@ v0.6.67–v0.6.71: silent TTS fix, build gate for TTS keys, iPhone AudioContext 
 
 ## Next Priorities
 
-1. **ORB-308:** plan the larger eval/production context-builder consolidation. The duplicated SCOPE block is gone, but eval still independently rebuilds broader context/backlog assembly.
-2. **Strategic Orb v1:** turn the doctrine/audit work into the strategic partnering product model: evidence boundaries, recommendation rubric, memory/adaptation influence, intervention thresholds, and eval packets.
+1. **Strategic Orb v1 Phase 1:** ratify `docs/strategic-orb-v1-plan.md` with Stan and choose the first strategic interaction to build around: next-step read, weekly review, or project-health summary.
+2. **Strategic Orb v1 Phase 2 / ORB-308:** implement the shared strategic context packet builder and wire eval/production strategic rendering through it. Keep operational CRUD routing unchanged.
 3. **ORB-303 (tickets — sharpest remaining capability-matrix gap, create-only today):** read/update/delete tools for tickets. Expect the read tool to expose whatever is currently invisible in the tickets table; budget time for real handler testing.
 4. **Consider an RLS audit pass on other NULL-able foreign keys**, given the ORB-302 finding: any table with a documented NULL-able FK convention should have its RLS policies checked for whether an `EXISTS` join silently drops the NULL case.
 

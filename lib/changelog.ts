@@ -6,6 +6,24 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.156',
+    date: '2026-07-05',
+    changes: [
+      'Started the Strategic Orb v1 context/eval architecture workstream by adding a shared strategic context packet module with packet versioning and a single renderer for frozen strategic evaluation prompts.',
+      'Updated the Orb eval endpoint to render strategic context packets through the shared builder and record the packet version in request-ledger evaluation rows.',
+      'Updated the strategic eval runner to preserve context packet version/id in blinded review packet output so future strategic-quality reviews can trace answers to the exact context shape.',
+    ]
+  },
+  {
+    version: 'v0.6.155',
+    date: '2026-07-04',
+    changes: [
+      'Added the Strategic Orb v1 plan, defining Orb’s first strategic-partner product role, strategic-answer rubric, proactivity boundaries, cost/routing posture, and phased implementation path.',
+      'Folded ORB-308 into the Strategic Orb v1 context/eval architecture workstream so eval/production context-builder consolidation happens in service of the strategic product model rather than as isolated plumbing.',
+      'Updated the Orb operating-rules audit to point to the Strategic Orb v1 plan as the next product direction after the ORB-314/315 cleanup.',
+    ]
+  },
+  {
     version: 'v0.6.154',
     date: '2026-07-04',
     changes: [

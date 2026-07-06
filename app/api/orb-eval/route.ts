@@ -16,6 +16,7 @@ import { recordOrbModelRequest } from '@/lib/orb-model/record'
 import { completeGeminiEvaluation, GEMINI_STRATEGIC_EVAL_MODEL } from '@/lib/orb-model/gemini'
 import { completeMistralEvaluation, MISTRAL_STRATEGIC_EVAL_MODEL } from '@/lib/orb-model/mistral'
 import { STRATEGIC_CONTEXT_PACKETS } from '@/lib/orb-model/strategic-eval-packets'
+import { buildStrategicContextPacket, renderStrategicEvaluationPrompt } from '@/lib/orb-model/strategic-context'
 import type { OrbModelUsage } from '@/lib/orb-model/types'
 import { routeOrbRequest } from '@/lib/orb-model/routing'
 import { budgetBlockMessage, type OrbBudgetCheck } from '@/lib/orb-model/budget'
@@ -431,19 +432,10 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       })
     }
     const isStrategicEvaluation = evaluationMode === 'strategic' || routeRole === 'strategic'
-    const frozenStrategicPrompt = contextPacket ? [
-      'You are the voice of the Orb - the conversational layer of Orb.',
-      ORB_PRINCIPLES,
-      ORB_RESOLUTION_LAWS,
-      ORB_STRATEGIC_REASONING,
-      buildCoachingPrompt('natural'),
-      `EVALUATION MODE: This is a strategic-quality comparison. The supplied packet is complete and is the only dynamic evidence for this answer. Do not use or infer live backlog, knowledge, memory, preferences, or audit data. Do not call tools. State uncertainty when the packet lacks evidence.`,
-      `CURRENT DATE: ${contextPacket.currentDate}. USER: ${contextPacket.userName}. CURRENT PROJECT: ${contextPacket.currentProject}.`,
-      `BACKLOG:\n${contextPacket.backlog}`,
-      `RELEVANT KNOWLEDGE:\n${contextPacket.knowledge}`,
-      `PREFERENCES:\n${contextPacket.preferences}`,
-      `OBSERVATIONS:\n${contextPacket.observations}`,
-    ].join('\n\n') : null
+    const strategicContextPacket = contextPacket ? buildStrategicContextPacket(contextPacket) : null
+    const frozenStrategicPrompt = strategicContextPacket
+      ? renderStrategicEvaluationPrompt(strategicContextPacket)
+      : null
     const evalSystemPrompt = isStrategicEvaluation
       ? frozenStrategicPrompt ?? `${systemPrompt}\n\nEVALUATION MODE: This is a strategic-quality comparison. The supplied BACKLOG, audit context, memories, and preferences are complete for this answer. Do not call tools. Analyze the supplied evidence directly, state uncertainty when warranted, and give your best strategic response.`
       : systemPrompt
@@ -536,7 +528,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           userId: evalUser.id,
           usage: modelUsage,
           promptVersion: 'orb-system-v0.6.30',
-          contextPacketVersion: contextPacket ? 'strategic-packets-v1' : 'live-context-v1',
+          contextPacketVersion: strategicContextPacket?.version ?? 'live-context-v1',
           responseText: speech,
           routeRole,
           evaluationCaseId,
@@ -551,7 +543,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     }
 
     const historyCodes = extractCitedCodes(
-      `${(history ?? []).map(h => h.text).join(' ')} ${input} ${todoList.map(todoCode).join(' ')} ${contextPacket?.backlog ?? ''}`,
+      `${(history ?? []).map(h => h.text).join(' ')} ${input} ${todoList.map(todoCode).join(' ')} ${strategicContextPacket?.backlog ?? ''}`,
     )
     // Codes this response's own tool calls are working with count as
     // legitimate provenance too — a delete_todo call citing TEST-1 in its
@@ -575,6 +567,8 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         tokenUsage,
         modelUsage,
         routeRole,
+        contextPacketVersion: strategicContextPacket?.version ?? null,
+        contextPacketId: strategicContextPacket?.packetId ?? null,
       })
     }
 
@@ -585,6 +579,8 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       tokenUsage,
       modelUsage,
       routeRole,
+      contextPacketVersion: strategicContextPacket?.version ?? null,
+      contextPacketId: strategicContextPacket?.packetId ?? null,
     })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
