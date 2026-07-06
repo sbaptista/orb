@@ -17,6 +17,7 @@ export type ProjectRecentActivity = {
 export type ProjectHealthItem = {
   name: string
   ownerName: string | null
+  ownedByCurrentUser: boolean
   description: string | null
   dormant: boolean
   activeCount: number
@@ -42,6 +43,7 @@ type BuildProjectHealthPacketInput = {
   priorities: any[]
   auditEvents: any[]
   userMap: Map<string, string>
+  currentUserId?: string
   generatedAt?: Date
   windowDays?: number
 }
@@ -133,6 +135,7 @@ export function buildProjectHealthPacket(input: BuildProjectHealthPacketInput): 
     return {
       name: project.name,
       ownerName: input.userMap.get(project.created_by) ?? null,
+      ownedByCurrentUser: input.currentUserId ? project.created_by === input.currentUserId : false,
       description: project.description ?? null,
       dormant: Boolean(project.is_dormant || dormantIds.has(project.id)),
       activeCount: activeTodos.length,
@@ -170,7 +173,7 @@ export function renderProjectHealthPacket(packet: ProjectHealthPacket): string {
       ? project.recentActivity.signals.join(', ')
       : 'none'
     const lastActivity = project.recentActivity.lastActivityAt ?? 'none'
-    return `- ${project.name}: ${owner}; dormant=${project.dormant}; active=${project.activeCount}; parked=${project.parkedCount}; closed=${project.closedCount}; urgent=${project.urgentCount}; in_progress=${project.inProgressCount}; stale_active=${project.staleActiveCount}; recent_${packet.windowDays}d={momentum:${project.recentActivity.momentum}, created:${project.recentActivity.createdCount}, closed:${project.recentActivity.closedCount}, updated:${project.recentActivity.updatedCount}, moved_to_in_progress:${project.recentActivity.movedToInProgressCount}, parked:${project.recentActivity.parkedCount}, last:${lastActivity}, signals:[${signals}]}${description}`
+    return `- ${project.name}: ${owner}; owned_by_current_user=${project.ownedByCurrentUser}; dormant=${project.dormant}; active=${project.activeCount}; parked=${project.parkedCount}; closed=${project.closedCount}; urgent=${project.urgentCount}; in_progress=${project.inProgressCount}; stale_active=${project.staleActiveCount}; recent_${packet.windowDays}d={momentum:${project.recentActivity.momentum}, created:${project.recentActivity.createdCount}, closed:${project.recentActivity.closedCount}, updated:${project.recentActivity.updatedCount}, moved_to_in_progress:${project.recentActivity.movedToInProgressCount}, parked:${project.recentActivity.parkedCount}, last:${lastActivity}, signals:[${signals}]}${description}`
   })
 
   return `PROJECT HEALTH PACKET (generated ${packet.generatedAt}; ${packet.windowDays}-day activity window):

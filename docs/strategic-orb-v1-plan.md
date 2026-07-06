@@ -164,8 +164,11 @@ Each project-health item contains:
 - Recent activity over a 14-day window: created, closed, updated, moved-to-in-progress, parked, last activity timestamp.
 - Neutral momentum label: `none`, `quiet`, `active`, or `high`.
 - Neutral signals such as `quiet_with_active_work`, `mostly_parked`, `recent_closures`, `growing_active_load`, `urgent_work_present`, and `stale_active_work`.
+- Ownership scope: whether the project is owned by the current user, so Orb can distinguish "visible and moving" from "part of the user's workload."
 
 The packet is a data surface, not a verdict engine. Code computes facts and neutral cues; Orb turns them into careful, humane interpretation. Avoid computed judgment labels like `stalled` in the packet itself.
+
+Strategic wording rule: signals are watch cues, not verdicts. Orb should not describe work as blocking, foundational, gating, or prerequisite unless task text, audit, knowledge, memory, or adaptation explicitly supports that relationship. Otherwise use soft judgment language.
 
 ### Review Method
 

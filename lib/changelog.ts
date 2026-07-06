@@ -16,6 +16,8 @@ export const CHANGELOG: Release[] = [
       'Kept project-role interpretation flexible rather than adding a brittle scratchpad-specific eval; unusual project semantics can be supplied by the user, project description, memory, or approved adaptation as the app grows beyond conventional project-manager usage.',
       'Added project-role correction handling: when the user corrects Orb\'s interpretation of a project purpose, Orb treats that correction as high-confidence for the current conversation and should offer to remember durable project semantics as an approved adaptation rather than silently persisting them.',
       'Cleaned up client-action switch narration so switch_project no longer combines generic "Navigating..." thoughts, premature "Switching to..." model speech, and post-action confirmation into a duplicated text/voice response.',
+      'Refined Project Health Summary language so packet signals are treated as watch cues, not verdicts: Orb should avoid blocker/foundational/gating claims unless explicit evidence supports them, and should keep other-user projects separate from the current user\'s workload.',
+      'Tuned Project Health Summary tone: quiet active work should be phrased as "quiet with active items" or "worth confirming whether intentionally parked" rather than "stalled" unless stronger evidence exists, and project-health reads should avoid cute/dramatic personification like "working hard" or "heating up."',
     ]
   },
   {

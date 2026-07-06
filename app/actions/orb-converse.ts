@@ -448,6 +448,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     priorities: priorityList,
     auditEvents: auditList,
     userMap,
+    currentUserId: auth.user.id,
   })
   const projectHealthContext = renderProjectHealthPacket(projectHealthPacket)
 

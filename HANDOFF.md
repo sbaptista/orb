@@ -30,6 +30,8 @@ Enabled the first Strategic Orb v1 interaction: broad project-health summaries s
 - Kept scratchpad-style project roles as flexible user/project semantics rather than a brittle eval target; users can state a project's purpose directly, and future metadata/memory/adaptation paths can support this at scale.
 - Added project-role correction handling: if the user corrects Orb's interpretation of a project's purpose, Orb should treat it as high-confidence for the current conversation and offer to remember durable project semantics as an approved adaptation instead of silently persisting it.
 - Cleaned up `switch_project` streaming so client actions do not stack generic "Navigating..." thoughts, premature "Switching to..." speech, and final confirmation into duplicated text/voice output.
+- Refined Project Health Summary wording so packet signals are watch cues, not verdicts. Orb should avoid blocker/foundational/gating claims unless explicit evidence supports them and keep other-user projects separate from the current user's workload.
+- Tuned Project Health Summary tone so quiet active work is phrased as "quiet with active items" / "worth confirming whether intentionally parked" rather than "stalled" without stronger evidence, and project-health reads avoid cute/dramatic personification.
 - Updated `docs/strategic-orb-v1-plan.md` to record Project-Health Summary as the first enabled Strategic Orb v1 behavior.
 - Bumped release docs to `v0.6.158`.
 

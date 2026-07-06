@@ -319,6 +319,7 @@ export async function POST(request: NextRequest) {
         priorities: priorityList,
         auditEvents: [],
         userMap,
+        currentUserId: evalUser.id,
       }))
 
   // Build system prompt (same structure as orbConverse), split into a stable
