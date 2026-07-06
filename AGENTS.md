@@ -160,7 +160,9 @@ The conversational Orb's behavior is protected by an **eval suite**, not unit te
   - `npm run eval` — run all tiers
   - `npm run eval:t1` — Tier 1 only (tool correctness)
   - `npm run eval:t2` — Tier 2 only (behavioral)
-  - Single case: `npm run eval -- --id <case-id>`
+  - One or more specific cases (comma-separated, no whole tier/suite): `npm run eval -- --id <case-id>[,<case-id>...]`
+  - `npm run eval -- --list` — list every case id grouped by tier (no dev server or network needed)
+  - `npm run eval -- --help` — full CLI usage (no dev server or network needed)
   - A Tier 1 failure exits non-zero and prints **"REGRESSION"** — that is the hard gate.
 - **Endpoint:** `app/api/orb-eval/route.ts` (dev-only, non-streaming) — the surface the runner hits.
 

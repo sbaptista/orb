@@ -5,13 +5,7 @@
  * Tests the Orb's decision-making: does it call the right tools with the right
  * parameters, and does its speech contain the expected content?
  *
- * Usage:
- *   npx tsx scripts/orb-eval.ts                    # run all tests
- *   npx tsx scripts/orb-eval.ts --tier 1           # run only Tier 1 (deterministic)
- *   npx tsx scripts/orb-eval.ts --tier 2           # run only Tier 2 (behavioral)
- *   npx tsx scripts/orb-eval.ts --id scope-transparency  # run a single test
- *
- * Requires the dev server running on localhost:3001.
+ * Run with --help for usage, or --list to see every available case id.
  */
 
 import { EVAL_CASES, type EvalCase } from './eval-cases'
@@ -19,9 +13,89 @@ import * as dotenv from 'dotenv'
 import * as path from 'path'
 import type { OrbModelUsage } from '../lib/orb-model/types'
 
+// dotenv/BASE_URL are computed up front (before --help/--list) so the usage
+// text below can reference the real target instead of a hardcoded guess that
+// can silently go stale — this is a local file read + one env lookup, not
+// network activity, so it costs --help/--list nothing.
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') })
-
 const BASE_URL = process.env.EVAL_BASE_URL || 'https://192.168.86.90:3001'
+
+// Single source for usage text — printed by --help. Keeping this as the only
+// copy (rather than a duplicate top-of-file comment) means the two can't
+// silently drift the way orb-converse.ts and its eval mirror once did.
+//
+// Canonical invocation is `npm run eval -- ...`, not raw `npx tsx`: the npm
+// scripts carry NODE_TLS_REJECT_UNAUTHORIZED=0, required because BASE_URL is
+// self-signed HTTPS. Without it, fetch() fails the TLS handshake before the
+// dev server ever sees the request — a confusing "fetch failed" with no
+// indication why. A raw npx tsx example here would be a real, followed
+// instruction that reproduces exactly that failure, not just inert text.
+const USAGE = `Orb Eval Runner
+
+Tests the Orb's decision-making: does it call the right tools with the right
+parameters, and does its speech contain the expected content?
+
+Usage:
+  npm run eval                                  Run all tests
+  npm run eval:t1                               Run only Tier 1 (deterministic)
+  npm run eval:t2                               Run only Tier 2 (behavioral)
+  npm run eval -- --id <id>[,<id>...]           Run one or more specific cases by id
+  npm run eval -- --list                        List every case id, grouped by tier
+  npm run eval -- --help                        Show this message
+
+--tier and --id compose: --id filters within whatever --tier already selected.
+
+Examples:
+  npm run eval -- --id switch-project-partial-name-resolves
+  npm run eval -- --id bulk-delete-project-todos-calls-tools,switch-project-partial-name-resolves
+  npm run eval:t1 -- --id create-default-project
+
+Case ids come from scripts/eval-cases.ts (the "id" field on each case) — run
+--list to see them all without opening that file.
+
+Requires the dev server reachable at ${BASE_URL} (override via EVAL_BASE_URL
+in .env.local). --help and --list make no network calls and need no server.
+
+Direct npx invocation (skips the npm wrapper) needs the TLS bypass BASE_URL
+requires as a self-signed-HTTPS target, added manually:
+  NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts --id <id>
+`
+
+// --help/--list need no network/auth setup, so they're handled before the
+// API_SECRET check below.
+const earlyArgs = process.argv.slice(2)
+if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
+  console.log(USAGE)
+  process.exit(0)
+}
+if (earlyArgs.includes('--list')) {
+  const byTier = (tier: 1 | 2) => EVAL_CASES.filter(c => c.tier === tier)
+  console.log(`\nOrb Eval — ${EVAL_CASES.length} cases\n`)
+  for (const tier of [1, 2] as const) {
+    const cases = byTier(tier)
+    console.log(`Tier ${tier} (${tier === 1 ? 'deterministic' : 'behavioral'}, ${cases.length} case${cases.length === 1 ? '' : 's'}):`)
+    for (const c of cases) console.log(`  ${c.id}\n    ${c.description}`)
+    console.log()
+  }
+  console.log('Run one or more with: npm run eval -- --id <id>[,<id>...]')
+  process.exit(0)
+}
+
+// Preflight: BASE_URL is self-signed HTTPS in local dev. Without the TLS
+// bypass, fetch() fails the handshake before any request reaches the dev
+// server — indistinguishable, from the runner's side, from the server being
+// down or unreachable. Catching this here turns a generic "fetch failed"
+// (which took real back-and-forth to diagnose once) into an immediate,
+// specific, actionable error instead of relying on anyone reading the usage
+// text correctly.
+if (BASE_URL.startsWith('https://') && process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0') {
+  console.error(`❌ NODE_TLS_REJECT_UNAUTHORIZED is not set to '0', and BASE_URL (${BASE_URL}) is HTTPS with a self-signed dev certificate.`)
+  console.error('   fetch() will fail the TLS handshake before the dev server ever sees a request.')
+  console.error('   Run via the npm wrapper instead: npm run eval -- <args>')
+  console.error('   Or, for direct npx: NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts <args>')
+  process.exit(1)
+}
+
 const API_SECRET = process.env.ORB_API_SECRET
 const EVAL_PROVIDER = process.env.EVAL_PROVIDER
 const EVAL_MODEL = process.env.EVAL_MODEL
@@ -347,11 +421,21 @@ function updateStatusBar(opts: {
 async function main() {
   const args = process.argv.slice(2)
   const tierFilter = args.includes('--tier') ? parseInt(args[args.indexOf('--tier') + 1]) : null
-  const idFilter = args.includes('--id') ? args[args.indexOf('--id') + 1] : null
+  const idArg = args.includes('--id') ? args[args.indexOf('--id') + 1] : null
+  const idFilters = idArg ? idArg.split(',').map(s => s.trim()).filter(Boolean) : null
 
   let cases = EVAL_CASES
   if (tierFilter) cases = cases.filter(c => c.tier === tierFilter)
-  if (idFilter) cases = cases.filter(c => c.id === idFilter)
+  if (idFilters) {
+    const knownIds = new Set(cases.map(c => c.id))
+    const unmatched = idFilters.filter(id => !knownIds.has(id))
+    if (unmatched.length > 0) {
+      console.error(`❌ Unknown case id${unmatched.length > 1 ? 's' : ''}: ${unmatched.join(', ')}`)
+      console.error('   Run --list to see every available case id.')
+      process.exit(1)
+    }
+    cases = cases.filter(c => idFilters.includes(c.id))
+  }
 
   if (cases.length === 0) {
     console.error('No test cases match the filter.')
