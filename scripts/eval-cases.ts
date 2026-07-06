@@ -282,7 +282,7 @@ export const EVAL_CASES: EvalCase[] = [
       name: 'client_action',
       params: { action: 'switch_project' },
     },
-    speechNotContains: ['done', "i've switched", 'is now active', 'stokelyfro'],
+    speechNotContains: ['done', "i've switched", 'is now active', 'switching to', 'stokelyfro'],
   },
 
   {
@@ -902,6 +902,21 @@ DORMANT:
     expectNoTool: true,
     speechPattern: /^(.|\n){1,420}$/,
     speechNotContains: ['Want details on any of these, or help deciding what to tackle next?', '**', '- **', '\n-'],
+  },
+
+  {
+    id: 'project-role-correction-offers-to-remember',
+    description: 'When the user corrects a durable project-role interpretation, Orb accepts it for the conversation and offers to remember it instead of silently persisting it',
+    productCode: 'ORB',
+    history: [
+      { role: 'user', text: 'Tell me about my projects, anything stand out?' },
+      { role: 'assistant', text: 'Pre-todos is accumulating faster than you are resolving it, so it may be becoming a staging backlog.' },
+    ],
+    input: "Don't worry about Pre-todos. They're reminders.",
+    tier: 2,
+    expectNoTool: true,
+    speechContains: ['remember'],
+    speechNotContains: ['propose_adaptation', 'saved', 'I\'ll remember', 'from now on'],
   },
 
   {

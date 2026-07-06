@@ -10,11 +10,37 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.157
+- **Version:** 0.6.158
 
 ---
 
 ### Last Session Completed
+
+**Strategic Orb v1 Project-Health Summary contract — 2026-07-05 (Codex, GPT-5) — v0.6.158**
+
+Enabled the first Strategic Orb v1 interaction: broad project-health summaries such as "tell me about my projects" and "anything stand out?"
+
+**What changed:**
+- Added `ORB_PROJECT_HEALTH_SUMMARY` to the live Orb prompt contract and eval prompt mirror.
+- Added `lib/orb-model/project-health.ts`, a per-request Project Health Packet builder and renderer using existing project, task, priority, and audit data only.
+- Defined semantic boundaries for project-health reads: distinguish visible projects, projects with active tasks, dormant projects, ownership, facts, supported interpretations, and judgment-labeled next moves.
+- Project Health Packet v0 includes per-project active/parked/closed/urgent/in-progress/stale-active counts plus 14-day recent activity counts, momentum, last activity, and neutral signals. It deliberately does not add a project-role schema field.
+- Narrowed both the `query_projects` routing rule and the generated `query_projects` tool description so broad project-health summaries answer from BACKLOG when the needed project names, owners, descriptions, counts, and dormant state are already present, rather than reflexively calling a tool for a "full picture."
+- Preserved natural language leeway: Orb should not sound canned, but must maintain accuracy, scope, and evidence.
+- Kept scratchpad-style project roles as flexible user/project semantics rather than a brittle eval target; users can state a project's purpose directly, and future metadata/memory/adaptation paths can support this at scale.
+- Added project-role correction handling: if the user corrects Orb's interpretation of a project's purpose, Orb should treat it as high-confidence for the current conversation and offer to remember durable project semantics as an approved adaptation instead of silently persisting it.
+- Cleaned up `switch_project` streaming so client actions do not stack generic "Navigating..." thoughts, premature "Switching to..." speech, and final confirmation into duplicated text/voice output.
+- Updated `docs/strategic-orb-v1-plan.md` to record Project-Health Summary as the first enabled Strategic Orb v1 behavior.
+- Bumped release docs to `v0.6.158`.
+
+**Knowledge Repo check:**
+- Queried project-health / strategic lessons. Relevant results: ORB-212 requires strategic guidance to stay scoped to current-user-owned projects, and ORB-293/voice epistemics reinforces that blockers/dependencies require explicit evidence rather than plausible inference.
+
+**Verification:**
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+- `npm run build` passed.
+- Stan ran the attempted focused eval multiple times; failures showed the eval was over-constraining a flexible user/project semantics case and exposed a real tool-description conflict that was fixed instead.
 
 **Eval prompt caching + production tool-array cache stability — 2026-07-05 (Claude Code, committed by Codex) — v0.6.157**
 

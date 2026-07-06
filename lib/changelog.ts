@@ -6,6 +6,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.158',
+    date: '2026-07-05',
+    changes: [
+      'Enabled the first Strategic Orb v1 interaction: Project-Health Summary. Broad reads like "tell me about my projects" now have a semantic contract for scope, evidence, supported interpretations, and reversible next moves.',
+      'Added a per-request Project Health Packet built from existing project, task, priority, and audit data. It gives Orb neutral project-level facts and signals — counts, urgent/in-progress/stale counts, 14-day momentum, recent activity counts, and role hints from project descriptions — without adding schema or forcing a fixed project-role taxonomy.',
+      'Added prompt guardrails so Orb can naturally reword project-health observations while preserving accuracy: scratchpad/reminder/holding-area interpretations require explicit support, and quiet projects should not be called stalled, neglected, forgotten, process debt, or blocked based only on inactivity.',
+      'Clarified query routing and the generated query_projects tool description so broad project-health reads answer from the supplied BACKLOG when it already contains project names, owners, descriptions, counts, and dormant state, instead of reflexively calling query_projects for a "full picture."',
+      'Kept project-role interpretation flexible rather than adding a brittle scratchpad-specific eval; unusual project semantics can be supplied by the user, project description, memory, or approved adaptation as the app grows beyond conventional project-manager usage.',
+      'Added project-role correction handling: when the user corrects Orb\'s interpretation of a project purpose, Orb treats that correction as high-confidence for the current conversation and should offer to remember durable project semantics as an approved adaptation rather than silently persisting them.',
+      'Cleaned up client-action switch narration so switch_project no longer combines generic "Navigating..." thoughts, premature "Switching to..." model speech, and post-action confirmation into a duplicated text/voice response.',
+    ]
+  },
+  {
     version: 'v0.6.157',
     date: '2026-07-05',
     changes: [

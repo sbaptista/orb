@@ -196,7 +196,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "query_projects",
-    "description": "[Confidence: new] List or look up projects themselves — name, description, owner, active/total task counts, dormant state. Use for questions about projects (what projects exist, who owns X, is X asleep), NOT for task queries (use query_todos). The backlog snapshot is orientation only — call this for any factual claim about projects. Takes the project NAME (partial/fuzzy ok), never a code.",
+    "description": "[Confidence: new] List or look up specific missing project facts — name, description, owner, active/total task counts, dormant state, or partial-name resolution. Use when the BACKLOG does not already contain the fact needed to answer, such as who owns X, whether X is asleep, or resolving a project name. NOT for task queries (use query_todos). For broad project-health reads such as \"tell me about my projects\" or \"anything stand out?\", answer from BACKLOG when it already includes project names, owners, descriptions, SUMMARY counts, and the DORMANT section. Takes the project NAME (partial/fuzzy ok), never a code.",
     "input_schema": {
       "type": "object",
       "properties": {

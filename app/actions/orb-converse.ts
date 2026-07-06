@@ -8,7 +8,7 @@ import { headers } from 'next/headers'
 import { getAuthContext, type AuthContext } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, buildVoicePrompt, buildVoiceConversationPrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildOrbScopePrompt, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, buildAdaptationsPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
+import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, ORB_PROJECT_HEALTH_SUMMARY, buildVoicePrompt, buildVoiceConversationPrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildOrbScopePrompt, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, buildAdaptationsPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 // computeInsights suspended — code preserved in lib/insights.ts for future use
 import { visibleProjectsQuery, resolveProjectByReference } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
@@ -33,6 +33,7 @@ import { checkOrbBudget, budgetBlockMessage } from '@/lib/orb-model/budget'
 import { classifyProviderFailure, notifyOrbIncident } from '@/lib/orb-model/incidents'
 import type { OrbModelProviderId } from '@/lib/orb-model/types'
 import { extractCitedCodes, isFalseCompletionClaim } from '@/lib/orb-model/false-claim-guard'
+import { buildProjectHealthPacket, renderProjectHealthPacket } from '@/lib/orb-model/project-health'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -439,6 +440,16 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   const observations = guidanceLevel !== 'quiet' ? computeObservations(myTodos, myProducts) : []
   if (observations.length > 0) console.log('[buildContext] Proactive observations:', observations)
   else console.log('[buildContext] No observations computed. guidanceLevel:', guidanceLevel, 'todos:', todoList.length, 'products:', productList.length)
+  const projectHealthPacket = buildProjectHealthPacket({
+    projects: productList,
+    dormantProjects: dormantList,
+    todos: todoList,
+    statuses: statusList,
+    priorities: priorityList,
+    auditEvents: auditList,
+    userMap,
+  })
+  const projectHealthContext = renderProjectHealthPacket(projectHealthPacket)
 
   const ticketList = (recentTickets ?? []) as Array<{ id: string; ticket_number: number; type: string; summary: string; status: string; dismiss_reason: string | null; created_at: string; closed_at: string | null; detail: Record<string, any> }>
   const ticketsSection = ticketList.length > 0
@@ -455,7 +466,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   const memoryList = (orbMemories ?? []) as Array<{ track: string; category: string; content: string; confidence: number; created_at: string }>
   const adaptationList = (orbAdaptations ?? []) as Array<{ id: string; title: string; rule: string; category: string; activated_at: string }>
 
-  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, urgencyThresholdHours, preferenceList, guidanceLevel, observations, behaviorRuleList, memoryList, adaptationList, contextString: byProduct + dormantSection + extraContext + ticketsSection }
+  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, urgencyThresholdHours, preferenceList, guidanceLevel, observations, projectHealthPacket, projectHealthContext, behaviorRuleList, memoryList, adaptationList, contextString: byProduct + dormantSection + extraContext + ticketsSection }
 }
 
 
@@ -1119,6 +1130,7 @@ export async function orbConverse(req: OrbRequest) {
           ORB_SESSION_ADAPTATION,
           ORB_SELF_DIAGNOSTICS,
           ORB_STRATEGIC_REASONING,
+          ORB_PROJECT_HEALTH_SUMMARY,
           buildCoachingPrompt(openness),
           ORB_PREFERENCE_DISCOVERY,
           ORB_COMMITMENT_INTEGRITY,
@@ -1151,6 +1163,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           }) : '',
           uiCatalog ? `UI CATALOG & NAVIGATION (the layout structure, buttons, views, and settings of the app):\n${uiCatalog}` : '',
           `BACKLOG (includes DORMANT section if any exist — answer dormant project questions from here, do not query):\n${ctx.contextString}`,
+          ctx.projectHealthContext,
           `KNOWLEDGE BASE (Recent):\n${ctx.knowledgeList.slice(0, 5).map((k: any) => {
               const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
               let origin = ''
@@ -1257,7 +1270,9 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             stream.update({ speech: accumulatedSpeech, insight: currentInsight, isStreaming: true })
           } else if (chunk.type === 'content_block_start' && chunk.content_block.type === 'tool_use') {
              const label = ORB_TOOL_LABELS[chunk.content_block.name] || 'Thinking...'
-             stream.update({ speech: accumulatedSpeech, thought: label, isStreaming: true })
+             if (chunk.content_block.name !== 'client_action') {
+               stream.update({ speech: accumulatedSpeech, thought: label, isStreaming: true })
+             }
              toolCalls.push({ id: chunk.content_block.id, name: chunk.content_block.name, input: '' })
           } else if (chunk.type === 'content_block_delta' && chunk.delta.type === 'input_json_delta') {
              toolCalls[toolCalls.length - 1].input += chunk.delta.partial_json
@@ -1791,6 +1806,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
                 output = { ok: false, error: `Project "${input.target}" not found or you don't have access to it.` }
               } else {
                 hasActed = true
+                accumulatedSpeech = ''
                 // Pass back the resolved NAME, not code — client_action is
                 // name-first like update_project/delete_project. The client
                 // re-resolves defensively but should never need to fall back

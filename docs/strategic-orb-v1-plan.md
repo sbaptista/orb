@@ -137,6 +137,36 @@ Start with these ten packets:
 9. Preference/adaptation-aware advice.
 10. Correct silence or direct operational response.
 
+### First Interaction: Project-Health Summary
+
+The first Strategic Orb v1 interaction is **Project-Health Summary**: broad reads such as "tell me about my projects", "anything stand out?", "how are my projects doing?", or "what is the shape of my backlog?"
+
+This is the first target because it is strategically meaningful, bounded, and already exposed real failures: ambiguous project counts, visible-vs-active confusion, project-code leakage, other-user ownership distinctions, dormant-project handling, and unsupported interpretations such as treating a scratchpad as stalled work.
+
+The contract is semantic, not scripted. Orb should have leeway to reword naturally so long as it preserves accuracy, scope, and evidence. The contract defines boundaries:
+
+- Start from scope: visible/non-dormant projects, projects with active tasks, dormant projects, and other-user projects are different categories.
+- Facts may come from backlog counts, ownership, dormant state, explicit project descriptions, recent audit context, stale dates, priorities, and task titles.
+- Interpretations such as scratchpad, reminder queue, intentionally parked, main product, archive, or incubator require support from project metadata, approved adaptation, memory/preference, knowledge, or the user's current message.
+- Do not call a project stalled, neglected, forgotten, process debt, or blocked based only on inactivity or low closure count.
+- Suggestions should be reversible: review, triage, park, confirm, or choose one focus area.
+
+Do not overfit this interaction to one user's scratchpad pattern. Some project roles are ordinary user semantics rather than universal product law; Orb can be told the purpose of a project, read it from metadata, or learn it through approved adaptations.
+
+### Project Health Packet v0
+
+The first implementation uses a derived per-request packet built from existing data only. No schema changes and no fixed `project_role` field.
+
+Each project-health item contains:
+
+- Project facts: name, owner, description, dormant state.
+- Counts: active, parked, closed, urgent, in-progress, stale-active.
+- Recent activity over a 14-day window: created, closed, updated, moved-to-in-progress, parked, last activity timestamp.
+- Neutral momentum label: `none`, `quiet`, `active`, or `high`.
+- Neutral signals such as `quiet_with_active_work`, `mostly_parked`, `recent_closures`, `growing_active_load`, `urgent_work_present`, and `stale_active_work`.
+
+The packet is a data surface, not a verdict engine. Code computes facts and neutral cues; Orb turns them into careful, humane interpretation. Avoid computed judgment labels like `stalled` in the packet itself.
+
 ### Review Method
 
 - Run at least three responses per nondeterministic packet.
@@ -233,3 +263,5 @@ The next implementation slice should be small:
 That is the point where ORB-308 becomes real work inside Strategic Orb v1 rather than another open cleanup task.
 
 **Implementation note, v0.6.156:** The first Phase 2 starter slice created `lib/orb-model/strategic-context.ts` with a versioned strategic context packet and shared renderer for frozen strategic evaluation prompts. The eval endpoint now uses the shared renderer for `contextPacketId` cases and records the context packet version/id in eval responses and request-ledger rows. Production live strategic context is intentionally unchanged in this slice.
+
+**Implementation note, v0.6.158:** Project-Health Summary is now the first enabled Strategic Orb v1 behavior. The live prompt includes a semantic contract for broad project-health reads, and `query_projects` routing/tool descriptions now avoid reflexively fetching a "full picture" when BACKLOG already contains the needed project facts. Scratchpad-style roles remain flexible user/project semantics rather than a brittle eval target. A v0 Project Health Packet now renders neutral per-project facts and recent-activity signals into the production prompt; the eval mirror renders it only when using live DB context, not frozen backlog overrides.
