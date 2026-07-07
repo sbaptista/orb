@@ -81,20 +81,24 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
 export async function snapshotUrgency(supabase: any, userId: string): Promise<Urgency> {
   const [
     { data: projects },
-    { data: todos },
     { data: priorities },
     { data: userSettings },
   ] = await Promise.all([
     visibleProjectsQuery(supabase, 'id, name, code'),
-    supabase.from('todos').select('status, priority_value, due_at, product_id').is('deleted_at', null),
     supabase.from('priorities').select('value, is_urgent'),
     supabase.from('users').select('urgency_threshold_hours').eq('id', userId).maybeSingle(),
   ])
 
   const projectList = projects ?? []
-  const todoList = (todos ?? []).filter((t: any) =>
-    projectList.some((p: any) => p.id === t.product_id)
-  )
+  const projectIds = projectList.map((p: any) => p.id).filter(Boolean)
+  const { data: todos } = projectIds.length > 0
+    ? await supabase
+      .from('todos')
+      .select('status, priority_value, due_at, product_id')
+      .in('product_id', projectIds)
+      .is('deleted_at', null)
+    : { data: [] }
+  const todoList = todos ?? []
   const urgentValues = new Set<number>(
     (priorities ?? []).filter((p: any) => p.is_urgent).map((p: any) => p.value as number)
   )
@@ -118,11 +122,16 @@ export async function checkAndNotifyEscalation(
     const SEVERITY: Record<Urgency, number> = { calm: 0, busy: 1, urgent: 2 }
     if (SEVERITY[afterUrgency] <= SEVERITY[beforeUrgency]) return
 
-    // Count active todos for the notification body
-    const { data: todos } = await supabase
-      .from('todos')
-      .select('status')
-      .is('deleted_at', null)
+    // Count active todos for the notification body, scoped to visible projects.
+    const { data: projects } = await visibleProjectsQuery(supabase, 'id')
+    const projectIds = (projects ?? []).map((p: any) => p.id).filter(Boolean)
+    const { data: todos } = projectIds.length > 0
+      ? await supabase
+        .from('todos')
+        .select('status')
+        .in('product_id', projectIds)
+        .is('deleted_at', null)
+      : { data: [] }
 
     const activeCount = (todos ?? []).filter((t: any) => isActive(t.status)).length
 

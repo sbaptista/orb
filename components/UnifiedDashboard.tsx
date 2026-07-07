@@ -937,9 +937,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const fetchAllTodos = useCallback(async () => {
     const perf = startInteraction({ focus: 'dashboard-init', flow: 'dashboard', interaction: 'all_todos_load', surface: 'dashboard' })
     try {
+      const productIds = products.map(p => p.id).filter(Boolean)
+      if (productIds.length === 0) {
+        allTodosRef.current = []
+        perf.end(true, null, { count: 0 })
+        return
+      }
       const { data } = await supabase
         .from('todos')
         .select('status, priority_value, due_at, product_id')
+        .in('product_id', productIds)
         .is('deleted_at', null)
       allTodosRef.current = (data ?? []) as typeof allTodosRef.current
       perf.end(true, null, { count: data?.length ?? 0 })
@@ -947,7 +954,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       console.error('[UnifiedDashboard] Fetch all todos failed:', err)
       perf.end(false, 'all_todos_load_failed')
     }
-  }, [supabase])
+  }, [products, supabase])
 
   useEffect(() => { fetchAllTodos() }, [fetchAllTodos])
   useVisibilityRefetch(fetchAllTodos)

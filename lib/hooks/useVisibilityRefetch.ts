@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-const MIN_REFETCH_GAP = 5_000
+const MIN_REFETCH_GAP = 30_000
 
 export function useVisibilityRefetch(refetch: () => void) {
   const ref = useRef(refetch)
