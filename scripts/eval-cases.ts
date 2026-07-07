@@ -707,13 +707,13 @@ DORMANT:
   },
   {
     id: 'strategic-guidance-known-code',
-    description: 'Strategic guidance may cite a known backlog code without being blocked as a false mutation claim',
+    description: 'Strategic guidance may cite a known backlog code without being blocked as a false mutation claim, and should not invent blocker/gating language while giving next-step advice',
     productCode: 'ORB',
     userEmail: 'stan.baptista@gmail.com',
     evaluationMode: 'strategic',
     input: 'What should I work on next? Give me your top one or two recommendations and explain the evidence from my current work.',
     tier: 2,
-    speechNotContains: ['I did not actually complete that', 'nothing was written'],
+    speechNotContains: ['I did not actually complete that', 'nothing was written', 'blocked by', 'must happen first', 'gating'],
   },
 
   // ── ORB-205: Judgment-Driven Resolution ────────────────────────────────

@@ -6,7 +6,7 @@ import path from 'path'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, ORB_PROJECT_HEALTH_SUMMARY, buildVoicePrompt, buildVoiceConversationPrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildOrbScopePrompt, buildPreferencesPrompt, buildAdaptationsPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
+import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_FOUNDATIONAL_DEFINITIONS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, ORB_PROJECT_HEALTH_SUMMARY, ORB_NEXT_STEP_READ, buildVoicePrompt, buildVoiceConversationPrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildOrbScopePrompt, buildPreferencesPrompt, buildAdaptationsPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { DB_SCHEMA } from '@/lib/db-schema'
@@ -22,6 +22,7 @@ import { routeOrbRequest } from '@/lib/orb-model/routing'
 import { budgetBlockMessage, type OrbBudgetCheck } from '@/lib/orb-model/budget'
 import { extractCitedCodes, isFalseCompletionClaim, EFFECTFUL_TOOL_NAMES } from '@/lib/orb-model/false-claim-guard'
 import { buildProjectHealthPacket, renderProjectHealthPacket } from '@/lib/orb-model/project-health'
+import { buildNextStepPacket, renderNextStepPacket } from '@/lib/orb-model/next-step'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 
@@ -309,9 +310,9 @@ export async function POST(request: NextRequest) {
   const myTodos = todoList.filter((t: any) => myProductIds.has(t.product_id))
   const observations = computeObservations(myTodos as any, myProducts as any)
   const guidanceLevel = preferenceList.find(p => p.key === 'guidance_level')?.value ?? 'standard'
-  const projectHealthContext = backlogOverride
-    ? ''
-    : renderProjectHealthPacket(buildProjectHealthPacket({
+  const projectHealthPacket = backlogOverride
+    ? null
+    : buildProjectHealthPacket({
         projects: productList,
         dormantProjects: dormantList,
         todos: todoList,
@@ -320,7 +321,19 @@ export async function POST(request: NextRequest) {
         auditEvents: [],
         userMap,
         currentUserId: evalUser.id,
+      })
+  const projectHealthContext = projectHealthPacket ? renderProjectHealthPacket(projectHealthPacket) : ''
+  const nextStepContext = projectHealthPacket
+    ? renderNextStepPacket(buildNextStepPacket({
+        projects: productList,
+        todos: todoList,
+        priorities: priorityList,
+        auditEvents: [],
+        projectHealth: projectHealthPacket,
+        currentUserId: evalUser.id,
+        currentUserName: evalUserName || null,
       }))
+    : ''
 
   // Build system prompt (same structure as orbConverse), split into a stable
   // block (byte-identical across every case in a run — the prompt-cache prefix)
@@ -334,6 +347,7 @@ export async function POST(request: NextRequest) {
     buildVoicePrompt('natural'),
     ORB_PRINCIPLES,
     ORB_RESOLUTION_LAWS,
+    ORB_FOUNDATIONAL_DEFINITIONS,
     `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,
     STATUS_VOCABULARY,
     `The BACKLOG below gives a SUMMARY line for each project and then separates ACTIVE from PARKED. When answering counts or project-health questions, copy the SUMMARY counts exactly; do not recalculate by counting visible lines. When the user asks "how many tasks" or "my tasks" without specifying, report the active_count. If parked_count is above zero, mention it separately. If you list tasks, make sure the number you claim matches the number of listed items, or say "including" instead of implying a complete list.`,
@@ -345,6 +359,7 @@ export async function POST(request: NextRequest) {
     ORB_SESSION_ADAPTATION,
     ORB_SELF_DIAGNOSTICS,
     ORB_STRATEGIC_REASONING,
+    ORB_NEXT_STEP_READ,
     ORB_PROJECT_HEALTH_SUMMARY,
     buildCoachingPrompt('natural'),
     ORB_PREFERENCE_DISCOVERY,
@@ -372,6 +387,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     uiCatalog ? `UI CATALOG & NAVIGATION:\n${uiCatalog}` : '',
     `BACKLOG:\n${contextString}`,
     projectHealthContext,
+    nextStepContext,
     `KNOWLEDGE BASE (Recent):\n${knowledgeList.slice(0, 5).map((k: any) => {
       const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
       return `- [${k.projects?.name ?? k.projects?.code ?? '?'}] ${k.title}${tags}: ${k.content.slice(0, 100)}...`

@@ -8,7 +8,7 @@ import { headers } from 'next/headers'
 import { getAuthContext, type AuthContext } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, ORB_PROJECT_HEALTH_SUMMARY, buildVoicePrompt, buildVoiceConversationPrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildOrbScopePrompt, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, buildAdaptationsPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
+import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_FOUNDATIONAL_DEFINITIONS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, ORB_PROJECT_HEALTH_SUMMARY, ORB_NEXT_STEP_READ, buildVoicePrompt, buildVoiceConversationPrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildOrbScopePrompt, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, buildAdaptationsPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 // computeInsights suspended — code preserved in lib/insights.ts for future use
 import { visibleProjectsQuery, resolveProjectByReference } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
@@ -34,6 +34,7 @@ import { classifyProviderFailure, notifyOrbIncident } from '@/lib/orb-model/inci
 import type { OrbModelProviderId } from '@/lib/orb-model/types'
 import { extractCitedCodes, isFalseCompletionClaim } from '@/lib/orb-model/false-claim-guard'
 import { buildProjectHealthPacket, renderProjectHealthPacket } from '@/lib/orb-model/project-health'
+import { buildNextStepPacket, renderNextStepPacket } from '@/lib/orb-model/next-step'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -451,6 +452,15 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
     currentUserId: auth.user.id,
   })
   const projectHealthContext = renderProjectHealthPacket(projectHealthPacket)
+  const nextStepContext = renderNextStepPacket(buildNextStepPacket({
+    projects: productList,
+    todos: todoList,
+    priorities: priorityList,
+    auditEvents: auditList,
+    projectHealth: projectHealthPacket,
+    currentUserId: auth.user.id,
+    currentUserName: currentUser.name,
+  }))
 
   const ticketList = (recentTickets ?? []) as Array<{ id: string; ticket_number: number; type: string; summary: string; status: string; dismiss_reason: string | null; created_at: string; closed_at: string | null; detail: Record<string, any> }>
   const ticketsSection = ticketList.length > 0
@@ -467,7 +477,7 @@ async function buildContext(supabase: any, auth: AuthContext, currentProductId: 
   const memoryList = (orbMemories ?? []) as Array<{ track: string; category: string; content: string; confidence: number; created_at: string }>
   const adaptationList = (orbAdaptations ?? []) as Array<{ id: string; title: string; rule: string; category: string; activated_at: string }>
 
-  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, urgencyThresholdHours, preferenceList, guidanceLevel, observations, projectHealthPacket, projectHealthContext, behaviorRuleList, memoryList, adaptationList, contextString: byProduct + dormantSection + extraContext + ticketsSection }
+  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, urgencyThresholdHours, preferenceList, guidanceLevel, observations, projectHealthPacket, projectHealthContext, nextStepContext, behaviorRuleList, memoryList, adaptationList, contextString: byProduct + dormantSection + extraContext + ticketsSection }
 }
 
 
@@ -1120,6 +1130,7 @@ export async function orbConverse(req: OrbRequest) {
           buildVoicePrompt(openness),
           ORB_PRINCIPLES,
           ORB_RESOLUTION_LAWS,
+          ORB_FOUNDATIONAL_DEFINITIONS,
           `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,
           STATUS_VOCABULARY,
           `The BACKLOG below gives a SUMMARY line for each project and then separates ACTIVE from PARKED. When answering counts or project-health questions, copy the SUMMARY counts exactly; do not recalculate by counting visible lines. When the user asks "how many tasks" or "my tasks" without specifying, report the active_count. If parked_count is above zero, mention it separately. If you list tasks, make sure the number you claim matches the number of listed items, or say "including" instead of implying a complete list.`,
@@ -1131,6 +1142,7 @@ export async function orbConverse(req: OrbRequest) {
           ORB_SESSION_ADAPTATION,
           ORB_SELF_DIAGNOSTICS,
           ORB_STRATEGIC_REASONING,
+          ORB_NEXT_STEP_READ,
           ORB_PROJECT_HEALTH_SUMMARY,
           buildCoachingPrompt(openness),
           ORB_PREFERENCE_DISCOVERY,
@@ -1165,6 +1177,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           uiCatalog ? `UI CATALOG & NAVIGATION (the layout structure, buttons, views, and settings of the app):\n${uiCatalog}` : '',
           `BACKLOG (includes DORMANT section if any exist — answer dormant project questions from here, do not query):\n${ctx.contextString}`,
           ctx.projectHealthContext,
+          ctx.nextStepContext,
           `KNOWLEDGE BASE (Recent):\n${ctx.knowledgeList.slice(0, 5).map((k: any) => {
               const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
               let origin = ''

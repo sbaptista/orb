@@ -397,23 +397,35 @@ function formatDateTime(d: Date): string {
   return `${local} (${d.toISOString()})`
 }
 
+function truncateStatusText(text: string, maxLength: number): string {
+  if (maxLength <= 0) return ''
+  if (text.length <= maxLength) return text
+  if (maxLength === 1) return '…'
+  return `${text.slice(0, maxLength - 1)}…`
+}
+
 function updateStatusBar(opts: {
   current: number; total: number; passed: number; failed: number;
   elapsed: number; currentCase?: string; currentRun?: number; totalRuns?: number
 }) {
   const { current, total, passed, failed, elapsed, currentCase, currentRun, totalRuns } = opts
   const pct = total > 0 ? Math.round((current / total) * 100) : 0
-  const barWidth = 20
+  const terminalWidth = Math.max(40, process.stderr.columns || 100)
+  const maxLineWidth = terminalWidth - 1
+  const barWidth = Math.max(8, Math.min(20, Math.floor(terminalWidth / 5)))
   const filled = Math.round((current / total) * barWidth)
   const bar = '█'.repeat(filled) + '░'.repeat(barWidth - filled)
 
   const runInfo = currentRun && totalRuns ? ` run ${currentRun}/${totalRuns}` : ''
   const caseInfo = currentCase ? ` → ${currentCase}${runInfo}` : ''
 
-  const line = `  ${bar} ${pct}% (${current}/${total}) | ✅ ${passed} ❌ ${failed} | ${formatElapsed(elapsed)}${caseInfo}`
+  const prefix = `  ${bar} ${pct}% (${current}/${total}) | ✅ ${passed} ❌ ${failed} | ${formatElapsed(elapsed)}`
+  const availableCaseWidth = maxLineWidth - prefix.length
+  const line = truncateStatusText(`${prefix}${caseInfo}`, maxLineWidth)
 
-  // Clear line and rewrite
-  process.stderr.write(`\r\x1b[K${line}`)
+  // Keep this to one physical terminal row. If the line wraps during a resize,
+  // clearing only the current row leaves fragments behind.
+  process.stderr.write(`\x1b[?25l\r\x1b[K${truncateStatusText(line, prefix.length + Math.max(0, availableCaseWidth))}`)
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────
@@ -541,7 +553,7 @@ async function main() {
   }
 
   // Clear the status bar
-  process.stderr.write('\r\x1b[K')
+  process.stderr.write('\r\x1b[K\x1b[?25h')
 
   // ── Results ────────────────────────────────────────────────────────────
 

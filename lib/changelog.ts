@@ -6,6 +6,30 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.160',
+    date: '2026-07-06',
+    changes: [
+      'Started ORB-316 by adding a canonical Foundational Definitions prompt block shared by production Orb conversation and the eval endpoint.',
+      'Consolidated the definitions that had drifted across scope, routing, strategic, project-health, and mutation rules: visible vs owned projects, visible/non-dormant projects vs projects with active tasks, project codes vs project names, explicit BACKLOG facts vs tool-required facts, exact vs vague references, and evidence vs judgment.',
+      'Kept ORB-316 intentionally narrow after the v0.6.159 Tier 1 run passed 40/40: the new definitions clarify existing behavior without rewriting the green routing contracts.',
+    ]
+  },
+  {
+    version: 'v0.6.159',
+    date: '2026-07-06',
+    changes: [
+      'Enabled the second Strategic Orb v1 interaction: Next-Step Read. Prompts like "what should I work on next?", "where should I focus?", and "help me prioritize" now have a bounded semantic contract for compact, evidence-labeled recommendations.',
+      'Clarified ORB-317 — Strategic Orb v1 interaction-quality program — as the umbrella behind the current slices, coordinating context/eval architecture, operating-rule cleanup, capability gaps, project-health reads, next-step recommendations, and future interaction improvements.',
+      'Added a per-request Next-Step Packet built from existing project-health, active task, priority, due-date, stale-work, and recent-audit data. It limits strategic recommendations to current-user-owned active task candidates and omits other-user work from the recommendation set.',
+      'Added guardrails so next-step recommendations lead with one primary move, at most one alternate, and clear evidence such as in-progress status, urgency, due dates, stale active work, or recent activity instead of dumping a ranked backlog.',
+      'Tightened strategic guidance against invented blocker/dependency language: sequencing can be offered as judgment, but "blocked", "must happen first", "gating", and prerequisite claims require explicit evidence.',
+      'Tightened live-test follow-up guardrails: next-step reads should avoid even hypothetical blocker phrasing unless the user/evidence raises a blocker, and project-health reads must not label a project as "yours" unless ownership evidence explicitly supports it.',
+      'Tightened Tier 1 regression follow-ups for tool routing: bulk project deletes should use visible BACKLOG task codes without a pre-query, missing owner/dormant project facts must call query_projects, exact quoted knowledge-entry corrections call update_knowledge directly, and vague "that entry" corrections search first.',
+      'Mirrored the Next-Step contract and packet in the eval endpoint, and strengthened the existing strategic guidance eval case to guard against false completion-claim regressions plus invented blocker/gating phrasing.',
+      'Improved the Orb eval CLI progress status line so terminal resizing does not smear wrapped progress-bar fragments across the screen during long eval runs.',
+    ]
+  },
+  {
     version: 'v0.6.158',
     date: '2026-07-05',
     changes: [

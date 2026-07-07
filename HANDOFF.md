@@ -10,11 +10,59 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.158
+- **Version:** 0.6.160
 
 ---
 
 ### Last Session Completed
+
+**ORB-316 foundational prompt definitions — 2026-07-06 (Codex, GPT-5) — v0.6.160**
+
+Started ORB-316 after the Strategic Orb v1 Next-Step slice and the full Tier 1 eval reached **40/40 passed**.
+
+**What changed:**
+- Added `ORB_FOUNDATIONAL_DEFINITIONS` in `lib/orb-prompt.ts` as the canonical live source for recurring prompt concepts that had been spread across scope, routing, strategic reads, project-health reads, and mutation protocol.
+- Wired the new definitions into both production Orb conversation prompt assembly and the eval endpoint stable prompt.
+- Canonicalized the key definitions: visible vs owned project, visible/non-dormant project vs project with active tasks, project code vs project name, explicit BACKLOG facts vs tool-required facts, exact vs vague references, and evidence vs judgment.
+- Updated the operating-rules audit to record that ORB-316 definitions live in the prompt library; the audit remains a map, not binding law.
+- Bumped release docs to `v0.6.160`.
+
+**Verification:**
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed, with sandbox-only `/tmp/xcrun_db` warnings from git.
+- Stan ran full Tier 1 after ORB-316: **40/40 passed**, ~1,485,985 tokens, estimated cost ~$1.0225, elapsed 9m 24s, completed 2026-07-07T00:00:06.414Z.
+- Stan resolved the Gemini quota/rate-limit issue and closed ORB-316 with the verified resolution notes.
+
+**Strategic Orb v1 Next-Step Read contract — 2026-07-06 (Codex, GPT-5) — v0.6.159**
+
+Enabled the second Strategic Orb v1 interaction under **ORB-317 — Strategic Orb v1 interaction-quality program**: focused next-step reads for prompts like "what should I work on next?", "where should I focus?", and "help me prioritize?"
+
+**What changed:**
+- Clarified that **ORB-317 — Strategic Orb v1 interaction-quality program** is the umbrella behind this work, not just the Next-Step Read slice. It coordinates context/eval architecture, operating-rule cleanup, capability gaps, project-health reads, next-step recommendations, and future interaction improvements.
+- Added `ORB_NEXT_STEP_READ` to the live Orb prompt contract and eval prompt mirror.
+- Added `lib/orb-model/next-step.ts`, a per-request Next-Step Packet builder and renderer using existing project, task, priority, due-date, stale-work, recent-audit, and Project Health Packet data only.
+- Next-Step Packet v0 limits recommendation candidates to current-user-owned active tasks, tracks omitted other-user active work, and surfaces advisory signals such as `in_progress`, `urgent`, `due`, `stale_active`, and `recent_activity`.
+- Wired the rendered Next-Step Packet into both production Orb conversation context and the eval endpoint, skipping it for frozen backlog override cases so deterministic fixture tests remain fixture-only.
+- Tightened next-step answer shape: one primary recommendation, at most one alternate, evidence named explicitly, inferred sequencing labeled as judgment, and no ranked backlog dump unless the user asks for one.
+- Added blocker/dependency guardrails: "blocked", "must happen first", "gating", and prerequisite claims require explicit evidence from task text, audit, knowledge, memory, adaptation, or the user's current message.
+- Tightened live-test follow-up guardrails after Stan tested ORB-317-centered prompts: avoid even hypothetical blocker phrasing unless the user/evidence raises a blocker, and never label a visible project as "yours" unless ownership evidence explicitly supports it.
+- Strengthened the existing strategic guidance eval case to guard against false completion-claim regressions plus invented blocker/gating language.
+- Tightened existing routing/tool contracts after Stan's Tier 1 run exposed three regressions: switch-project narration now avoids "Switching to..." before client confirmation, vague knowledge-entry updates search Knowledge Repo instead of asking for a task code/title, and exact `entry titled "..."` corrections call `update_knowledge` directly.
+- Tightened a second Tier 1 regression pass: bulk project deletes should use visible BACKLOG task codes without a pre-query, missing owner/dormant project facts must call `query_projects`, exact quoted knowledge-entry corrections call `update_knowledge` directly, and vague "that entry" corrections search first.
+- Improved the eval CLI progress status line so terminal resizing truncates the active case label instead of leaving wrapped progress-bar fragments on screen.
+- Updated `docs/strategic-orb-v1-plan.md` with the v0.6.159 implementation note.
+- Bumped release docs to `v0.6.159`.
+
+**Knowledge Repo check:**
+- Live service-role query could not be completed from the current sandbox (`curl` exited code 6 / DNS unavailable). Used the committed handoff's relevant known lesson instead: ORB-212 requires strategic recommendations to stay scoped to current-user-owned projects, and Project Health follow-up notes require explicit evidence before blocker/dependency claims.
+
+**Verification:**
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed, with sandbox-only `/tmp/xcrun_db` warnings from git.
+- Stan ran focused regression retries after prompt/tool-contract fixes:
+  - `switch-project-partial-name-resolves,knowledge-entry-not-todo-cold-start,update-knowledge-correction-tool`: **3/3 passed**, completed 2026-07-06T22:48:08.763Z.
+  - `bulk-delete-project-todos-calls-tools,query-projects-tool,query-projects-dormant,update-knowledge-correction-tool,update-knowledge-vague-reference-searches-first`: **5/5 passed**, completed 2026-07-06T23:34:49.354Z.
+- Stan ran full Tier 1: **40/40 passed**, ~1,473,219 tokens, estimated cost ~$1.0049, elapsed 6m 45s, completed 2026-07-06T23:42:20.824Z.
 
 **Strategic Orb v1 Project-Health Summary contract — 2026-07-05 (Codex, GPT-5) — v0.6.158**
 
@@ -200,14 +248,22 @@ Continuation of the same session as the entry below (concurrency protocol + ORB-
 ### Uncommitted Changes
 
 - `.claude/settings.local.json` — harness-recorded permission allowlist additions only; the `git push` gate remains in `ask`. Deliberately left uncommitted, as always.
-- `ACTIVE_WORK/codex.md` — claim ledger returned to `*(none)*` after Strategic Orb v1 context packet starter slice.
-- `app/api/orb-eval/route.ts` — strategic context packet eval cases now render through shared strategic context builder.
-- `docs/strategic-orb-v1-plan.md` — new Strategic Orb v1 product/architecture plan plus v0.6.156 implementation note.
-- `docs/orb-operating-rules-audit.md` — planning note pointing to Strategic Orb v1 and ORB-308 context/eval workstream.
-- `HANDOFF.md` — updated for v0.6.156 session state.
-- `lib/orb-model/strategic-context.ts` — new versioned strategic context packet builder and prompt renderer.
-- `scripts/run-strategic-eval.ts` — blinded review output now records context packet version/id.
-- `lib/changelog.ts`, `lib/version.ts`, `package.json` — v0.6.156 release bookkeeping.
+- `ACTIVE_WORK/claude-code.md` — stale Claude Code claim from the eval prompt-caching session remains in the working tree; Codex does not edit another agent's ledger file.
+- `ACTIVE_WORK/codex.md` — Codex claim returned to `*(none)*`, with stale-claim notice retained for Claude's old prompt-cache claim.
+- `HANDOFF.md` — current handoff checkpoint updated through ORB-316 / v0.6.160.
+- `app/actions/orb-converse.ts` — production prompt imports and renders the Next-Step Packet, includes the Next-Step Read contract, and now includes `ORB_FOUNDATIONAL_DEFINITIONS` in the stable prompt.
+- `app/api/orb-eval/route.ts` — eval prompt mirror imports and renders the Next-Step Packet for live-context cases, includes the same Next-Step Read contract, and now includes `ORB_FOUNDATIONAL_DEFINITIONS` in the stable prompt.
+- `docs/orb-operating-rules-audit.md` — v0.6.160 note records ORB-316's live canonical definitions source.
+- `docs/strategic-orb-v1-plan.md` — v0.6.159 implementation note for Next-Step Read.
+- `docs/api-spec.yaml` — clarified `client_action` switch-project narration and exact-title `update_knowledge` behavior.
+- `lib/changelog.ts` — v0.6.159 and v0.6.160 release notes.
+- `lib/orb-contract.ts` — regenerated from `docs/api-spec.yaml`.
+- `lib/orb-model/next-step.ts` — new bounded Next-Step Packet builder/renderer.
+- `lib/orb-prompt.ts` — new `ORB_NEXT_STEP_READ` semantic contract plus `ORB_FOUNDATIONAL_DEFINITIONS`.
+- `lib/version.ts` — bumped to `v0.6.160`.
+- `package.json` — bumped to `0.6.160`.
+- `scripts/eval-cases.ts` — strengthened `strategic-guidance-known-code` against invented blocker/gating phrasing.
+- `scripts/orb-eval.ts` — status line truncates to the current terminal width and restores the cursor after clearing the progress bar.
 
 ---
 
@@ -565,10 +621,10 @@ v0.6.67–v0.6.71: silent TTS fix, build gate for TTS keys, iPhone AudioContext 
 
 ## Next Priorities
 
-1. **Strategic Orb v1 Phase 1:** ratify `docs/strategic-orb-v1-plan.md` with Stan and choose the first strategic interaction to build around: next-step read, weekly review, or project-health summary.
-2. **Strategic Orb v1 Phase 2 / ORB-308:** implement the shared strategic context packet builder and wire eval/production strategic rendering through it. Keep operational CRUD routing unchanged.
-3. **ORB-303 (tickets — sharpest remaining capability-matrix gap, create-only today):** read/update/delete tools for tickets. Expect the read tool to expose whatever is currently invisible in the tickets table; budget time for real handler testing.
-4. **Consider an RLS audit pass on other NULL-able foreign keys**, given the ORB-302 finding: any table with a documented NULL-able FK convention should have its RLS policies checked for whether an `EXISTS` join silently drops the NULL case.
+1. **ORB-303 / tickets is the sharpest capability-matrix gap.** It is probably the next practical implementation slice unless Stan chooses another ORB-317 interaction-quality behavior.
+2. **Continue ORB-317 slices with the verified v0.6.160 prompt base.** The umbrella now covers project-health reads, next-step reads, operating-rule cleanup, capability gaps, and future interaction-quality work.
+3. **Consider a strategic-provider fallback improvement.** The Gemini quota incident showed the current strategic failure message is accurate but not very diagnostic to the user; a future slice could expose the classified reason or fall back to Claude for strategic reads when Gemini is unavailable.
+4. **Keep eval cost discipline.** Use Stan live transcripts for flexible strategic tone first; add or adjust evals only when a behavior needs to become a durable regression guard.
 
 ---
 

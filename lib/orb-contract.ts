@@ -103,7 +103,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "delete_todo",
-    "description": "[Confidence: well-tested] Permanently delete a todo. Hard delete — irreversible. Only use when the user explicitly says to delete a specific task. Never delete as part of a workaround (e.g. move-between-projects) without the user confirming the deletion step separately. \"Want me to do that?\" is not sufficient — wait for an explicit \"yes, delete it.\"",
+    "description": "[Confidence: well-tested] Delete a todo by task code. If the user asks to delete all todos/tasks from a named project and BACKLOG already lists the matching task codes, call delete_todo once for each matching code immediately; do not query first just to confirm the visible list. The server may hold the deletion for confirmation depending on user preference; never claim deletion succeeded until the tool result confirms it.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -196,7 +196,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "query_projects",
-    "description": "[Confidence: new] List or look up specific missing project facts — name, description, owner, active/total task counts, dormant state, or partial-name resolution. Use when the BACKLOG does not already contain the fact needed to answer, such as who owns X, whether X is asleep, or resolving a project name. NOT for task queries (use query_todos). For broad project-health reads such as \"tell me about my projects\" or \"anything stand out?\", answer from BACKLOG when it already includes project names, owners, descriptions, SUMMARY counts, and the DORMANT section. Takes the project NAME (partial/fuzzy ok), never a code.",
+    "description": "[Confidence: new] List or look up specific missing project facts — name, description, owner, active/total task counts, dormant state, or partial-name resolution. Use when the BACKLOG does not already contain the fact needed to answer, such as who owns X, whether X is asleep, or resolving a project name. If the user asks who owns projects and BACKLOG has no owner tags, call query_projects. If the user asks which projects are dormant and BACKLOG has no explicit DORMANT section, call query_projects with include_dormant=true. NOT for task queries (use query_todos). For broad project-health reads such as \"tell me about my projects\" or \"anything stand out?\", answer from BACKLOG when it already includes project names, owners, descriptions, SUMMARY counts, and the DORMANT section. Takes the project NAME (partial/fuzzy ok), never a code.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -217,7 +217,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "client_action",
-    "description": "[Confidence: well-tested] Navigate or switch UI state. Use switch_project to change the active project, open_settings to go to settings, open_help for help. Use set_voice to change the TTS voice (target = voice name). Use exit_voice to end voice conversation mode when the user signals they want to stop.",
+    "description": "[Confidence: well-tested] Navigate or switch UI state. Use switch_project to change the active project, open_settings to go to settings, open_help for help. Use set_voice to change the TTS voice (target = voice name). Use exit_voice to end voice conversation mode when the user signals they want to stop. For switch_project, call the tool and do not narrate \"Switching to...\", \"I switched\", \"done\", or \"is now active\" in the same response; the client confirms after navigation succeeds.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -296,7 +296,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "update_knowledge",
-    "description": "[Confidence: new] Correct or amend an existing Knowledge Repository entry. Like update_project, call this directly with the title reference you have (exact or approximate) — the server resolves it (exact match, then substring) and tells you if it is ambiguous or not found; you do not need to search_knowledge first as a separate step. Only call search_knowledge beforehand if you genuinely do not know which entry the user means and need to find it by topic. Held for user confirmation like update_project — never claim it is done until confirm_mutation succeeds. Do NOT include a date, timestamp, or attribution line in new_content — the server signs and stamps every update automatically. There is deliberately NO delete tool: if an entry looks stale or wrong and you cannot fix it with an update, use create_ticket to flag it for admin review instead.",
+    "description": "[Confidence: new] Correct or amend an existing Knowledge Repository entry. Like update_project, call this directly with the title reference you have (exact or approximate) — the server resolves it (exact match, then substring) and tells you if it is ambiguous or not found; you do not need to search_knowledge first as a separate step. If the user says entry titled \"...\" then call update_knowledge immediately with that title. Only call search_knowledge beforehand if you genuinely do not know which entry the user means and need to find it by topic. A vague phrase like \"that entry\" plus an assistant natural-language summary is not a reliable title reference; search first. Held for user confirmation like update_project — never claim it is done until confirm_mutation succeeds. Do NOT include a date, timestamp, or attribution line in new_content — the server signs and stamps every update automatically. There is deliberately NO delete tool: if an entry looks stale or wrong and you cannot fix it with an update, use create_ticket to flag it for admin review instead.",
     "input_schema": {
       "type": "object",
       "properties": {

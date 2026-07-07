@@ -206,6 +206,8 @@ Create a plan for **Strategic Orb v1**:
 
 **Planning note, v0.6.155:** Strategic Orb v1 now has a dedicated plan in `docs/strategic-orb-v1-plan.md`. ORB-308 should be treated as the context/eval architecture workstream inside that plan unless Strategic Orb stalls.
 
+**Implementation note, v0.6.160:** ORB-316 started by promoting the recurring foundational definitions into one live prompt source: `ORB_FOUNDATIONAL_DEFINITIONS` in `lib/orb-prompt.ts`, imported by both production and eval prompt assembly. The audit remains a map, not binding law.
+
 1. Do not start by rewriting the whole prompt. Start by eliminating dead/duplicated/conflicting rule sources.
 2. Treat ORB-314 and ORB-315 as doctrine proof cases.
 3. Keep the audit doc as the map; do not promote it into another binding rule source.
