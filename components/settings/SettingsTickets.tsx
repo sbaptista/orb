@@ -223,7 +223,7 @@ export default function SettingsTickets() {
           </>
         ),
         tableColumns: [
-          { label: 'Code', width: '90px' },
+          { label: 'Code', width: '120px' },
           { label: 'Type', width: '110px' },
           { label: 'Summary', width: '260px' },
           { label: 'Reporter', width: '150px' },
@@ -307,7 +307,7 @@ export default function SettingsTickets() {
           if (res.error) throw new Error(res.error)
         },
         deleteWarning: (item) => <>Permanently delete <strong>{item.summary}</strong>? This cannot be undone.</>,
-        editModalTitle: 'Edit Ticket',
+        editModalTitle: editingTicket ? `TICKETS-${editingTicket.ticket_number}` : 'Edit Ticket',
         modalClass: 'modal-compose',
         onClose: () => setEditingTicket(null),
 

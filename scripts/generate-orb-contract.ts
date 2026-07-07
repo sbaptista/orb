@@ -144,6 +144,7 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   create_todo: 'Creating task...',
   query_todos: 'Searching backlog...',
   query_projects: 'Checking projects...',
+  query_tickets: 'Checking tickets...',
   update_todo: 'Updating task...',
   delete_todo: 'Deleting task...',
   move_todo: 'Moving task...',

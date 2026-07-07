@@ -5,6 +5,7 @@ import fs from 'fs'
 import path from 'path'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { canRoleInspectRepository } from '@/lib/repository-access'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
 import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_FOUNDATIONAL_DEFINITIONS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, ORB_PROJECT_HEALTH_SUMMARY, ORB_NEXT_STEP_READ, buildVoicePrompt, buildVoiceConversationPrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildOrbScopePrompt, buildPreferencesPrompt, buildAdaptationsPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 import { visibleProjectsQuery } from '@/lib/projects'
@@ -138,12 +139,15 @@ export async function POST(request: NextRequest) {
 
   const evalUserId = evalUser.id
   const evalUserName = evalUser ? [evalUser.first_name, evalUser.last_name].filter(Boolean).join(' ') : ''
+  const evalUserRole = (evalUser as any).roles?.name ?? 'Admin'
   const auth = {
     user: { id: evalUserId, email: evalUser.email ?? '', name: evalUserName || null },
-    role: (evalUser as any).roles?.name ?? 'Admin',
+    role: evalUserRole,
     roleId: evalUser.role_id,
-    isAdmin: true,
-    canInspectRepository: true,
+    // Derived from evalUser.role_id, same as lib/auth.ts's ADMIN_ROLE_IDS = [1, 3] — not
+    // hardcoded, since the query above already restricts eval users to role_id 1/3.
+    isAdmin: evalUser.role_id === 1 || evalUser.role_id === 3,
+    canInspectRepository: canRoleInspectRepository(evalUserRole),
     supabase: admin,
     admin,
   }
@@ -594,7 +598,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     }
 
     const historyCodes = extractCitedCodes(
-      `${(history ?? []).map(h => h.text).join(' ')} ${input} ${todoList.map(todoCode).join(' ')} ${strategicContextPacket?.backlog ?? ''}`,
+      `${(history ?? []).map(h => h.text).join(' ')} ${input} ${todoList.map(todoCode).join(' ')} ${strategicContextPacket?.backlog ?? ''} ${contextString}`,
     )
     // Codes this response's own tool calls are working with count as
     // legitimate provenance too — a delete_todo call citing TEST-1 in its

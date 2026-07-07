@@ -150,8 +150,14 @@ function toVoiceSpokenText(text: string) {
     return `Confirm ${summary}. See the transcript for the exact items. Confirm?`
   }
 
-  const lead = firstSentences(plain.split('\n\n')[0], 320, 2)
-  const hasMore = plain.length > lead.length + 30 || plain.includes('\n-') || plain.includes('\n\n')
+  // Speak the narrative lead-in — everything before the first bulleted/numbered
+  // list — not just the first paragraph. A short opening paragraph (e.g. a
+  // headline count) was crowding out a second paragraph that held the actual
+  // answer (e.g. a ticket breakdown), dropping it from speech entirely.
+  const listStart = plain.search(/\n\s*(?:[-*+]|\d+\.)\s/)
+  const narrative = listStart >= 0 ? plain.slice(0, listStart) : plain
+  const lead = firstSentences(narrative, 400, 3)
+  const hasMore = plain.length > lead.length + 30 || listStart >= 0
   return hasMore ? `${lead} I put the details on screen.` : lead
 }
 
@@ -242,6 +248,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // ── List state ──
   const [todos, setTodos]               = useState<Todo[]>([])
   const [statuses, setStatuses]         = useState<StatusDef[]>([])
+  const [categories, setCategories]     = useState<{ id: string; name: string; product_id: string }[]>([])
   const [filterStatus, setFilterStatus] = useState('active')
   const [filterPriority, setFilterPriority] = useState('all')
   const [showFilters, setShowFilters]   = useState(false)
@@ -866,6 +873,23 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     fetchStatuses()
   }, [supabase])
 
+  // Load categories — all visible projects at once (small table); TodoPanel
+  // filters to the todo's own product_id, same pattern as priorities/statuses.
+  useEffect(() => {
+    async function fetchCategories() {
+      const perf = startInteraction({ focus: 'dashboard-init', flow: 'dashboard', interaction: 'categories_load', surface: 'dashboard' })
+      try {
+        const { data } = await supabase.from('categories').select('id, name, product_id').is('deleted_at', null).order('sort_order')
+        if (data) setCategories(data)
+        perf.end(true, null, { count: data?.length ?? 0 })
+      } catch (err) {
+        console.error('[UnifiedDashboard] Load categories failed:', err)
+        perf.end(false, 'categories_load_failed')
+      }
+    }
+    fetchCategories()
+  }, [supabase])
+
   // Welcome modal — shown on first login, offers the guided tour
   const [showWelcomeModal, setShowWelcomeModal] = useState(false)
   useEffect(() => {
@@ -1308,14 +1332,21 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           const newThoughts = m.thoughts ? [...m.thoughts] : []
           if (chunk.thought && !newThoughts.includes(chunk.thought)) newThoughts.push(chunk.thought)
           const displayText = chunk.speech || m.text
+          // Only an explicit `isStreaming: false` (the true turn-end signal from
+          // stream.done()) means the turn is over. Many mid-turn progress updates
+          // (a tool's "Found N items" thought, etc.) omit the field entirely —
+          // treating that omission as "done" spoke the not-yet-final text early,
+          // then spoke it again in full once the real answer arrived, doubling
+          // the leading sentence out loud.
+          const stillStreaming = chunk.isStreaming !== false
           return {
             ...m,
             text: displayText,
             // Derived once, at turn end — mid-stream text is display-only.
-            spokenText: voice.voiceActive && !chunk.isStreaming ? toVoiceSpokenText(displayText) : undefined,
+            spokenText: voice.voiceActive && !stillStreaming ? toVoiceSpokenText(displayText) : undefined,
             insight: chunk.insight || m.insight,
             thoughts: newThoughts,
-            isStreaming: chunk.isStreaming,
+            isStreaming: stillStreaming,
             isServiceError: chunk.isServiceError || m.isServiceError,
           }
         }))
@@ -1406,6 +1437,15 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           const text = m.text === 'Processing…' ? 'Stopped.' : m.text
           return { ...m, isStreaming: false, text, spokenText: voice.voiceActive ? text : m.spokenText }
         }
+        // The loop's own final chunk (server-sent isStreaming: false) already derived
+        // text/spokenText correctly when the stream ended cleanly. Recomputing
+        // spokenText here too was redundant — a second, independent derivation of
+        // the same value that could differ just enough from the loop's own to defeat
+        // the auto-TTS dedupe check, causing the trailing "I put the details on
+        // screen." line (always appended when a list follows, regardless of the
+        // lead text) to be spoken a second time. Only derive here for the case the
+        // loop never reached: the stream ending without ever sending a clean final chunk.
+        if (m.isStreaming === false) return m
         const text = m.text === 'Processing…' ? 'Orb could not complete that request. Please try again.' : m.text
         return {
           ...m,
@@ -2221,7 +2261,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
       {/* ── Modals ── */}
       {selectedTodo && (
-        <TodoPanel key={selectedTodo.id} todo={selectedTodo} products={products as any} priorities={priorities as any} statuses={statuses} isAll={false}
+        <TodoPanel key={selectedTodo.id} todo={selectedTodo} products={products as any} priorities={priorities as any} statuses={statuses} categories={categories} isAll={false}
           onClose={() => setSelectedTodo(null)}
           onSave={updated => { setTodos(prev => prev.map(t => t.id === updated.id ? updated : t)); setSelectedTodo(updated); fetchOrbTodos() }}
           onDelete={id => { setTodos(prev => prev.filter(t => t.id !== id)); setSelectedTodo(null); fetchOrbTodos() }}
@@ -2229,7 +2269,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       )}
 
       {showNewTodo && (
-        <TodoForm productId={selectedId ?? undefined} products={products as any} priorities={priorities as any}
+        <TodoForm productId={selectedId ?? undefined} products={products as any} priorities={priorities as any} categories={categories}
           onClose={() => setShowNewTodo(false)}
           onCreate={todo => { setTodos(prev => [...prev, todo]); setShowNewTodo(false); fetchOrbTodos() }}
         />

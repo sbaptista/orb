@@ -404,6 +404,42 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
+    id: 'query-tickets-admin-lookup',
+    description: 'A ticket status question calls query_tickets (admin-only, ORB-303), not query_todos or query_db — tickets are the reporter-facing feedback queue, distinct from engineering todos',
+    productCode: 'ORB',
+    input: 'What is the status of ticket TICKETS-42?',
+    tier: 1,
+    expectTool: { name: 'query_tickets', params: { code: 'TICKETS-42' } },
+  },
+
+  {
+    id: 'general-bugs-question-checks-tickets-too',
+    description: 'A general "how many bugs" question must also check the tickets queue, not just todo-level bugs — live testing found Orb reporting "no open bugs" from query_todos alone while open bugs sat in the tickets queue unreported',
+    productCode: 'ORB',
+    input: 'How many bugs do I have?',
+    tier: 1,
+    expectTool: { name: 'query_tickets' },
+  },
+
+  {
+    id: 'bugs-question-filters-todos-by-category',
+    description: 'A bug question filters query_todos by category="Bug" rather than guessing from title text — the category param did not exist on the tool before, so a bug question could never actually find category-tagged todos',
+    productCode: 'ORB',
+    input: 'How many bugs do I have?',
+    tier: 1,
+    expectTool: { name: 'query_todos', params: { category: 'Bug' } },
+  },
+
+  {
+    id: 'ticket-code-rejected-as-todo-mutation',
+    description: 'A TICKETS-N code must never be passed to delete_todo/update_todo/move_todo — live testing found Orb calling delete_todo with a ticket code, which failed with an unhelpful "todo not found" instead of explaining no delete tool exists for tickets at all',
+    productCode: 'ORB',
+    input: 'Delete TICKETS-47',
+    tier: 1,
+    expectNoTool: true,
+  },
+
+  {
     id: 'query-projects-dormant',
     description: 'Dormant-project questions the backlog cannot answer call query_projects with include_dormant',
     productCode: 'ORB',
@@ -849,6 +885,16 @@ DORMANT:
     productCode: 'ORB',
     input: 'yes, go ahead',
     mutationApproval: 'ask',
+    // Frozen backlog so the code the fixture history references (ORB-100) is
+    // genuinely visible to the model. Without this the case used the live
+    // backlog, where ORB-100 is a real but different, non-visible task — the
+    // model could reasonably re-query to verify before mutating (identifier
+    // provenance), making this Tier 1 case a coin-flip. With ORB-100 present
+    // and matching the history, approval → update_todo is deterministic.
+    backlogOverride: `Orb [code: ORB]:
+  SUMMARY: active_count=1 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ACTIVE:
+  ORB-100 [P3] [open] Set up CI pipeline`,
     history: [
       { role: 'user', text: 'Update ORB-100 with a note that says "testing complete"' },
       { role: 'assistant', text: 'I found ORB-100 ("Set up CI pipeline", currently open). I\'ll add the note "testing complete" to it. Shall I go ahead?' },

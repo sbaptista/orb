@@ -9,11 +9,13 @@ import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
 import { collectSystemInfo } from '@/lib/system-info'
 import type { Todo, Product, Priority } from '@/lib/todo-types'
 import { startInteraction } from '@/lib/performance/telemetry'
+import ComboSelect from '@/components/ui/ComboSelect'
 
 type Props = {
   productId?: string
   products: Product[]
   priorities: Priority[]
+  categories: { id: string; name: string; product_id: string }[]
   onClose: () => void
   onCreate: (todo: Todo) => void
 }
@@ -22,6 +24,7 @@ export default function TodoForm({
   productId,
   products,
   priorities,
+  categories,
   onClose,
   onCreate,
 }: Props) {
@@ -33,10 +36,13 @@ export default function TodoForm({
   const [description,   setDescription]   = useState('')
   const [priorityValue, setPriorityValue] = useState<number | ''>('')
   const [selectedProduct, setSelectedProduct] = useState(defaultProductId)
+  const [categoryId,      setCategoryId]      = useState<string | null>(null)
   const [dueAt,           setDueAt]           = useState('')
   const [urlInput,        setUrlInput]        = useState('')
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState('')
+
+  const projectCategories = categories.filter(c => c.product_id === selectedProduct)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -49,6 +55,7 @@ export default function TodoForm({
       metadata: { projectId: selectedProduct, hasDueDate: !!dueAt, hasPriority: priorityValue !== '' },
     })
     if (!title.trim()) { setError('Title is required.'); measurement.end(false, 'validation_failed'); return }
+    if (!categoryId) { setError('Category is required.'); measurement.end(false, 'validation_failed'); return }
     setSaving(true)
     setError('')
 
@@ -71,7 +78,7 @@ export default function TodoForm({
         due_at:           dueAt || null,
         product_id:       selectedProduct,
         group_id:         null,
-        category_id:      null,
+        category_id:      categoryId,
         urls,
         sort_order:       0,
       })
@@ -171,13 +178,26 @@ export default function TodoForm({
                   <select
                     id="todo-create-project"
                     value={selectedProduct}
-                    onChange={e => setSelectedProduct(e.target.value)}
+                    onChange={e => { setSelectedProduct(e.target.value); setCategoryId(null) }}
                     className="pf-select"
                   >
                     {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
               )}
+            </div>
+
+            <div className="pf-field">
+              <label htmlFor="todo-create-category" className="pf-label">Category *</label>
+              <ComboSelect
+                id="todo-create-category"
+                options={projectCategories}
+                value={categoryId}
+                onChange={setCategoryId}
+                placeholder="Search categories…"
+                emptyMessage="This project has no categories yet — add one in Settings → Categories."
+                required
+              />
             </div>
 
             <div className="pf-field">

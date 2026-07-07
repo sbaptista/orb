@@ -14,7 +14,7 @@ import { visibleProjectsQuery, resolveProjectByReference } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { computeUrgency, type Urgency } from '@/lib/orb-state'
 import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
-import { createTicket } from '@/app/actions/ticket-actions'
+import { createTicket, getTickets } from '@/app/actions/ticket-actions'
 import { sendAdaptationEmail } from '@/lib/email'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -982,14 +982,18 @@ export async function orbConverse(req: OrbRequest) {
       const memoryLevel = ctx.preferenceList.find(p => p.key === 'memory_level')?.value ?? 'full'
 
       const userRole = req.roleOverride || auth.role
-      const availableOrbTools = auth.canInspectRepository
-        ? ORB_TOOLS
-        : ORB_TOOLS.filter(tool => tool.name !== 'query_repository')
+      const availableOrbTools = ORB_TOOLS.filter(tool =>
+        (tool.name !== 'query_repository' || auth.canInspectRepository) &&
+        (tool.name !== 'query_tickets' || auth.isAdmin)
+      )
       const repositoryAccessPrompt = auth.canInspectRepository
         ? process.env.NODE_ENV === 'production'
           ? 'REPOSITORY ACCESS: You may inspect the source bundled with the current production deployment by using query_repository with source="production".'
           : 'REPOSITORY ACCESS: You may inspect both the current local working tree (source="local") and the current Vercel deployment (source="production"). Use the source the user asks about; default to local for implementation questions asked on localhost.'
         : 'REPOSITORY ACCESS: This user is not an Admin, Super Admin, or Developer. You cannot inspect source code for them.'
+      const ticketToolAccessPrompt = auth.isAdmin
+        ? ''
+        : 'TICKET ACCESS: The CURRENT USER (not you — Orb has no admin/non-admin identity of its own, only the user does) is not an Admin, so query_tickets (the full admin tool, sees every ticket) is not available to them. But they CAN see tickets they filed themselves, including ones you filed on their behalf via create_ticket — use query_db with table="tickets" for this; RLS automatically scopes the results to their own reported_by rows, so no explicit filter is needed. When explaining this scoping, phrase it about THEM — "you\'re not an admin", "your account doesn\'t have admin access" — never "I am not an admin" or "I am non-admin"; you are never the one being permission-checked. Only refuse (and suggest checking with an admin) if they ask about tickets broadly across all users, or about another specific user\'s ticket.'
 
       if (req.uiContext?.voiceMode && isBroadProjectStateQuestion(req.input)) {
         const speech = buildVoiceProjectStateSummary()
@@ -1003,6 +1007,11 @@ export async function orbConverse(req: OrbRequest) {
       const historyCodes = extractCitedCodes(
         (req.history ?? []).map(h => h.text).join(' ') + ' ' + req.input
         + ' ' + ctx.todoList.map((t: any) => todoCode(t, ctx.productList)).join(' ')
+        // ctx.contextString is the static BACKLOG/RECENT TICKETS block injected into
+        // every system prompt — a code cited straight from it (e.g. a ticket code
+        // answered without calling query_tickets, which is legitimate) is not a
+        // phantom citation just because no tool produced it this turn.
+        + ' ' + ctx.contextString
       )
 
       const pendingTodoOps = pendingTodoOperations(req.pendingMutation)
@@ -1137,6 +1146,7 @@ export async function orbConverse(req: OrbRequest) {
           buildUrgencyRules(ctx.urgencyThresholdHours),
           ORB_QUERY_ROUTING,
           repositoryAccessPrompt,
+          ticketToolAccessPrompt,
           `DATABASE SCHEMA (for query_db):\n${DB_SCHEMA}`,
           ORB_SCOPE_RULES,
           ORB_SESSION_ADAPTATION,
@@ -1442,6 +1452,18 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             // Provenance gate: a mutation may only target a code the model has
             // been shown (prompt, tool result, or user text this conversation).
             const targetCode = typeof input.code === 'string' ? input.code.toUpperCase().trim() : null
+            // A TICKETS-N code is never a todo — it passes the provenance check below
+            // (it genuinely was shown, just as a ticket) and then fails downstream with
+            // an unhelpful "todo not found" that doesn't explain why. There is no
+            // update/delete/move tool for tickets at all, for any user — reject here
+            // with a clear reason instead of a doomed lookup.
+            if (targetCode && /^TICKETS-\d+$/.test(targetCode)) {
+              output = {
+                error: `${targetCode} is a ticket, not a todo — there is no delete, update, or move tool for tickets, for any user including admins. Do not retry this with a todo tool; tell the user plainly that this isn't possible.`,
+              }
+              toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
+              continue
+            }
             if (targetCode && !shownCodes.has(targetCode)) {
               output = {
                 error: `Task code ${targetCode} has not appeared in this conversation — do not construct codes from memory or by sequence. Call query_todos to find the actual tasks, then retry using codes from the results.`,
@@ -1536,6 +1558,10 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
                 const q = String(input.text_match).toLowerCase()
                 results = results.filter((t: any) => t.title?.toLowerCase().includes(q))
               }
+              if (input.category) {
+                const cat = String(input.category).toLowerCase()
+                results = results.filter((t: any) => t.categories?.name?.toLowerCase() === cat)
+              }
               if (input.priority_max) {
                 results = results.filter((t: any) => t.priority_value != null && t.priority_value <= input.priority_max)
               }
@@ -1594,6 +1620,78 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             }
             output = { count: results.length + dormantMatches.length, returned }
             stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length + dormantMatches.length} projects` })
+          } else if (tc.name === 'query_tickets') {
+            // Admin-only (also enforced by getTickets -> requireAdmin, and by
+            // availableOrbTools filtering the tool out of non-admin requests
+            // entirely). Reuses ticket-actions.ts's getTickets rather than a
+            // second, parallel query — same lesson as ORB-306/307.
+            if (!auth.isAdmin) {
+              output = { error: 'query_tickets is admin-only.' }
+            } else {
+              const rawCode = input.code ? String(input.code).trim() : ''
+              let ticketNumber: number | undefined
+              if (rawCode) {
+                const parsed = parseInt(rawCode.replace(/^TICKETS-/i, ''), 10)
+                if (Number.isNaN(parsed)) {
+                  output = { error: `Could not parse ticket code "${rawCode}" — expected a format like "TICKETS-42".` }
+                } else {
+                  ticketNumber = parsed
+                }
+              }
+
+              if (output === undefined) {
+                const singleLookup = ticketNumber !== undefined
+                const res = await getTickets(singleLookup
+                  ? { ticketNumber }
+                  : {
+                      status: input.status || undefined,
+                      scope: input.scope || 'active',
+                      search: input.search || undefined,
+                      pageSize: input.max_results ?? 20,
+                    })
+
+                if (res.error) {
+                  output = { error: res.error }
+                } else {
+                  let tickets = (res.data ?? []) as any[]
+                  if (!singleLookup && input.type) {
+                    tickets = tickets.filter(t => t.type === input.type)
+                  }
+                  if (singleLookup && tickets.length === 0) {
+                    output = { error: `Ticket "TICKETS-${ticketNumber}" not found.` }
+                  } else {
+                    const toCompact = (t: any) => {
+                      const reporter = t.users as { first_name: string | null; last_name: string | null } | null
+                      const linkedTodo = t.todos as { todo_number: number | null; projects: { code: string | null } | null } | null
+                      const out: any = {
+                        code: `TICKETS-${t.ticket_number}`,
+                        type: t.type,
+                        status: t.status,
+                        summary: t.summary,
+                      }
+                      const reporterName = reporter ? [reporter.first_name, reporter.last_name].filter(Boolean).join(' ') : ''
+                      if (reporterName) out.reporter = reporterName
+                      if (linkedTodo?.projects?.code && linkedTodo.todo_number != null) out.linked_todo = `${linkedTodo.projects.code}-${linkedTodo.todo_number}`
+                      return out
+                    }
+                    const toFull = (t: any) => {
+                      const out = toCompact(t)
+                      if (t.source) out.source = t.source
+                      if (t.conversation_snippet) out.conversation_snippet = t.conversation_snippet
+                      if (t.detail && Object.keys(t.detail).length > 0) out.detail = t.detail
+                      if (t.dismiss_reason) out.dismiss_reason = t.dismiss_reason
+                      if (t.resolution_notes) out.resolution_notes = t.resolution_notes
+                      out.created_at = t.created_at
+                      if (t.closed_at) out.closed_at = t.closed_at
+                      return out
+                    }
+                    const returned = tickets.map(singleLookup ? toFull : toCompact)
+                    output = { count: returned.length, returned }
+                    stream.update({ speech: accumulatedSpeech, thought: `Found ${returned.length} ticket${returned.length === 1 ? '' : 's'}` })
+                  }
+                }
+              }
+            }
           } else if (tc.name === 'update_todo') {
             const productCode = input.code?.split('-')[0]
             const todoNum = parseInt(input.code?.split('-')[1] || '0')
@@ -2035,7 +2133,13 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
                 if (queryError) {
                   output = { error: queryError.message }
                 } else {
-                  const resultRows = rows ?? []
+                  // Add a formatted `code` per row for tables with a user-facing code
+                  // convention — same format query_tickets/query_projects already use.
+                  // Without this, a code cited from a raw ticket_number is untraceable
+                  // to any tool output, reading as an unbacked "phantom code" citation.
+                  const resultRows = (rows ?? []).map((row: any) =>
+                    table === 'tickets' && row.ticket_number != null ? { ...row, code: `TICKETS-${row.ticket_number}` } : row
+                  )
                   output = {
                     count: resultRows.length,
                     rows: resultRows,
@@ -2233,6 +2337,23 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           if (output?.code) toolProducedCodes.add(output.code)
           if (output?.old_code) toolProducedCodes.add(output.old_code)
           if (output?.new_code) toolProducedCodes.add(output.new_code)
+          // List-shaped read tools (query_todos, query_projects, query_tickets) return
+          // { count, returned: [{ code, ... }] } rather than a single top-level code —
+          // without this, any code cited from a fresh list result (e.g. a ticket not
+          // already in context) reads as an unbacked "phantom code" below.
+          if (Array.isArray(output?.returned)) {
+            for (const item of output.returned) {
+              if (item?.code) toolProducedCodes.add(item.code)
+            }
+          }
+          // query_db's fallback returns { rows: [...] } instead of { returned: [...] } —
+          // same gap, different key. Projects rows already carry a real `code` column;
+          // ticket rows get one computed above in the query_db handler.
+          if (Array.isArray(output?.rows)) {
+            for (const item of output.rows) {
+              if (item?.code) toolProducedCodes.add(item.code)
+            }
+          }
         }
         if (heldTodoOperations.length > 0) {
           // Permission granted in the requesting message itself — don't make

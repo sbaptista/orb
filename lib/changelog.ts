@@ -6,6 +6,104 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.173',
+    date: '2026-07-06',
+    changes: [
+      'Closed ORB-303 (Orb can now look up tickets). Made the internal approval-follow-through eval case deterministic: it had been relying on a live-backlog coincidence (a task code referenced in the test conversation happened to also exist, differently, in the real backlog), which let a correct behavior occasionally read as a false regression. The case now freezes its own backlog, so it tests exactly what it means to — a user approving a proposed change executes it — with no dependence on live data.',
+    ]
+  },
+  {
+    version: 'v0.6.172',
+    date: '2026-07-06',
+    changes: [
+      'Fixed Orb calling delete_todo with a ticket code — TICKETS-47 isn\'t a todo, so the call failed with an unhelpful "todo not found" instead of explaining that no delete tool exists for tickets. Root cause: that fact lived only in the admin-only query_tickets tool\'s description, so a non-admin user (who never sees that tool at all) hit the same capability confusion this session already fixed once for admins. The rule now lives in the universal routing prompt instead, and a server-side guard rejects any ticket code passed to delete_todo/update_todo/move_todo with a clear reason before attempting a doomed lookup.',
+    ]
+  },
+  {
+    version: 'v0.6.171',
+    date: '2026-07-06',
+    changes: [
+      'Found the actual cause of the intermittent voice-repeat bug: after a conversation turn completed cleanly, a second, redundant piece of code re-derived the spoken text from scratch instead of reusing what had already been correctly computed moments earlier. On most turns the two derivations happened to match and nothing was audible; when they diverged slightly, the trailing "I put the details on screen." line (always appended when a list follows, regardless of the summary content) got spoken a second time. The redundant re-derivation is removed — spoken text is now derived exactly once per turn, not twice.',
+    ]
+  },
+  {
+    version: 'v0.6.170',
+    date: '2026-07-06',
+    changes: [
+      'Attempted fix for an intermittent voice bug: after Orb finished speaking and the mic switched over to listening, it would occasionally switch back and replay the same summary — roughly 1 in 3 runs, text-only conversations unaffected. This looks like a known browser-level speechSynthesis quirk (the browser replaying its last queued utterance after a later audio/focus change) rather than a duplicate call in our own code, so browser voice output now force-flushes the synthesis queue the instant each utterance ends instead of trusting the browser to clean up on its own. Flagged as a best-effort mitigation, not a confirmed fix — the intermittent, browser-internal nature of this one makes it hard to verify without further live testing.',
+    ]
+  },
+  {
+    version: 'v0.6.169',
+    date: '2026-07-06',
+    changes: [
+      'Fixed Orb describing itself as "non-admin" when explaining why a ticket tool is unavailable — it was conflating its own identity with the current user\'s permission level. It now always frames this as the user\'s access ("you\'re not an admin"), never its own ("I am non-admin") — Orb has no personal admin status separate from whoever it\'s talking to.',
+      'Fixed a false self-correction bug for non-admins: their only path to ticket data is the query_db fallback (query_tickets is admin-only), and query_db\'s raw ticket rows carry a bare ticket_number, not a formatted code — so citing a ticket\'s code from that result read as an unbacked "phantom code" citation and wiped a correct answer with a confusing apology. query_db now attaches a formatted code to ticket rows, matching the convention query_tickets already uses, and the code-tracking guard now recognizes it.',
+    ]
+  },
+  {
+    version: 'v0.6.168',
+    date: '2026-07-06',
+    changes: [
+      'Added the same required, searchable category field to the create-new-todo modal, closing ORB-318. A newly created todo used to always start with category_id: null with no way to set it — now every new todo is categorized from the start, same as an edited one.',
+    ]
+  },
+  {
+    version: 'v0.6.167',
+    date: '2026-07-06',
+    changes: [
+      'Added a required, searchable category field to the todo edit modal. The category_id relationship on todos always existed and was saved through untouched, but nothing anywhere in the app let anyone actually set it — so a category-based question could never find a match no matter how it was asked. Filed ORB-318 to track the remaining half: the create-new-todo modal still has no category field.',
+      'Seeded a standard Feature/Bug/Chore/Docs/Support category set into the two projects that had none at all. Every other project keeps its own existing categories untouched — categories are per-project, and several projects (a trip-planning project especially) already have their own meaningful, unrelated category sets.',
+    ]
+  },
+  {
+    version: 'v0.6.166',
+    date: '2026-07-06',
+    changes: [
+      'query_todos gained a category filter. Todos were always joined with their category name and shown in results, but nothing let Orb filter by it — so a "how many bugs do I have" question could never actually find category-tagged todos server-side no matter how the routing rule was worded.',
+      'Fixed Orb answering ticket questions from its own truncated "10 most recent tickets" context snippet instead of actually querying the tickets table — this produced a wrong count and a wrong list (a real open ticket dropped, others that were not actually open bugs included). Any question about ticket counts or which tickets now requires a live query.',
+      'Extended how much of a response Orb speaks aloud in voice mode. It was capped to the first paragraph only, so a short opening line (e.g. a bug count) could crowd out a second paragraph holding the actual answer (e.g. a ticket breakdown), dropping it from speech entirely. Voice now speaks the full narrative lead-in up to the first bulleted/numbered list, with a larger length budget.',
+    ]
+  },
+  {
+    version: 'v0.6.165',
+    date: '2026-07-06',
+    changes: [
+      'Fixed Orb reporting "no open bugs" when open bugs existed — a general question like "how many bugs do I have" only checked engineering todos (query_todos), never the reporter-filed tickets queue (query_tickets), even though tickets are bugs too. Both surfaces are now checked for any general bug question.',
+    ]
+  },
+  {
+    version: 'v0.6.164',
+    date: '2026-07-06',
+    changes: [
+      'Fixed a lingering voice bug where Orb\'s spoken response repeated its leading sentence — e.g. "Looking at open bugs now. Looking at open bugs now. Two open bugs: ..." The client treated any streaming update that simply omitted an isStreaming flag the same as an explicit "turn is done" signal, so a tool\'s progress update mid-turn (e.g. "Found 2 tickets") triggered an early, partial spoken reply, followed by the real one once the full answer arrived. Now only an explicit isStreaming: false ends a turn; anything else defaults to still-in-progress.',
+    ]
+  },
+  {
+    version: 'v0.6.163',
+    date: '2026-07-06',
+    changes: [
+      'Fixed a bug where Orb could silently discard a correct answer about a ticket and replace it with a confusing "Correcting..." apology. The unverified-completion-claim guard treats any task/project/ticket code it can\'t account for as a phantom citation — but it only ever checked a single top-level `code` field on a tool\'s result, never the `returned` list every query tool (query_todos, query_projects, query_tickets) actually returns codes in, and never the static backlog/recent-tickets context Orb is allowed to answer from directly. Both gaps are now closed.',
+      'Fixed Orb offering to close, update, or delete a ticket in conversation — there is no such tool, and there never was one for this admin-only, read-only capability. query_tickets\'s tool description now says so explicitly.',
+      'Widened the ticket table\'s Code column and added the full ticket code to the Edit modal title, so it\'s no longer truncated out of view.',
+    ]
+  },
+  {
+    version: 'v0.6.162',
+    date: '2026-07-06',
+    changes: [
+      'Removed a hardcoded admin/repository-access shortcut from the Orb eval endpoint\'s auth simulation. It now derives isAdmin and canInspectRepository from the resolved eval user\'s actual role, the same logic production uses, instead of two literal `true` values that happened to be correct today only because the eval user lookup already filters to admin roles.',
+    ]
+  },
+  {
+    version: 'v0.6.161',
+    date: '2026-07-06',
+    changes: [
+      'Orb can now look up tickets (bugs, suggestions, capability gaps, workflow friction) by code or filter, for admins. Closes the sharpest gap in the object capability matrix audit: create_ticket was the only tool touching the tickets table, so Orb could log a ticket but never report its status back conversationally.',
+      'Non-admins can now also ask about tickets they personally filed, through the general database fallback — scoped automatically to their own tickets, never anyone else\'s.',
+    ]
+  },
+  {
     version: 'v0.6.160',
     date: '2026-07-06',
     changes: [

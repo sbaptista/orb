@@ -10,11 +10,38 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.160
+- **Version:** 0.6.173
 
 ---
 
 ### Last Session Completed
+
+**ORB-303 — query_tickets read tool + full closeout, eval de-flake — 2026-07-06 (Claude Code, Opus 4.8) — v0.6.161–v0.6.173**
+
+Anchored on ORB-303 (add a read tool to the create-only tickets surface), which then snowballed through ~11 live-testing-driven fixes. All of it was uncommitted when this session opened (tree was at v0.6.172, HANDOFF was stale at v0.6.160). This session verified the eval gate, de-flaked one fixture, and did the closeout.
+
+**Built (the anchor, v0.6.161):**
+- `query_tickets` — admin-only Orb read tool over the tickets table (code/status/type/scope/search/max_results; two-tier detail: compact for lists, full row for a single-code lookup). Reuses `getTickets()` in `app/actions/ticket-actions.ts` and the `auth.isAdmin` gate; gated by filtering `availableOrbTools`, exactly like `query_repository`, plus a conditional prompt line so non-admins know it's gated, not missing.
+- Added `tickets` to `lib/db-schema.ts` `ALLOWED_TABLES` so non-admins can ask about their **own** filed tickets via the RLS-scoped `query_db` fallback (`tickets_reporter_select` scopes it automatically) — complementary to the admin tool, not a duplicate.
+
+**The live-testing cascade (v0.6.162–172):**
+- Eval auth simulation now derives `isAdmin`/`canInspectRepository` from the resolved user's real role, not hardcoded `true` (v0.6.162).
+- Phantom-code guard hardened: now checks the `returned` list every query tool emits + static backlog/recent-tickets context, and `query_db` attaches a formatted `TICKETS-N` code to ticket rows so citing one isn't a false phantom (v0.6.163, v0.6.169).
+- No update/delete ticket tool exists for anyone — moved that fact from the admin-only tool description into the universal routing prompt + a server-side guard rejecting `TICKETS-N` on `delete_todo`/`update_todo`/`move_todo` (v0.6.163, v0.6.172).
+- "How many bugs" now checks **both** surfaces: `query_todos` gained a `category` filter (+ category UI added to todo create+edit modals — **ORB-318, closed**, new `components/ui/ComboSelect.tsx`) AND the tickets queue, always live-queried, never read off the truncated RECENT TICKETS snippet (v0.6.165–168).
+- Voice: speaks the full narrative lead-in up to the first list (v0.6.166); intermittent voice-repeat bug root-caused — spoken text was derived twice per turn — and fixed (v0.6.164, v0.6.170, v0.6.171).
+- Non-admin ticket-unavailable framing corrected: "you're not an admin", never "I am non-admin" (v0.6.169).
+
+**This session's own work (v0.6.173):**
+- De-flaked Tier 1 case `approval-follow-through`: it referenced ORB-100 in fixture history but used the **live** backlog, where ORB-100 is a real-but-different, non-visible task — so the model could reasonably re-query to verify (identifier provenance), making a "deterministic" case a coin-flip. Added a frozen `backlogOverride` containing ORB-100 as "Set up CI pipeline"/open, so approval → `update_todo` is now deterministic. (Full run caught it at 43/44; isolated re-run confirmed 1/1; de-flake makes it durable.)
+- Closed ORB-303 via the Orb API with attributed resolution notes (server-verified `closed_at`).
+- Knowledge Repo entry `9ca8ceac-1a40-417e-9c36-b48a90eb4b3d` ("ORB-303 closed: query_tickets read tool + tickets capability gap lessons", 5 durable lessons). Related entries (`27c4315b` create_ticket false positives, `f7a5bbb9` false move-capability) reviewed — still true, not superseded.
+
+**Eval:** 4 new Tier 1 cases (`query-tickets-admin-lookup`, `general-bugs-question-checks-tickets-too`, `bugs-question-filters-todos-by-category`, `ticket-code-rejected-as-todo-mutation`). **Tier 1 44/44** confirmed by Stan (terminal): full run 43/44 + `approval-follow-through` 1/1 isolated, then de-flaked. Latest full run: ~1,680,279 tokens, ~$1.1203, 8m 2s, completed 2026-07-07T06:54:57Z.
+
+**Not yet done:** commit (awaiting Stan's approval), then push is a separate explicit approval.
+
+---
 
 **ORB-316 foundational prompt definitions — 2026-07-06 (Codex, GPT-5) — v0.6.160**
 
@@ -243,27 +270,40 @@ Continuation of the same session as the entry below (concurrency protocol + ORB-
 
 ### Key Lesson
 
-**Strategic Orb needs product architecture before plumbing.** ORB-308 is real, but its correct shape depends on what strategic context needs to mean. Folding it into Strategic Orb v1 prevents a tidy standalone refactor from being redone once the strategic product model is defined.
+**A capability confusion fixed for one audience recurs for another if the fact lives only in that audience's surface.** "No update/delete tool for tickets" first lived only in the admin-only `query_tickets` description — so non-admins, who never see that tool, hit the same wall and Orb tried a todo tool on a ticket code. The fix was to move the rule to the universal routing prompt plus a server-side guard. Same shape as the earlier fabrication family: when the model does the wrong thing, check whether the constraint was even visible where the model was operating.
+
+**Corollary — Tier 1 fixtures must not lean on live-backlog coincidence.** `approval-follow-through` flaked because its fixture history named a code (ORB-100) that also exists, differently and invisibly, in the live backlog, giving the model a legitimate reason to re-query. Freeze the backlog whenever a case's history asserts a specific code/state. (Same discipline established by the ORB-301 cases, just applied to an older case that predated it.)
+
+### AI Tool Used Last Session
+
+2026-07-06 — Claude Code (Opus 4.8)
 
 ### Uncommitted Changes
 
+All of the ORB-303 session (v0.6.161–v0.6.173) is uncommitted, awaiting Stan's commit approval. Full set:
+
 - `.claude/settings.local.json` — harness-recorded permission allowlist additions only; the `git push` gate remains in `ask`. Deliberately left uncommitted, as always.
-- `ACTIVE_WORK/claude-code.md` — stale Claude Code claim from the eval prompt-caching session remains in the working tree; Codex does not edit another agent's ledger file.
-- `ACTIVE_WORK/codex.md` — Codex claim returned to `*(none)*`, with stale-claim notice retained for Claude's old prompt-cache claim.
-- `HANDOFF.md` — current handoff checkpoint updated through ORB-316 / v0.6.160.
-- `app/actions/orb-converse.ts` — production prompt imports and renders the Next-Step Packet, includes the Next-Step Read contract, and now includes `ORB_FOUNDATIONAL_DEFINITIONS` in the stable prompt.
-- `app/api/orb-eval/route.ts` — eval prompt mirror imports and renders the Next-Step Packet for live-context cases, includes the same Next-Step Read contract, and now includes `ORB_FOUNDATIONAL_DEFINITIONS` in the stable prompt.
-- `docs/orb-operating-rules-audit.md` — v0.6.160 note records ORB-316's live canonical definitions source.
-- `docs/strategic-orb-v1-plan.md` — v0.6.159 implementation note for Next-Step Read.
-- `docs/api-spec.yaml` — clarified `client_action` switch-project narration and exact-title `update_knowledge` behavior.
-- `lib/changelog.ts` — v0.6.159 and v0.6.160 release notes.
-- `lib/orb-contract.ts` — regenerated from `docs/api-spec.yaml`.
-- `lib/orb-model/next-step.ts` — new bounded Next-Step Packet builder/renderer.
-- `lib/orb-prompt.ts` — new `ORB_NEXT_STEP_READ` semantic contract plus `ORB_FOUNDATIONAL_DEFINITIONS`.
-- `lib/version.ts` — bumped to `v0.6.160`.
-- `package.json` — bumped to `0.6.160`.
-- `scripts/eval-cases.ts` — strengthened `strategic-guidance-known-code` against invented blocker/gating phrasing.
-- `scripts/orb-eval.ts` — status line truncates to the current terminal width and restores the cursor after clearing the progress bar.
+- `ACTIVE_WORK/claude-code.md` — active ORB-303 closeout claim (replaces the stale 2026-07-05 prompt-caching claim); removed to `*(none)*` in the completing commit.
+- `HANDOFF.md` — this refresh (was stale at v0.6.160).
+- `app/actions/orb-converse.ts` — `query_tickets` handler + gating; phantom-code guard now reads `returned` lists, static context, and `query_db` rows; server-side guard rejecting `TICKETS-N` on todo mutation tools; voice full-lead-in speech; voice-repeat root-cause fix.
+- `app/actions/ticket-actions.ts` — `getTickets()` options consumed by the `query_tickets` handler.
+- `app/api/orb-eval/route.ts` — eval auth simulation derives real `isAdmin`/`canInspectRepository`; mirrors the ticket routing/guard changes.
+- `app/globals.css` — styles for the new category `ComboSelect` in the todo modals.
+- `components/TodoForm.tsx`, `components/TodoPanel.tsx` — required searchable category field on todo create + edit (ORB-318).
+- `components/ui/ComboSelect.tsx` *(new)* — searchable combo-select used for the category field.
+- `components/UnifiedDashboard.tsx`, `components/settings/SettingsTickets.tsx` — ticket Code column widened, full ticket code in Edit modal title.
+- `docs/api-spec.yaml` — `query_tickets` tool definition (source of truth for the generated contract) + routing/guard notes.
+- `docs/object-capability-matrix.md` — tickets row updated (read gap closed via `query_tickets`, admin-only; `query_db` fallback for own tickets).
+- `docs/ui-catalog.md` — category `ComboSelect` pattern.
+- `docs/orb-303-query-tickets-plan.md` *(new)* — the ORB-303 plan (marked implemented v0.6.161).
+- `lib/changelog.ts` — v0.6.161–v0.6.173 release notes.
+- `lib/db-schema.ts` — `tickets` added to `ALLOWED_TABLES`; `query_db` attaches a formatted `TICKETS-N` code to ticket rows.
+- `lib/hooks/useVoiceMode.ts` — spoken text derived once per turn (voice-repeat fix); explicit `isStreaming: false` required to end a turn.
+- `lib/orb-contract.ts` — regenerated from `docs/api-spec.yaml` (never hand-edited).
+- `lib/orb-prompt.ts` — routing prompt: bug inventory spans todos+tickets, TICKETS-N capability/identity rule, ticket counts must be live.
+- `lib/version.ts`, `package.json` — bumped to `v0.6.173`.
+- `scripts/eval-cases.ts` — 4 new ticket/category Tier 1 cases; `approval-follow-through` de-flaked with a frozen `backlogOverride`.
+- `scripts/generate-orb-contract.ts` — contract generation for the new tool.
 
 ---
 

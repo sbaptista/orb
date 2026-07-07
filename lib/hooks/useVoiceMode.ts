@@ -411,14 +411,25 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   const playBrowserTts = useCallback((text: string): Promise<void> => {
     if (!('speechSynthesis' in window)) return Promise.resolve()
     return new Promise<void>(resolve => {
+      let settled = false
+      const finish = () => {
+        if (settled) return
+        settled = true
+        // Force-flush the synthesis queue the instant this utterance ends, rather
+        // than trusting the browser to clean up on its own — some browsers can
+        // intermittently replay the last queued utterance after a later audio/focus
+        // state change (e.g. the mic starting for the next listening turn).
+        try { speechSynthesis.cancel() } catch {}
+        resolve()
+      }
       const utterance = new SpeechSynthesisUtterance(text)
       utterance.rate = voiceRate
       const voice = selectedVoiceName && availableVoices.length > 0
         ? availableVoices.find(v => v.name === selectedVoiceName) ?? null
         : null
       if (voice) utterance.voice = voice
-      utterance.onend = () => resolve()
-      utterance.onerror = () => resolve()
+      utterance.onend = finish
+      utterance.onerror = finish
       speechSynthesis.speak(utterance)
     })
   }, [voiceRate, selectedVoiceName, availableVoices])

@@ -168,7 +168,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "query_todos",
-    "description": "[Confidence: well-tested] Find todos matching criteria. Use code for single-todo lookup (e.g. \"ORB-73\"). Otherwise filters by status, product, priority, or text. Returns open tasks by default — pass status to include closed.",
+    "description": "[Confidence: well-tested] Find todos matching criteria. Use code for single-todo lookup (e.g. \"ORB-73\"). Otherwise filters by status, product, priority, category, or text. Returns all statuses by default — pass status to narrow. Use category to find todos tagged with a specific category (e.g. \"Bug\") — a general bug-count question (\"how many bugs do I have\") should filter by category=\"Bug\", not guess from title text_match.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -181,6 +181,10 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         },
         "status": {
           "type": "string"
+        },
+        "category": {
+          "type": "string",
+          "description": "Filter by category name, e.g. \"Bug\". Case-insensitive, exact match against the CATEGORIES list for that project."
         },
         "priority_max": {
           "type": "integer"
@@ -211,6 +215,43 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         "max_results": {
           "type": "integer",
           "description": "Max projects to return. Default 50."
+        }
+      }
+    }
+  },
+  {
+    "name": "query_tickets",
+    "description": "[Confidence: new] Look up reporter-filed tickets (bugs, suggestions, capability gaps, workflow friction) — status, type, summary, linked todo. Admin-only. Use for \"what is the status of ticket X\", \"any open bugs\", \"show tickets about Y\". NOT for engineering todos (use query_todos) — tickets are the reporter-facing feedback queue that create_ticket writes to. Provide code for one specific ticket (returns full detail); omit it to list/filter (returns a compact summary per ticket). READ-ONLY: there is no update/close/delete tool for tickets. Never offer to close, update, resolve, or delete a ticket — if the user wants a ticket changed, tell them to use Settings → Tickets.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Exact ticket code, e.g. \"TICKETS-42\". Overrides all other filters and returns full detail for that one ticket."
+        },
+        "status": {
+          "type": "string",
+          "description": "Filter by exact status (open, in_progress, pending, awaiting_input, pending_release, pending_verification, on_hold, deferred, closed, dismissed)."
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "active",
+            "all"
+          ],
+          "description": "active = not closed/dismissed. Defaults to active."
+        },
+        "type": {
+          "type": "string",
+          "description": "Filter by type: bug, suggestion, capability_gap, workflow_friction."
+        },
+        "search": {
+          "type": "string",
+          "description": "Text search against summary."
+        },
+        "max_results": {
+          "type": "integer",
+          "description": "Max tickets to return. Default 20."
         }
       }
     }
@@ -498,6 +539,7 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   create_todo: 'Creating task...',
   query_todos: 'Searching backlog...',
   query_projects: 'Checking projects...',
+  query_tickets: 'Checking tickets...',
   update_todo: 'Updating task...',
   delete_todo: 'Deleting task...',
   move_todo: 'Moving task...',

@@ -59,13 +59,14 @@ info:
 
     query_todos:
       confidence: well-tested
-      description: 'Find todos matching criteria. Use code for single-todo lookup (e.g. "ORB-73"). Otherwise filters by status, product, priority, or text. Returns open tasks by default — pass status to include closed.'
+      description: 'Find todos matching criteria. Use code for single-todo lookup (e.g. "ORB-73"). Otherwise filters by status, product, priority, category, or text. Returns all statuses by default — pass status to narrow. Use category to find todos tagged with a specific category (e.g. "Bug") — a general bug-count question ("how many bugs do I have") should filter by category="Bug", not guess from title text_match.'
       input_schema:
         type: object
         properties:
           code: { type: string, description: 'Exact task code for single-todo lookup, e.g. "ORB-62". Overrides all other filters.' }
           product_code: { type: string }
           status: { type: string }
+          category: { type: string, description: 'Filter by category name, e.g. "Bug". Case-insensitive, exact match against the CATEGORIES list for that project.' }
           priority_max: { type: integer }
           text_match: { type: string }
           max_results: { type: integer }
@@ -79,6 +80,19 @@ info:
           name: { type: string, description: 'Project name to look up — partial or fuzzy matches resolve. Omit to list all visible projects.' }
           include_dormant: { type: boolean, description: 'Also include dormant (sleeping) projects. Default false.' }
           max_results: { type: integer, description: 'Max projects to return. Default 50.' }
+
+    query_tickets:
+      confidence: new
+      description: 'Look up reporter-filed tickets (bugs, suggestions, capability gaps, workflow friction) — status, type, summary, linked todo. Admin-only. Use for "what is the status of ticket X", "any open bugs", "show tickets about Y". NOT for engineering todos (use query_todos) — tickets are the reporter-facing feedback queue that create_ticket writes to. Provide code for one specific ticket (returns full detail); omit it to list/filter (returns a compact summary per ticket). READ-ONLY: there is no update/close/delete tool for tickets. Never offer to close, update, resolve, or delete a ticket — if the user wants a ticket changed, tell them to use Settings → Tickets.'
+      input_schema:
+        type: object
+        properties:
+          code: { type: string, description: 'Exact ticket code, e.g. "TICKETS-42". Overrides all other filters and returns full detail for that one ticket.' }
+          status: { type: string, description: 'Filter by exact status (open, in_progress, pending, awaiting_input, pending_release, pending_verification, on_hold, deferred, closed, dismissed).' }
+          scope: { type: string, enum: ['active', 'all'], description: 'active = not closed/dismissed. Defaults to active.' }
+          type: { type: string, description: 'Filter by type: bug, suggestion, capability_gap, workflow_friction.' }
+          search: { type: string, description: 'Text search against summary.' }
+          max_results: { type: integer, description: 'Max tickets to return. Default 20.' }
 
     client_action:
       confidence: well-tested

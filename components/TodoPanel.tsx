@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/Toast'
 import { isAuthError, handleSessionExpired } from '@/lib/action-utils'
 import { useDirtyForm } from '@/lib/hooks/useDirtyForm'
 import EditorModal from '@/components/ui/EditorModal'
+import ComboSelect from '@/components/ui/ComboSelect'
 import { startInteraction } from '@/lib/performance/telemetry'
 
 type Props = {
@@ -18,6 +19,7 @@ type Props = {
   products: Product[]
   priorities: Priority[]
   statuses: StatusDef[]
+  categories: { id: string; name: string; product_id: string }[]
   isAll: boolean
   onClose: () => void
   onSave: (updated: Todo) => void
@@ -51,6 +53,7 @@ export default function TodoPanel({
   products,
   priorities,
   statuses,
+  categories,
   isAll,
   onClose,
   onSave,
@@ -80,6 +83,7 @@ export default function TodoPanel({
   const [showDistill, setShowDistill] = useState(false)
 
   const isDone             = statuses.find(s => s.name === form.status)?.is_closed ?? false
+  const projectCategories  = categories.filter(c => c.product_id === form.product_id)
 
   const todoRef = (() => {
     const code = products.find(p => p.id === todo.product_id)?.code
@@ -201,6 +205,7 @@ export default function TodoPanel({
         titleId="todo-details-title"
         isDirty={editor.isDirty}
         isSaving={saving}
+        saveDisabled={!form.category_id}
         onSave={handleSave}
         onClose={onClose}
         headerStart={todoRef ? (
@@ -288,6 +293,20 @@ export default function TodoPanel({
                 {priorities.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* Category */}
+          <div className="pf-field">
+            <label htmlFor="tp-category" className="pf-label">Category *</label>
+            <ComboSelect
+              id="tp-category"
+              options={projectCategories}
+              value={form.category_id}
+              onChange={id => setForm(f => ({ ...f, category_id: id }))}
+              placeholder="Search categories…"
+              emptyMessage="This project has no categories yet — add one in Settings → Categories."
+              required
+            />
           </div>
 
           {/* Product — all view only */}

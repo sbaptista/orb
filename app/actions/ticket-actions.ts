@@ -448,6 +448,7 @@ export async function getTickets(options?: {
   createdFrom?: string | null
   createdTo?: string | null
   createdBefore?: string | null
+  ticketNumber?: number
 }) {
   const ctx = await requireAdmin()
 
@@ -464,6 +465,10 @@ export async function getTickets(options?: {
     `, options?.pageSize ? { count: 'exact' } : undefined)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
+
+  if (options?.ticketNumber !== undefined) {
+    query = query.eq('ticket_number', options.ticketNumber)
+  }
 
   if (options?.status) {
     query = query.eq('status', options.status)

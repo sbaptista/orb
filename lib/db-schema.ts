@@ -12,10 +12,11 @@ export const ALLOWED_TABLES = new Set([
   'priorities',
   'categories',
   'groups',
+  'tickets',
 ])
 
 /** Tables with a deleted_at soft-delete column — auto-filter unless explicitly queried */
-export const SOFT_DELETE_TABLES = new Set(['todos', 'categories', 'groups'])
+export const SOFT_DELETE_TABLES = new Set(['todos', 'categories', 'groups', 'tickets'])
 
 /** Allowed filter operators mapped to Supabase query builder methods */
 export const ALLOWED_OPS = new Set([
@@ -68,6 +69,17 @@ categories
 groups
   id (uuid), name (text), product_id (uuid → projects.id),
   deleted_at (timestamptz, soft-delete — auto-filtered), sort_order (int)
+
+tickets
+  id (uuid), ticket_number (int), type (text: bug/suggestion/capability_gap/workflow_friction),
+  source (text: orb-auto/user-request/admin), summary (text), detail (jsonb),
+  conversation_snippet (text), reported_by (uuid → users.id), status (text),
+  dismiss_reason (text), resolution_notes (text), todo_id (uuid → todos.id),
+  created_at (timestamptz), closed_at (timestamptz),
+  deleted_at (timestamptz, soft-delete — auto-filtered)
+  Prefer query_tickets (admin-only, dedicated) for ticket questions — use this
+  fallback only for a filter query_tickets does not support (e.g. detail contents).
+  Non-admins are RLS-scoped to their own reported_by rows automatically.
 
 EXCLUDED (sensitive): users, invitations, orb_friction, push_subscriptions, roles, platforms
 `.trim()
