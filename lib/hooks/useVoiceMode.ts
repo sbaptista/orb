@@ -179,7 +179,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   const queueRef = useRef<SpeechQueue>({ ...EMPTY_QUEUE })
   const audioCtxRef = useRef<AudioContext | null>(null)
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null)
-  const prefetchRef = useRef<{ promise: Promise<{ audioBase64: string; contentType: string }>; provider: string } | null>(null)
+  const prefetchRef = useRef<{ text: string; promise: Promise<{ audioBase64: string; contentType: string }>; provider: string } | null>(null)
 
   // ── Init ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -245,6 +245,9 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
 
     rec.onstart = () => {
       lastStartTime = Date.now()
+      accumulated = ''
+      transcriptRef.current = ''
+      setTranscript('')
       recognitionRunningRef.current = true
       recognitionStartPendingRef.current = false
       setIsListening(true)
@@ -269,6 +272,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
               accumulated = ''
               setTranscript('')
             }
+            silenceRef.current = null
             stopRecognition()
           }, SILENCE_MS)
         } else {
@@ -284,7 +288,10 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
 
     rec.onerror = (e: any) => {
       if (e.error !== 'aborted' && e.error !== 'no-speech') {
-        console.error('[voice] recognition error:', e.error)
+        console.warn('[voice] recognition error:', e.error)
+        if (e.error === 'network') {
+          setTtsError('Speech recognition lost its network connection. Tap Listen to try again.')
+        }
       }
       recognitionRunningRef.current = false
       recognitionStartPendingRef.current = false
@@ -302,7 +309,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       if (elapsed < 500 && !transcriptRef.current.trim()) {
         emptyAutoResumeCountRef.current++
         if (emptyAutoResumeCountRef.current >= 2) {
-          console.error('[voice] recognition ending immediately — not supported in this browser')
+          console.warn('[voice] recognition ending immediately — not supported in this browser')
           autoResumeRef.current = false
           setTtsError('Microphone started and stopped immediately. Tap Listen to try again.')
           return
@@ -445,11 +452,13 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     return (async () => {
       try {
         let result: { audioBase64: string; contentType: string }
-        if (prefetchRef.current && prefetchRef.current.provider === cfg.provider) {
+        if (prefetchRef.current && prefetchRef.current.provider !== cfg.provider) {
+          prefetchRef.current = null
+        }
+        if (prefetchRef.current && prefetchRef.current.provider === cfg.provider && prefetchRef.current.text === text) {
           result = await prefetchRef.current.promise
           prefetchRef.current = null
         } else {
-          prefetchRef.current = null
           result = await synthesizeSpeech({
             text,
             provider: cfg.provider,
@@ -518,6 +527,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       if (currentCfg && currentCfg.provider !== 'browser' && q.chunks.length > 0 && !prefetchRef.current) {
         const next = q.chunks[0]
         prefetchRef.current = {
+          text: next,
           provider: currentCfg.provider,
           promise: synthesizeSpeech({
             text: next,
@@ -554,12 +564,15 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   }, [playChunk, setSpeaking, startRecognition])
 
   const beginSpeaking = useCallback(() => {
+    genRef.current++
     clearSilence()
     cancelledRef.current = false
     emptyAutoResumeCountRef.current = 0
     setTtsError(null)
     stopPlayback()
     stopRecognition()
+    prefetchRef.current = null
+    queueRef.current = { ...EMPTY_QUEUE }
     setSpeaking(true)
   }, [clearSilence, stopPlayback, stopRecognition, setSpeaking])
 

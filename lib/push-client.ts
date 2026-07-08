@@ -5,6 +5,12 @@
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
 
+function shouldRegisterServiceWorker(): boolean {
+  if (!('serviceWorker' in navigator)) return false
+  if (process.env.NODE_ENV !== 'development') return true
+  return ['localhost', '127.0.0.1'].includes(window.location.hostname)
+}
+
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -13,15 +19,15 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 export function isPushSupported(): boolean {
-  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+  return shouldRegisterServiceWorker() && 'PushManager' in window && 'Notification' in window
 }
 
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
-  if (!('serviceWorker' in navigator)) return null
+  if (!shouldRegisterServiceWorker()) return null
   try {
     return await navigator.serviceWorker.register('/sw.js')
   } catch (err) {
-    console.error('[push] SW registration failed:', err)
+    console.warn('[push] SW registration skipped/failed:', err)
     return null
   }
 }

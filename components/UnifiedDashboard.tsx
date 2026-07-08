@@ -114,10 +114,6 @@ function makeOrbGreeting(firstName: string | undefined | null) {
   return greetings[Math.floor(Math.random() * greetings.length)]
 }
 
-function isOpeningGreetingText(text: string) {
-  return /(?:what's on your mind|what can i do|what can i help with|what's up|where should we start|what's first|what are we looking at|what's next|where should we pick up|what should we tackle)\??$/i.test(text.trim())
-}
-
 function stripVoiceMarkdown(text: string) {
   return text
     .replace(/\*\*(.+?)\*\*/g, '$1')
@@ -352,6 +348,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const messagesRef            = useRef<ConversationMessage[]>([])
   messagesRef.current = messages
   const lastSpokenVoiceMessageRef = useRef<{ id: string; text: string } | null>(null)
+  const lastVoiceSubmitRef = useRef<{ text: string; at: number } | null>(null)
   const stoppedVoiceMessageIdsRef = useRef<Set<string>>(new Set())
   const welcomeDismissedRef    = useRef(false)
   const orbFadeRef             = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -595,6 +592,14 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // and voice methods, not stale closures from the initial render.
   const voiceSendRef = useRef<(text: string) => void>(() => {})
   voiceSendRef.current = (text: string) => {
+    const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ')
+    const last = lastVoiceSubmitRef.current
+    const now = Date.now()
+    if (last && last.text === normalized && now - last.at < 30_000) {
+      console.info('[voice] ignored duplicate recognized utterance:', text)
+      return
+    }
+    lastVoiceSubmitRef.current = { text: normalized, at: now }
     handleSubmit(text)
   }
   useEffect(() => {
@@ -636,11 +641,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       return
     }
 
-    const existingOpening = messagesRef.current.length === 1 ? messagesRef.current[0] : null
-    if (existingOpening?.type === 'orb' && isOpeningGreetingText(existingOpening.text)) {
-      lastSpokenVoiceMessageRef.current = { id: existingOpening.id, text: existingOpening.text }
-      voice.speak(existingOpening.text)
-      measurement.end(true, null, { usedExistingGreeting: true })
+    if (messagesRef.current.some(m => m.type === 'orb')) {
+      voice.resumeListening()
+      measurement.end(true, null, { usedExistingConversation: true })
       return
     }
 
@@ -680,6 +683,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
     const lastSpoken = lastSpokenVoiceMessageRef.current
     if (lastSpoken?.id === lastOrb.id && lastSpoken.text === spokenText) return
+    if (lastSpoken?.text === spokenText) return
     lastSpokenVoiceMessageRef.current = { id: lastOrb.id, text: spokenText }
     speakRef.current(spokenText)
   }, [messages, voice.voiceActive])

@@ -413,6 +413,19 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
+    id: 'ticket-status-shorthand-followup-checks-live-tickets',
+    description: 'Bare ticket numbers in a ticket-status follow-up route to live tickets instead of the stale RECENT TICKETS snippet',
+    productCode: 'ORB',
+    history: [
+      { role: 'user', text: 'What is going on with ticket 46?' },
+      { role: 'assistant', text: 'TICKETS-46 is open. TICKETS-43 and TICKETS-38 are older service outage tickets.' },
+    ],
+    input: 'Are 43 and 38 open?',
+    tier: 1,
+    expectTool: { name: 'query_tickets' },
+  },
+
+  {
     id: 'general-bugs-question-checks-tickets-too',
     description: 'A general "how many bugs" question must also check the tickets queue, not just todo-level bugs — live testing found Orb reporting "no open bugs" from query_todos alone while open bugs sat in the tickets queue unreported',
     productCode: 'ORB',
@@ -948,6 +961,19 @@ DORMANT:
     expectNoTool: true,
     speechPattern: /^(.|\n){1,420}$/,
     speechNotContains: ['Want details on any of these, or help deciding what to tackle next?', '**', '- **', '\n-'],
+  },
+
+  {
+    id: 'voice-current-project-status-update-uses-brief-summary',
+    description: 'Voice mode treats a current-project status update request as compact project state',
+    productCode: 'ORB',
+    input: 'Give me a status update on Orb',
+    voiceMode: true,
+    tier: 2,
+    expectNoTool: true,
+    speechContains: ['Orb', 'active', 'parked'],
+    speechPattern: /^(.|\n){1,360}$/,
+    speechNotContains: ['project is moving well', 'moving well', '**', '- **', '\n-'],
   },
 
   {

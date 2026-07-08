@@ -7,9 +7,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canRoleInspectRepository } from '@/lib/repository-access'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_FOUNDATIONAL_DEFINITIONS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, ORB_PROJECT_HEALTH_SUMMARY, ORB_NEXT_STEP_READ, buildVoicePrompt, buildVoiceConversationPrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildOrbScopePrompt, buildPreferencesPrompt, buildAdaptationsPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
-import { visibleProjectsQuery } from '@/lib/projects'
-import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
+import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_FOUNDATIONAL_DEFINITIONS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, ORB_PROJECT_HEALTH_SUMMARY, ORB_NEXT_STEP_READ, buildVoicePrompt, buildVoiceConversationPrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildOrbScopePrompt, buildPreferencesPrompt, buildAdaptationsPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
+import { STATUS_VOCABULARY } from '@/lib/status-groups'
 import { DB_SCHEMA } from '@/lib/db-schema'
 import { CHANGELOG } from '@/lib/changelog'
 import { ANTHROPIC_HAIKU_REFERENCE_MODEL, normalizeAnthropicUsage } from '@/lib/orb-model/anthropic'
@@ -22,8 +21,7 @@ import type { OrbModelUsage } from '@/lib/orb-model/types'
 import { routeOrbRequest } from '@/lib/orb-model/routing'
 import { budgetBlockMessage, type OrbBudgetCheck } from '@/lib/orb-model/budget'
 import { extractCitedCodes, isFalseCompletionClaim, EFFECTFUL_TOOL_NAMES } from '@/lib/orb-model/false-claim-guard'
-import { buildProjectHealthPacket, renderProjectHealthPacket } from '@/lib/orb-model/project-health'
-import { buildNextStepPacket, renderNextStepPacket } from '@/lib/orb-model/next-step'
+import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, resolveActionSetReference, todoCode, type OrbActionSetReference } from '@/lib/orb-model/context'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 
@@ -44,22 +42,7 @@ function checkAuth(request: NextRequest): NextResponse | null {
 // client_action/switch_project claimed without a backing tool call — shipped
 // undetected).
 
-function isBroadProjectStateQuestion(input: string): boolean {
-  return /\b(state|status|snapshot|summary|overview|how (are|is)|what'?s going on)\b/i.test(input)
-    && /\b(projects|backlog|everything|all)\b/i.test(input)
-}
-
-type EvalActionSet = { kind: 'todo_set'; tool: string; ordinal: number; codes: string[]; summary: string; createdAt: string }
-
-function resolveActionSetReference(input: string, actionSets: EvalActionSet[] | undefined): EvalActionSet | null {
-  const sets = (actionSets ?? []).filter(set => set.kind === 'todo_set' && set.codes.length > 0)
-  if (sets.length === 0 || !/\b(them|those|these|all of them|the ones|the tasks|the todos|the to dos|first|second|third|last|latest)\b/i.test(input)) return null
-  const lower = input.toLowerCase()
-  if (/\b(first|1st|initial)\b/.test(lower)) return sets[0] ?? null
-  if (/\b(second|2nd)\b/.test(lower)) return sets[1] ?? null
-  if (/\b(third|3rd)\b/.test(lower)) return sets[2] ?? null
-  return sets[sets.length - 1] ?? null
-}
+type EvalActionSet = OrbActionSetReference
 
 function isDeleteRequest(input: string): boolean {
   return /\b(delete|remove|clear|trash|get rid of)\b/i.test(input)
@@ -152,48 +135,14 @@ export async function POST(request: NextRequest) {
     admin,
   }
 
-  // Build context (same as orbConverse)
-  const [
-    { data: products },
-    { data: dormantProducts },
-    { data: todos },
-    { data: statuses },
-    { data: priorities },
-    { data: knowledge },
-    { data: orbPreferences },
-    { data: behaviorRules },
-    { data: allUsers },
-  ] = await Promise.all([
-    visibleProjectsQuery(admin, 'id, name, code, description, created_by'),
-    admin.from('projects').select('id, name, code').eq('is_dormant', true).order('sort_order'),
-    admin.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes, due_at, urls, group_id, category_id, ticket_id, groups(name), categories(name), tickets!ticket_id(ticket_number)').is('deleted_at', null),
-    admin.from('statuses').select('*').order('sort_order'),
-    admin.from('priorities').select('*').order('value'),
-    admin.from('knowledge_repo').select('*, projects(code, name)').order('created_at', { ascending: false }),
-    admin.from('orb_preferences').select('key, value').eq('user_id', evalUser.id),
-    admin.from('knowledge_repo').select('title, content').contains('tags', ['orb-behavior']).order('created_at', { ascending: false }).limit(20),
-    admin.from('users').select('id, email, first_name, last_name').order('created_at'),
-  ])
-
-  const productList = products ?? []
-  const userList = allUsers ?? []
-  const userMap = new Map<string, string>()
-  for (const u of userList) {
-    const name = [u.first_name, u.last_name].filter(Boolean).join(' ')
-    userMap.set(u.id, name || u.email)
-  }
-  if (evalUserName) {
-    userMap.set(evalUser.id, evalUserName)
-  } else if (!userMap.has(evalUser.id)) {
-    userMap.set(evalUser.id, evalUser.email ?? 'you')
-  }
-  const dormantList = dormantProducts ?? []
-  const visibleProductIds = new Set(productList.map((p: any) => p.id))
-  const todoList = (todos ?? []).filter((t: any) => visibleProductIds.has(t.product_id))
-  const statusList = statuses ?? []
-  const priorityList = priorities ?? []
-  const knowledgeList = knowledge ?? []
-  const preferenceList = (orbPreferences ?? []) as Array<{ key: string; value: string }>
+  const ctx = await buildOrbContext(admin, auth)
+  const productList = ctx.productList
+  const todoList = ctx.todoList
+  const statusList = ctx.statusList
+  const priorityList = ctx.priorityList
+  const knowledgeList = ctx.knowledgeList
+  const preferenceList = ctx.preferenceList
+  const behaviorRuleList = ctx.behaviorRuleList
   // Force mutation_approval to allow by default in evaluation to test tool calls directly.
   // Individual cases can opt into ask-mode to exercise the server-side approval gate.
   const evalApprovalMode = mutationApproval ?? 'allow'
@@ -203,7 +152,6 @@ export async function POST(request: NextRequest) {
   } else {
     preferenceList.push({ key: 'mutation_approval', value: evalApprovalMode })
   }
-  const behaviorRuleList = behaviorRules ?? []
 
   function fixtureProjectFromContext(code: string, fixture?: string) {
     const escapedCode = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -232,73 +180,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Product ${productCode} not found` }, { status: 404 })
   }
 
-  // Build backlog context string
-  function todoCode(todo: any): string {
-    const p = productList.find((pp: any) => pp.id === todo.product_id)
-    return `${p?.code ?? p?.name ?? '???'}-${todo.todo_number}`
-  }
-
-  function todoLine(t: any): string {
-    const parts = [`  ${todoCode(t)} [P${t.priority_value ?? '-'}] [${t.status}] ${t.title}`]
-    if (t.due_at) parts.push(`[Due: ${t.due_at.replace('T', ' ')}]`)
-    if (t.groups?.name) parts.push(`[Group: ${t.groups.name}]`)
-    if (t.categories?.name) parts.push(`[Cat: ${t.categories.name}]`)
-    const ticketNum = t.tickets?.ticket_number
-    if (ticketNum) parts.push(`[Linked: TICKETS-${ticketNum}]`)
-    const urlList = Array.isArray(t.urls) ? t.urls : []
-    if (urlList.length > 0) parts.push(`[${urlList.length} URL${urlList.length > 1 ? 's' : ''}]`)
-    return parts.join(' ')
-  }
-
-  const byProduct = productList.map((p: any) => {
-    const ownerName = userMap.get(p.created_by)
-    const ownerTag = ownerName ? ` [Owner: ${ownerName}]` : ''
-    const codeLabel = p.code ? ` [code: ${p.code}]` : ''
-    const header = `${p.name}${codeLabel}${p.description ? ` (${p.description})` : ''}${ownerTag}`
-    const projectTodos = todoList.filter((t: any) => t.product_id === p.id)
-    const nonClosedTodos = projectTodos.filter((t: any) => !statusList.find((s: any) => s.name === t.status)?.is_closed)
-    const activeTodos = nonClosedTodos.filter((t: any) => isActive(t.status))
-    const parkedTodos = nonClosedTodos.filter((t: any) => isParked(t.status))
-    const otherNonClosedTodos = nonClosedTodos.filter((t: any) => !isActive(t.status) && !isParked(t.status))
-    const closedCount = projectTodos.length - nonClosedTodos.length
-    const summary = `  SUMMARY: active_count=${activeTodos.length} (open + in progress); parked_count=${parkedTodos.length} (deferred + on hold); closed_count=${closedCount} (excluded)`
-    const activeLine = activeTodos.map(todoLine).join('\n')
-    const parkedLine = parkedTodos.map(todoLine).join('\n')
-    const otherLine = otherNonClosedTodos.map(todoLine).join('\n')
-    const sections = [summary]
-    if (activeLine) sections.push(`  ACTIVE:\n${activeLine}`)
-    if (parkedLine) sections.push(`  PARKED (on hold/deferred):\n${parkedLine}`)
-    if (otherLine) sections.push(`  OTHER NON-CLOSED:\n${otherLine}`)
-    return `${header}:\n${sections.join('\n')}`
-  }).join('\n\n')
-
-  const dormantSection = dormantList.length > 0
-    ? `\n\nDORMANT:\n${dormantList.map((p: any) => `  ${p.name}${p.code ? ` [code: ${p.code}]` : ''}`).join(', ')}`
-    : ''
-
   // backlogOverride freezes the backlog the model sees, so project-routing cases are
   // deterministic instead of hostage to live DB state. The endpoint still executes nothing.
-  const contextString = backlogOverride ?? (byProduct + dormantSection)
-
-  function buildVoiceProjectStateSummary(): string {
-    type ProjectCount = { name: string; count: number }
-    const activeTodos = todoList.filter((t: any) => isActive(t.status))
-    const parkedTodos = todoList.filter((t: any) => isParked(t.status))
-    const activeByProject = productList
-      .map((p: any) => ({ name: p.name, count: activeTodos.filter((t: any) => t.product_id === p.id).length }))
-      .filter((p: ProjectCount) => p.count > 0)
-      .sort((a: ProjectCount, b: ProjectCount) => b.count - a.count)
-    const parkedByProject = productList
-      .map((p: any) => ({ name: p.name, count: parkedTodos.filter((t: any) => t.product_id === p.id).length }))
-      .filter((p: ProjectCount) => p.count > 0)
-      .sort((a: ProjectCount, b: ProjectCount) => b.count - a.count)
-    const notable = activeByProject[0]
-      ? `${activeByProject[0].name} has the most active work with ${activeByProject[0].count}.`
-      : parkedByProject[0]
-        ? `${parkedByProject[0].name} has the largest parked backlog with ${parkedByProject[0].count}.`
-        : 'Nothing is active right now.'
-    return `Across your projects, you have ${activeTodos.length} active tasks and ${parkedTodos.length} parked items. ${notable}`
-  }
+  const contextString = backlogOverride ?? ctx.contextString
 
   const statusNames = statusList.map((s: any) => `${s.name}${s.is_closed ? ' (closed)' : s.is_open ? ' (default)' : ''}`).join(', ')
   const priorityInfo = priorityList.map((p: any) => `${p.value}:${p.label}${p.is_urgent ? ' (URGENT)' : ''}`).join(', ')
@@ -308,36 +192,9 @@ export async function POST(request: NextRequest) {
     uiCatalog = fs.readFileSync(path.join(process.cwd(), 'docs/ui-catalog.md'), 'utf8')
   } catch { /* ignore */ }
 
-  // Compute observations for proactive guidance
-  const myProducts = productList.filter((p: any) => p.created_by === evalUser.id)
-  const myProductIds = new Set(myProducts.map((p: any) => p.id))
-  const myTodos = todoList.filter((t: any) => myProductIds.has(t.product_id))
-  const observations = computeObservations(myTodos as any, myProducts as any)
-  const guidanceLevel = preferenceList.find(p => p.key === 'guidance_level')?.value ?? 'standard'
-  const projectHealthPacket = backlogOverride
-    ? null
-    : buildProjectHealthPacket({
-        projects: productList,
-        dormantProjects: dormantList,
-        todos: todoList,
-        statuses: statusList,
-        priorities: priorityList,
-        auditEvents: [],
-        userMap,
-        currentUserId: evalUser.id,
-      })
-  const projectHealthContext = projectHealthPacket ? renderProjectHealthPacket(projectHealthPacket) : ''
-  const nextStepContext = projectHealthPacket
-    ? renderNextStepPacket(buildNextStepPacket({
-        projects: productList,
-        todos: todoList,
-        priorities: priorityList,
-        auditEvents: [],
-        projectHealth: projectHealthPacket,
-        currentUserId: evalUser.id,
-        currentUserName: evalUserName || null,
-      }))
-    : ''
+  const projectHealthContext = backlogOverride ? '' : ctx.projectHealthContext
+  const nextStepContext = backlogOverride ? '' : ctx.nextStepContext
+  const ticketStatusRoutingHint = buildTicketStatusRoutingHint(input, history, true)
 
   // Build system prompt (same structure as orbConverse), split into a stable
   // block (byte-identical across every case in a run — the prompt-cache prefix)
@@ -387,6 +244,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       currentProjectName: current.name,
       currentUserNameOrEmail: auth.user.name || auth.user.email,
     }),
+    ticketStatusRoutingHint,
     voiceMode ? buildVoiceConversationPrompt({ ttsProvider, ttsModel, ttsVoiceId }) : '',
     uiCatalog ? `UI CATALOG & NAVIGATION:\n${uiCatalog}` : '',
     `BACKLOG:\n${contextString}`,
@@ -402,9 +260,9 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       ? `BEHAVIORAL RULES (agreed with the user — always enforce):\n${behaviorRuleList.map((r: any) => `- **${r.title}:** ${r.content}`).join('\n')}`
       : '',
     buildPreferencesPrompt(preferenceList),
-    buildAdaptationsPrompt([]),
-    buildObservationsPrompt(observations, guidanceLevel),
-    buildMemoryPrompt([], 'full'),
+    buildAdaptationsPrompt(ctx.adaptationList),
+    buildObservationsPrompt(ctx.observations, ctx.guidanceLevel),
+    buildMemoryPrompt(ctx.memoryList, 'full'),
     ORB_MEMORY_BEHAVIOR,
   ].filter(Boolean).join('\n\n')
 
@@ -417,6 +275,9 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
   // Mirror production's record-state transparency note (orb-converse.ts).
   if ((history ?? []).length === 0) {
     messages.push({ role: 'user', content: ORB_NO_SESSION_RECORD_NOTE })
+  }
+  if (ticketStatusRoutingHint) {
+    messages.push({ role: 'user', content: `[SYSTEM: This note applies to the user's latest message. ${ticketStatusRoutingHint}]` })
   }
   const disambiguationInstruction = inferProjectDisambiguationInstruction(history, input)
   if (disambiguationInstruction) messages.push({ role: 'user', content: disambiguationInstruction })
@@ -432,7 +293,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       : 'operational'
     if (voiceMode && isBroadProjectStateQuestion(input)) {
       return NextResponse.json({
-        speech: buildVoiceProjectStateSummary(),
+        speech: buildVoiceProjectStateSummary({ ...ctx, input }),
         toolCalls: [],
         stopReason: 'deterministic_voice_project_state',
         tokenUsage: { input_tokens: 0, output_tokens: 0 },
@@ -598,7 +459,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     }
 
     const historyCodes = extractCitedCodes(
-      `${(history ?? []).map(h => h.text).join(' ')} ${input} ${todoList.map(todoCode).join(' ')} ${strategicContextPacket?.backlog ?? ''} ${contextString}`,
+      `${(history ?? []).map(h => h.text).join(' ')} ${input} ${todoList.map((todo: any) => todoCode(todo, productList)).join(' ')} ${strategicContextPacket?.backlog ?? ''} ${contextString}`,
     )
     // Codes this response's own tool calls are working with count as
     // legitimate provenance too — a delete_todo call citing TEST-1 in its

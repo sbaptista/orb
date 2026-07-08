@@ -5,12 +5,12 @@ import path from 'path'
 import Anthropic from '@anthropic-ai/sdk'
 import { createStreamableValue } from 'ai/rsc'
 import { headers } from 'next/headers'
-import { getAuthContext, type AuthContext } from '@/lib/auth'
+import { getAuthContext } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_FOUNDATIONAL_DEFINITIONS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, ORB_PROJECT_HEALTH_SUMMARY, ORB_NEXT_STEP_READ, buildVoicePrompt, buildVoiceConversationPrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildOrbScopePrompt, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, buildAdaptationsPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, computeObservations, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
+import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_FOUNDATIONAL_DEFINITIONS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, ORB_PROJECT_HEALTH_SUMMARY, ORB_NEXT_STEP_READ, buildVoicePrompt, buildVoiceConversationPrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildOrbScopePrompt, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, buildAdaptationsPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 // computeInsights suspended — code preserved in lib/insights.ts for future use
-import { visibleProjectsQuery, resolveProjectByReference } from '@/lib/projects'
+import { resolveProjectByReference } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { computeUrgency, type Urgency } from '@/lib/orb-state'
 import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
@@ -33,8 +33,7 @@ import { checkOrbBudget, budgetBlockMessage } from '@/lib/orb-model/budget'
 import { classifyProviderFailure, notifyOrbIncident } from '@/lib/orb-model/incidents'
 import type { OrbModelProviderId } from '@/lib/orb-model/types'
 import { extractCitedCodes, isFalseCompletionClaim } from '@/lib/orb-model/false-claim-guard'
-import { buildProjectHealthPacket, renderProjectHealthPacket } from '@/lib/orb-model/project-health'
-import { buildNextStepPacket, renderNextStepPacket } from '@/lib/orb-model/next-step'
+import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, resolveActionSetReference, todoCode } from '@/lib/orb-model/context'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -152,28 +151,8 @@ function formatMutationSummaries(summaries: string[]): string {
   return joinNatural(summaries)
 }
 
-function isBroadProjectStateQuestion(input: string): boolean {
-  return /\b(state|status|snapshot|summary|overview|how (are|is)|what'?s going on)\b/i.test(input)
-    && /\b(projects|backlog|everything|all)\b/i.test(input)
-}
-
-function isRecentTodoReference(input: string): boolean {
-  return /\b(them|those|these|all of them|the ones|the tasks|the todos|the to dos)\b/i.test(input)
-}
-
 function isDeleteRequest(input: string): boolean {
   return /\b(delete|remove|clear|trash|get rid of)\b/i.test(input)
-}
-
-function resolveActionSetReference(input: string, actionSets: ActionSet[] | undefined): ActionSet | null {
-  const sets = (actionSets ?? []).filter(set => set.kind === 'todo_set' && set.codes.length > 0)
-  if (sets.length === 0 || !isRecentTodoReference(input)) return null
-  const lower = input.toLowerCase()
-  if (/\b(first|1st|initial)\b/.test(lower)) return sets[0] ?? null
-  if (/\b(second|2nd)\b/.test(lower)) return sets[1] ?? null
-  if (/\b(third|3rd)\b/.test(lower)) return sets[2] ?? null
-  if (/\b(last|latest|most recent|newest|just created|all of them|them|those|these|the ones)\b/.test(lower)) return sets[sets.length - 1] ?? null
-  return sets.length === 1 ? sets[0] : null
 }
 
 function inferConfirmedDeleteOpsFromHistory(
@@ -247,240 +226,6 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
 // ──────────────────────────────────────────────────────────────────────────
 // Tool Context & Helpers
 // ──────────────────────────────────────────────────────────────────────────
-
-function todoCode(todo: any, productList: any[]): string {
-  const p = productList.find((pp: any) => pp.id === todo.product_id)
-  return `${p?.code ?? p?.name ?? '???'}-${todo.todo_number}`
-}
-
-async function buildContext(supabase: any, auth: AuthContext, currentProductId: string | null) {
-  const fourteenDaysAgo = new Date(Date.now() - 14 * 86_400_000).toISOString()
-  const [
-    { data: products },
-    { data: dormantProducts },
-    { data: todos },
-    { data: statuses },
-    { data: priorities },
-    { data: knowledge },
-    { data: recentAudit, count: auditTotalCount },
-    { data: userProfile },
-    { data: categories },
-    { data: groups },
-    { data: roles },
-    { data: platforms },
-    { data: frictionLogs, count: frictionTotalCount },
-    { data: invitations },
-    { data: allUsers },
-    { data: orbPreferences },
-    { data: recentTickets },
-    { data: behaviorRules },
-    { data: orbMemories },
-    { data: orbAdaptations },
-  ] = await Promise.all([
-    visibleProjectsQuery(supabase, 'id, name, code, description, created_by'),
-    auth.isAdmin ? supabase.from('projects').select('id, name, code, created_by').eq('is_dormant', true).order('sort_order') : Promise.resolve({ data: [] }),
-    supabase.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes, due_at, urls, group_id, category_id, ticket_id, groups(name), categories(name), tickets!ticket_id(ticket_number)').is('deleted_at', null),
-    supabase.from('statuses').select('*').order('sort_order'),
-    supabase.from('priorities').select('*').order('value'),
-    supabase.from('knowledge_repo').select('*, projects(code, name)').order('created_at', { ascending: false }).limit(25),
-    supabase.from('audit_log').select('action, record_id, created_at, before, after, actor', { count: 'exact' }).gte('created_at', fourteenDaysAgo).order('created_at', { ascending: false }).limit(200),
-    supabase.from('users').select('urgency_threshold_hours, timezone, first_name, last_name').eq('id', auth.user.id).maybeSingle(),
-    // ── Additional context (ORB-146) ──
-    supabase.from('categories').select('id, name, product_id').is('deleted_at', null).order('sort_order'),
-    supabase.from('groups').select('id, name, product_id').is('deleted_at', null).order('sort_order'),
-    supabase.from('roles').select('id, name').order('id'),
-    supabase.from('platforms').select('id, name').order('id'),
-    auth.isAdmin
-      ? auth.admin.from('orb_friction').select('id, category, summary, created_at', { count: 'exact' }).order('created_at', { ascending: false }).limit(20)
-      : Promise.resolve({ data: [], count: 0 }),
-    auth.isAdmin
-      ? auth.admin.from('invitations').select('id, email, first_name, last_name, status, release_stage, invited_at, responded_at, decline_reason, role_id').order('invited_at', { ascending: false })
-      : Promise.resolve({ data: [] }),
-    auth.isAdmin
-      ? auth.admin.from('users').select('id, email, first_name, last_name, role_id, onboarded_at, release_stage').order('created_at')
-      : Promise.resolve({ data: [] }),
-    supabase.from('orb_preferences').select('key, value').eq('user_id', auth.user.id),
-    auth.isAdmin
-      ? auth.admin.from('tickets').select('id, ticket_number, type, summary, status, dismiss_reason, created_at, closed_at, detail').order('created_at', { ascending: false }).limit(10)
-      : Promise.resolve({ data: [] }),
-    supabase.from('knowledge_repo').select('title, content').contains('tags', ['orb-behavior']).order('created_at', { ascending: false }).limit(20),
-    supabase.from('orb_memory').select('track, category, content, confidence, created_at').eq('user_id', auth.user.id).or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`).order('created_at', { ascending: false }).limit(30),
-    supabase.from('orb_adaptations').select('id, title, rule, category, activated_at').eq('user_id', auth.user.id).eq('status', 'active').order('activated_at', { ascending: false }).limit(20),
-  ])
-
-  const currentUserName = userProfile ? [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ') : ''
-  const currentUser = { id: auth.user.id, email: auth.user.email, name: currentUserName || null, roles: { name: auth.role } }
-
-  const productList  = (products   ?? []).filter((p: any) => auth.isAdmin || p.created_by === auth.user.id)
-  const dormantList  = (dormantProducts ?? [])
-  const visibleProductIds = new Set(productList.map((p: any) => p.id))
-  const todoList     = (todos      ?? []).filter((t: any) => visibleProductIds.has(t.product_id))
-  const statusList   = (statuses   ?? [])
-  const priorityList = (priorities ?? [])
-  const knowledgeList = (knowledge   ?? [])
-  const todoIds = new Set(todoList.map((t: any) => t.id))
-  const auditList    = (recentAudit ?? []).filter((a: any) => todoIds.has(a.record_id))
-  const current = productList.find((p: any) => p.id === currentProductId)
-  const userList = (allUsers ?? [])
-
-  // Build a user lookup map for project ownership (admin sees all users, regular users see just themselves)
-  const userMap = new Map<string, string>()
-  for (const u of userList) {
-    const name = [u.first_name, u.last_name].filter(Boolean).join(' ')
-    userMap.set(u.id, name || u.email)
-  }
-  // Ensure the current user is always in the map
-  if (currentUser.name) {
-    userMap.set(auth.user.id, currentUser.name)
-  } else if (!userMap.has(auth.user.id)) {
-    userMap.set(auth.user.id, auth.user.email ?? 'you')
-  }
-
-  function todoLine(t: any): string {
-    const parts = [`  ${todoCode(t, productList)} [P${t.priority_value ?? '-'}] [${t.status}] ${t.title}`]
-    if (t.due_at) parts.push(`[Due: ${t.due_at.replace('T', ' ')}]`)
-    if (t.groups?.name) parts.push(`[Group: ${t.groups.name}]`)
-    if (t.categories?.name) parts.push(`[Cat: ${t.categories.name}]`)
-    const ticketNum = t.tickets?.ticket_number
-    if (ticketNum) parts.push(`[Linked: TICKETS-${ticketNum}]`)
-    const urlList = Array.isArray(t.urls) ? t.urls : []
-    if (urlList.length > 0) parts.push(`[${urlList.length} URL${urlList.length > 1 ? 's' : ''}]`)
-    return parts.join(' ')
-  }
-
-  const byProduct = productList.map((p: any) => {
-    const ownerName = userMap.get(p.created_by)
-    const ownerTag = ownerName ? ` [Owner: ${ownerName}]` : ''
-    const codeLabel = p.code ? ` [code: ${p.code}]` : ''
-    const header = `${p.name}${codeLabel}${p.description ? ` (${p.description})` : ''}${ownerTag}`
-    // All projects always visible in query scope (ORB-203)
-    const projectTodos = todoList.filter((t: any) => t.product_id === p.id)
-    const nonClosedTodos = projectTodos.filter((t: any) => !statusList.find((s: any) => s.name === t.status)?.is_closed)
-    const activeTodos = nonClosedTodos.filter((t: any) => isActive(t.status))
-    const parkedTodos = nonClosedTodos.filter((t: any) => isParked(t.status))
-    const otherNonClosedTodos = nonClosedTodos.filter((t: any) => !isActive(t.status) && !isParked(t.status))
-    const closedCount = projectTodos.length - nonClosedTodos.length
-    const summary = `  SUMMARY: active_count=${activeTodos.length} (open + in progress); parked_count=${parkedTodos.length} (deferred + on hold); closed_count=${closedCount} (excluded)`
-    const activeLine = activeTodos.map(todoLine).join('\n')
-    const parkedLine = parkedTodos.map(todoLine).join('\n')
-    const otherLine = otherNonClosedTodos.map(todoLine).join('\n')
-    const sections = [summary]
-    if (activeLine) sections.push(`  ACTIVE:\n${activeLine}`)
-    if (parkedLine) sections.push(`  PARKED (on hold/deferred):\n${parkedLine}`)
-    if (otherLine) sections.push(`  OTHER NON-CLOSED:\n${otherLine}`)
-    return `${header}:\n${sections.join('\n')}`
-  }).join('\n\n')
-
-  const dormantSection = dormantList.length > 0
-    ? `\n\nDORMANT (hidden from active views, no CRUD — use set_dormancy to wake):\n${dormantList.map((p: any) => `  ${p.name}${p.code ? ` [code: ${p.code}]` : ''}`).join(', ')}`
-    : ''
-
-  // ── Additional context sections (ORB-146) ──
-  const categoryList = (categories ?? [])
-  const groupList = (groups ?? [])
-  const roleList = (roles ?? [])
-  const platformList = (platforms ?? [])
-  const frictionList = (frictionLogs ?? [])
-  const invitationList = (invitations ?? [])
-
-  const categoriesSection = categoryList.length > 0
-    ? `\n\nCATEGORIES:\n${categoryList.map((c: any) => {
-        const proj = productList.find((p: any) => p.id === c.product_id)
-        return `  ${c.name}${proj ? ` (${proj.name})` : ''}`
-      }).join('\n')}`
-    : ''
-
-  const groupsSection = groupList.length > 0
-    ? `\n\nGROUPS:\n${groupList.map((g: any) => {
-        const proj = productList.find((p: any) => p.id === g.product_id)
-        return `  ${g.name}${proj ? ` (${proj.name})` : ''}`
-      }).join('\n')}`
-    : ''
-
-  const rolesSection = roleList.length > 0
-    ? `\n\nROLES: ${roleList.map((r: any) => r.name).join(', ')}`
-    : ''
-
-  const platformsSection = platformList.length > 0
-    ? `\n\nPLATFORMS: ${platformList.map((p: any) => p.name).join(', ')}`
-    : ''
-
-  // Admin-only sections
-  const frictionTotal = frictionTotalCount ?? frictionList.length
-  const frictionLabel = frictionList.length < frictionTotal
-    ? `showing ${frictionList.length} of ${frictionTotal}`
-    : `${frictionList.length} total`
-  const frictionSection = auth.isAdmin && frictionList.length > 0
-    ? `\n\nFRICTION LOGS (${frictionLabel}, admin view):\n${frictionList.map((f: any) => `  [${f.category}] ${f.summary} (${new Date(f.created_at).toLocaleDateString()})`).join('\n')}`
-    : ''
-
-  const invitationsSection = auth.isAdmin && invitationList.length > 0
-    ? `\n\nINVITATIONS (admin view):\n${invitationList.map((i: any) => {
-        const role = roleList.find((r: any) => r.id === i.role_id)
-        const roleName = role ? `, role: ${role.name}` : ''
-        const declined = i.decline_reason ? ` — reason: ${i.decline_reason}` : ''
-        return `  ${i.email} (${[i.first_name, i.last_name].filter(Boolean).join(' ') || 'no name'}) — ${i.status}${roleName}${i.release_stage ? `, ${i.release_stage}` : ''}${declined}`
-      }).join('\n')}`
-    : ''
-
-  const usersSection = auth.isAdmin && userList.length > 0
-    ? `\n\nUSERS (admin view, ${userList.length} total):\n${userList.map((u: any) => {
-        const role = roleList.find((r: any) => r.id === u.role_id)
-        return `  ${u.email} (${[u.first_name, u.last_name].filter(Boolean).join(' ') || 'no name'}) — ${role?.name ?? 'unknown role'}${u.onboarded_at ? ', onboarded' : ', not onboarded'}${u.release_stage ? `, ${u.release_stage}` : ''}`
-      }).join('\n')}`
-    : ''
-
-  const extraContext = categoriesSection + groupsSection + rolesSection + platformsSection + frictionSection + invitationsSection + usersSection
-
-  const urgencyThresholdHours = userProfile?.urgency_threshold_hours ?? 0
-  const preferenceList = (orbPreferences ?? []) as Array<{ key: string; value: string }>
-  const guidanceLevel = preferenceList.find(p => p.key === 'guidance_level')?.value ?? 'gentle'
-  const myProducts = productList.filter((p: any) => p.created_by === auth.user.id)
-  const myProductIds = new Set(myProducts.map((p: any) => p.id))
-  const myTodos = todoList.filter((t: any) => myProductIds.has(t.product_id))
-  const observations = guidanceLevel !== 'quiet' ? computeObservations(myTodos, myProducts) : []
-  if (observations.length > 0) console.log('[buildContext] Proactive observations:', observations)
-  else console.log('[buildContext] No observations computed. guidanceLevel:', guidanceLevel, 'todos:', todoList.length, 'products:', productList.length)
-  const projectHealthPacket = buildProjectHealthPacket({
-    projects: productList,
-    dormantProjects: dormantList,
-    todos: todoList,
-    statuses: statusList,
-    priorities: priorityList,
-    auditEvents: auditList,
-    userMap,
-    currentUserId: auth.user.id,
-  })
-  const projectHealthContext = renderProjectHealthPacket(projectHealthPacket)
-  const nextStepContext = renderNextStepPacket(buildNextStepPacket({
-    projects: productList,
-    todos: todoList,
-    priorities: priorityList,
-    auditEvents: auditList,
-    projectHealth: projectHealthPacket,
-    currentUserId: auth.user.id,
-    currentUserName: currentUser.name,
-  }))
-
-  const ticketList = (recentTickets ?? []) as Array<{ id: string; ticket_number: number; type: string; summary: string; status: string; dismiss_reason: string | null; created_at: string; closed_at: string | null; detail: Record<string, any> }>
-  const ticketsSection = ticketList.length > 0
-    ? `\n\nRECENT TICKETS (filed by you or the Orb — ${ticketList.length} most recent):\n${ticketList.map(t => {
-        const status = t.status.toUpperCase()
-        const dismissed = t.dismiss_reason ? ` — dismissed: ${t.dismiss_reason}` : ''
-        const detail = t.detail?.detail ? ` | Detail: ${String(t.detail.detail).slice(0, 80)}` : ''
-        return `  TICKETS-${t.ticket_number} [${status}] (${t.type}) ${t.summary}${dismissed}${detail}`
-      }).join('\n')}\nUse this to avoid filing duplicates and to reference resolved issues.`
-    : ''
-
-  const behaviorRuleList = (behaviorRules ?? []) as Array<{ title: string; content: string }>
-
-  const memoryList = (orbMemories ?? []) as Array<{ track: string; category: string; content: string; confidence: number; created_at: string }>
-  const adaptationList = (orbAdaptations ?? []) as Array<{ id: string; title: string; rule: string; category: string; activated_at: string }>
-
-  return { productList, dormantList, todoList, statusList, priorityList, knowledgeList, auditList, current, currentUser, userMap, urgencyThresholdHours, preferenceList, guidanceLevel, observations, projectHealthPacket, projectHealthContext, nextStepContext, behaviorRuleList, memoryList, adaptationList, contextString: byProduct + dormantSection + extraContext + ticketsSection }
-}
-
-
 
 function buildSurveyPrompt(daysActive: number | undefined, prefs: Array<{ key: string; value: string }>): string {
   const completed = prefs.find(p => p.key === 'survey_completed')?.value === 'true'
@@ -616,7 +361,7 @@ export async function orbConverse(req: OrbRequest) {
       }
 
       const supabase = auth.supabase
-      const ctx = await buildContext(supabase, auth, req.productId)
+      const ctx = await buildOrbContext(supabase, auth, { currentProductId: req.productId })
       const aiPolicy = await getRuntimeOrbAiPolicy()
 
       let uiCatalog = ''
@@ -638,27 +383,6 @@ export async function orbConverse(req: OrbRequest) {
       let hasActed = false
       const statusNames = ctx.statusList.map((s: any) => `${s.name}${s.is_closed ? ' (closed)' : s.is_open ? ' (default)' : ''}`).join(', ')
       const priorityInfo = ctx.priorityList.map((p: any) => `${p.value}:${p.label}${p.is_urgent ? ' (URGENT)' : ''}`).join(', ')
-
-      function buildVoiceProjectStateSummary(): string {
-        type ProjectCount = { name: string; count: number }
-        const visibleProjectIds = new Set(ctx.productList.map((p: any) => p.id))
-        const activeTodos = ctx.todoList.filter((t: any) => visibleProjectIds.has(t.product_id) && isActive(t.status))
-        const parkedTodos = ctx.todoList.filter((t: any) => visibleProjectIds.has(t.product_id) && isParked(t.status))
-        const activeByProject = ctx.productList
-          .map((p: any) => ({ name: p.name, count: activeTodos.filter((t: any) => t.product_id === p.id).length }))
-          .filter((p: ProjectCount) => p.count > 0)
-          .sort((a: ProjectCount, b: ProjectCount) => b.count - a.count)
-        const parkedByProject = ctx.productList
-          .map((p: any) => ({ name: p.name, count: parkedTodos.filter((t: any) => t.product_id === p.id).length }))
-          .filter((p: ProjectCount) => p.count > 0)
-          .sort((a: ProjectCount, b: ProjectCount) => b.count - a.count)
-        const notable = activeByProject[0]
-          ? `${activeByProject[0].name} has the most active work with ${activeByProject[0].count}.`
-          : parkedByProject[0]
-            ? `${parkedByProject[0].name} has the largest parked backlog with ${parkedByProject[0].count}.`
-            : 'Nothing is active right now.'
-        return `Across your projects, you have ${activeTodos.length} active tasks and ${parkedTodos.length} parked items. ${notable}`
-      }
 
       function describeTodoOperation(op: PendingMutationOperation): string {
         const input = op.params
@@ -994,9 +718,10 @@ export async function orbConverse(req: OrbRequest) {
       const ticketToolAccessPrompt = auth.isAdmin
         ? ''
         : 'TICKET ACCESS: The CURRENT USER (not you — Orb has no admin/non-admin identity of its own, only the user does) is not an Admin, so query_tickets (the full admin tool, sees every ticket) is not available to them. But they CAN see tickets they filed themselves, including ones you filed on their behalf via create_ticket — use query_db with table="tickets" for this; RLS automatically scopes the results to their own reported_by rows, so no explicit filter is needed. When explaining this scoping, phrase it about THEM — "you\'re not an admin", "your account doesn\'t have admin access" — never "I am not an admin" or "I am non-admin"; you are never the one being permission-checked. Only refuse (and suggest checking with an admin) if they ask about tickets broadly across all users, or about another specific user\'s ticket.'
+      const ticketStatusRoutingHint = buildTicketStatusRoutingHint(req.input, req.history, auth.isAdmin)
 
       if (req.uiContext?.voiceMode && isBroadProjectStateQuestion(req.input)) {
-        const speech = buildVoiceProjectStateSummary()
+        const speech = buildVoiceProjectStateSummary({ ...ctx, input: req.input })
         recordModelRequest(speech)
         recordMetrics(speech.length)
         stream.done({ speech, isStreaming: false })
@@ -1074,6 +799,9 @@ export async function orbConverse(req: OrbRequest) {
       // state — not to any particular phrasing of "the ones you created".
       if ((req.history ?? []).length === 0) {
         messages.push({ role: 'user', content: ORB_NO_SESSION_RECORD_NOTE })
+      }
+      if (ticketStatusRoutingHint) {
+        messages.push({ role: 'user', content: `[SYSTEM: This note applies to the user's latest message. ${ticketStatusRoutingHint}]` })
       }
 
       // Server-held pending PROJECT mutation (propose/confirm/execute). The client
@@ -1176,6 +904,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             currentProjectName: ctx.current?.name,
             currentUserNameOrEmail: ctx.currentUser.name || ctx.currentUser.email,
           }),
+          ticketStatusRoutingHint,
           req.uiContext ? `UI STATE: The user is viewing: ${req.uiContext.viewMode ?? 'list'} view | filter: ${req.uiContext.filterStatus ?? 'active'} | priority filter: ${req.uiContext.filterPriority ?? 'all'} | sort: ${req.uiContext.sortAsc ? 'oldest first' : 'newest first'} | orb pane: ${req.uiContext.orbPaneVisible ? 'visible' : 'hidden'} | list pane: ${req.uiContext.listPaneVisible ? 'visible' : 'hidden'} | device: ${req.uiContext.isMobile ? 'mobile' : 'desktop'}. Use this to understand what the user sees when they say "this view", "the list", "that column", etc.` : '',
           req.uiContext?.voiceMode ? buildVoiceConversationPrompt({
             ttsProvider: req.uiContext.ttsProvider,
@@ -2440,7 +2169,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
 export async function orbGreeting(productId: string | null): Promise<string | null> {
   try {
     const auth = await getAuthContext()
-    const ctx = await buildContext(auth.supabase, auth, productId)
+    const ctx = await buildOrbContext(auth.supabase, auth, { currentProductId: productId })
 
     if (ctx.todoList.length === 0) return null
 
