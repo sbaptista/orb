@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { checkLoginAllowed } from '@/app/actions/auth-actions'
 import { devLogin } from '@/app/actions/dev-login'
-import { isPasskeyAvailable, isConditionalMediationSupported, authenticateWithPasskey, authenticateWithConditionalMediation } from '@/lib/passkey'
+import { isPasskeyAvailable, authenticateWithPasskey } from '@/lib/passkey'
 import { startInteraction } from '@/lib/performance/telemetry'
+import MuralCanvas from '@/components/MuralCanvas'
 
 const DEV_USERS = process.env.NODE_ENV === 'development' ? [
   { label: 'Stan', email: 'stan.baptista@gmail.com' },
@@ -40,43 +41,9 @@ function LoginForm() {
     return () => window.clearTimeout(id)
   }, [])
 
-  // ── Conditional mediation: background passkey autofill ──
-  useEffect(() => {
-    let cancelled = false
-    const controller = new AbortController()
-    abortRef.current = controller
-
-    async function startConditionalMediation() {
-      const perf = startInteraction({ focus: 'auth', flow: 'login', interaction: 'conditional_passkey', surface: 'auth-login' })
-      const supported = await isConditionalMediationSupported()
-      perf.mark('support_checked')
-      if (!supported || cancelled) {
-        perf.end(true, null, { supported })
-        return
-      }
-
-      const result = await authenticateWithConditionalMediation(supabase, controller)
-      perf.mark('conditional_mediation_completed')
-
-      if (cancelled) return
-      if (result.ok) {
-        perf.end(true)
-        router.push('/dashboard')
-        return
-      }
-      perf.end(false, result.error ?? 'conditional_passkey_failed')
-      // All failures are silent — aborted, cancelled, no credentials, errors.
-      // User continues with email/OTP normally.
-    }
-
-    startConditionalMediation()
-
-    return () => {
-      cancelled = true
-      controller.abort()
-      abortRef.current = null
-    }
-  }, [supabase, router])
+  // Passkey autofill (WebAuthn conditional mediation) was removed: in production it never
+  // completed a sign-in, ran a background credential request on every mount, and its dwell
+  // time polluted auth latency telemetry. Passkey sign-in is now an explicit button only.
 
   // Calculate remaining cooldown dynamically during render (only after hydration)
   const trimmedEmail = email.trim().toLowerCase()
@@ -225,6 +192,10 @@ function LoginForm() {
 
   return (
     <div className="auth-card">
+      <div className="auth-orb" aria-hidden="true">
+        <span className="auth-orb-glow" />
+        <span className="auth-orb-body" />
+      </div>
       <div className="auth-header">
         <h1 className="auth-title">Orb</h1>
         <p className="auth-subtitle">
@@ -236,11 +207,16 @@ function LoginForm() {
         <>
           <button
             type="button"
-            className="auth-submit"
+            className="auth-submit auth-passkey-btn"
             onClick={handlePasskeyLogin}
             disabled={passkeyLoading}
           >
-            {passkeyLoading ? 'Authenticating…' : 'Sign in with passkey'}
+            {passkeyLoading ? 'Authenticating…' : (
+              <>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="8" cy="12" r="4"/><path d="M12 12h9"/><path d="M18 12v3.5"/><path d="M15 12v2.5"/></svg>
+                Sign in with a passkey
+              </>
+            )}
           </button>
           <div className="auth-divider">
             <span>or</span>
@@ -258,7 +234,7 @@ function LoginForm() {
             onChange={(e) => setEmail(e.target.value)}
             required
             placeholder="you@example.com"
-            autoComplete="username webauthn"
+            autoComplete="email"
             className="auth-input"
           />
         </div>
@@ -272,7 +248,7 @@ function LoginForm() {
         )}
 
         <button type="submit" disabled={loading || cooldown > 0} className="auth-submit">
-          {loading ? 'Sending…' : cooldown > 0 ? `Send verification code (${cooldown}s)` : 'Send verification code'}
+          {loading ? 'Requesting…' : cooldown > 0 ? `Request verification code (${cooldown}s)` : 'Request verification code'}
         </button>
       </form>
 
@@ -318,6 +294,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <div className="auth-page">
+      <MuralCanvas urgency="calm" />
       <div className="auth-wrap">
         <Suspense fallback={
           <div className="auth-card">

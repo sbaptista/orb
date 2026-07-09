@@ -134,6 +134,26 @@ The Account page uses the calm `MuralCanvas` behind a centered settings surface.
 | `account-modal-body` | Shared body spacing for Account dialogs |
 | `account-dialog-copy` | Readable explanatory dialog text |
 
+### Login / Auth Pages (`auth-*`)
+**Files:** `app/auth/login/page.tsx`, `app/auth/verify-otp/page.tsx`
+**CSS prefix:** `auth-`
+
+Centered auth card over the calm `MuralCanvas`, matching the dashboard/account world. The login card leads with two explicit sign-in paths — a **passkey** button (key glyph, `auth-passkey-btn`) on top, then an email path that requests a verification code. There is no passkey autofill (WebAuthn conditional mediation was removed). When passkeys aren't available (unsupported browser / host), the passkey button and divider are hidden and the subtitle switches to the email-only prompt — the same state new users get. The calm ambient Orb (`auth-orb`) floats on the card's top-right corner, breathing at the calm 5.5s tempo.
+
+| Class | Purpose |
+|---|---|
+| `auth-page` | Full-height centered flex container; base `--bg` under the fixed mural |
+| `auth-wrap` | Positioned (`z-index: 1`) card column above the mural, `max-width: 360px` |
+| `auth-card` | Frosted translucent card — `rgba(255,255,255,0.96)` + `backdrop-filter: blur(10px)`, matching `dash-strip-inner` |
+| `auth-orb` / `auth-orb-glow` / `auth-orb-body` | Calm ambient Orb floating on the card's top-right corner (mirrors the UnifiedDashboard calm orb; 5.5s breathing) |
+| `auth-header` / `auth-title` / `auth-subtitle` | Card heading; subtitle adapts to passkey availability |
+| `auth-passkey-btn` | Passkey sign-in button — `auth-submit` + inline key glyph (flex + gap) |
+| `auth-submit` | Primary green button (passkey, request code) |
+| `auth-divider` | "or" separator between passkey and email paths |
+| `auth-field` / `auth-label` / `auth-input` | Email field |
+| `auth-info` / `auth-error` | Cooldown notice / error panel |
+| `auth-dev-bypass` | Dev-only quick login buttons |
+
 ### Ambient Dashboard (`dash-*`)
 **Status:** Current `/dashboard` page — will be replaced by Unified Dashboard  
 **Files:** `components/AmbientDashboard.tsx`  

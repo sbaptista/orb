@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.174',
+    date: '2026-07-08',
+    changes: [
+      'Redesigned the login screen. It now sits on the calm green Mandelbrot mural — the same living background as the dashboard and account pages — with a frosted translucent card and the breathing ambient Orb floating on the card\'s top-right corner, so signing in feels like the same world as the rest of the app rather than a plain form. The passkey button gained a key glyph, and the email button now reads "Request verification code."',
+      'Removed passkey autofill (WebAuthn conditional mediation) from login. In production it never once completed a sign-in yet ran a background credential request on every login mount, and its dwell time was being logged as auth latency — which made login look intermittently slow when it was not. Passkey sign-in is now an explicit button only; that button already handles multiple passkeys and cross-device passkeys through the OS. New users and passkey-less browsers continue to get the email-only path automatically.',
+      'The mural now also backs the verification-code screen so the background no longer drops between entering your email and entering the code. The login Orb is perched inside the card\'s top-right corner (rather than overhanging it) and sized down so it never obscures text.',
+    ]
+  },
+  {
     version: 'v0.6.173',
     date: '2026-07-06',
     changes: [

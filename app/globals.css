@@ -5575,16 +5575,65 @@ mark.crud-highlight {
 }
 
 .auth-wrap {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 360px;
 }
 
 .auth-card {
-  background: var(--bg2);
+  position: relative;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-radius: var(--r-xl);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-md);
   padding: var(--sp-3xl);
+}
+
+/* Calm ambient Orb floating on the card's top-right corner.
+   Mirrors the UnifiedDashboard ambient orb (calm palette, 5.5s breathing). */
+.auth-orb {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 40px;
+  height: 40px;
+  z-index: 2;
+  pointer-events: none;
+}
+.auth-orb-glow {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, rgba(80, 130, 80, 0.38), transparent 70%);
+  filter: blur(12px);
+  animation: auth-orb-glow-calm 5.5s ease-in-out infinite;
+}
+.auth-orb-body {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 30%, #ffffff, #d4e4d4 45%, #b8d0b8 82%);
+  box-shadow:
+    0 8px 24px rgba(80, 130, 80, 0.34), 0 2px 8px rgba(0, 0, 0, 0.06),
+    inset 0 -4px 10px rgba(0, 0, 0, 0.04), inset 0 2px 8px rgba(255, 255, 255, 0.9);
+  animation: auth-orb-calm 5.5s ease-in-out infinite;
+}
+@keyframes auth-orb-calm { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.025); } }
+@keyframes auth-orb-glow-calm { 0%, 100% { transform: scale(1); opacity: 0.92; } 50% { transform: scale(1.05); opacity: 1; } }
+
+/* Passkey button: key glyph + label */
+.auth-passkey-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-sm);
+}
+.auth-passkey-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .auth-header {

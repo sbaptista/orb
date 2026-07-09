@@ -4,6 +4,7 @@ import { useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { startInteraction } from '@/lib/performance/telemetry'
+import MuralCanvas from '@/components/MuralCanvas'
 
 function VerifyOtpContent() {
   const searchParams = useSearchParams()
@@ -60,6 +61,7 @@ function VerifyOtpContent() {
 
   return (
     <div className="auth-page">
+      <MuralCanvas urgency="calm" />
       <div className="auth-wrap">
         <div className="auth-card">
           <div className="auth-header">
