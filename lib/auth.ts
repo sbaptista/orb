@@ -18,21 +18,28 @@ export type AuthContext = {
 
 export async function getAuthContext(): Promise<AuthContext> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
+  // ORB-312: verify the JWT locally (ES256 via cached JWKS) instead of a network
+  // getUser() round-trip on every authed server action. getClaims() falls back to
+  // getUser() automatically if local verification isn't possible (symmetric key /
+  // no WebCrypto), so this cannot break auth — worst case, no speedup.
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims()
+  const claims = claimsData?.claims
+  if (claimsError || !claims?.sub) throw new Error('Not authenticated')
+  const userId = claims.sub
+  const userEmail = typeof claims.email === 'string' ? claims.email : ''
 
   const admin = createAdminClient()
   const { data } = await admin
     .from('users')
     .select('role_id, roles(name)')
-    .eq('id', user.id)
+    .eq('id', userId)
     .single()
 
   const roleId = data?.role_id ?? 0
   const roleName = (data as any)?.roles?.name ?? 'unknown'
 
   return {
-    user: { id: user.id, email: user.email ?? '' },
+    user: { id: userId, email: userEmail },
     role: roleName,
     roleId,
     isAdmin: ADMIN_ROLE_IDS.includes(roleId),

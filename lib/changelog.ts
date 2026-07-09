@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.177',
+    date: '2026-07-08',
+    changes: [
+      'Sped up every authenticated page. The shared auth check ran a network round-trip to the auth server (getUser) on every server action — the dominant remaining cost behind the AI Metrics load and present on all authed pages. It now verifies the login token cryptographically on our own server (local JWKS verification, enabled by the project’s asymmetric signing keys), with an automatic fallback to the network check if local verification ever isn’t available, so it cannot break sign-in.',
+    ]
+  },
+  {
     version: 'v0.6.176',
     date: '2026-07-08',
     changes: [
