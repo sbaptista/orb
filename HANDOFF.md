@@ -10,11 +10,22 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.174
+- **Version:** 0.6.175
 
 ---
 
 ### Last Session Completed
+
+**ORB-312 auth telemetry hygiene + correlated login→dashboard span — 2026-07-08 (Claude Code, Opus 4.8) — v0.6.175 (committed `502882e`, pushed)**
+
+Acted on two of the ORB-312 follow-ups surfaced by the login investigation below (both instrumentation, no user-facing behavior change):
+- **Auth telemetry hygiene** (`app/actions/performance-events.ts`): an `isBenignPerfEvent` classifier excludes the removed conditional-mediation span + user-cancelled/no-credential/abort/expired passkey outcomes from **both** latency percentiles and the failure rate, reported separately as `benign`. Removes the fake ~30% auth failure rate; genuine failures still count. Settings → Performance shows an "Expected / Benign" stat card.
+- **Correlated `route_to_ready` span**: login + verify-otp `markPerformanceNavigation('/dashboard')` at auth-success; `UnifiedDashboard` reads it (single-shot `consumePerformanceNavigationStart`) and emits a `dashboard-init / route_to_ready` span backdated across the redirect via `startInteraction({ startTimeMs })` — the true "signed in → dashboard usable" wait. Also captures sidebar → dashboard.
+- Docs: `object-capability-matrix.md` Part 2 (auth + dashboard rows), `ui-catalog.md` (benign card). Verified: `tsc` clean, `eslint` 0 errors, `verify-ui-catalog` passed. No eval (not a conversation change).
+
+**ORB-312 stays open** for the actual optimization passes it surfaced (AI Metrics p95 ~4.5–5.3s cross-platform; dashboard-init p95 ~4.5–5.0s Mac/iPad) — instrumentation is now in place to measure them.
+
+---
 
 **Login page redesign + ORB-312 login-performance investigation — 2026-07-08 (Claude Code, Opus 4.8) — v0.6.174 (committed `3ab6bc6`, pushed)**
 
@@ -305,7 +316,7 @@ Continuation of the same session as the entry below (concurrency protocol + ORB-
 
 ### Uncommitted Changes
 
-None — all login-redesign work (v0.6.174) is committed and pushed (`3ab6bc6`). The prior ORB-303 session (v0.6.161–v0.6.173) is also committed (`024c79c`).
+None — all this session's work is committed and pushed: ORB-312 telemetry v0.6.175 (`502882e`), login redesign v0.6.174 (`3ab6bc6`), HANDOFF (`a52747a`). The prior ORB-303 session (v0.6.161–v0.6.173) is committed (`024c79c`).
 
 - `.claude/settings.local.json` — remains intentionally uncommitted (harness permission allowlist; the `git push` gate stays in `ask`), as always.
 
