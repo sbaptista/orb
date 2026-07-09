@@ -10,11 +10,23 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.175
+- **Version:** 0.6.176
 
 ---
 
 ### Last Session Completed
+
+**ORB-312 AI Metrics accounting-load optimization — 2026-07-08 (Claude Code, Opus 4.8) — v0.6.176 (committed `e6ca709`, pushed)**
+
+First ORB-312 optimization pass (measure-first). AI Metrics `ai_accounting_load` was ~3–4s p50; the telemetry stage-split showed it's ~100% server+network (client render ~1ms), and the RPC is only **183ms** on a 3.6k-row table. Root cause: the span fired **two** server actions (`getAiCostSummary` + `getOrbAiSettings`), and **Next.js serializes server actions**, so each paid a full `getAuthContext()` / `supabase.auth.getUser()` network round-trip — the auth cost was paid twice.
+
+**Fix:** new `getAiMetricsBundle(options)` = one `requireAdmin()` + server-side `Promise.all` of both fetches. Extracted `fetchOrbAiSettings(ctx)` into new `lib/orb-model/ai-settings-core.ts` (no auth gate) for reuse; public `getAiCostSummary`/`getOrbAiSettings` wrappers unchanged so other callers (SettingsAI) are unaffected. SettingsMetrics now makes one call. Verified: tsc clean, eslint clean.
+
+**Expected** ~halving (~4s → ~2s). **Measure after deploy:** compare `settings-ai-metrics / ai_accounting_load` p50/p95 on v0.6.176 vs the v≤0.6.175 baseline.
+
+**Residual lever (next, if wanted):** even merged, you pay one `supabase.auth.getUser()` network validation (~1.8s) per admin action; making that cheap (local JWT verify via `getClaims`, or auth-schema health) is a broader shared-auth-path pass — scope separately. **ORB-312 remains open.**
+
+---
 
 **ORB-312 auth telemetry hygiene + correlated login→dashboard span — 2026-07-08 (Claude Code, Opus 4.8) — v0.6.175 (committed `502882e`, pushed)**
 
@@ -316,7 +328,7 @@ Continuation of the same session as the entry below (concurrency protocol + ORB-
 
 ### Uncommitted Changes
 
-None — all this session's work is committed and pushed: ORB-312 telemetry v0.6.175 (`502882e`), login redesign v0.6.174 (`3ab6bc6`), HANDOFF (`a52747a`). The prior ORB-303 session (v0.6.161–v0.6.173) is committed (`024c79c`).
+None — all this session's work is committed and pushed: AI Metrics optimization v0.6.176 (`e6ca709`), ORB-312 telemetry v0.6.175 (`502882e`), login redesign v0.6.174 (`3ab6bc6`). The prior ORB-303 session (v0.6.161–v0.6.173) is committed (`024c79c`).
 
 - `.claude/settings.local.json` — remains intentionally uncommitted (harness permission allowlist; the `git push` gate stays in `ask`), as always.
 
