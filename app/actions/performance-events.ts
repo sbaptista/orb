@@ -155,18 +155,33 @@ export async function deletePerformanceEvents(ids: string[]) {
   }
 }
 
+// ORB-312: "benign" performance events — user-cancelled / expected ceremony
+// outcomes (passkey cancel / no-credential / abort / expired) and the removed
+// WebAuthn conditional-mediation background span. These are neither real latency
+// nor reliability failures, so they are excluded from both latency percentiles and
+// the failure rate, and reported separately as `benign`. Without this, benign
+// passkey aborts made auth look like a ~30% failure rate.
+const BENIGN_FAILURE_CODES = new Set(['cancelled', 'canceled', 'no_credentials', 'aborted', 'Aborted by AbortSignal.', 'Challenge has expired'])
+function isBenignPerfEvent(interaction: string, failureCode: string | null, success: boolean): boolean {
+  if (interaction === 'conditional_passkey') return true
+  if (success) return false
+  const code = failureCode ?? ''
+  if (BENIGN_FAILURE_CODES.has(code)) return true
+  return /abort|cancel|not allowed|notallowederror|no.?credential|expired/i.test(code)
+}
+
 export async function getPerformanceSummary(options: Omit<PerformanceEventQuery, 'page' | 'pageSize' | 'sortKey' | 'sortDir'> = {}) {
   const ctx = await requireAdmin()
   try {
     let query = ctx.admin
       .from('performance_events')
-      .select('created_at, environment, focus, flow, interaction, platform, browser, duration_ms, success')
+      .select('created_at, environment, focus, flow, interaction, platform, browser, duration_ms, success, failure_code')
       .limit(5000)
     query = applyFilters(query, options)
     const { data, error } = await query.order('created_at', { ascending: false })
     if (error) throw error
-    const rows = (data ?? []) as Array<{ created_at: string; environment: string; focus: string; flow: string; interaction: string; platform: string | null; browser: string | null; duration_ms: number; success: boolean }>
-    const groups = new Map<string, { environment: string; focus: string; flow: string; interaction: string; platform: string; browser: string; durations: number[]; failures: number; totalCount: number }>()
+    const rows = (data ?? []) as Array<{ created_at: string; environment: string; focus: string; flow: string; interaction: string; platform: string | null; browser: string | null; duration_ms: number; success: boolean; failure_code: string | null }>
+    const groups = new Map<string, { environment: string; focus: string; flow: string; interaction: string; platform: string; browser: string; durations: number[]; failures: number; benign: number; totalCount: number }>()
     const coverage = new Map<string, { environment: string; platform: string; browser: string; count: number; successes: number; failures: number; latestAt: string }>()
     for (const row of rows) {
       const key = [row.environment, row.focus, row.flow, row.interaction, row.platform ?? 'unknown', row.browser ?? 'unknown'].join('|')
@@ -179,11 +194,14 @@ export async function getPerformanceSummary(options: Omit<PerformanceEventQuery,
         browser: row.browser ?? 'unknown',
         durations: [],
         failures: 0,
+        benign: 0,
         totalCount: 0,
       }
+      const benign = isBenignPerfEvent(row.interaction, row.failure_code, row.success)
       group.totalCount += 1
-      if (row.success) group.durations.push(row.duration_ms)
-      if (!row.success) group.failures += 1
+      if (benign) group.benign += 1
+      else if (row.success) group.durations.push(row.duration_ms)
+      else group.failures += 1
       groups.set(key, group)
 
       const coverageKey = [row.environment, row.platform ?? 'unknown', row.browser ?? 'unknown'].join('|')
@@ -197,8 +215,10 @@ export async function getPerformanceSummary(options: Omit<PerformanceEventQuery,
         latestAt: row.created_at,
       }
       coverageGroup.count += 1
-      if (row.success) coverageGroup.successes += 1
-      else coverageGroup.failures += 1
+      if (!benign) {
+        if (row.success) coverageGroup.successes += 1
+        else coverageGroup.failures += 1
+      }
       if (row.created_at > coverageGroup.latestAt) coverageGroup.latestAt = row.created_at
       coverage.set(coverageKey, coverageGroup)
     }
@@ -215,7 +235,7 @@ export async function getPerformanceSummary(options: Omit<PerformanceEventQuery,
         p75: percentile(group.durations, 0.75),
         p95: percentile(group.durations, 0.95),
         max: group.durations.length ? Math.max(...group.durations) : 0,
-        failureRate: group.totalCount ? group.failures / group.totalCount : 0,
+        failureRate: (group.totalCount - group.benign) ? group.failures / (group.totalCount - group.benign) : 0,
         durations: undefined,
       }))
       .sort((a, b) => (b.p95 - a.p95) || (b.failures - a.failures))
@@ -226,8 +246,9 @@ export async function getPerformanceSummary(options: Omit<PerformanceEventQuery,
       coverage: [...coverage.values()].sort((a, b) => b.count - a.count),
       totals: {
         events: rows.length,
-        successes: rows.filter(row => row.success).length,
-        failures: rows.filter(row => !row.success).length,
+        successes: rows.filter(row => row.success && !isBenignPerfEvent(row.interaction, row.failure_code, row.success)).length,
+        failures: rows.filter(row => !row.success && !isBenignPerfEvent(row.interaction, row.failure_code, row.success)).length,
+        benign: rows.filter(row => isBenignPerfEvent(row.interaction, row.failure_code, row.success)).length,
         environments: [...new Set(rows.map(row => row.environment))],
       },
       appVersion: VERSION,

@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { checkLoginAllowed } from '@/app/actions/auth-actions'
 import { devLogin } from '@/app/actions/dev-login'
 import { isPasskeyAvailable, authenticateWithPasskey } from '@/lib/passkey'
-import { startInteraction } from '@/lib/performance/telemetry'
+import { startInteraction, markPerformanceNavigation } from '@/lib/performance/telemetry'
 import MuralCanvas from '@/components/MuralCanvas'
 
 const DEV_USERS = process.env.NODE_ENV === 'development' ? [
@@ -102,6 +102,7 @@ function LoginForm() {
 
     if (result.ok) {
       perf.end(true)
+      markPerformanceNavigation('/dashboard') // ORB-312: measure auth-success → dashboard-ready
       router.push('/dashboard')
       return
     }

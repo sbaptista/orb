@@ -73,6 +73,7 @@ type SummaryRow = {
   count: number
   totalCount: number
   failures: number
+  benign: number
   failureRate: number
   p50: number
   p75: number
@@ -295,7 +296,7 @@ export default function SettingsPerformance() {
   const [version, setVersion] = useState('all')
   const [summary, setSummary] = useState<SummaryRow[]>([])
   const [coverage, setCoverage] = useState<CoverageRow[]>([])
-  const [totals, setTotals] = useState<{ events: number; successes: number; failures: number; environments: string[] }>({ events: 0, successes: 0, failures: 0, environments: [] })
+  const [totals, setTotals] = useState<{ events: number; successes: number; failures: number; benign: number; environments: string[] }>({ events: 0, successes: 0, failures: 0, benign: 0, environments: [] })
   const [viewingRow, setViewingRow] = useState<PerfRow | null>(null)
   const [clientEnabled, setClientEnabled] = useState(false)
   const [clientFocus, setClientFocus] = useState<PerfFocus[]>([])
@@ -346,7 +347,7 @@ export default function SettingsPerformance() {
       if (!cancelled && result.ok) {
         setSummary((result.data ?? []) as SummaryRow[])
         setCoverage((result.coverage ?? []) as CoverageRow[])
-        setTotals((result.totals ?? { events: 0, successes: 0, failures: 0, environments: [] }) as { events: number; successes: number; failures: number; environments: string[] })
+        setTotals((result.totals ?? { events: 0, successes: 0, failures: 0, benign: 0, environments: [] }) as { events: number; successes: number; failures: number; benign: number; environments: string[] })
       }
     })
     return () => { cancelled = true }
@@ -583,6 +584,7 @@ export default function SettingsPerformance() {
                     <StatCard label="Data Coverage" value={analysis.productionEvents > 0 ? `${analysis.productionEvents.toLocaleString()} production` : 'Dev only'} />
                     <StatCard label="Completed Events" value={totals.successes.toLocaleString()} />
                     <StatCard label="Failed / Interrupted" value={totals.failures.toLocaleString()} />
+                    <StatCard label="Expected / Benign" value={totals.benign.toLocaleString()} />
                     <StatCard label="Top Bottleneck" value={analysis.topBottleneck ? `${analysis.topBottleneck.interaction} ${ms(analysis.topBottleneck.p95)}` : '—'} />
                   </div>
                   <div className="perf-analysis-columns">

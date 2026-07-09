@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.175',
+    date: '2026-07-08',
+    changes: [
+      'Auth performance metrics now tell the truth. Passkey attempts the user cancels or that have no credential, plus the (now-removed) background passkey-autofill span, are classified as "expected" rather than counted as failures — previously they inflated the login flow to a ~30% failure rate and polluted its latency numbers. Settings → Performance shows a new "Expected / Benign" count alongside completed and failed events.',
+      'Added an end-to-end "route to ready" measurement from sign-in to a usable dashboard. Login and the verification-code screen stamp the moment auth succeeds, and the dashboard now reports the full perceived wait across the redirect — the gap that previously fell between two separate, unlinked measurements. Also captures sidebar → dashboard navigation.',
+    ]
+  },
+  {
     version: 'v0.6.174',
     date: '2026-07-08',
     changes: [

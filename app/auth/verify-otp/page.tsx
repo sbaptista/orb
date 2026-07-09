@@ -3,7 +3,7 @@
 import { useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { startInteraction } from '@/lib/performance/telemetry'
+import { startInteraction, markPerformanceNavigation } from '@/lib/performance/telemetry'
 import MuralCanvas from '@/components/MuralCanvas'
 
 function VerifyOtpContent() {
@@ -45,6 +45,7 @@ function VerifyOtpContent() {
       } else {
         setVerified(true)
         perf.end(true)
+        markPerformanceNavigation('/dashboard') // ORB-312: measure auth-success → dashboard-ready
         router.push('/dashboard')
       }
     } catch (err: any) {

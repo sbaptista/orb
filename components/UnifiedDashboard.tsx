@@ -43,7 +43,7 @@ import TaskChecklistView from './views/TaskChecklistView'
 import TaskKanbanView from './views/TaskKanbanView'
 import ViewSwitcher, { type ViewMode } from './views/ViewSwitcher'
 import { useSystemState } from '@/components/SystemStateProvider'
-import { startInteraction } from '@/lib/performance/telemetry'
+import { startInteraction, consumePerformanceNavigationStart } from '@/lib/performance/telemetry'
 
 const TTS_CONFIG_CHANGED_EVENT = 'orb:tts-config-changed'
 
@@ -775,6 +775,13 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // Load products + profile
   useEffect(() => {
     async function load() {
+      // ORB-312: emit the perceived auth-success → dashboard-ready span, backdated to the
+      // nav stamp set at login/verify-otp (single-shot; also covers sidebar → dashboard).
+      const navStartMs = consumePerformanceNavigationStart('/dashboard')
+      const emitRouteReady = () => {
+        if (navStartMs == null) return
+        startInteraction({ focus: 'dashboard-init', flow: 'dashboard', interaction: 'route_to_ready', surface: 'dashboard', startTimeMs: navStartMs }).end(true)
+      }
       const perf = startInteraction({ focus: 'dashboard-init', flow: 'dashboard', interaction: 'client_init', surface: 'dashboard' })
       try {
         const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -822,6 +829,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             setSelectedId(found ? found.id : initialProducts[0].id)
           }
           perf.end(true, null, { initialProducts: initialProducts.length })
+          emitRouteReady()
           return
         }
 
@@ -836,6 +844,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           setSelectedId(found ? found.id : list[0].id)
         }
         perf.end(true, null, { products: list.length })
+        emitRouteReady()
       } catch (err) {
         console.error('[UnifiedDashboard] Load failed:', err)
         perf.end(false, 'dashboard_client_init_failed')

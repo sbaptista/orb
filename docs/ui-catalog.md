@@ -249,7 +249,7 @@ Paired controls above collection content: a search/action controller and a pagin
 
 ### Telemetry Controls And Cards (`perf-*`)
 **Files:** `components/settings/SettingsPerformance.tsx`, `app/globals.css`
-Settings Performance uses a thin responsive layer over established Settings cards and CRUD cards.
+Settings Performance uses a thin responsive layer over established Settings cards and CRUD cards. The Data Coverage totals show three `StatCard`s (existing `metrics-summary-card` pattern): **Completed Events**, **Failed / Interrupted**, and **Expected / Benign** — the last is user-cancelled / expected ceremony outcomes (passkey cancel, no-credential, abort/expired) and the removed conditional-mediation span, which are excluded from both latency percentiles and the failure rate (ORB-312) so auth stops reading as failing.
 
 | Class | Purpose |
 |---|---|

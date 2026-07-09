@@ -142,6 +142,19 @@ export function getPerformanceNavigationStart(href: string) {
   }
 }
 
+/**
+ * Single-shot read of a nav-start stamp: returns the start time (perf.now basis)
+ * for `href` and clears it so the destination emits the route→ready span exactly
+ * once. Pair with `startInteraction({ startTimeMs })` to backdate across a redirect.
+ */
+export function consumePerformanceNavigationStart(href: string) {
+  const atMs = getPerformanceNavigationStart(href)
+  if (atMs != null && typeof window !== 'undefined') {
+    try { sessionStorage.removeItem(STORAGE_NAV_START) } catch {}
+  }
+  return atMs
+}
+
 function platformClass() {
   if (typeof window === 'undefined') return 'unknown'
   const ua = navigator.userAgent
