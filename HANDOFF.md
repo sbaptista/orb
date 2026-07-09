@@ -10,11 +10,36 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.173
+- **Version:** 0.6.174
 
 ---
 
 ### Last Session Completed
+
+**Login page redesign + ORB-312 login-performance investigation — 2026-07-08 (Claude Code, Opus 4.8) — v0.6.174 (committed `3ab6bc6`, pushed)**
+
+Started as an ORB-312 (Production Performance Baseline Sweep) look at "login sometimes takes several minutes." It resolved into a **telemetry + UX finding, not a latency bug**, and then a full login redesign that Stan approved via an iterative prototype.
+
+**The investigation (read-only telemetry):**
+- The multi-minute (and one 6.7-hour) auth durations were all WebAuthn **conditional-mediation (passkey autofill) *dwell* time logged as latency** — a background `navigator.credentials.get()` that stays open until the user picks a passkey or leaves. Not sign-in latency.
+- Conditional mediation completed **0 of 35** sign-ins in production while firing a background credential request on every login mount. Real passkey sign-in (explicit button) is ~6s, dominated by the OS credential ceremony (environment, not app code). The "31.6% auth failure rate" is almost entirely benign conditional-mediation aborts.
+- Also surfaced: `dashboard-init` p95 **4.5–5.0s on Mac/iPad** (n=240/133) is a real, app-side post-login tail; the login→dashboard handoff is **not** captured as one correlated span (login spans end at `router.push`; `dashboard-init` starts fresh, unlinked).
+
+**The redesign (built + shipped):**
+- Removed conditional mediation entirely. Passkey sign-in is an explicit button only (key glyph added); email button → **"Request verification code"**; email `autoComplete="email"`.
+- Login **and** verify-otp now sit on the calm `MuralCanvas`; frosted translucent `.auth-card` (`rgba(255,255,255,0.96)` + `blur(10px)`, matching `dash-strip-inner`); calm ambient Orb perched **inside** the card's top-right corner (40px, 5.5s breathing).
+- The existing `passkeyAvailable` gate already gives new users / passkey-less browsers the email-only path — no new branch. **Note:** passkey is host-gated to production, so **localhost only ever shows the email-only layout** — the passkey button + two-button layout can only be tested on production.
+- New `docs/ui-catalog.md` **Login/Auth (`auth-*`)** section. Verified: `tsc` clean, `eslint` clean, `verify-ui-catalog` passed. Not an Orb-conversation change → **no eval needed** (Tier 1 unaffected).
+
+**Tracking:**
+- Filed **and closed ORB-319** (login redesign) with attributed resolution notes (server-verified `closed_at`) + Knowledge Repo entry `4adccf73`.
+
+**Still open — ORB-312 follow-ups (next priorities):**
+- Correlated **login→dashboard** span (the perceived post-login wait isn't measured end-to-end).
+- **Auth telemetry-hygiene:** exclude conditional-mediation dwell + benign passkey aborts from auth latency and failure-rate reporting (otherwise auth always looks slow/broken).
+- Add the mural to any remaining auth surfaces if new ones appear. ORB-312 itself remains **open**.
+
+---
 
 **ORB-303 — query_tickets read tool + full closeout, eval de-flake — 2026-07-06 (Claude Code, Opus 4.8) — v0.6.161–v0.6.173**
 
@@ -270,40 +295,19 @@ Continuation of the same session as the entry below (concurrency protocol + ORB-
 
 ### Key Lesson
 
-**A capability confusion fixed for one audience recurs for another if the fact lives only in that audience's surface.** "No update/delete tool for tickets" first lived only in the admin-only `query_tickets` description — so non-admins, who never see that tool, hit the same wall and Orb tried a todo tool on a ticket code. The fix was to move the rule to the universal routing prompt plus a server-side guard. Same shape as the earlier fabrication family: when the model does the wrong thing, check whether the constraint was even visible where the model was operating.
+**A "performance" symptom can be a measurement artifact.** The intermittent "several-minute login" was conditional-mediation *dwell* logged as latency, not slow code — and the fix was to **remove an invisible feature nobody used** (0/35), not to optimize anything. Measure the right span before optimizing; a flow that "looks slow" in telemetry may just be mis-instrumented.
 
-**Corollary — Tier 1 fixtures must not lean on live-backlog coincidence.** `approval-follow-through` flaked because its fixture history named a code (ORB-100) that also exists, differently and invisibly, in the live backlog, giving the model a legitimate reason to re-query. Freeze the backlog whenever a case's history asserts a specific code/state. (Same discipline established by the ORB-301 cases, just applied to an older case that predated it.)
+**Verify durable state against ground truth — it drifts.** This session opened with `HANDOFF.md` describing the ORB-303 work as uncommitted when it had already been committed (`024c79c`). A cold start that trusted it would have started from a false picture. Always `git status` / re-read rather than trust the record.
 
 ### AI Tool Used Last Session
 
-2026-07-06 — Claude Code (Opus 4.8)
+2026-07-08 — Claude Code (Opus 4.8)
 
 ### Uncommitted Changes
 
-All of the ORB-303 session (v0.6.161–v0.6.173) is uncommitted, awaiting Stan's commit approval. Full set:
+None — all login-redesign work (v0.6.174) is committed and pushed (`3ab6bc6`). The prior ORB-303 session (v0.6.161–v0.6.173) is also committed (`024c79c`).
 
-- `.claude/settings.local.json` — harness-recorded permission allowlist additions only; the `git push` gate remains in `ask`. Deliberately left uncommitted, as always.
-- `ACTIVE_WORK/claude-code.md` — active ORB-303 closeout claim (replaces the stale 2026-07-05 prompt-caching claim); removed to `*(none)*` in the completing commit.
-- `HANDOFF.md` — this refresh (was stale at v0.6.160).
-- `app/actions/orb-converse.ts` — `query_tickets` handler + gating; phantom-code guard now reads `returned` lists, static context, and `query_db` rows; server-side guard rejecting `TICKETS-N` on todo mutation tools; voice full-lead-in speech; voice-repeat root-cause fix.
-- `app/actions/ticket-actions.ts` — `getTickets()` options consumed by the `query_tickets` handler.
-- `app/api/orb-eval/route.ts` — eval auth simulation derives real `isAdmin`/`canInspectRepository`; mirrors the ticket routing/guard changes.
-- `app/globals.css` — styles for the new category `ComboSelect` in the todo modals.
-- `components/TodoForm.tsx`, `components/TodoPanel.tsx` — required searchable category field on todo create + edit (ORB-318).
-- `components/ui/ComboSelect.tsx` *(new)* — searchable combo-select used for the category field.
-- `components/UnifiedDashboard.tsx`, `components/settings/SettingsTickets.tsx` — ticket Code column widened, full ticket code in Edit modal title.
-- `docs/api-spec.yaml` — `query_tickets` tool definition (source of truth for the generated contract) + routing/guard notes.
-- `docs/object-capability-matrix.md` — tickets row updated (read gap closed via `query_tickets`, admin-only; `query_db` fallback for own tickets).
-- `docs/ui-catalog.md` — category `ComboSelect` pattern.
-- `docs/orb-303-query-tickets-plan.md` *(new)* — the ORB-303 plan (marked implemented v0.6.161).
-- `lib/changelog.ts` — v0.6.161–v0.6.173 release notes.
-- `lib/db-schema.ts` — `tickets` added to `ALLOWED_TABLES`; `query_db` attaches a formatted `TICKETS-N` code to ticket rows.
-- `lib/hooks/useVoiceMode.ts` — spoken text derived once per turn (voice-repeat fix); explicit `isStreaming: false` required to end a turn.
-- `lib/orb-contract.ts` — regenerated from `docs/api-spec.yaml` (never hand-edited).
-- `lib/orb-prompt.ts` — routing prompt: bug inventory spans todos+tickets, TICKETS-N capability/identity rule, ticket counts must be live.
-- `lib/version.ts`, `package.json` — bumped to `v0.6.173`.
-- `scripts/eval-cases.ts` — 4 new ticket/category Tier 1 cases; `approval-follow-through` de-flaked with a frozen `backlogOverride`.
-- `scripts/generate-orb-contract.ts` — contract generation for the new tool.
+- `.claude/settings.local.json` — remains intentionally uncommitted (harness permission allowlist; the `git push` gate stays in `ask`), as always.
 
 ---
 
