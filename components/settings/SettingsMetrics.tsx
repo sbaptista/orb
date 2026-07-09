@@ -6,8 +6,8 @@ import TextSearchModal from './TextSearchModal'
 import DateSearchModal, { type CreatedFilter } from './DateSearchModal'
 import SettingsCostReconciliation from './SettingsCostReconciliation'
 import { getAiRequestLog, type AiRequestLogRow } from '@/app/actions/get-ai-request-log'
-import { getAiCostSummary, type AiCostDateMode, type AiCostSummary } from '@/app/actions/get-ai-cost-summary'
-import { getOrbAiSettings, saveOrbModelRateCard } from '@/app/actions/orb-ai-settings'
+import { getAiMetricsBundle, type AiCostDateMode, type AiCostSummary } from '@/app/actions/get-ai-cost-summary'
+import { saveOrbModelRateCard } from '@/app/actions/orb-ai-settings'
 import type { OrbModelRateCard } from '@/lib/orb-model/policy'
 import { useToast } from '@/components/ui/Toast'
 import { startInteraction } from '@/lib/performance/telemetry'
@@ -190,16 +190,13 @@ export default function SettingsMetrics() {
       },
     })
     try {
-      const [summary, settings] = await Promise.all([
-        getAiCostSummary({
-          dateMode: aiDateMode,
-          from: aiDateFrom || null,
-          to: aiDateTo || null,
-          month: aiMonth || null,
-          modelKey: aiModelKey,
-        }),
-        getOrbAiSettings(),
-      ])
+      const { summary, settings } = await getAiMetricsBundle({
+        dateMode: aiDateMode,
+        from: aiDateFrom || null,
+        to: aiDateTo || null,
+        month: aiMonth || null,
+        modelKey: aiModelKey,
+      })
       perf.mark('server_actions_completed')
       setCostSummary(summary)
       setRateCards(settings.rateCards)

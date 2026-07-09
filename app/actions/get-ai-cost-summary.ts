@@ -1,6 +1,7 @@
 'use server'
 
-import { requireAdmin } from '@/lib/auth'
+import { requireAdmin, type AuthContext } from '@/lib/auth'
+import { fetchOrbAiSettings, type OrbAiSettingsResult } from '@/lib/orb-model/ai-settings-core'
 
 export type AiCostBreakdownRow = {
   key: string
@@ -178,8 +179,7 @@ function rollupToBreakdown(row: AiCostRollupRow): AiCostBreakdownRow {
   }
 }
 
-export async function getAiCostSummary(options: AiCostSummaryOptions = {}): Promise<AiCostSummary> {
-  const ctx = await requireAdmin()
+async function computeAiCostSummary(ctx: AuthContext, options: AiCostSummaryOptions = {}): Promise<AiCostSummary> {
   const window = resolveWindow(options)
   const modelKey = options.modelKey ?? 'all'
   let modelProvider: string | null = null
@@ -262,4 +262,20 @@ export async function getAiCostSummary(options: AiCostSummaryOptions = {}): Prom
     reconciliations: reconciliationRows,
     reconciledTotalUsd: reconciliationRows.reduce((sum, row) => sum + row.actualOrbCostUsd, 0),
   }
+}
+
+export async function getAiCostSummary(options: AiCostSummaryOptions = {}): Promise<AiCostSummary> {
+  return computeAiCostSummary(await requireAdmin(), options)
+}
+
+// ORB-312: one auth check + server-side parallel fetch, replacing the client's
+// Promise.all([getAiCostSummary(), getOrbAiSettings()]) which Next.js ran as two
+// serial server actions, each paying a full getAuthContext()/getUser() round-trip.
+export async function getAiMetricsBundle(options: AiCostSummaryOptions = {}): Promise<{ summary: AiCostSummary; settings: OrbAiSettingsResult }> {
+  const ctx = await requireAdmin()
+  const [summary, settings] = await Promise.all([
+    computeAiCostSummary(ctx, options),
+    fetchOrbAiSettings(ctx),
+  ])
+  return { summary, settings }
 }

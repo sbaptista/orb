@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.176',
+    date: '2026-07-08',
+    changes: [
+      'AI Metrics cost accounting loads faster. It used to fire two server actions back-to-back, each re-authenticating with a Supabase getUser round-trip — and because Next.js runs server actions serially, that auth cost was paid twice (the bulk of a ~3–4s load; the query itself is under 200ms). They are now one combined action with a single auth check and a server-side parallel fetch, which should roughly halve the load. Measuring before/after in production.',
+    ]
+  },
+  {
     version: 'v0.6.175',
     date: '2026-07-08',
     changes: [

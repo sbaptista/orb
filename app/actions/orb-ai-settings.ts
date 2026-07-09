@@ -3,9 +3,10 @@
 import { requireAdmin } from '@/lib/auth'
 import { createClient as createAuthClient } from '@/lib/supabase/server'
 import { logAuditEvent } from '@/lib/audit'
-import { DEFAULT_ORB_AI_POLICY, type OrbAiPolicy, type OrbModelRateCard } from '@/lib/orb-model/policy'
+import { type OrbAiPolicy, type OrbModelRateCard } from '@/lib/orb-model/policy'
 import { supportsOrbRole } from '@/lib/orb-model/catalog'
 import type { TtsProvider } from '@/lib/orb-model/tts'
+import { fetchOrbAiSettings } from '@/lib/orb-model/ai-settings-core'
 
 export type TtsConfigResult = {
   provider: TtsProvider
@@ -27,38 +28,6 @@ function toNumber(value: unknown, name: string): number {
   const number = Number(value)
   if (!Number.isFinite(number) || number < 0) throw new Error(`${name} must be a non-negative number.`)
   return number
-}
-
-function mapPolicy(row: any): OrbAiPolicy {
-  if (!row) return DEFAULT_ORB_AI_POLICY
-  return {
-    routingEnabled: row.routing_enabled,
-    strategicReadsEnabled: row.strategic_reads_enabled,
-    operationalProvider: row.operational_provider,
-    operationalModel: row.operational_model,
-    strategicProvider: row.strategic_provider,
-    strategicModel: row.strategic_model,
-    monthlyBudgetUsd: Number(row.monthly_budget_usd),
-    strategicBudgetUsd: Number(row.strategic_budget_usd),
-    operationalBudgetUsd: Number(row.operational_budget_usd),
-    ttsProvider: row.tts_provider ?? 'browser',
-    ttsModel: row.tts_model ?? null,
-    ttsVoiceId: row.tts_voice_id ?? null,
-  }
-}
-
-function mapRateCard(row: any): OrbModelRateCard {
-  return {
-    id: row.id,
-    provider: row.provider,
-    model: row.model,
-    effectiveFrom: row.effective_from,
-    inputPerMillion: Number(row.input_per_million),
-    outputPerMillion: Number(row.output_per_million),
-    cachedInputPerMillion: row.cached_input_per_million == null ? null : Number(row.cached_input_per_million),
-    cacheWritePerMillion: row.cache_write_per_million == null ? null : Number(row.cache_write_per_million),
-    notes: row.notes ?? null,
-  }
 }
 
 export async function getTtsConfig(): Promise<TtsConfigResult> {
@@ -88,14 +57,7 @@ export async function saveTtsConfig(config: TtsConfigResult) {
 }
 
 export async function getOrbAiSettings() {
-  const ctx = await requireAdmin()
-  const [{ data: policy, error: policyError }, { data: rateCards, error: rateCardsError }] = await Promise.all([
-    ctx.admin.from('orb_ai_policy').select('*').eq('id', true).maybeSingle(),
-    ctx.admin.from('orb_model_rate_cards').select('*').order('provider').order('model').order('effective_from', { ascending: false }),
-  ])
-  if (policyError) throw policyError
-  if (rateCardsError) throw rateCardsError
-  return { policy: mapPolicy(policy), rateCards: (rateCards ?? []).map(mapRateCard) }
+  return fetchOrbAiSettings(await requireAdmin())
 }
 
 export async function saveOrbAiPolicy(next: OrbAiPolicy) {
