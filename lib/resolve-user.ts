@@ -10,6 +10,9 @@ export type ResolvedUser = {
   last_name: string
   role_id: number
   onboarded_at: string | null
+  urgency_threshold_hours: number | null
+  release_stage: string | null
+  created_at: string | null
 }
 
 export type ResolveSuccess = { ok: true; user: ResolvedUser; isNew: boolean }
@@ -23,7 +26,7 @@ export async function resolveUser(authId: string, email: string): Promise<Resolv
     // 1. Look up by stable auth ID first
     const { data: existing, error: lookupErr } = await admin
       .from('users')
-      .select('id, email, first_name, last_name, role_id, onboarded_at')
+      .select('id, email, first_name, last_name, role_id, onboarded_at, urgency_threshold_hours, release_stage, created_at')
       .eq('id', authId)
       .maybeSingle()
 
@@ -83,7 +86,7 @@ export async function resolveUser(authId: string, email: string): Promise<Resolv
     // Case 2: no user row found by ID — search by email (handles reconciliation)
     const { data: byEmail, error: emailLookupErr } = await admin
       .from('users')
-      .select('id, email, first_name, last_name, role_id, onboarded_at')
+      .select('id, email, first_name, last_name, role_id, onboarded_at, urgency_threshold_hours, release_stage, created_at')
       .eq('email', email)
       .maybeSingle()
 
@@ -134,7 +137,7 @@ export async function resolveUser(authId: string, email: string): Promise<Resolv
           role_id: invitation.role_id ?? 2,
           release_stage: invitation.release_stage ?? 'alpha',
         })
-        .select('id, email, first_name, last_name, role_id, onboarded_at')
+        .select('id, email, first_name, last_name, role_id, onboarded_at, urgency_threshold_hours, release_stage, created_at')
         .single()
 
       if (insertErr) {

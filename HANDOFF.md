@@ -10,11 +10,27 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.178
+- **Version:** 0.6.179
 
 ---
 
 ### Last Session Completed
+
+**ORB-312 Pass 3 — dashboard-init redundant client auth/profile removal — 2026-07-09 (Claude Code, Opus 4.8) — v0.6.179**
+
+Measure-first Pass 3. Pulled 97 production `dashboard-init / client_init` samples: the client was re-running `supabase.auth.getUser()` + a `users` profile query on mount even though the server component (`app/dashboard/page.tsx`) already ran `getUser()` → `resolveUser()` and passed the resolved `user` + `initialProducts` down as props (telemetry confirmed `had_projects_query = 0`). Those two redundant round-trips were essentially the **entire** `client_init` duration: Mac p50 362 / p95 1166, iPhone p50 375 / p95 1584, iPad p50 505 / p95 7835 (ms).
+
+**Change (2 files):**
+- `lib/resolve-user.ts` — added `urgency_threshold_hours, release_stage, created_at` to the existing `users` select (admin client) + the `ResolvedUser` type. Purely additive; other callers (`auth/callback`, `prototype`, `complete-onboarding`, `dev-login`) only read existing fields / `.ok` / `.isNew`.
+- `components/UnifiedDashboard.tsx` — `client_init` now reads all profile fields from the `user` prop instead of calling `getUser()` + the profile query. Kept its sessionStorage/session-change + `selectedId` logic (needs only `user.id`). Removed the now-meaningless `auth_user_loaded`/`profile_loaded` marks. In the normal path (`initialProducts` present) the effect now has **no awaits** → `client_init` should drop to ~0.
+
+**Instrumentation decision:** none added — the existing `client_init` span **is** the before/after instrument. **Measure after deploy:** `dashboard-init / client_init` p50/p95 on v0.6.179 vs the v≤0.6.178 baseline above.
+
+**Out of scope (candidate Pass 4):** the server component's own `getUser()` (SSR round-trip) and `SettingsUserDetail`'s `Promise.all` of two server actions (Next.js serializes them → 2 round-trips, same anti-pattern as Pass 1). **ORB-312 remains open.**
+
+Verified: `tsc` clean, `eslint` 0 errors. Not an Orb-conversation change → no eval needed.
+
+---
 
 **Version reconciliation for `ccb65cf` + ORB-312 pass-2 doc record — 2026-07-09 (Claude Code, Opus 4.8) — v0.6.178**
 

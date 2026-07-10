@@ -65,7 +65,7 @@ type Todo = {
 
 type Priority   = { value: number; label: string; color?: string; is_urgent?: boolean }
 type StatusDef  = { id: string; name: string; sort_order: number; is_closed: boolean; is_open: boolean }
-type ResolvedUser = { id: string; email: string; first_name: string; last_name: string }
+type ResolvedUser = { id: string; email: string; first_name: string; last_name: string; onboarded_at?: string | null; urgency_threshold_hours?: number | null; release_stage?: string | null; created_at?: string | null }
 type AdminProject = { id: string; name: string; code: string | null; owner_name: string }
 
 type Props = {
@@ -784,42 +784,33 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       }
       const perf = startInteraction({ focus: 'dashboard-init', flow: 'dashboard', interaction: 'client_init', surface: 'dashboard' })
       try {
-        const { data: { user: authUser } } = await supabase.auth.getUser()
-        perf.mark('auth_user_loaded')
-        if (authUser) {
+        // ORB-312 Pass 3: the profile comes from the server-passed `user` prop
+        // (resolveUser already fetched it during SSR and dashboard/page.tsx redirects
+        // unauthenticated users before mount). No client supabase.auth.getUser() or
+        // users-table round-trip on the dashboard critical path.
+        if (user) {
           const savedUserId = sessionStorage.getItem('todos_user_id')
-          if (!savedUserId || savedUserId !== authUser.id) {
+          if (!savedUserId || savedUserId !== user.id) {
             sessionStorage.removeItem(SS_CONVERSATION)
             sessionStorage.removeItem(SS_INPUT)
             if (savedUserId) { setMessages([]); setConversationActive(false) }
             greetingFiredRef.current = false
           }
-          sessionStorage.setItem('todos_user_id', authUser.id)
+          sessionStorage.setItem('todos_user_id', user.id)
 
-          const { data: profile } = await supabase
-            .from('users')
-            .select('first_name, last_name, onboarded_at, urgency_threshold_hours, release_stage, created_at')
-            .eq('id', authUser.id)
-            .single()
-          perf.mark('profile_loaded')
-          const userWelcomeKey = `todos_welcome_shown_${authUser.id}`
-          if (profile) {
-            const full = [profile.first_name, profile.last_name].filter(Boolean).join(' ')
-            setUserName(full || (authUser.email ?? ''))
-            setUserFullName(full)
-            setUrgencyThreshold(profile.urgency_threshold_hours ?? 0)
-            setReleaseStage(profile.release_stage ?? 'pre-alpha')
-            if (profile.created_at) {
-              const created = new Date(profile.created_at)
-              const diffTime = Math.abs(Date.now() - created.getTime())
-              const days = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-              setDaysActive(days)
-            }
-            if (!profile.onboarded_at && !localStorage.getItem(userWelcomeKey)) setIsNewUser(true)
-          } else {
-            setUserName(authUser.email?.charAt(0).toUpperCase() ?? '?')
-            if (!localStorage.getItem(userWelcomeKey)) setIsNewUser(true)
+          const userWelcomeKey = `todos_welcome_shown_${user.id}`
+          const full = [user.first_name, user.last_name].filter(Boolean).join(' ')
+          setUserName(full || (user.email ?? ''))
+          setUserFullName(full)
+          setUrgencyThreshold(user.urgency_threshold_hours ?? 0)
+          setReleaseStage(user.release_stage ?? 'pre-alpha')
+          if (user.created_at) {
+            const created = new Date(user.created_at)
+            const diffTime = Math.abs(Date.now() - created.getTime())
+            const days = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+            setDaysActive(days)
           }
+          if (!user.onboarded_at && !localStorage.getItem(userWelcomeKey)) setIsNewUser(true)
         }
 
         if (initialProducts) {
@@ -834,7 +825,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         }
 
         const q = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode')
-        const { data } = (authUser && !isAdmin) ? await q.eq('created_by', authUser.id) : await q
+        const { data } = (user && !isAdmin) ? await q.eq('created_by', user.id) : await q
         perf.mark('projects_loaded')
         const list = (data ?? []) as Product[]
         setProducts(list)

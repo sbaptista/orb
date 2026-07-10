@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.179',
+    date: '2026-07-09',
+    changes: [
+      'The dashboard loads faster after sign-in (ORB-312). It was re-authenticating and re-querying your profile on the client even though the server had already fetched both during page render and passed the data down — two redundant network round-trips on the most-loaded screen’s critical path (about 370ms typically, and 1–1.6s at the 95th percentile on Mac/iPhone, worse on iPad). The dashboard now reads that profile straight from what the server already provides, so those round-trips are gone. Measuring before/after in production via the existing dashboard-init telemetry.',
+    ]
+  },
+  {
     version: 'v0.6.178',
     date: '2026-07-09',
     changes: [
