@@ -10,11 +10,23 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.181
+- **Version:** 0.6.182
 
 ---
 
 ### Last Session Completed
+
+**HOTFIX 2: revert ORB-312 Pass 2 (getClaims) — Safari/Firefox login loop — 2026-07-09 (Claude Code, Opus 4.8) — v0.6.182**
+
+The v0.6.181 Pass-3 revert fixed **Chrome** but not Safari/Firefox. Stan's cross-browser test was the decisive clue: **Chrome (Mac/iPhone) works; Safari (Mac/iPad) cycles and never reaches the dashboard; Firefox hangs on "authenticating."** Browser-specific auth failure = session-cookie/token persistence, and it traces to Pass 2, not Pass 3.
+
+**Root cause (corrected & complete):** `getAuthContext` (`lib/auth.ts`) used `supabase.auth.getClaims()` (Pass 2, v0.6.177) — local JWT verify that **rejects an expired access token instead of refreshing it**. `getUser()` refreshes via the refresh token; `getClaims()` does not. My Pass-2 code comment claiming it "cannot break auth" was wrong — the getUser fallback is only for key-type/WebCrypto issues, **not** expiry. Safari (ITP) and Firefox (ETP) throttle/block the client's background token auto-refresh, so their access tokens lapse → server-side `getClaims()` rejects → `handleSessionExpired` → login loop. Chrome auto-refreshes fine, so it never hit the expired-token path. Server code is browser-agnostic, but its *input* (fresh vs expired cookie) is browser-dependent. Compounded by the **missing session-refresh middleware** (the standing root cause).
+
+**Fix:** `git checkout c78b965~1 -- lib/auth.ts` — restored `getAuthContext` to the pre-Pass-2 `getUser()` version (refreshes on validate). `getClaims` was only in this one file. Version → 0.6.182; user-facing changelog entry. Verified: `tsc` clean, `eslint` 0 errors.
+
+**State: ORB-312 auth optimizations are now FULLY reverted** (Pass 2 + Pass 3 both undone); auth path is back to pre-ORB-312 (v0.6.176-era) known-good. **Do not re-attempt either optimization until Supabase `updateSession` middleware exists AND the fix is tested on Chrome + Safari + Firefox.** ORB-312 stays open.
+
+---
 
 **HOTFIX: revert ORB-312 Pass 3 — production login/session regression — 2026-07-09 (Claude Code, Opus 4.8) — v0.6.181**
 

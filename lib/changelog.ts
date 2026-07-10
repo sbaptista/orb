@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.182',
+    date: '2026-07-09',
+    changes: [
+      'Fixed sign-in on Safari and Firefox, which could get stuck on "authenticating" or bounce back to the login screen in a loop. A recent optimization verified your login token locally on our server instead of checking with the auth server on each request — but that local check rejects an expired token rather than refreshing it, and Safari and Firefox refresh tokens far less aggressively than Chrome, so their sessions lapsed and locked users out. Restored the original check, which refreshes the session automatically. Chrome was unaffected. This fully unwinds the ORB-312 auth optimizations, which will return once proper session-refresh middleware is in place.',
+    ]
+  },
+  {
     version: 'v0.6.181',
     date: '2026-07-09',
     changes: [
