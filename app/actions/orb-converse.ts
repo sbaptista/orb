@@ -34,6 +34,7 @@ import { classifyProviderFailure, notifyOrbIncident } from '@/lib/orb-model/inci
 import type { OrbModelProviderId } from '@/lib/orb-model/types'
 import { extractCitedCodes, isFalseCompletionClaim } from '@/lib/orb-model/false-claim-guard'
 import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, resolveActionSetReference, todoCode } from '@/lib/orb-model/context'
+import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -171,12 +172,14 @@ function inferConfirmedDeleteOpsFromHistory(
 function extractInsight(rawSpeech: string): { speech: string; insight?: OrbInsight } {
   const insightPattern = /\[INSIGHT:(observation|coaching|strategic)\]([\s\S]*?)\[\/INSIGHT\]/i
   const match = rawSpeech.match(insightPattern)
-  if (!match) return { speech: rawSpeech }
+  if (!match) return { speech: sanitizeUserFacingSpeech(rawSpeech) }
 
   const type = match[1].toLowerCase() as OrbInsight['type']
   const summary = match[2].trim()
   const speech = rawSpeech.replace(insightPattern, summary).trim()
-  return summary ? { speech, insight: { type, summary } } : { speech }
+  const sanitizedSpeech = sanitizeUserFacingSpeech(speech)
+  const sanitizedSummary = sanitizeUserFacingSpeech(summary)
+  return sanitizedSummary ? { speech: sanitizedSpeech, insight: { type, summary: sanitizedSummary } } : { speech: sanitizedSpeech }
 }
 
 async function getRequestOrigin(): Promise<string | undefined> {

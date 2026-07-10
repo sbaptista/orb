@@ -689,7 +689,9 @@ export const EVAL_CASES: EvalCase[] = [
     input: 'Which projects are shown in my backlog?',
     tier: 2,
     speechContains: ['Mr. Stokely from Boston', 'Ewe are My Sunshine', 'Thunderbolt'],
-    speechNotContains: ['[code:', 'STOKELYFRO', 'EWEAR', 'THUNDERBOL'],
+    // Do not include THUNDERBOL here: the runner checks case-insensitive
+    // substrings, so the display name "Thunderbolt" itself matches it.
+    speechNotContains: ['[code:', 'STOKELYFRO', 'EWEAR', '[code: THUNDERBOL'],
   },
 
   {

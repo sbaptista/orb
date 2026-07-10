@@ -22,6 +22,7 @@ import { routeOrbRequest } from '@/lib/orb-model/routing'
 import { budgetBlockMessage, type OrbBudgetCheck } from '@/lib/orb-model/budget'
 import { extractCitedCodes, isFalseCompletionClaim, EFFECTFUL_TOOL_NAMES } from '@/lib/orb-model/false-claim-guard'
 import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, resolveActionSetReference, todoCode, type OrbActionSetReference } from '@/lib/orb-model/context'
+import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 
@@ -422,6 +423,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     } else {
       return NextResponse.json({ error: `Unsupported eval provider: ${requestedProvider}` }, { status: 400 })
     }
+    speech = sanitizeUserFacingSpeech(speech)
 
     // Eval records are awaited so every comparison result has a durable usage row.
     if (evalUser?.id) {
