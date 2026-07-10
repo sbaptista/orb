@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.181',
+    date: '2026-07-09',
+    changes: [
+      'Fixed a login regression where sessions could drop — signing in and then bouncing back to the login screen, hanging on authentication, or cycling in a loop. The previous release’s dashboard-load optimization removed a client-side auth check that was also quietly refreshing your session token; with nothing else refreshing it on that path, the token could lapse mid-session and sign you out. Reverted that optimization to restore stable sign-in. It will return once proper session-refresh middleware is in place.',
+    ]
+  },
+  {
     version: 'v0.6.179',
     date: '2026-07-09',
     changes: [

@@ -10,11 +10,23 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.180
+- **Version:** 0.6.181
 
 ---
 
 ### Last Session Completed
+
+**HOTFIX: revert ORB-312 Pass 3 — production login/session regression — 2026-07-09 (Claude Code, Opus 4.8) — v0.6.181**
+
+**Outage:** After v0.6.180 deployed, production login broke — sign-in bounced back to login, hung on auth, or cycled in a loop. Reported by Stan.
+
+**Root cause (grounded):** The app has **no Supabase SSR session-refresh `middleware.ts`** — token refresh has been riding on incidental `supabase.auth.getUser()` calls. Pass 2 (v0.6.177) moved server actions to `getClaims()` (local verify, **no refresh**). Pass 3 (v0.6.180) then removed the client-side `getUser()` in `UnifiedDashboard` `client_init` as "redundant" — but it was the **last reliable client-side token-refresh trigger**. With nothing refreshing the access token, it lapsed mid-session → client queries + server actions returned auth errors → `handleSessionExpired` signed the user out → login loop. Ruled out `resolveUser` (its modified select runs fine against prod — columns exist, row returns), so it was not a redirect-loop from a failing query.
+
+**Fix:** `git checkout 305d48f -- components/UnifiedDashboard.tsx lib/resolve-user.ts` — restored both files to their known-good pre–Pass-3 (v0.6.178) state (client `getUser()` + profile query back; `resolveUser` select reverted). Version bumped **forward** to 0.6.181; changelog entry added (user-facing). This also unwinds the v0.6.180 dead-state cleanup (re-land later). Verified: `tsc` clean, `eslint` 0 errors.
+
+**Durable follow-up (before re-attempting Pass 3):** add proper Supabase SSR `updateSession` **middleware** so token refresh doesn't depend on incidental `getUser()` calls. Only after that can Pass 3 (drop redundant client auth) + the dead-state cleanup be re-landed safely. **ORB-312 stays open**; file/track the middleware task.
+
+---
 
 **Dead-state cleanup in UnifiedDashboard (Pass 3 follow-up) — 2026-07-09 (Claude Code, Opus 4.8) — v0.6.180**
 
