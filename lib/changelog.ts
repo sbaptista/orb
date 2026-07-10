@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.178',
+    date: '2026-07-09',
+    changes: [
+      'Hardened Orb user-facing project speech so raw internal project code tags like [code: STOKELYFRO] are stripped from final Orb/eval speech while preserving task codes such as ORB-315. Fixed the ORB-315 eval assertion so the display name “Thunderbolt” no longer false-fails against the internal code check. Closed ORB-317 after the acceptance eval set passed.',
+    ]
+  },
+  {
     version: 'v0.6.177',
     date: '2026-07-08',
     changes: [

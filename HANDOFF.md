@@ -10,11 +10,19 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.177
+- **Version:** 0.6.178
 
 ---
 
 ### Last Session Completed
+
+**Version reconciliation for `ccb65cf` + ORB-312 pass-2 doc record — 2026-07-09 (Claude Code, Opus 4.8) — v0.6.178**
+
+Bookkeeping catch-up, coordinated live with Codex. Codex's `ccb65cf` (sanitizer / ORB-315 hardening) shipped a code + behavior change on the **same** version string (0.6.177) as the earlier pass-2 commit, with no patch bump or changelog entry — so production served new code under a version "What's New" couldn't distinguish. Per Codex's instruction, reconciled **forward** (no amend of `ccb65cf`): bumped to **0.6.178** (`package.json` + `lib/version.ts`), added the `lib/changelog.ts` entry describing the sanitizer/eval-assertion/ORB-317 closure, and bumped this file's App State version.
+
+Also committed the previously-orphaned ORB-312 **Pass 2 correction record** (`docs/orb-312-performance-optimization.md`) — documents already-shipped v0.6.177: auth was never the bottleneck (`getAuthContext` ~106ms), the residual ~2.1s is server-action round-trip + Vercel cold-start overhead, so the real lever is **fewer server-action round-trips per admin page**. No code change. **ORB-312 remains open** (Pass 3 = round-trip reduction, not yet started).
+
+---
 
 **ORB-317 Strategic Orb v1 closeout + ORB-315 structural project-code speech hardening — 2026-07-09 (Codex, GPT-5) — v0.6.177 (committed `ccb65cf`, pushed)**
 

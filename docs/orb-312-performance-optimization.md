@@ -31,11 +31,35 @@ ORB-312 began as a "Production Performance Baseline Sweep." The baseline + the l
 | **Mac** | p50 4251 / p95 5652 (n=13) | p50 **2631** / p95 **3907** (n=5) | **~38% faster — confirmed** (same-timeframe, apples-to-apples) |
 | **iPhone** | p50 3346 / p95 6050 (n=6) | p50 3038 / p95 7172 (n=7) | **Inconclusive** — tiny n, "before" baseline 5 days stale (different network), mobile RTT-dominated; p95 uptick is one slow Safari sample, not a trend |
 
-**Conclusion.** Confirmed on Mac, matching the mechanism exactly (before = 2×auth + queries; after = 1×auth + queries; auth ≈1.8s, queries+net ≈0.6s → ~4.2s→~2.4s). Mobile within noise — not disproven. **The residual ~2.6s is a single `getUser` round-trip**, now the dominant remaining cost and worst on mobile (round-trip-bound). Not worth chasing a cleaner mobile number for this pass — diminishing returns.
+**Conclusion.** Confirmed on Mac: the merge removed one **server-action round-trip** and that was worth ~38%. ⚠️ **My original attribution — "the residual ~2.6s is a single `getUser` round-trip, auth ≈1.8s" — was wrong, and Pass 2 (below) disproved it with direct instrumentation.** `getAuthContext` is only ~106ms; the residual is server-action round-trip + Vercel cold-start overhead, not auth. Real lesson: **a server-action round-trip costs ~1–2s of framework/network/cold-start overhead regardless of the ~hundreds of ms of code inside it** — so the lever is *fewer round-trips per page*, which is (unwittingly) exactly what this merge did.
 
 ---
 
-## Next pass — spec: `getUser` → local JWT verification
+### Pass 2 — auth-path local verify + the correction (v0.6.177)
+
+**What I did.** Replaced `supabase.auth.getUser()` (network) with `supabase.auth.getClaims()` (local ES256 verify) in the shared `getAuthContext`, expecting to remove a ~1.8s auth floor. Then instrumented `getAuthContext` server-side (temporary diagnostic, since removed) to actually measure the phases.
+
+**What the instrumentation showed** (dev, n=62; phase marks *inside* the function, so route-compilation noise is excluded):
+
+| Phase | p50 | p95 |
+|---|---|---|
+| `createClient` | 2ms | — |
+| `getClaims` (local verify) | **2ms** | 7ms |
+| role query (`users`) | 100ms | 351ms |
+| **`getAuthContext` total** | **~106ms** | 358ms |
+
+**The correction.** Auth was **never** the bottleneck. `getAuthContext` is ~106ms, not ~1.8s. `getClaims` works perfectly (~2ms local verify, no network), so the change is **correct and kept** — but it bought **no perf win**, because there was no auth cost to remove. Production before/after confirmed independently: v0.6.176 (getUser) p50 2750 vs v0.6.177 (getClaims) p50 2535 — flat.
+
+**Where the ~2.5s actually is.** `getAuthContext` (106ms) + RPC (183ms) + settings queries ≈ **~400ms of real server work**. The other **~2.1s is server-action overhead** — the client→Vercel→back round-trip, Next.js server-action framework cost, and **Vercel cold starts** (matches "Performance felt sluggish at times"). Outside our code.
+
+**Lesson (twice-learned).** Measure before optimizing. I inferred a ~1.8s `getUser` floor twice and was wrong both times; one diagnostic pass settled it. The 100ms role query is now the biggest thing *inside* `getAuthContext` — foldable into a JWT custom claim later, but a rounding error vs. the round-trip.
+
+**Real lever going forward:** reduce **server-action round-trips per admin page** (app-side, same move as Pass 1) and/or address **Vercel cold starts** (infra). Round-trips first — cleaner, no infra commitment.
+
+---
+
+## Superseded — original spec: `getUser` → local JWT verification
+> Implemented in Pass 2 (v0.6.177). The perf **premise** below (that `getUser` was a ~1.8s floor) was **wrong** — see Pass 2. Retained for the security / precondition analysis, which still holds.
 
 **Problem.** Every admin server action calls `getAuthContext()` (`lib/auth.ts`), which does `supabase.auth.getUser()` — a **network round-trip to the Supabase Auth server** to validate the JWT — plus a role lookup. On the AI Metrics page (and most admin surfaces) this ~1.8s auth call is now the floor, and it's paid once per server action. Next.js serialization means a page firing several admin actions pays it several times. Mobile latency makes each round-trip worse.
 
