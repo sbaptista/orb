@@ -65,7 +65,7 @@ type Todo = {
 
 type Priority   = { value: number; label: string; color?: string; is_urgent?: boolean }
 type StatusDef  = { id: string; name: string; sort_order: number; is_closed: boolean; is_open: boolean }
-type ResolvedUser = { id: string; email: string; first_name: string; last_name: string; onboarded_at?: string | null; urgency_threshold_hours?: number | null; release_stage?: string | null; created_at?: string | null }
+type ResolvedUser = { id: string; email: string; first_name: string; last_name: string; onboarded_at?: string | null; urgency_threshold_hours?: number | null; created_at?: string | null }
 type AdminProject = { id: string; name: string; code: string | null; owner_name: string }
 
 type Props = {
@@ -233,11 +233,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [dryRun, setDryRun]                     = useState(false)
   const [simulateError, setSimulateError]       = useState<SimulateError>(null)
   const [isInputFocused, setIsInputFocused]     = useState(false)
-  const [userName, setUserName]                 = useState<string>('')
-  const [userFullName, setUserFullName]         = useState<string>('')
   const [isNewUser, setIsNewUser]               = useState(false)
   const [urgencyThreshold, setUrgencyThreshold] = useState<number>(0)
-  const [releaseStage, setReleaseStage]         = useState<string>('alpha')
   const [orbFading, setOrbFading]               = useState(false)
   const [pulse, setPulse]                       = useState(false)
 
@@ -437,8 +434,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   }
 
   // handleSearchFocus/Blur removed — SearchModal handles open/close
-
-  const displayUserName = user?.first_name || user?.email || userName || '?'
 
   // ══════════════════════════════════════════════════════════
   // EFFECTS — Shared
@@ -799,11 +794,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           sessionStorage.setItem('todos_user_id', user.id)
 
           const userWelcomeKey = `todos_welcome_shown_${user.id}`
-          const full = [user.first_name, user.last_name].filter(Boolean).join(' ')
-          setUserName(full || (user.email ?? ''))
-          setUserFullName(full)
           setUrgencyThreshold(user.urgency_threshold_hours ?? 0)
-          setReleaseStage(user.release_stage ?? 'pre-alpha')
           if (user.created_at) {
             const created = new Date(user.created_at)
             const diffTime = Math.abs(Date.now() - created.getTime())

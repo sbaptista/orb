@@ -10,11 +10,17 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.179
+- **Version:** 0.6.180
 
 ---
 
 ### Last Session Completed
+
+**Dead-state cleanup in UnifiedDashboard (Pass 3 follow-up) — 2026-07-09 (Claude Code, Opus 4.8) — v0.6.180**
+
+Traced the dashboard's profile-derived state after Stan questioned what the Pass 3 fields actually feed. Found several were dead (set, never read): `userName`/`userFullName` state, the `releaseStage` state, and the derived `displayUserName` const — all eslint-flagged. The live greeting already uses `user?.first_name` (the prop) directly; the only *real* consumers of the moved fields are `urgencyThreshold` (urgency/due-soon coloring) and `daysActive` (sent to the Orb as conversation context). Removed the dead state + setters in `components/UnifiedDashboard.tsx`, and reverted the now-orphaned `release_stage` addition from `lib/resolve-user.ts` (type + 3 selects) since nothing consumes it. No behavior change. Verified: `tsc` clean, `eslint` 0 errors (the 3 dead-symbol warnings are gone). Not an Orb-conversation change → no eval.
+
+---
 
 **ORB-312 Pass 3 — dashboard-init redundant client auth/profile removal — 2026-07-09 (Claude Code, Opus 4.8) — v0.6.179**
 
