@@ -10,11 +10,42 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.176
+- **Version:** 0.6.177
 
 ---
 
 ### Last Session Completed
+
+**ORB-317 Strategic Orb v1 closeout + ORB-315 structural project-code speech hardening — 2026-07-09 (Codex, GPT-5) — v0.6.177 (committed `ccb65cf`, pushed)**
+
+Closed the Strategic Orb v1 interaction-quality umbrella after completing and verifying the main foundation pieces:
+- **ORB-308** closed earlier in the session after consolidating production/eval context and backlog building through shared `lib/orb-model/context.ts`; Knowledge Repo entry added: `ORB-308: Shared Orb context prevents eval/production drift`.
+- **ORB-314** closed as stale-open after verifying the dead generated `ORB_INTEGRITY_RULES` path was already removed and `docs/api-spec.yaml` is REST/API integration guidance, not live conversational prompt law.
+- **ORB-315** closed after live eval exposed that prompt-only name-first speech was insufficient: the model still echoed raw project tags like `[code: STOKELYFRO]`.
+- **ORB-317** closed after the acceptance eval set passed and the umbrella had enough explicit evidence to close as a v1 foundation, not remain open for every future behavior issue.
+
+**Code shipped in `ccb65cf`:**
+- Added `lib/orb-model/speech-sanitizer.ts`, a shared user-facing speech sanitizer that strips raw project-code tags like `[code: STOKELYFRO]` while preserving task codes such as `ORB-315`.
+- Applied the sanitizer in both production Orb conversation responses (`app/actions/orb-converse.ts`) and the eval endpoint (`app/api/orb-eval/route.ts`) so eval and live behavior share the same boundary.
+- Fixed the ORB-315 eval assertion in `scripts/eval-cases.ts`: the runner checks `speechNotContains` case-insensitively, so banning `THUNDERBOL` falsely failed on the display name `Thunderbolt`. The eval now bans `[code: THUNDERBOL]` instead.
+
+**Verification:**
+- Stan ran `project-list-hides-internal-code-tags`: **Tier 2 passed 2/3** after the sanitizer + eval assertion fix.
+- Stan ran the ORB-317 acceptance string:
+  `project-count-distinguishes-visible-from-active-task-projects,voice-current-project-status-update-uses-brief-summary,voice-status-question-stays-operational,ticket-status-shorthand-followup-checks-live-tickets,query-tickets-admin-lookup`
+  Result: **5/5 passed** (Tier 1 3/3, Tier 2 2/2), completed 2026-07-09T22:48:58Z.
+- `npx tsc --noEmit` passed.
+- `npm run build` passed on Next.js 16.2.1.
+
+**Knowledge Repo:**
+- Added `ORB-317: Strategic Orb v1 foundation closes on acceptance evidence` (`25fff0e4-ab2c-494b-9c30-66ae04d0718e`).
+- Durable lesson: close umbrellas when the v1 foundation has explicit acceptance evidence; future regressions should become narrower tasks/evals. For Orb interaction quality, prefer structural guards and focused evals over prompt-only hopes.
+
+**Current working tree note:**
+- After the push, remaining uncommitted files are Claude-owned local work only: `.claude/settings.local.json` and `docs/orb-312-performance-optimization.md`.
+- Do not commit those under the ORB-317/315 closeout unless Stan/Claude explicitly says to.
+
+---
 
 **ORB-312 AI Metrics accounting-load optimization — 2026-07-08 (Claude Code, Opus 4.8) — v0.6.176 (committed `e6ca709`, pushed)**
 
