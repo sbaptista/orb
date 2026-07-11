@@ -36,6 +36,7 @@ export async function proxy(request: NextRequest) {
   const isStatic = pathname.startsWith('/_next') ||
                    pathname.startsWith('/api/health') ||
                    pathname.startsWith('/api/version') ||
+                   pathname.startsWith('/api/auth-debug') || // TEMP ORB-321 diagnostic — bypass so cookie is read raw
                    pathname === '/maintenance' ||
                    pathname.includes('.')
 
