@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useVisibilityRefetch } from '@/lib/hooks/useVisibilityRefetch'
 import { useToast } from '@/components/ui/Toast'
 import SkeletonRows from '@/components/ui/SkeletonRows'
-import { getUserDetail, getUserProjects } from '@/app/actions/get-user-detail'
+import { getUserDetailBundle } from '@/app/actions/get-user-detail'
+import { startInteraction } from '@/lib/performance/telemetry'
 import { createProject, updateProject, deleteProject } from '@/app/actions/manage-project'
 import { updateUserStage } from '@/app/actions/manage-user'
 import { useUnsavedChanges } from '@/lib/hooks/useUnsavedChanges'
@@ -134,23 +135,28 @@ export default function SettingsUserDetail({ userId }: { userId: string }) {
   const loaded = useRef(false)
 
   const load = useCallback(async () => {
-    const [userRes, projRes] = await Promise.all([
-      getUserDetail(userId),
-      getUserProjects(userId),
-    ])
+    const perf = startInteraction({
+      focus: 'settings',
+      flow: 'settings-user-detail',
+      interaction: 'load',
+      surface: 'settings-user-detail',
+    })
+    const res = await getUserDetailBundle(userId)
 
-    if (userRes.error || !userRes.profile) {
-       if (userRes.error === 'Access denied') setAccessDenied(true)
+    if (res.error || !res.profile) {
+       if (res.error === 'Access denied') setAccessDenied(true)
        setLoading(false)
+       perf.end(false, res.error === 'Access denied' ? 'access_denied' : 'load_failed')
        return
     }
 
-    setUserProfile(userRes.profile)
-    setStageValue(userRes.profile?.release_stage ?? '')
-    setProducts(projRes.projects as Product[])
-    setTodoCounts(projRes.todoCounts)
+    setUserProfile(res.profile)
+    setStageValue(res.profile?.release_stage ?? '')
+    setProducts(res.projects as Product[])
+    setTodoCounts(res.todoCounts)
     setLoading(false)
     loaded.current = true
+    perf.end(true, null, { projects: res.projects.length })
   }, [userId])
 
   useVisibilityRefetch(load)

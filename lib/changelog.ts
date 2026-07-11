@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.183',
+    date: '2026-07-10',
+    changes: [
+      'A user’s projects page is reachable again. In Settings → Users, each user’s name is now a link to their projects page (their project list with per-project todo counts) — that page had become unreachable after the settings reorg. The list row itself is no longer clickable; only the Edit action opens the edit modal.',
+      'That user projects page also loads faster. It fired two server actions that Next.js runs one after another — each re-authenticating and separately re-checking the target user’s role — so an auth round-trip and a role lookup were paid twice. They are now a single bundled action with one auth check and one role check (same data), and the load is measured under Settings → Performance.',
+    ]
+  },
+  {
     version: 'v0.6.182',
     date: '2026-07-09',
     changes: [

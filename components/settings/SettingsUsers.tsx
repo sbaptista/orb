@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
 import { inviteUser } from '@/app/actions/invite-user'
@@ -233,10 +234,12 @@ export default function SettingsUsers() {
           const roleName = (extra.roles ?? []).find((r: RoleRow) => r.id === item.role_id)?.name ?? 'Unknown'
 
           return (
-            <tr key={item.id} onClick={e => onEdit(e)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+            <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
               {checkbox}
               <td className="audit-td" style={{ fontWeight: 'var(--fw-medium)', fontSize: 'var(--fs-sm)' }}>
-                {displayName(item)}
+                <Link href={`/settings/users/${item.id}`} style={{ color: 'var(--link)', textDecoration: 'none' }}>
+                  {displayName(item)}
+                </Link>
               </td>
               <td className="audit-td" style={{ color: 'var(--muted)', fontSize: 'var(--fs-sm)' }}>
                 <span style={{ display: 'block', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

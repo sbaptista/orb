@@ -10,11 +10,23 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.182
+- **Version:** 0.6.183
 
 ---
 
 ### Last Session Completed
+
+**ORB-312 — SettingsUserDetail two-action → one-bundle merge (Pass-1-style, safe) — 2026-07-10 (Claude Code, Opus 4.8) — v0.6.183**
+
+The safe, non-auth-path optimization flagged after the outage. `components/settings/SettingsUserDetail.tsx` fired a client `Promise.all([getUserDetail, getUserProjects])` — Next.js serializes server actions, so each paid its own `requireAdmin()` (getUser round-trip) AND separately re-queried the target user's `role_id` for the super-admin gate. Merged into **`getUserDetailBundle(targetUserId)`** in `app/actions/get-user-detail.ts`: one auth gate, one target-user query (covers both profile fields + role gate), then the projects/todos fetches (todos depends on projects → stays sequential). Removes one full server-action round-trip + one redundant role query per user-detail open. Deleted the now-unused `getUserDetail`/`getUserProjects` (only SettingsUserDetail used them; the `getUserProjects` in `SettingsProjects` is a different one from `manage-project.ts`). Added a `settings`-focus `startInteraction` span (`settings-user-detail / load`) so there's a real before/after number under Settings → Performance.
+
+**No auth-path change** (`requireAdmin`/`getAuthContext` untouched — still getUser). Verified: `tsc` clean, `eslint` 0 errors. Not an Orb-conversation change → no eval.
+
+**Reachability fix (same v0.6.183, `components/settings/SettingsUsers.tsx`):** the `/settings/users/[userId]` "{Name}'s Projects" page was **orphaned** — its only in-app link (`SettingsProjectTodos` owner link) is effectively unreachable post settings-reorg, so the page (and thus the optimized load) couldn't be reached. Per Stan: made each **user name a `<Link>`** to that page (documented `--link` nav color, same as the `SettingsProjectTodos` owner link — no new CSS class), and **removed the row's `onClick`/pointer** so the row is no longer clickable — only the existing **Edit** `action-link` opens the modal. UI model: `SettingsCrudList` row + `action-cell`/`action-link` (unchanged) + a nav `Link` on the name cell.
+
+**Awaiting Stan's dev-server test:** Settings → Users → click a name → the "{Name}'s Projects" page renders (projects + per-project todo counts); the row no longer opens edit; Edit link still opens the modal; super-admin access-denied gate still holds. Also uncommitted separately: the ORB-312 doc Pass-3/outage record (docs-only).
+
+---
 
 **ORB-320 filed + closed (not needed): the session-refresh middleware already exists — 2026-07-09 (Claude Code, Opus 4.8) — no code change (prod stable at v0.6.182)**
 

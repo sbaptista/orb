@@ -503,6 +503,7 @@ Standardized action column for all settings tables.
 - **`.btn-overflow`:** 44px × 44px hit target, 28px vertical kebab (&#x22EE;), hover bounding rectangle.
 - **Action td:** Uses `e.stopPropagation()` — clicking empty space in the action cell does NOT trigger row edit.
 - **Do not** use `align: 'right'` on action columns. Actions start on the left.
+- **Row-click is not universal.** Most settings tables open Edit on row click (hence the `stopPropagation()` above). **Exception — Settings → Users** (`SettingsUsers.tsx`): the row is **not** clickable; the **name cell is a navigation `Link`** (`--link` color, no underline — same treatment as the `SettingsProjectTodos` owner link) to that user's projects page (`/settings/users/[userId]`), and the edit modal opens **only** via the `action-link`. Use this variant when a row has a distinct detail destination separate from editing.
 
 ### Kebab vs Gear Icon Rule
 | Icon | When to use |

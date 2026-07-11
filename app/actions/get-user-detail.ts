@@ -4,12 +4,22 @@ import { requireAdmin } from '@/lib/auth'
 
 const SUPER_ADMIN_ROLE_ID = 3
 
-export async function getUserDetail(targetUserId: string) {
+/**
+ * ORB-312: single bundled fetch for the admin User Detail page.
+ *
+ * Replaces the old getUserDetail + getUserProjects pair, which the client fired
+ * via Promise.all — but Next.js serializes server actions, so each paid its own
+ * requireAdmin() (getUser round-trip) AND separately re-queried the target's
+ * role for the super-admin gate. This does one auth gate, one target-user query
+ * (covering both the profile fields and the role gate), then the project/todo
+ * fetches. Same server-side data model, one round-trip instead of two.
+ */
+export async function getUserDetailBundle(targetUserId: string) {
   let ctx
   try {
     ctx = await requireAdmin()
   } catch (e: any) {
-    return { error: e.message, profile: null }
+    return { error: e.message, profile: null, projects: [], todoCounts: {} }
   }
 
   const { data: target, error: targetErr } = await ctx.admin
@@ -18,44 +28,11 @@ export async function getUserDetail(targetUserId: string) {
     .eq('id', targetUserId)
     .single()
 
-  if (targetErr) console.error('[getUserDetail] target lookup failed:', { targetUserId, code: targetErr.code, message: targetErr.message })
-  if (!target) return { error: 'User not found', profile: null }
+  if (targetErr) console.error('[getUserDetailBundle] target lookup failed:', { targetUserId, code: targetErr.code, message: targetErr.message })
+  if (!target) return { error: 'User not found', profile: null, projects: [], todoCounts: {} }
 
   if (target.role_id === SUPER_ADMIN_ROLE_ID && ctx.roleId !== SUPER_ADMIN_ROLE_ID) {
-    return { error: 'Access denied', profile: null }
-  }
-
-  return {
-    error: null,
-    profile: {
-      first_name: target.first_name,
-      last_name: target.last_name,
-      email: target.email,
-      release_stage: target.release_stage as 'pre-alpha' | 'alpha' | 'beta' | null,
-      program_joined_at: target.program_joined_at as string | null,
-    },
-  }
-}
-
-export async function getUserProjects(targetUserId: string) {
-  let ctx
-  try {
-    ctx = await requireAdmin()
-  } catch (e: any) {
-    return { error: e.message, projects: [], todoCounts: {} }
-  }
-
-  const { data: target, error: targetErr } = await ctx.admin
-    .from('users')
-    .select('role_id')
-    .eq('id', targetUserId)
-    .single()
-
-  if (targetErr) console.error('[getUserProjects] target lookup failed:', { targetUserId, code: targetErr.code, message: targetErr.message })
-  if (!target) return { error: 'User not found', projects: [], todoCounts: {} }
-
-  if (target.role_id === SUPER_ADMIN_ROLE_ID && ctx.roleId !== SUPER_ADMIN_ROLE_ID) {
-    return { error: 'Access denied', projects: [], todoCounts: {} }
+    return { error: 'Access denied', profile: null, projects: [], todoCounts: {} }
   }
 
   const prodRes = await ctx.admin.from('projects').select('*').eq('created_by', targetUserId).order('sort_order')
@@ -69,7 +46,18 @@ export async function getUserProjects(targetUserId: string) {
     counts[t.product_id] = (counts[t.product_id] || 0) + 1
   })
 
-  return { error: null, projects: prodRes.data ?? [], todoCounts: counts }
+  return {
+    error: null,
+    profile: {
+      first_name: target.first_name,
+      last_name: target.last_name,
+      email: target.email,
+      release_stage: target.release_stage as 'pre-alpha' | 'alpha' | 'beta' | null,
+      program_joined_at: target.program_joined_at as string | null,
+    },
+    projects: prodRes.data ?? [],
+    todoCounts: counts,
+  }
 }
 
 export async function getProjectTodos(projectId: string) {
