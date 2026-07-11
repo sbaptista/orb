@@ -127,7 +127,19 @@ export async function proxy(request: NextRequest) {
   // Redirect unauthenticated users away from protected routes
   // Skip redirect if auth check itself failed (transient network error on wake)
   if (!user && !authFailed && pathname.startsWith('/dashboard')) {
-    return NextResponse.redirect(new URL('/auth/login', request.url))
+    const res = NextResponse.redirect(new URL('/auth/login', request.url))
+    // Self-heal: if an sb-*-auth-token cookie exists but getUser found no user
+    // (and did NOT throw — authFailed is excluded above, so a transient network
+    // blip won't reach here), the session cookie is corrupt/invalid. On WebKit
+    // (Safari + all iPad browsers) this otherwise flip-flops /dashboard <->
+    // /auth/login forever — the loop users currently "fix" by clearing site data.
+    // Expire the auth cookies so the next request is clean and lands on login once.
+    for (const c of request.cookies.getAll()) {
+      if (c.name.includes('-auth-token')) {
+        res.cookies.set(c.name, '', { maxAge: 0, path: '/' })
+      }
+    }
+    return res
   }
 
   // Redirect authenticated users away from auth screens

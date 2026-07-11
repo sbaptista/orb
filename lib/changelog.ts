@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.184',
+    date: '2026-07-11',
+    changes: [
+      'Fixed the Safari / iPad login loop where sign-in cycled forever and never reached the app. The cause was a corrupt session cookie the server read inconsistently, bouncing between the login and dashboard screens — previously clearable only by wiping the browser’s site data. Now, when the server sees a session cookie that no longer resolves to a valid user, it clears the auth cookies automatically and sends you to a clean login, so the loop self-heals instead of trapping you. (Root cause of the corruption is still under investigation; this makes it non-fatal.)',
+    ]
+  },
+  {
     version: 'v0.6.183',
     date: '2026-07-10',
     changes: [

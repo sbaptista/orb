@@ -10,11 +10,25 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.183
+- **Version:** 0.6.184
 
 ---
 
 ### Last Session Completed
+
+**WebKit login-loop self-heal (proxy auth-cookie reset) — 2026-07-11 (Claude Code, Opus 4.8) — v0.6.184**
+
+**Problem:** production login loops/cycles on **Safari + all iPad browsers (WebKit)**, never reaching the app; only clearing site data fixes it, and this recurs. Decisive clue from Stan: clicking **Update** (which reloads + clears some sessionStorage + pokes the SW but **never clears cookies**) does **not** fix the loop — so the culprit is the **corrupt Supabase auth cookie**, not stale JS/storage/bundle. Confirmed the service worker (`public/sw.js`) has **no fetch handler** (push-only, caches nothing), so "clear cache" really means "clear the cookie."
+
+**Mechanism:** `proxy.ts` calls `getUser()` on every request; on WebKit the chunked `sb-*-auth-token` cookie can end up present-but-invalid, so `getUser` returns inconsistently → proxy flip-flops `/dashboard` (no user → `/auth/login`) ↔ `/auth/login` (user → `/dashboard`) forever.
+
+**Fix (this release, `proxy.ts`):** in the `!user && !authFailed && /dashboard` redirect branch, if any `-auth-token` cookie exists, **expire the auth cookies** on the redirect response → next request is clean → lands on login once (self-heal = the automatic equivalent of the manual site-data clear). Additive; `authFailed` (getUser threw = transient) is excluded so a network blip won't log anyone out; logged-in users (valid getUser) never hit this branch. **No refresh-mechanism change.** Verified: `tsc`/`eslint` clean.
+
+**MUST verify on Chrome + Safari before trusting it** (Safari is the one that reproduces). **This is a mitigation, not a root-cause fix** — the corruption source (chunk-orphaning vs refresh-rotation race) still needs the cookie-chunk evidence (Storage → Cookies when it next loops). Tracked in the ORB todo filed this session.
+
+**Separate, still-open (issue B):** no automatic cross-version client-state invalidation — `clearVersionVolatileSessionState` is manual-only (Update button) + sessionStorage-only; doesn't touch cookies/localStorage/HTTP cache. Part of the same tracked audit.
+
+---
 
 **ORB-312 — SettingsUserDetail two-action → one-bundle merge (Pass-1-style, safe) — 2026-07-10 (Claude Code, Opus 4.8) — v0.6.183**
 
