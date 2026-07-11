@@ -9,7 +9,7 @@ ORB-312 began as a "Production Performance Baseline Sweep." The baseline + the l
 ## Ranked targets (2026-07 production baseline)
 
 1. **AI Metrics `ai_accounting_load`** — p50 ~3–4s, p95 4.3–6s cross-platform. → **Pass 1 done (v0.6.176), see below.**
-2. **`dashboard-init` p95 tail** — p50 ~0.4s but p95 4.5–5.0s on Mac/iPad (n=240/133). High volume; the tail is the issue. Now measurable end-to-end via the `route_to_ready` span (v0.6.175).
+2. **`dashboard-init` p95 tail** — p50 ~0.4s but p95 4.5–5.0s on Mac/iPad (n=240/133). High volume; the tail is the issue. Now measurable end-to-end via the `route_to_ready` span (v0.6.175). → **Pass 3 attempted (v0.6.179) and reverted after a production login outage — still UNADDRESSED. See Pass 3 below.**
 3. **Settings large-table loads** (`orb_model_requests`, `performance_events`, `audit_log`) — p95 3–4s; already partly addressed by ORB-311 cursor pagination. Watch, don't prioritize.
 
 **Discarded as non-actionable:** passkey `navigator.credentials.get` ceremony (OS/environment, not app code); `conditional_passkey` dwell (telemetry artifact, span removed v0.6.174); `auth` failure rate (was benign aborts, fixed v0.6.175).
@@ -55,6 +55,22 @@ ORB-312 began as a "Production Performance Baseline Sweep." The baseline + the l
 **Lesson (twice-learned).** Measure before optimizing. I inferred a ~1.8s `getUser` floor twice and was wrong both times; one diagnostic pass settled it. The 100ms role query is now the biggest thing *inside* `getAuthContext` — foldable into a JWT custom claim later, but a rounding error vs. the round-trip.
 
 **Real lever going forward:** reduce **server-action round-trips per admin page** (app-side, same move as Pass 1) and/or address **Vercel cold starts** (infra). Round-trips first — cleaner, no infra commitment.
+
+---
+
+### Pass 3 — dashboard client-auth removal → production login outage → REVERTED (v0.6.179–v0.6.182, 2026-07-09)
+
+**What I did (v0.6.179).** Target #2 (dashboard-init). `client_init` in `UnifiedDashboard` re-ran `supabase.auth.getUser()` + a `users` profile query on mount, even though the server component (`app/dashboard/page.tsx`) already ran `getUser()` → `resolveUser()` and passed the resolved `user` + `initialProducts` down as props. 97 production `client_init` samples confirmed those two redundant round-trips were ≈ the entire span (Mac p50 362 / p95 1166, iPhone 375 / 1584, iPad 505 / 7835 ms; `had_projects_query = 0`). Changed `client_init` to read the profile from the `user` prop; widened `resolveUser`'s select. A dead-state cleanup followed (v0.6.180).
+
+**What broke.** After v0.6.180 deployed, **production login looped** — sign-in bounced back to the login screen, hung on "authenticating," or cycled. Reverted Pass 3 (v0.6.181) → fixed **Chrome only**. Reverted **Pass 2's getClaims** (v0.6.182) → fixed **Safari/Firefox**.
+
+**Actual root cause (took three misdiagnoses to pin down).** Orb already HAS session-refresh middleware: **`proxy.ts`** at the repo root (Next 16 renamed `middleware` → `proxy`), which calls `getUser()` on every request (refresh + cookie propagation) and does auth redirects. The outage was **Pass 2**, not Pass 3: `getAuthContext` used `getClaims()` (local verify, which **rejects** an expired token) while the proxy used `getUser()` (which **refreshes** it). A server-action `getClaims` failure → `handleSessionExpired` → `/auth/login` → the proxy's `getUser` succeeds there → redirects back to `/dashboard` → **infinite loop**. Safari (ITP) / Firefox (ETP) let access tokens go stale and exposed it; Chrome auto-refreshed and hid it. Full write-up: KB `17accfad-9606-445d-855e-145bb9a2c370`, memory `project_auth_getclaims_vs_proxy`.
+
+**Outcome — the "reduce auth round-trips" lever is CLOSED.**
+- **Pass 2 (getClaims): abandoned as unsafe.** It cannot replace `getUser` in server actions — it must agree with the proxy's refresh or the app loops. The ~100ms win is not worth the fragility.
+- **Pass 3 (dashboard client-auth removal): reverted.** The redundant client `getUser` + profile query is back. **Target #2 remains unaddressed.** Any re-attempt is high-blast-radius (shared auth path) and must be measure-first AND verified on **Chrome + Safari + Firefox** before deploy — not a quick win.
+- **Pass 1 (AI Metrics merge) is untouched and remains the one standing ORB-312 win.**
+- **Standing lesson:** the residual per-page ~2s is Vercel/Next framework + cold-start overhead — not app-fixable. Prefer safe, non-auth server-action merges next (e.g. `SettingsUserDetail`'s two-action `Promise.all`, same pattern as Pass 1, no auth-path change).
 
 ---
 
