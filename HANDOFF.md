@@ -31,7 +31,7 @@ The genuinely-open remainder after ORB-321 (login loop) was closed. Problem: sta
 
 **Verification:** `tsc` exit 0, `eslint` 0 on changed files. **Stan tested on the dev server:** version transition clears the Orb transcript/volatile state; prefs/dismissals survive; fires once per transition (second same-version reload clears nothing). **Representative Tier 1 eval smoke set — 13/13 passed** (one case per tool + routing family: create/query/conversational/update/delete/confirm-flow/knowledge/projects/tickets/repository/strategic-routing/memory/voice; ~554k tokens, ~$0.4268, 2m 29s, completed 2026-07-12T19:35:18Z). Not the full Tier 1 by design — ORB-322 is not an Orb-conversation change; the smoke set confirms prompt-assembly/routing didn't regress.
 
-**ORB-322 status: implementation done + dev-tested; left OPEN pending production verification** — acceptance is clean transitions across Chrome + Safari + Firefox on a real deploy. Behavioral note: a user mid-conversation who reloads *into a new deploy* loses that in-progress conversation (same as today's Update-button behavior, intended).
+**ORB-322 status: CLOSED 2026-07-12** — v0.6.186 deployed and Vercel-promoted to production; closed via Orb API with attributed resolution notes (server `closed_at` 2026-07-12T19:41:51Z). Knowledge Repo closure entry `8770a2e3-dc23-410a-990d-6e83ea5c7a85` (durable lessons: boot-time version-compare trigger, must-run-before-hydration inline script, single-source-of-truth key list, scope discipline; supersedes the manual-only aspect of KB `6d3e884c`). Behavioral note: a user mid-conversation who reloads *into a new deploy* loses that in-progress conversation (same as the Update-button behavior, intended).
 
 ---
 
