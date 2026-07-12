@@ -48,14 +48,10 @@ The genuinely-open remainder after ORB-321 (login loop) was closed. Problem: sta
 **Confirmation test pending Stan:** iPad, clear site data, select the `+u1` passkey → should now show "This passkey is no longer valid" and STAY on login (no loop), because Supabase no longer has the credential.
 
 **REMAINING (next session — all real, none on fire):**
-- **Promote production back to latest** (stuck on v0.6.173 rollback).
-- **Remove the temp `/api/auth-debug` endpoint** + its proxy bypass line (v0.6.185 diagnostic — DELETE it).
-- **B — `deleteUser`:** make `auth.admin.deleteUser` failure a **hard error** (not warn); it can now trust the corrected FK constraints (CASCADE for per-user data, SET NULL for telemetry/audit).
-- **C — resilience:** authenticated session that can't resolve to `public.users` → **sign out + show login**, never loop. Also map the raw passkey error at `login/page.tsx:126` to a friendly message (don't leak Supabase text).
-- **Test-user provisioning:** build real test non-admins + admins (equivalent to real users) with a **login-bypass for one admin + one user**, to collect non-admin telemetry. `dev-login.ts` is existing related infra.
-- ~~**Correct ORB-321:**~~ **DONE 2026-07-11 (Claude Code, Opus 4.8).** ORB-321 was **closed** (attributed resolution notes): Part A (login loop) recorded as resolved via the orphaned-auth-user / telemetry-FK fix; the wrong cookie-corruption theory documented. Its genuinely-separate Part B — **no automatic cross-version client-state invalidation** (`clearVersionVolatileSessionState` is manual/Update-button-only + sessionStorage-only) — was split out to **ORB-322 (open)**, which now carries that scope, code refs, and acceptance criteria. Knowledge Repo closure entry `c9292534-8e7e-4fa0-abe7-8ac724c3432a` (orphaned-user/phantom-passkey root cause + durable lessons, cross-linked to ORB-320/319/passkey/resolveUser entries). DB-only; no code change or version bump.
-
-**Band-aids now in the tree from the wrong theory (v0.6.184–185, committed):** proxy self-heal (clears auth cookies on no-user `/dashboard` redirect — harmless, can stay or go) and `/api/auth-debug` (REMOVE). Neither fixed the real issue.
+- **Auth hardening + cleanup → ORB-323 (open).** The ORB-321 follow-ups are now a tracked ticket with code anchors: remove the temp `/api/auth-debug` endpoint + its `proxy.ts` bypass; make `deleteUser`'s `auth.admin.deleteUser` failure a hard error (safe now the FKs are corrected); sign out — never loop — an authed session that can't resolve to `public.users`; harden the `login/page.tsx` raw-error fallback; and decide the fate of the v0.6.184 proxy self-heal band-aid (no longer load-bearing). See ORB-323 for the full breakdown.
+- **Test-user provisioning** (scoped OUT of ORB-323 — separate workstream): real test non-admins + admins with a **login-bypass for one admin + one user**, to collect non-admin telemetry. `dev-login.ts` is existing related infra.
+- ~~**Promote production back to latest**~~ **DONE** — v0.6.186 deployed and Vercel-promoted.
+- ~~**Correct ORB-321 / split Part B**~~ **DONE 2026-07-11/12 (Claude Code, Opus 4.8).** ORB-321 closed (Part A resolved via the orphaned-auth-user / telemetry-FK fix; wrong cookie-corruption theory documented); Part B split to **ORB-322 → now also CLOSED** (auto client-state invalidation, shipped v0.6.186 — see the top entry). KB entries `c9292534` (ORB-321) + `8770a2e3` (ORB-322).
 
 ---
 
