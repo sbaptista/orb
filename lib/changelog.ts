@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.186',
+    date: '2026-07-11',
+    changes: [
+      'Updates now apply cleanly on their own. When a newer version of the app loads — whether you tapped Update or simply reloaded or navigated back into it — Orb automatically clears the version-specific working state that a new build can’t safely reuse from an older one (your in-progress Orb conversation, pending input, and command history). Previously this only happened when you pressed Update, so picking up a new version any other way could leave stale state behind that sometimes forced you to manually clear your browser’s site data. Your preferences are left untouched: voice settings, dismissed notices, welcome state, and your saved login email all carry over.',
+    ]
+  },
+  {
     version: 'v0.6.184',
     date: '2026-07-11',
     changes: [

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { VERSION } from '@/lib/version'
+import { clearVersionVolatileState, LAST_APPLIED_VERSION_KEY } from '@/lib/client-state'
 
 type BroadcastType = 'info' | 'warning' | 'urgent'
 
@@ -29,20 +30,6 @@ interface SystemState {
 const SystemStateContext = createContext<SystemState | undefined>(undefined)
 const IS_DEVELOPMENT = process.env.NODE_ENV === 'development'
 const VERSION_CHECK_INTERVAL_MS = IS_DEVELOPMENT ? 5_000 : 30_000
-const VERSION_VOLATILE_SESSION_KEYS = [
-  'todos_orb_input',
-  'todos_orb_conversation',
-  'todos_orb_action_sets',
-]
-
-function clearVersionVolatileSessionState() {
-  if (typeof window === 'undefined') return
-  for (const key of VERSION_VOLATILE_SESSION_KEYS) {
-    try {
-      sessionStorage.removeItem(key)
-    } catch {}
-  }
-}
 
 export function SystemStateProvider({ children }: { children: React.ReactNode }) {
   const [clientVersion] = useState<string>(() => VERSION)
@@ -127,9 +114,9 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
         }))
       }
 
-      clearVersionVolatileSessionState()
+      clearVersionVolatileState()
       try {
-        localStorage.setItem('orb_last_applied_version', version || clientVersion)
+        localStorage.setItem(LAST_APPLIED_VERSION_KEY, version || clientVersion)
       } catch {}
 
       window.location.reload()

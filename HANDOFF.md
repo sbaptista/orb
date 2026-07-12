@@ -10,11 +10,30 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.185**, but **PRODUCTION IS ROLLED BACK to v0.6.173** (`f027318`) — promoted in Vercel during the login-loop bisection. **Promote production back to latest when ready** (see login-loop entry below).
+- **Version:** local/canonical **0.6.186**, but **PRODUCTION IS ROLLED BACK to v0.6.173** (`f027318`) — promoted in Vercel during the login-loop bisection. **Promote production back to latest when ready** (see login-loop entry below).
 
 ---
 
 ### Last Session Completed
+
+**ORB-322 — automatic cross-version client-state invalidation (Part B, split from ORB-321) — 2026-07-11 (Claude Code, Opus 4.8) — v0.6.186**
+
+The genuinely-open remainder after ORB-321 (login loop) was closed. Problem: stale version-coupled client state survived deploys because volatile-state clearing only ran from the **Update button** — any other path to a new bundle (plain reload / back-navigation / browser picking up new assets) left stale Orb transcript/input/action-set/command-history state behind, sometimes forcing a manual browser site-data clear.
+
+**Fix (shared module + 3 files):**
+- **New `lib/client-state.ts`** — single source of truth: `VERSION_VOLATILE_SESSION_KEYS` (the 3 existing Orb keys **+ added `todos_orb_cmd_hist`**), `LAST_APPLIED_VERSION_KEY`, and shared `clearVersionVolatileState()`.
+- **`app/layout.tsx`** — a **pre-hydration inline `<script>`** (first child of `<body>`, built from the shared constants) that runs synchronously during HTML parse — **before React hydrates and before `UnifiedDashboard` reads sessionStorage** (React fires child effects before parent effects, so a provider `useEffect` would lose that race). On boot: if compiled `VERSION !== localStorage[orb_last_applied_version]` → clear the volatile keys + set the marker. Fires **once per version transition**, regardless of how the new bundle arrived.
+- **`components/SystemStateProvider.tsx`** — removed the duplicated local key list + clear function; `applyUpdate` now calls the shared helper/constant. Update-button behavior unchanged.
+
+**Preserved across versions (deliberately NOT cleared):** voice prefs (`orb_preferred_voice`/`orb_voice_rate`), dismissed broadcasts, welcome state, saved login email (`last_otp_*`), dev flags, session identity, and the marker itself. (Conservative scope, approved by Stan — the value is the automatic trigger, not a heavier wipe.)
+
+**Decisions recorded:** HTTP cache headers **audited → no change needed** (client polls `/api/version` with `cache: 'no-store'`, `sw.js` has no fetch handler so caches nothing, JS/CSS are content-hashed immutable, authed App Router docs are dynamic — storage was the sole stale-state driver). **No perf instrumentation** (synchronous, non-network, sub-ms boot guard). No DB / UI-catalog / eval impact (client-side, no new UI, not an Orb-conversation change).
+
+**Verification:** `tsc` exit 0, `eslint` 0 on changed files. **Stan tested on the dev server:** version transition clears the Orb transcript/volatile state; prefs/dismissals survive; fires once per transition (second same-version reload clears nothing).
+
+**ORB-322 status: implementation done + dev-tested; left OPEN pending production verification** — acceptance is clean transitions across Chrome + Safari + Firefox on a real deploy. Behavioral note: a user mid-conversation who reloads *into a new deploy* loses that in-progress conversation (same as today's Update-button behavior, intended).
+
+---
 
 **ROOT-CAUSED & FIXED: the WebKit login loop was orphaned auth users + a phantom passkey — NOT cookies — 2026-07-11 (Claude Code, Opus 4.8)**
 
