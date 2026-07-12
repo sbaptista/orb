@@ -10,11 +10,35 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** 0.6.185
+- **Version:** local/canonical **0.6.185**, but **PRODUCTION IS ROLLED BACK to v0.6.173** (`f027318`) — promoted in Vercel during the login-loop bisection. **Promote production back to latest when ready** (see login-loop entry below).
 
 ---
 
 ### Last Session Completed
+
+**ROOT-CAUSED & FIXED: the WebKit login loop was orphaned auth users + a phantom passkey — NOT cookies — 2026-07-11 (Claude Code, Opus 4.8)**
+
+**READ THIS FIRST — the v0.6.181–v0.6.185 login work below was chasing the WRONG theory (cookie corruption / self-heal / auth-debug). The real cause was found by Stan testing passkeys + DB evidence, then fixed at the data/schema level (no app-version dependency).**
+
+**Real root cause (DB-proven):** `deleteUser` (`app/actions/delete-user.ts`) deletes the `public.users` row, then calls `auth.admin.deleteUser()` — but that's **best-effort (warn, not throw)**. It failed because `orb_metrics` / `orb_model_requests` had `user_id` **NOT NULL + NO ACTION FK** to `auth.users`, so the auth delete hit a FK violation and was swallowed → **orphaned `auth.users` rows survived, with their passkeys.** Selecting the orphan's passkey (`stan.baptista+u1`) authenticated a phantom auth user with no `public.users` row → `resolveUser` can't resolve → **two symptoms from one root:** (a) Supabase `passkey.verifyAuthentication` (`lib/passkey.ts:237`) mints a session → proxy `/dashboard↔/auth/login` **loop**; or (b) verify hangs then errors → raw Supabase msg leaked verbatim at `app/auth/login/page.tsx:126` ("blank page then red error"). WebKit exposed it via the passkey picker; version-independent (why bisection to v0.6.173 "worked" — Stan used his *valid* passkey there).
+
+**Fixes applied to PRODUCTION DB (done, verified):**
+1. **Migration** `scripts/migrations/20260711_telemetry_user_id_set_null.sql` (Stan ran it): `orb_metrics.user_id` + `orb_model_requests.user_id` → **nullable + FK `ON DELETE SET NULL`** (matches `performance_events`). Satisfies Stan's requirement that **usage/cost telemetry must OUTLIVE the user** (and become anonymizable later). Also removes the deletion blocker.
+2. **Data cleanup** (Stan ran the DELETE): removed the **4 orphaned auth users** (`stan.baptista-t2`, `katherinenagel23@gmail.comworks`, `stevedmiller.sm`, `stan.baptista+u1`). `+u1`'s passkey cascaded away; its **43 `orb_model_requests` + 1 `orb_metrics` preserved with `user_id=NULL`**. Verified: orphans=0, u1 passkeys=0, telemetry kept.
+
+**Confirmation test pending Stan:** iPad, clear site data, select the `+u1` passkey → should now show "This passkey is no longer valid" and STAY on login (no loop), because Supabase no longer has the credential.
+
+**REMAINING (next session — all real, none on fire):**
+- **Promote production back to latest** (stuck on v0.6.173 rollback).
+- **Remove the temp `/api/auth-debug` endpoint** + its proxy bypass line (v0.6.185 diagnostic — DELETE it).
+- **B — `deleteUser`:** make `auth.admin.deleteUser` failure a **hard error** (not warn); it can now trust the corrected FK constraints (CASCADE for per-user data, SET NULL for telemetry/audit).
+- **C — resilience:** authenticated session that can't resolve to `public.users` → **sign out + show login**, never loop. Also map the raw passkey error at `login/page.tsx:126` to a friendly message (don't leak Supabase text).
+- **Test-user provisioning:** build real test non-admins + admins (equivalent to real users) with a **login-bypass for one admin + one user**, to collect non-admin telemetry. `dev-login.ts` is existing related infra.
+- **Correct ORB-321:** it was filed on the wrong (cookie-corruption) theory. The actual login-loop cause is this passkey/orphan issue + the deleteUser/FK design. File/refile accordingly.
+
+**Band-aids now in the tree from the wrong theory (v0.6.184–185, committed):** proxy self-heal (clears auth cookies on no-user `/dashboard` redirect — harmless, can stay or go) and `/api/auth-debug` (REMOVE). Neither fixed the real issue.
+
+---
 
 **WebKit login-loop self-heal (proxy auth-cookie reset) — 2026-07-11 (Claude Code, Opus 4.8) — v0.6.184**
 
