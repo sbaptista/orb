@@ -123,7 +123,9 @@ function LoginForm() {
       return
     }
 
-    setError(msg || 'Passkey authentication failed. Try signing in with email.')
+    // ORB-323 #4: never surface the raw provider message to the user — the real
+    // error is already captured in telemetry via perf.end(false, result.error) above.
+    setError('Passkey authentication failed. Try signing in with email.')
   }
 
   async function handleSubmit(e: React.FormEvent) {

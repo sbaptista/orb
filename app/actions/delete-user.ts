@@ -70,9 +70,14 @@ export async function deleteUser(userId: string) {
       }
     }
 
+    // Hard error (ORB-323 #2): a swallowed failure here is exactly what left
+    // orphaned auth users with live passkeys behind ORB-321's login loop. With the
+    // telemetry FKs corrected (ON DELETE SET NULL) and per-user tables cleaned above,
+    // this delete is expected to succeed — so a genuine failure must surface, not warn.
+    // The "already gone" case (no auth user to delete) is tolerated as success.
     const { error: authError } = await ctx.admin.auth.admin.deleteUser(userId)
-    if (authError) {
-      console.warn('[deleteUser] Warning: Auth user deletion failed or already deleted:', authError.message)
+    if (authError && !/not found|does not exist|user_not_found/i.test(authError.message ?? '')) {
+      throw new Error(`Auth user deletion failed: ${authError.message}`)
     }
 
     await logAuditEvent({

@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.188',
+    date: '2026-07-12',
+    changes: [
+      'A sign-in session that can no longer be matched to your account now takes you cleanly to a fresh login instead of getting stuck bouncing between screens. Previously a rare “orphaned” session could trap you in a redirect loop that only clearing your browser’s site data would fix — now the app signs that session out and returns you to a clean login automatically.',
+      'Passkey sign-in errors now always read in plain language (for example, “Passkey authentication failed — try signing in with email”) instead of occasionally showing a raw technical message from the sign-in service.',
+    ]
+  },
+  {
     version: 'v0.6.186',
     date: '2026-07-11',
     changes: [

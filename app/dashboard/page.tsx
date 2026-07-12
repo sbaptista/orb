@@ -13,7 +13,13 @@ export default async function DashboardPage() {
   if (!user || !user.email) redirect('/auth/login')
 
   const result = await resolveUser(user.id, user.email)
-  if (!result.ok) redirect(result.redirectTo)
+  if (!result.ok) {
+    // Valid auth session that can't resolve to a public.users row (phantom/orphaned
+    // session — ORB-323 #3). Redirecting straight to login loops: the proxy sees the
+    // still-valid session and bounces back here. Route through sign-out so the session
+    // is cleared first and login is terminal.
+    redirect(`/auth/signout?redirect=${encodeURIComponent(result.redirectTo)}`)
+  }
 
   const isAdmin = result.user.role_id === 1 || result.user.role_id === 3
 
