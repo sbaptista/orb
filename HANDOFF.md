@@ -13,11 +13,39 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.188** — production is current (v0.6.188 deployed and Vercel-promoted 2026-07-12). The earlier v0.6.173 login-loop-bisection rollback has been fully unwound.
+- **Version:** local/canonical **0.6.189**; production remains **v0.6.188**. v0.6.189 is committed locally but not pushed.
 
 ---
 
 ## Last Session Completed
+
+**ORB-325 voice instrumentation, Firefox input, Safari hardening, and architecture review — 2026-07-12 (Codex, GPT-5) — v0.6.189 — OPEN**
+
+Added stage-level telemetry: `voice-recognition / listen_to_submit`, `voice-turn / recognized_to_mic_return`, and `voice-output / greeting_playback|answer_playback`. Measurements cover recognition start/first result/submit, response readiness, API TTS request/response, audio decode, playback start/end, and microphone return; metadata includes provider/model/voice/rate, recognition path, and platform/browser but never transcript contents. Supported browsers are **Safari, Chrome, Edge, and Firefox**. Firefox now records a short utterance, posts it to an authenticated server endpoint for OpenAI transcription, and feeds the result into the same conversation state machine; audio is not stored. The evaluation/keep-remove gate lives in `docs/orb-325-voice-quality-plan.md`. Performance matrix and browser support policy updated. Device verification remains.
+
+The full Tier 1 run exposed three unrelated eval issues. Corrected ordinal action-set recognition (`first five todos` now reaches the deterministic ledger branch), retained the meaningful completed-switch speech guards while allowing the accurate in-progress phrase “Switching to…”, and added a forbidden-tool assertion so ticket-deletion safety prohibits todo mutation tools without rejecting a safe `query_tickets` read. Targeted Tier 1 rerun passed **3/3**.
+
+ORB-325 follow-up: restored the audible greeting on every voice-mode entry (the existing-conversation branch had skipped directly to listening), and keeps the submitted recognition transcript visible in the voice input field through processing/playback; it clears when the microphone resumes for the next turn. Stan verified the interaction on localhost: the greeting and input-field transcript returned, and the overall response felt materially better.
+
+Release validation: `npx tsc --noEmit`, focused lint (0 errors; pre-existing warnings only), `git diff --check`, and the Next.js production build all pass. Firefox localhost acceptance is complete; Safari, Chrome, and Edge remain in the controlled browser matrix.
+
+Safari acceptance exposed a permission-recovery UX gap: Orb correctly detected a denied microphone but only said to check browser settings. The voice panel now gives concrete recovery steps for Safari, Chrome, Edge, and Firefox (with a separate iPhone/iPad Safari path), and Help explains that guidance is available in place.
+
+Safari's longer CRUD test exposed structural issues. Database evidence showed the initial shortened proposal contained all **3** todos, so the report that only 2 were initially visible is not classified as an STT defect. The next turn was genuinely wrong: stored response heading said 3 while listing 4; because it narrated rather than replacing the held transaction, “Confirmed” had no pending action to execute and triggered a second confirmation. A shared deterministic undercount guard now compares claims such as “only two, add one” with the exact held operations, corrects the count, itemizes the existing set, and preserves it for one confirmation. The matching Tier 1 case is `pending-create-undercount-corrects-without-expanding`. Todo confirmations now resolve project names instead of exposing internal codes. Voice entry still speaks a greeting but no longer appends repeated greeting cards to an existing transcript. Project-switch summaries reject stale todos from the previously selected project, preventing the false “1 active” message after four creates.
+
+Stan clarified the apparent initial undercount: the first shortened item was flattened onto the confirmation heading (`Confirm…? - create …`) while the other two rendered as separate rows. Root cause was shared `sanitizeUserFacingSpeech` collapsing `\n\n` through a broad `\s{2,}` replacement. It now collapses horizontal whitespace only and preserves Markdown list breaks. This was a transcript-formatting defect, not evidence of faulty STT.
+
+Stan retested the corrected Safari interaction and reported it was **much better**. The transcript/list and duplicate-confirmation fixes are accepted qualitatively; Safari's measured strategic-response latency remains open.
+
+The first run of `pending-create-undercount-corrects-without-expanding` reached the model because the shared parser recognized “only two” but not Safari's actual transcript, “only **have** two.” The parser now accepts the optional “have” while remaining scoped to an exact pending create set plus an explicit request for one more. Focused Tier 1 rerun passed **1/1** on the deterministic path.
+
+The later Safari strategic/survey transcript failed the broader quality gate and changed the direction of ORB-325. Correlated provider evidence showed the initial strategic request spent **75.437s** in Gemini plus **3.028s** for the first TTS chunk (minimum first audio about **78.5s**), and a mistaken strategic route continued for **50.562s** after the user stopped it. Simple survey turns carried roughly **55k–56.5k input tokens**, took 8–11s in the model before TTS, and replayed prior answers into four duplicate feedback tickets (TICKETS-49, 50, 52, and 53). This is a serial-pipeline, context, routing, workflow-state, idempotency, and cancellation problem—not a Safari-only defect.
+
+`docs/orb-325-voice-quality-plan.md` now preserves the transcript evidence, prior Orb voice-history lessons from the Knowledge Repo, external voice interaction benchmarks, proposed latency gates, and the next architecture decision: compare an optimized serial operator with an isolated native Realtime/WebRTC operator. Do **not** restore the old sentence-splitting `speakStreaming()` design. Further phrase-specific patches are paused, and they must not be replaced with canned responses. Orb's language remains fluid; deterministic workflow state, routing, authorization, confirmation, idempotency, cancellation, and verified tool outcomes provide the rock-solid structure underneath it.
+
+Verification completed for this slice: TypeScript, focused lint (0 errors; pre-existing warnings only), `git diff --check`, and production build passed. Stan ran the targeted Tier 1 regressions: the three initial cases passed **3/3**, and `pending-create-undercount-corrects-without-expanding` passed **1/1** after its parser correction. Firefox localhost acceptance passed, and Stan qualitatively accepted the corrected Safari confirmation interaction as “much better.” Broad Chrome/Edge/device acceptance is deferred until the architecture gate; do not spend another full paid eval run on the unresolved design.
+
+---
 
 **ORB-312 — Production Performance Baseline Sweep — 2026-07-12 (Codex, GPT-5) — CLOSED**
 
@@ -62,22 +90,24 @@ The recurring Safari/iPad login loop was **not** cookie corruption (the discarde
 
 ## Current Uncommitted Changes
 
-- `HANDOFF.md` — this Claude-owned restructure/prune, not yet committed.
+- `components/SystemStateProvider.tsx`, `ACTIVE_WORK/claude-code.md` — Claude Code's active ORB-326 SystemStateProvider poll-dedup slice; Codex did not stage or commit these files.
 - `.claude/settings.local.json` — intentional local tool-settings change (never committed with feature work).
-- Otherwise the tree is clean. All ORB-321/322/323 code, migrations, and closures are committed and pushed (through `bbef735`).
 
 ---
 
 ## Active Risks / Unresolved Work
 
-- **None pressing.** The ORB-321 login-loop class is fully closed (ORB-321/322/323 + the two FK migrations); the orphan-cause FK class was audited whole, not patched per-instance.
-- **Standing, low priority (verified 2026-07-12):** full-project `npm run lint` reports **6 errors + 63 warnings**, all in pre-existing files unrelated to recent work (e.g. `react-hooks/set-state-in-effect` in voice hooks, unused-var warnings in scripts). Focused lint on touched files is clean and is the working gate.
+- **ORB-325 remains open at an architecture gate.** Current voice mode is measurably too slow and brittle for broad conversational parity with text. Do not resume symptom-by-symptom tuning before choosing and validating the orchestration contract in `docs/orb-325-voice-quality-plan.md`.
+- **Preserve TICKETS-48–54 as evidence.** Four are duplicate survey side effects, but cleanup requires separate authorization; do not dismiss or delete them silently.
+- **Standing, low priority (verified 2026-07-12):** full-project `npm run lint` reports **6 errors + 63 warnings**, all in pre-existing files unrelated to recent work. Focused ORB-325 lint has 0 errors and retains one pre-existing `react-hooks/set-state-in-effect` warning at `useCapabilities.ts:142`.
 
 ---
 
 ## Next Priorities
 
-1. **ORB-292** — design user-facing Value/Balanced/Deep Thinking modes, per-user allowances, consent-based Orb tuning proposals.
+1. **ORB-325** — next session, decide the bounded voice architecture and scope an isolated comparison of optimized serial vs native Realtime/WebRTC using the fixed transcript scenarios and latency/correctness gates. No implementation without Stan's explicit approval.
+2. **ORB-326** — Claude Code's SystemStateProvider poll dedup is waiting for release bookkeeping after v0.6.189 is committed.
+3. **ORB-292** — design user-facing Value/Balanced/Deep Thinking modes, per-user allowances, consent-based Orb tuning proposals.
 
 _(Reprioritize with Stan. Recently cleared: **ORB-324** (test-user provisioning) closed as already-implemented — the dev-login bypass + non-admin/admin test users + non-admin telemetry already exist via ORB-295 (`app/actions/dev-login.ts` + `DEV_USERS`); KB `bb244e91`. Also closed: ORB-303/ORB-317/ORB-287/ORB-254 — file a fresh focused ticket if any has genuinely unfinished scope rather than reviving a closed one.)_
 
@@ -90,7 +120,8 @@ Load-bearing invariants for anyone touching Orb behavior. Full operating rules l
 - **Name-first identifiers.** Project **NAME** is the identifier everywhere users/model interact. Project **code** is internal-only, auto-generated, immutable, and exists solely to prefix todo codes (`ORB-73`) — never a second user-facing label, never user-editable. References resolve name → exact code → fuzzy/partial name (`resolveProjectByReference`). `switch_project`, `update_project`, `delete_project` all take **name**, server resolves. (The old `switch_project`-uses-code inconsistency is **reconciled** as of 2026-07-12.)
 - **Structural mutation gate** (not prompt-only). CRUD tools are held server-side: the model calls the tool immediately, the server holds, the user confirms, the server executes. The mutation prompt aligns ("always call the tool immediately — the server handles confirmation").
 - **Identifier provenance.** Task/project codes may only be used if they were actually seen this conversation (backlog, tool result, or the user's words) — never constructed by pattern or remembered across a cleared session. Enforced at the prompt layer + a server-side gate that rejects mutations targeting unseen codes.
-- **Voice.** Speaks once per turn, after the response completes (never chases the stream). One personality at three volumes (reserved/natural/open). Preferences live in localStorage (browser voices differ per device). Test on Chrome/Safari/Edge only — Comet is unreliable for voice.
+- **Browser support.** Safari, Chrome, Edge, and Firefox are the required representative browser families; capability-specific features must provide an honest fallback. Canonical policy: `docs/browser-support-policy.md`.
+- **Voice.** v0.6.189 still uses the predictable final-response serial path; Firefox uses authenticated server transcription when native recognition is unavailable. ORB-325 now evaluates an optimized serial operator against a bounded native Realtime/WebRTC operator. Do not restore pseudo-realtime sentence-level `speakStreaming()`. During the restructure, add neither phrase-specific patches nor canned responses: natural language stays fluid, while deterministic state, routing, authorization, confirmation, idempotency, cancellation, and verified outcomes enforce correctness.
 - **Git push is never automatic** — explicit in-chat approval every time (also structurally enforced via settings.local.json).
 - **Orb identity:** Brownie temperament, butler intelligence.
 
@@ -98,7 +129,7 @@ Load-bearing invariants for anyone touching Orb behavior. Full operating rules l
 
 ## AI Tool Used Last Session
 
-`2026-07-12 — Claude Code (Opus 4.8)`
+`2026-07-12 — Codex (GPT-5)`
 
 ---
 

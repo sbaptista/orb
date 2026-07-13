@@ -641,19 +641,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       return
     }
 
-    if (messagesRef.current.some(m => m.type === 'orb')) {
-      voice.resumeListening()
-      measurement.end(true, null, { usedExistingConversation: true })
-      return
-    }
-
     const greeting = makeOrbGreeting(user?.first_name)
     const greetingId = genId()
+    const hasExistingConversation = messagesRef.current.length > 0
     greetingFiredRef.current = true
     lastSpokenVoiceMessageRef.current = { id: greetingId, text: greeting }
-    setMessages(prev => [...prev, { id: greetingId, type: 'orb', text: greeting }])
+    if (!hasExistingConversation) {
+      setMessages(prev => [...prev, { id: greetingId, type: 'orb', text: greeting }])
+    }
     voice.speak(greeting)
-    measurement.end(true, null, { usedExistingGreeting: false })
+    measurement.end(true, null, { usedExistingConversation: hasExistingConversation })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noProject, voice.voiceActive, voice.supportsVoice, user?.first_name, refreshTtsConfig])
 
@@ -1109,6 +1106,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   useEffect(() => {
     if (!projectSwitchingRef.current || noProject || (orbTodos.length === 0 && activeTodos.length === 0)) return
     if (!selected) return
+    if (orbTodos.some(todo => todo.product_id !== selectedId)) return
     projectSwitchingRef.current = false
     const active = activeTodos
     const urgentCount = active.filter(t =>

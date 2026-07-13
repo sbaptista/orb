@@ -33,7 +33,7 @@ import { checkOrbBudget, budgetBlockMessage } from '@/lib/orb-model/budget'
 import { classifyProviderFailure, notifyOrbIncident } from '@/lib/orb-model/incidents'
 import type { OrbModelProviderId } from '@/lib/orb-model/types'
 import { extractCitedCodes, isFalseCompletionClaim } from '@/lib/orb-model/false-claim-guard'
-import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, resolveActionSetReference, todoCode } from '@/lib/orb-model/context'
+import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, pendingTodoUndercount, resolveActionSetReference, todoCode } from '@/lib/orb-model/context'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -425,7 +425,10 @@ export async function orbConverse(req: OrbRequest) {
           if (op.params.target_project_code) return String(op.params.target_project_code).toUpperCase()
           return null
         }).filter(Boolean))
-        const projectScope = projectCodes.size === 1 ? [...projectCodes][0] : ''
+        const projectCode = projectCodes.size === 1 ? [...projectCodes][0] : ''
+        const projectScope = projectCode
+          ? ctx.productList.find((project: any) => project.code?.toUpperCase() === projectCode)?.name ?? projectCode
+          : ''
         if (grouped.size === 1 && grouped.has('create_todo')) {
           return `create ${ops.length} todos${projectScope ? ` in ${projectScope}` : ''}`
         }
@@ -450,7 +453,8 @@ export async function orbConverse(req: OrbRequest) {
         const lines = ops.slice(0, CONFIRM_LIST_MAX).map(op => {
           const p = op.params ?? {}
           if (op.tool === 'create_todo') {
-            const project = p.product_code ? String(p.product_code).toUpperCase() : ctx.current?.code
+            const projectCode = p.product_code ? String(p.product_code).toUpperCase() : ctx.current?.code
+            const project = ctx.productList.find((candidate: any) => candidate.code?.toUpperCase() === projectCode)?.name ?? projectCode
             return `- create "${p.title ?? 'untitled'}"${project ? ` in ${project}` : ''}`
           }
           const code = p.code ? String(p.code).toUpperCase() : '?'
@@ -766,6 +770,15 @@ export async function orbConverse(req: OrbRequest) {
 
         if (isBareAffirmation(req.input)) {
           await executeTodoOperationsAndFinish(pendingTodoOps)
+          return
+        }
+
+        const undercount = pendingTodoUndercount(req.input, pendingTodoOps)
+        if (undercount) {
+          const speech = `There are already ${undercount.actual} todos in the pending set, not ${undercount.claimed}:\n\n${listTodoOperationLines(pendingTodoOps)}\n\nConfirm these ${undercount.actual}, or tell me which one to change.`
+          recordModelRequest(speech)
+          recordMetrics(speech.length)
+          stream.done({ speech, isStreaming: false, pendingMutation: req.pendingMutation })
           return
         }
       }

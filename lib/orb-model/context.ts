@@ -20,6 +20,26 @@ export type OrbActionSetReference = {
   createdAt: string
 }
 
+type PendingTodoOperation = { tool: string; params: Record<string, unknown> }
+
+const COUNT_WORDS: Record<string, number> = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5,
+  six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+}
+
+export function pendingTodoUndercount(
+  input: string,
+  operations: PendingTodoOperation[] | undefined,
+): { claimed: number; actual: number } | null {
+  if (!operations?.length || !operations.every(operation => operation.tool === 'create_todo')) return null
+  if (!/\b(?:one more|another|add one|need one)\b/i.test(input)) return null
+  const match = input.match(/\bonly\s+(?:have\s+)?(\d+|zero|one|two|three|four|five|six|seven|eight|nine|ten)\b[^.!?]*\b(?:tasks?|todos?|to\s+dos?|to\s+do\s+is)\b/i)
+  if (!match) return null
+  const claimed = /^\d+$/.test(match[1]) ? Number(match[1]) : COUNT_WORDS[match[1].toLowerCase()]
+  if (!Number.isFinite(claimed) || operations.length <= claimed) return null
+  return { claimed, actual: operations.length }
+}
+
 export type OrbContext = Awaited<ReturnType<typeof buildOrbContext>>
 
 export function todoCode(todo: any, productList: any[]): string {
@@ -51,6 +71,7 @@ export function isBroadProjectStateQuestion(input: string): boolean {
 
 export function isRecentTodoReference(input: string): boolean {
   return /\b(them|those|these|all of them|the ones|the tasks|the todos|the to dos)\b/i.test(input)
+    || /\b(first|1st|second|2nd|third|3rd|last|latest|newest|initial|most recent)\b[^.!?]*\b(tasks|todos|to dos)\b/i.test(input)
 }
 
 export function buildTicketStatusRoutingHint(

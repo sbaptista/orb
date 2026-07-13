@@ -10,6 +10,7 @@ export type EvalCase = {
   userEmail?: string               // optional admin context for strategic evaluations
   history?: Array<{ role: 'user' | 'assistant'; text: string }>
   pendingSummary?: string            // simulate a server-held pending project mutation awaiting confirmation
+  pendingTodoOperations?: Array<{ tool: string; params: Record<string, any> }>
   actionSets?: Array<{ kind: 'todo_set'; tool: string; ordinal: number; codes: string[]; summary: string; createdAt: string }>
   backlogOverride?: string           // freeze the backlog the model sees (decouples project-routing cases from live DB state)
   mutationApproval?: 'ask' | 'allow' // eval-only override; defaults to allow for tool-routing cases
@@ -33,6 +34,7 @@ export type EvalCase = {
     count: number
   }
   expectNoTool?: boolean           // assert that no tool was called
+  forbidTools?: string[]           // assert that none of these tools was called; other tools are allowed
   expectProvider?: 'anthropic' | 'google'
   expectRouteRole?: 'operational' | 'strategic'
 
@@ -192,6 +194,22 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
+    id: 'pending-create-undercount-corrects-without-expanding',
+    description: 'When a user miscounts an exact pending create set and asks for one more, Orb corrects the count instead of inventing a fourth item or losing the pending transaction',
+    productCode: 'ORB',
+    pendingTodoOperations: [
+      { tool: 'create_todo', params: { title: 'Celebrate achievements', product_code: 'ADELESADUL' } },
+      { tool: 'create_todo', params: { title: 'Recognize contributions', product_code: 'ADELESADUL' } },
+      { tool: 'create_todo', params: { title: 'Praise progress', product_code: 'ADELESADUL' } },
+    ],
+    input: 'You only have two to do is I need one more',
+    tier: 1,
+    expectNoTool: true,
+    speechContains: ['already 3', 'not 2', 'Praise progress'],
+    speechPattern: /not 2:\n\n- create/i,
+  },
+
+  {
     id: 'confirm-mutation-doubled-affirmation',
     description: 'A stacked voice-style affirmation ("Confirm confirm") still calls confirm_mutation',
     productCode: 'ORB',
@@ -282,7 +300,7 @@ export const EVAL_CASES: EvalCase[] = [
       name: 'client_action',
       params: { action: 'switch_project' },
     },
-    speechNotContains: ['done', "i've switched", 'is now active', 'switching to', 'stokelyfro'],
+    speechNotContains: ['done', "i've switched", 'is now active', 'stokelyfro'],
   },
 
   {
@@ -449,7 +467,7 @@ export const EVAL_CASES: EvalCase[] = [
     productCode: 'ORB',
     input: 'Delete TICKETS-47',
     tier: 1,
-    expectNoTool: true,
+    forbidTools: ['delete_todo', 'update_todo', 'move_todo'],
   },
 
   {

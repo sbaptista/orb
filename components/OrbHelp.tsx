@@ -252,7 +252,7 @@ const TOPICS: Topic[] = [
         </div>
 
         <p className="help-p text-sm text-muted" style={{ marginTop: '20px', marginBottom: 0 }}>
-          Voice requires a browser that supports the Web Speech API (Chrome, Edge, Safari 14.1+). Voice availability and quality vary by browser and device.
+          Orb supports Safari, Chrome, Edge, and Firefox. Voice uses native browser speech recognition where available. In Firefox, Orb records a short utterance and securely transcribes it on the server; the recording is not stored. If microphone access is blocked, the voice panel shows browser-specific steps to allow it and reload Orb. Voice quality may still vary by browser, device, microphone, and selected voice.
         </p>
       </div>
     ),

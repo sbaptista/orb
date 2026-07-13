@@ -9,6 +9,7 @@ export type OrbModelInvocationSource =
   | 'proactive_observation'
   | 'adaptation_proposal'
   | 'voice_tts'
+  | 'voice_stt'
 
 export type OrbModelRateSnapshot = {
   version: string

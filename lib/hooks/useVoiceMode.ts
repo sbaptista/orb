@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { TtsProvider } from '@/lib/orb-model/tts'
 import { synthesizeSpeech } from '@/app/actions/orb-tts'
+import { startInteraction } from '@/lib/performance/telemetry'
 import { useCapabilities, type Capabilities } from './useCapabilities'
 
 export type TtsConfig = {
@@ -96,6 +97,9 @@ const LS_VOICE_KEY = 'orb_preferred_voice'
 const LS_RATE_KEY = 'orb_voice_rate'
 const SILENCE_MS = 2000
 const TRANSCRIPT_DEBOUNCE_MS = 150
+const SERVER_SILENCE_MS = 1600
+const SERVER_MAX_RECORDING_MS = 30_000
+const SERVER_VOICE_THRESHOLD = 0.018
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -180,6 +184,16 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   const audioCtxRef = useRef<AudioContext | null>(null)
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null)
   const prefetchRef = useRef<{ text: string; promise: Promise<{ audioBase64: string; contentType: string }>; provider: string } | null>(null)
+  const recognitionMeasurementRef = useRef<ReturnType<typeof startInteraction> | null>(null)
+  const speechMeasurementRef = useRef<ReturnType<typeof startInteraction> | null>(null)
+  const turnMeasurementRef = useRef<ReturnType<typeof startInteraction> | null>(null)
+  const firstRecognitionResultRef = useRef(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
+  const recordingAudioCtxRef = useRef<AudioContext | null>(null)
+  const recordingFrameRef = useRef<number | null>(null)
+  const recordingCancelledRef = useRef(false)
+  const startServerRecognitionRef = useRef<() => void>(() => {})
 
   // ── Init ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -226,6 +240,16 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
 
   const stopRecognition = useCallback(() => {
     if (recRef.current) try { recRef.current.stop() } catch {}
+    recordingCancelledRef.current = true
+    if (mediaRecorderRef.current?.state === 'recording') {
+      try { mediaRecorderRef.current.stop() } catch {}
+    }
+    if (recordingFrameRef.current !== null) cancelAnimationFrame(recordingFrameRef.current)
+    recordingFrameRef.current = null
+    mediaStreamRef.current?.getTracks().forEach(track => track.stop())
+    mediaStreamRef.current = null
+    if (recordingAudioCtxRef.current) void recordingAudioCtxRef.current.close().catch(() => {})
+    recordingAudioCtxRef.current = null
     recognitionRunningRef.current = false
     recognitionStartPendingRef.current = false
     setIsListening(false)
@@ -251,9 +275,14 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       recognitionRunningRef.current = true
       recognitionStartPendingRef.current = false
       setIsListening(true)
+      recognitionMeasurementRef.current?.mark('recognition_started')
     }
 
     rec.onresult = (e: any) => {
+      if (!firstRecognitionResultRef.current) {
+        firstRecognitionResultRef.current = true
+        recognitionMeasurementRef.current?.mark('first_transcript_result')
+      }
       emptyAutoResumeCountRef.current = 0
       let interim = ''
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -266,11 +295,21 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
           silenceRef.current = setTimeout(() => {
             const text = transcriptRef.current.trim()
             if (text && onSendRef.current) {
+              recognitionMeasurementRef.current?.mark('utterance_submitted')
+              recognitionMeasurementRef.current?.end(true, null, { transcriptLength: text.length })
+              recognitionMeasurementRef.current = null
+              turnMeasurementRef.current = startInteraction({
+                focus: 'voice',
+                flow: 'voice-turn',
+                interaction: 'recognized_to_mic_return',
+                surface: 'dashboard',
+                metadata: { transcriptLength: text.length },
+              })
+              turnMeasurementRef.current.mark('recognized_text_submitted')
               emptyAutoResumeCountRef.current = 0
               onSendRef.current(text)
               transcriptRef.current = ''
               accumulated = ''
-              setTranscript('')
             }
             silenceRef.current = null
             stopRecognition()
@@ -296,6 +335,8 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       recognitionRunningRef.current = false
       recognitionStartPendingRef.current = false
       setIsListening(false)
+      recognitionMeasurementRef.current?.end(false, `recognition_${e.error || 'error'}`)
+      recognitionMeasurementRef.current = null
     }
 
     rec.onend = () => {
@@ -322,11 +363,21 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       const text = transcriptRef.current.trim()
       if (text) {
         if (onSendRef.current) {
+          recognitionMeasurementRef.current?.mark('utterance_submitted')
+          recognitionMeasurementRef.current?.end(true, null, { transcriptLength: text.length })
+          recognitionMeasurementRef.current = null
+          turnMeasurementRef.current = startInteraction({
+            focus: 'voice',
+            flow: 'voice-turn',
+            interaction: 'recognized_to_mic_return',
+            surface: 'dashboard',
+            metadata: { transcriptLength: text.length },
+          })
+          turnMeasurementRef.current.mark('recognized_text_submitted')
           emptyAutoResumeCountRef.current = 0
           onSendRef.current(text)
           transcriptRef.current = ''
           accumulated = ''
-          setTranscript('')
         }
         return
       }
@@ -363,6 +414,10 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
   }, [clearSilence, debouncedTranscript, capabilities.speech.continuous, stopRecognition])
 
   const startRecognition = useCallback(() => {
+    if (capabilities.speech.recognitionPath === 'server') {
+      startServerRecognitionRef.current()
+      return
+    }
     if (recognitionRunningRef.current || recognitionStartPendingRef.current) {
       setIsListening(true)
       cancelledRef.current = false
@@ -376,6 +431,20 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       return
     }
     try {
+      recognitionMeasurementRef.current?.end(false, 'recognition_restarted')
+      recognitionMeasurementRef.current = startInteraction({
+        focus: 'voice',
+        flow: 'voice-recognition',
+        interaction: 'listen_to_submit',
+        surface: 'dashboard',
+        metadata: {
+          continuous: capabilities.speech.continuous,
+          browser: capabilities.browser,
+          platform: capabilities.platform,
+        },
+      })
+      firstRecognitionResultRef.current = false
+      recognitionMeasurementRef.current.mark('recognition_start_requested')
       recognitionStartPendingRef.current = true
       recRef.current.start()
       setIsListening(true)
@@ -396,12 +465,160 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       console.error('[voice] recognition.start() failed:', e)
       setTtsError('Could not start listening. Try again or switch browsers.')
     }
-  }, [createRecognition])
+  }, [createRecognition, capabilities.browser, capabilities.platform, capabilities.speech.continuous, capabilities.speech.recognitionPath])
 
   const teardownRecognition = useCallback(() => {
     stopRecognition()
     recRef.current = null
   }, [stopRecognition])
+
+  const startServerRecognition = useCallback(async () => {
+    if (recognitionRunningRef.current || recognitionStartPendingRef.current) return
+    recognitionMeasurementRef.current?.end(false, 'recognition_restarted')
+    recognitionMeasurementRef.current = startInteraction({
+      focus: 'voice',
+      flow: 'voice-recognition',
+      interaction: 'listen_to_submit',
+      surface: 'dashboard',
+      metadata: {
+        recognitionPath: 'server',
+        browser: capabilities.browser,
+        platform: capabilities.platform,
+      },
+    })
+    recognitionMeasurementRef.current.mark('recording_permission_requested')
+    recognitionStartPendingRef.current = true
+    recordingCancelledRef.current = false
+    setTtsError(null)
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      if (recordingCancelledRef.current) {
+        stream.getTracks().forEach(track => track.stop())
+        recognitionStartPendingRef.current = false
+        recognitionMeasurementRef.current?.end(false, 'voice_interrupted')
+        recognitionMeasurementRef.current = null
+        return
+      }
+      mediaStreamRef.current = stream
+      recognitionMeasurementRef.current?.mark('recording_started')
+
+      const preferredTypes = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/webm']
+      const mimeType = preferredTypes.find(type => MediaRecorder.isTypeSupported(type))
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      mediaRecorderRef.current = recorder
+      const chunks: Blob[] = []
+      recorder.ondataavailable = event => { if (event.data.size > 0) chunks.push(event.data) }
+      recorder.onerror = () => {
+        stream.getTracks().forEach(track => track.stop())
+        mediaStreamRef.current = null
+        recognitionRunningRef.current = false
+        recognitionStartPendingRef.current = false
+        setIsListening(false)
+        recognitionMeasurementRef.current?.end(false, 'recording_failed')
+        recognitionMeasurementRef.current = null
+        setTtsError('Microphone recording failed. Try again or switch to text.')
+      }
+      recorder.onstop = async () => {
+        if (recordingFrameRef.current !== null) cancelAnimationFrame(recordingFrameRef.current)
+        recordingFrameRef.current = null
+        stream.getTracks().forEach(track => track.stop())
+        mediaStreamRef.current = null
+        if (recordingAudioCtxRef.current) await recordingAudioCtxRef.current.close().catch(() => {})
+        recordingAudioCtxRef.current = null
+        recognitionRunningRef.current = false
+        recognitionStartPendingRef.current = false
+        setIsListening(false)
+        if (recordingCancelledRef.current) return
+
+        const audio = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' })
+        if (audio.size === 0) {
+          recognitionMeasurementRef.current?.end(false, 'empty_recording')
+          recognitionMeasurementRef.current = null
+          setTtsError('I did not hear anything. Tap Listen to try again.')
+          return
+        }
+        recognitionMeasurementRef.current?.mark('audio_captured')
+        try {
+          const form = new FormData()
+          form.append('audio', audio, recorder.mimeType.includes('ogg') ? 'orb-voice.ogg' : 'orb-voice.webm')
+          const response = await fetch('/api/orb-transcribe', { method: 'POST', body: form })
+          const result = await response.json() as { text?: string; error?: string }
+          if (!response.ok || !result.text) throw new Error(result.error || 'Speech transcription failed')
+          const text = result.text.trim()
+          recognitionMeasurementRef.current?.mark('transcription_completed')
+          recognitionMeasurementRef.current?.mark('utterance_submitted')
+          recognitionMeasurementRef.current?.end(true, null, { transcriptLength: text.length, recognitionPath: 'server' })
+          recognitionMeasurementRef.current = null
+          setTranscript(text)
+          turnMeasurementRef.current = startInteraction({
+            focus: 'voice',
+            flow: 'voice-turn',
+            interaction: 'recognized_to_mic_return',
+            surface: 'dashboard',
+            metadata: { transcriptLength: text.length, recognitionPath: 'server' },
+          })
+          turnMeasurementRef.current.mark('recognized_text_submitted')
+          onSendRef.current?.(text)
+        } catch (error) {
+          recognitionMeasurementRef.current?.end(false, 'transcription_failed')
+          recognitionMeasurementRef.current = null
+          setTtsError(error instanceof Error ? error.message : 'Could not transcribe speech. Try again or switch to text.')
+        }
+      }
+
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+      recordingAudioCtxRef.current = ctx
+      await ctx.resume()
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 512
+      ctx.createMediaStreamSource(stream).connect(analyser)
+      const samples = new Uint8Array(analyser.fftSize)
+      const startedAt = performance.now()
+      let heardSpeech = false
+      let lastVoiceAt = startedAt
+      const monitor = () => {
+        if (recorder.state !== 'recording') return
+        analyser.getByteTimeDomainData(samples)
+        let sum = 0
+        for (const value of samples) {
+          const normalized = (value - 128) / 128
+          sum += normalized * normalized
+        }
+        const rms = Math.sqrt(sum / samples.length)
+        const now = performance.now()
+        if (rms >= SERVER_VOICE_THRESHOLD) {
+          heardSpeech = true
+          lastVoiceAt = now
+          if (!firstRecognitionResultRef.current) {
+            firstRecognitionResultRef.current = true
+            recognitionMeasurementRef.current?.mark('speech_detected')
+          }
+        }
+        if ((heardSpeech && now - lastVoiceAt >= SERVER_SILENCE_MS) || now - startedAt >= SERVER_MAX_RECORDING_MS) {
+          recorder.stop()
+          return
+        }
+        recordingFrameRef.current = requestAnimationFrame(monitor)
+      }
+
+      firstRecognitionResultRef.current = false
+      recorder.start(250)
+      recognitionRunningRef.current = true
+      recognitionStartPendingRef.current = false
+      setIsListening(true)
+      recordingFrameRef.current = requestAnimationFrame(monitor)
+    } catch (error) {
+      recognitionRunningRef.current = false
+      recognitionStartPendingRef.current = false
+      setIsListening(false)
+      recognitionMeasurementRef.current?.end(false, 'microphone_unavailable')
+      recognitionMeasurementRef.current = null
+      setTtsError('Could not access the microphone. Check Firefox permissions and try again.')
+      console.error('[voice] Firefox recording failed:', error)
+    }
+  }, [capabilities.browser, capabilities.platform])
+  startServerRecognitionRef.current = () => { void startServerRecognition() }
 
   // ═══════════════════════════════════════════════════════════════
   // LAYER 1: Output — playChunk(text): Promise<void>
@@ -437,6 +654,10 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
       if (voice) utterance.voice = voice
       utterance.onend = finish
       utterance.onerror = finish
+      utterance.onstart = () => {
+        speechMeasurementRef.current?.mark('playback_started')
+        turnMeasurementRef.current?.mark('playback_started')
+      }
       speechSynthesis.speak(utterance)
     })
   }, [voiceRate, selectedVoiceName, availableVoices])
@@ -451,6 +672,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     // are more confusing than a clear, recoverable voice error.
     return (async () => {
       try {
+        speechMeasurementRef.current?.mark('tts_request_started')
         let result: { audioBase64: string; contentType: string }
         if (prefetchRef.current && prefetchRef.current.provider !== cfg.provider) {
           prefetchRef.current = null
@@ -466,6 +688,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
             voiceId: cfg.voiceId || 'nova',
           })
         }
+        speechMeasurementRef.current?.mark('tts_response_received')
 
         if (cancelledRef.current || gen !== genRef.current) return
 
@@ -479,6 +702,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
         const arr = new Uint8Array(raw.length)
         for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i)
         const decoded = await ctx.decodeAudioData(arr.buffer.slice(0))
+        speechMeasurementRef.current?.mark('audio_decoded')
         if (cancelledRef.current || gen !== genRef.current) return
 
         return new Promise<void>(resolve => {
@@ -498,6 +722,8 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
           }
           source.onended = finish
           activeSourceRef.current = source
+          speechMeasurementRef.current?.mark('playback_started')
+          turnMeasurementRef.current?.mark('playback_started')
           source.start()
         })
       } catch (err) {
@@ -548,6 +774,10 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
         q.playing = false
         prefetchRef.current = null
         setSpeaking(false)
+        speechMeasurementRef.current?.end(false, 'tts_playback_failed')
+        speechMeasurementRef.current = null
+        turnMeasurementRef.current?.end(false, 'tts_playback_failed')
+        turnMeasurementRef.current = null
         return
       }
 
@@ -560,7 +790,15 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     if (cancelledRef.current || gen !== genRef.current) return
 
     setSpeaking(false)
-    if (autoResumeRef.current) startRecognition()
+    speechMeasurementRef.current?.mark('playback_completed')
+    speechMeasurementRef.current?.end(true)
+    speechMeasurementRef.current = null
+    if (autoResumeRef.current) {
+      turnMeasurementRef.current?.mark('mic_return_requested')
+      turnMeasurementRef.current?.end(true)
+      turnMeasurementRef.current = null
+      startRecognition()
+    }
   }, [playChunk, setSpeaking, startRecognition])
 
   const beginSpeaking = useCallback(() => {
@@ -618,8 +856,26 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     const q = queueRef.current
     const spoken = cleaned.length > LONG_RESPONSE ? truncateForSpeech(cleaned) : cleaned
     q.chunks = chunkText(spoken)
+    turnMeasurementRef.current?.mark('response_ready_for_speech')
+    speechMeasurementRef.current?.end(false, 'speech_replaced')
+    const cfg = cfgRef.current
+    speechMeasurementRef.current = startInteraction({
+      focus: 'voice',
+      flow: 'voice-output',
+      interaction: turnMeasurementRef.current ? 'answer_playback' : 'greeting_playback',
+      surface: 'dashboard',
+      metadata: {
+        provider: cfg?.provider ?? 'browser',
+        model: cfg?.model ?? null,
+        voiceId: cfg?.voiceId ?? (selectedVoiceName || null),
+        textLength: spoken.length,
+        chunks: q.chunks.length,
+        rate: voiceRate,
+      },
+    })
+    speechMeasurementRef.current.mark('speech_queued')
     drain()
-  }, [beginSpeaking, drain])
+  }, [beginSpeaking, drain, selectedVoiceName, voiceRate])
 
   // ── Reset (shared by cancel + exit) ─────────────────────────────
 
@@ -641,6 +897,12 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
     setIsListening(false)
     setTranscript('')
     transcriptRef.current = ''
+    recognitionMeasurementRef.current?.end(false, 'voice_interrupted')
+    recognitionMeasurementRef.current = null
+    speechMeasurementRef.current?.end(false, 'voice_interrupted')
+    speechMeasurementRef.current = null
+    turnMeasurementRef.current?.end(false, 'voice_interrupted')
+    turnMeasurementRef.current = null
     if (!keepActive) { setVoiceActive(false); setWasInterrupted(false) }
   }, [clearSilence, stopRecognition, teardownRecognition, stopPlayback, setSpeaking])
 

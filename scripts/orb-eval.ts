@@ -155,6 +155,7 @@ async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
       productCode: testCase.productCode,
       history: testCase.history,
       pendingSummary: testCase.pendingSummary,
+      pendingTodoOperations: testCase.pendingTodoOperations,
       actionSets: testCase.actionSets,
       backlogOverride: testCase.backlogOverride,
       mutationApproval: testCase.mutationApproval,
@@ -207,6 +208,13 @@ async function callOrbWithRetry(testCase: EvalCase, retries = 3): Promise<EvalRe
 
 function assertToolCall(response: EvalResponse, testCase: EvalCase): string[] {
   const failures: string[] = []
+
+  if (testCase.forbidTools?.length) {
+    const forbidden = response.toolCalls.filter(call => testCase.forbidTools!.includes(call.name))
+    if (forbidden.length > 0) {
+      failures.push(`Forbidden tool calls: ${forbidden.map(call => call.name).join(', ')}`)
+    }
+  }
 
   if (testCase.expectNoTool) {
     if (response.toolCalls.length > 0) {

@@ -6,6 +6,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.189',
+    date: '2026-07-12',
+    changes: [
+      'Added detailed voice diagnostics for ORB-325 so the app can measure where a spoken turn spends its time: microphone recognition, response generation, voice synthesis, audio decoding, playback start and completion, and microphone return. These measurements establish an evidence-based quality gate for voice across Orb’s four supported browsers: Safari, Chrome, Edge, and Firefox. Firefox now records each short utterance and uses secure server transcription where native browser recognition is unavailable; recordings are not stored.',
+      'Corrected the action-set resolver so ordinal requests such as “delete the first five todos” deterministically resolve the recorded set, and refined eval assertions to distinguish prohibited mutation tools from safe read-only verification.',
+      'Restored the spoken greeting whenever voice mode starts, including when a text conversation already exists, and keeps the recognized user utterance visible in the voice input field until listening resumes.',
+      'Replaced the generic blocked-microphone warning with browser- and platform-specific recovery instructions directly in the voice panel, so users can restore permission without external troubleshooting.',
+      'Hardened revised batch confirmations after Safari testing: Orb now corrects a user undercount against the exact pending transaction instead of silently adding an extra todo, preserves that transaction for one confirmation, uses project names instead of internal project codes, avoids duplicate greeting cards, and blocks stale project-switch counts.',
+      'Fixed transcript list formatting at the shared speech-sanitization boundary: repeated spaces are still normalized, but Markdown line breaks are preserved so the first confirmation target cannot be flattened onto the heading and visually disappear.',
+      'Paused phrase-by-phrase voice tuning after the extended Safari session exposed a deeper orchestration problem. The next voice iteration will compare the current serial pipeline with a bounded native-realtime operator, keeping correctness in deterministic workflow and safety boundaries while allowing Orb’s actual responses to remain fluid rather than canned.',
+    ]
+  },
+  {
     version: 'v0.6.188',
     date: '2026-07-12',
     changes: [

@@ -21,7 +21,7 @@ import type { OrbModelUsage } from '@/lib/orb-model/types'
 import { routeOrbRequest } from '@/lib/orb-model/routing'
 import { budgetBlockMessage, type OrbBudgetCheck } from '@/lib/orb-model/budget'
 import { extractCitedCodes, isFalseCompletionClaim, EFFECTFUL_TOOL_NAMES } from '@/lib/orb-model/false-claim-guard'
-import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, resolveActionSetReference, todoCode, type OrbActionSetReference } from '@/lib/orb-model/context'
+import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, pendingTodoUndercount, resolveActionSetReference, todoCode, type OrbActionSetReference } from '@/lib/orb-model/context'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
@@ -76,11 +76,12 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
-  const { input, productCode, history, pendingSummary, actionSets, backlogOverride, mutationApproval, voiceMode, ttsProvider, ttsModel, ttsVoiceId, provider, model, userEmail, evaluationMode, contextPacketId, autoRoute, budgetOverride, evaluationCaseId } = body as {
+  const { input, productCode, history, pendingSummary, pendingTodoOperations, actionSets, backlogOverride, mutationApproval, voiceMode, ttsProvider, ttsModel, ttsVoiceId, provider, model, userEmail, evaluationMode, contextPacketId, autoRoute, budgetOverride, evaluationCaseId } = body as {
     input: string
     productCode?: string
     history?: Array<{ role: 'user' | 'assistant'; text: string }>
     pendingSummary?: string
+    pendingTodoOperations?: Array<{ tool: string; params: Record<string, unknown> }>
     actionSets?: EvalActionSet[]
     backlogOverride?: string
     mutationApproval?: 'ask' | 'allow'
@@ -297,6 +298,17 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         speech: buildVoiceProjectStateSummary({ ...ctx, input }),
         toolCalls: [],
         stopReason: 'deterministic_voice_project_state',
+        tokenUsage: { input_tokens: 0, output_tokens: 0 },
+        routeRole,
+      })
+    }
+    const undercount = pendingTodoUndercount(input, pendingTodoOperations)
+    if (undercount) {
+      const lines = pendingTodoOperations!.map(operation => `- create "${String(operation.params.title ?? 'untitled')}"`)
+      return NextResponse.json({
+        speech: `There are already ${undercount.actual} todos in the pending set, not ${undercount.claimed}:\n\n${lines.join('\n')}\n\nConfirm these ${undercount.actual}, or tell me which one to change.`,
+        toolCalls: [],
+        stopReason: 'deterministic_pending_todo_count_correction',
         tokenUsage: { input_tokens: 0, output_tokens: 0 },
         routeRole,
       })

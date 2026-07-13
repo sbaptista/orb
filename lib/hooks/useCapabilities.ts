@@ -12,6 +12,7 @@ export type Capabilities = {
   browser: BrowserId
   speech: {
     recognition: CapabilityStatus
+    recognitionPath: 'native' | 'server' | 'unavailable'
     synthesis: CapabilityStatus
     audioContext: CapabilityStatus
     microphone: MicPermission
@@ -64,28 +65,52 @@ function hasAudioContext(): boolean {
   )
 }
 
+function hasServerRecognitionFallback(browser: BrowserId): boolean {
+  return browser === 'firefox'
+    && typeof window !== 'undefined'
+    && typeof MediaRecorder !== 'undefined'
+    && !!navigator.mediaDevices?.getUserMedia
+}
+
 function isIOSPlatform(p: PlatformId): boolean {
   return p === 'ios' || p === 'ipados'
+}
+
+function microphoneRecoveryMessage(platform: PlatformId, browser: BrowserId): string {
+  if (isIOSPlatform(platform) && browser === 'safari') {
+    return 'Microphone access is blocked. In Safari, open the Page menu, choose Website Settings, set Microphone to Allow, then reload Orb.'
+  }
+  if (browser === 'safari') {
+    return 'Microphone access is blocked. In Safari, choose Safari > Settings for This Website, set Microphone to Allow, then reload Orb.'
+  }
+  if (browser === 'chrome' || browser === 'edge') {
+    const name = browser === 'edge' ? 'Edge' : 'Chrome'
+    return `Microphone access is blocked. In ${name}, open the site controls beside the address, allow Microphone, then reload Orb.`
+  }
+  if (browser === 'firefox') {
+    return 'Microphone access is blocked. In Firefox, open the permissions icon beside the address, allow Microphone, then reload Orb.'
+  }
+  return 'Microphone access is blocked. Allow microphone access for this site in your browser settings, then reload Orb.'
 }
 
 function buildWarnings(
   platform: PlatformId,
   browser: BrowserId,
-  recognition: CapabilityStatus,
+  recognitionPath: 'native' | 'server' | 'unavailable',
   mic: MicPermission,
 ): string[] {
   const warnings: string[] = []
 
   if (isIOSPlatform(platform) && browser !== 'safari') {
-    if (recognition === 'unavailable') {
+    if (recognitionPath === 'unavailable') {
       warnings.push('Voice input is not available in this browser on iOS. Use Safari for voice mode.')
     }
-  } else if (recognition === 'unavailable') {
+  } else if (recognitionPath === 'unavailable') {
     warnings.push('Voice input is not available in this browser.')
   }
 
   if (mic === 'denied') {
-    warnings.push('Microphone access is blocked. Check your browser settings to enable it.')
+    warnings.push(microphoneRecoveryMessage(platform, browser))
   }
 
   return warnings
@@ -93,11 +118,12 @@ function buildWarnings(
 
 function computeVoiceOverall(
   recognition: CapabilityStatus,
+  serverRecognition: boolean,
   synthesis: CapabilityStatus,
   audioContext: CapabilityStatus,
   hasApiTts: boolean,
 ): 'full' | 'degraded' | 'unavailable' {
-  if (recognition === 'unavailable') return 'unavailable'
+  if (recognition === 'unavailable' && !serverRecognition) return 'unavailable'
   const hasOutput = synthesis === 'available' || (hasApiTts && audioContext === 'available')
   if (!hasOutput) return 'unavailable'
   return 'full'
@@ -109,6 +135,8 @@ export function useCapabilities(hasApiTts: boolean = false): Capabilities {
   const platform = detectPlatform()
   const browser = detectBrowser()
   const recognition: CapabilityStatus = hasSpeechRecognition() ? 'available' : 'unavailable'
+  const serverRecognition = hasServerRecognitionFallback(browser)
+  const recognitionPath = recognition === 'available' ? 'native' : serverRecognition ? 'server' : 'unavailable'
   const synthesis: CapabilityStatus = hasSpeechSynthesis() ? 'available' : 'unavailable'
   const audioContext: CapabilityStatus = hasAudioContext() ? 'available' : 'unavailable'
   const continuous = !isIOSPlatform(platform)
@@ -131,22 +159,22 @@ export function useCapabilities(hasApiTts: boolean = false): Capabilities {
     queryMicPermission()
   }, [queryMicPermission])
 
-  const voice = computeVoiceOverall(recognition, synthesis, audioContext, hasApiTts)
-  const warnings = buildWarnings(platform, browser, recognition, mic)
+  const voice = computeVoiceOverall(recognition, serverRecognition, synthesis, audioContext, hasApiTts)
+  const warnings = buildWarnings(platform, browser, recognitionPath, mic)
 
   useEffect(() => {
     console.log('[capabilities]', {
-      platform, browser, recognition, synthesis, audioContext, mic, continuous, voice,
+      platform, browser, recognition, recognitionPath, synthesis, audioContext, mic, continuous, voice,
       hasSpeechRecognition: typeof window !== 'undefined' && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition),
       hasGetUserMedia: typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia,
       warnings,
     })
-  }, [platform, browser, recognition, synthesis, audioContext, mic, continuous, voice, warnings])
+  }, [platform, browser, recognition, recognitionPath, synthesis, audioContext, mic, continuous, voice, warnings])
 
   return {
     platform,
     browser,
-    speech: { recognition, synthesis, audioContext, microphone: mic, continuous },
+    speech: { recognition, recognitionPath, synthesis, audioContext, microphone: mic, continuous },
     voice,
     warnings,
   }
