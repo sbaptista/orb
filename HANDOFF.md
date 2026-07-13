@@ -10,11 +10,25 @@
 - **Branch:** main
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.186**, but **PRODUCTION IS ROLLED BACK to v0.6.173** (`f027318`) — promoted in Vercel during the login-loop bisection. **Promote production back to latest when ready** (see login-loop entry below).
+- **Version:** local/canonical **0.6.188** — production is current (v0.6.188 deployed and Vercel-promoted 2026-07-12). The earlier v0.6.173 rollback from the login-loop bisection has been fully unwound.
 
 ---
 
 ### Last Session Completed
+
+**ORB-323 — auth hardening + orphan-prevention cleanup (ORB-321 follow-ups) — 2026-07-12 (Claude Code, Opus 4.8) — v0.6.187–v0.6.188 — CLOSED**
+
+Spun off from the ORB-321 login-loop root-cause fix and completed end-to-end (built, shipped, Vercel-promoted, production-verified, closed). All 6 items:
+- **#1** Removed the temp `/api/auth-debug` diagnostic endpoint + its `proxy.ts` bypass line.
+- **#2** `deleteUser` (`app/actions/delete-user.ts`): `auth.admin.deleteUser` failure is now a **hard error** (was a silent `console.warn` — the swallowed failure that produced ORB-321's orphaned auth users); the "already gone" case is tolerated as success.
+- **#3** A valid auth session that can't resolve to a `public.users` row (phantom/orphaned) is now **signed out** via a new **`app/auth/signout/route.ts`** route handler before landing on login, instead of looping `/dashboard ↔ /auth/login`. Key lesson: a **React Server Component can't write cookies** (Supabase `setAll` is try/caught in RSC), so a real sign-out must live in a route handler; the dashboard gate routes `!resolveUser.ok` through it. Do **not** sign out in the proxy on a bare role query — it pre-empts `resolveUser`'s reconciliation/invitation paths.
+- **#4** `app/auth/login/page.tsx` never leaks the raw provider error anymore — fixed friendly copy (real error stays in telemetry).
+- **#5** Removed the v0.6.184 proxy self-heal band-aid (no longer load-bearing once the root cause was fixed) — shipped separately as v0.6.187.
+- **#6** Migration **`scripts/migrations/20260712_orb_adaptations_cascade.sql`**: `orb_adaptations.user_id` FK `NO ACTION → ON DELETE CASCADE` — the **same latent orphan-cause** as the ORB-321 telemetry FKs, found by auditing the *whole* FK class during #2. Applied to the DB (verified). Convention: telemetry FKs → SET NULL (outlive user); personal per-user data → CASCADE.
+
+**Verification:** `tsc` 0, `eslint` 0; representative Tier 1 eval smoke 13/13 (run twice); production-verified after v0.6.188 promotion (passkey sign-in + friendly error, no login loop on Safari/iPad, deleteUser end-to-end orphan check). **Closed** via Orb API (`closed_at` 2026-07-12T20:26:54Z); Knowledge Repo entry `0b1961cc-d149-4b94-be6b-e6540f7cce60`. **Test-user provisioning was scoped OUT** (separate workstream — the one genuinely-open auth item).
+
+---
 
 **ORB-322 — automatic cross-version client-state invalidation (Part B, split from ORB-321) — 2026-07-11 (Claude Code, Opus 4.8) — v0.6.186**
 
@@ -45,7 +59,7 @@ The genuinely-open remainder after ORB-321 (login loop) was closed. Problem: sta
 1. **Migration** `scripts/migrations/20260711_telemetry_user_id_set_null.sql` (Stan ran it): `orb_metrics.user_id` + `orb_model_requests.user_id` → **nullable + FK `ON DELETE SET NULL`** (matches `performance_events`). Satisfies Stan's requirement that **usage/cost telemetry must OUTLIVE the user** (and become anonymizable later). Also removes the deletion blocker.
 2. **Data cleanup** (Stan ran the DELETE): removed the **4 orphaned auth users** (`stan.baptista-t2`, `katherinenagel23@gmail.comworks`, `stevedmiller.sm`, `stan.baptista+u1`). `+u1`'s passkey cascaded away; its **43 `orb_model_requests` + 1 `orb_metrics` preserved with `user_id=NULL`**. Verified: orphans=0, u1 passkeys=0, telemetry kept.
 
-**Confirmation test pending Stan:** iPad, clear site data, select the `+u1` passkey → should now show "This passkey is no longer valid" and STAY on login (no loop), because Supabase no longer has the credential.
+**Confirmation test — DONE:** verified in production (no loop; the removed credential is gone). The remaining hardening from this root-cause fix became **ORB-323** (all 6 items closed 2026-07-12 — see top entry).
 
 **REMAINING (next session — all real, none on fire):**
 - ~~**Auth hardening + cleanup → ORB-323**~~ **DONE + CLOSED 2026-07-12 (Claude Code, Opus 4.8).** All 6 items shipped (v0.6.187 item 5 + v0.6.188 items 1-4,6), deployed, Vercel-promoted, production-verified: removed `/api/auth-debug` + proxy bypass; `deleteUser` auth-delete is now a hard error; phantom/unresolvable sessions sign out via new `/auth/signout` route (no loop); `login/page.tsx` never leaks raw provider errors; removed the v0.6.184 self-heal band-aid; **migration `20260712_orb_adaptations_cascade.sql`** (orb_adaptations FK NO ACTION → CASCADE — same latent orphan-cause as the ORB-321 telemetry FKs) applied. Eval smoke 13/13. KB entry `0b1961cc`.
@@ -886,7 +900,7 @@ The orb panel and list panel currently use **conditional rendering** (mount/unmo
 
 ## AI Tool Used Last Session
 
-`2026-07-04 — Codex (GPT-5)`
+`2026-07-12 — Claude Code (Opus 4.8)`
 
 ---
 
