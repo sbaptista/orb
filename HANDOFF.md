@@ -77,7 +77,7 @@ The recurring Safari/iPad login loop was **not** cookie corruption (the discarde
 
 ## Next Priorities
 
-1. **Test-user provisioning** (*unfiled* — needs its own ticket; the one open item from the auth arc, scoped out of ORB-323). Build real test non-admins + admins with a login-bypass for one admin + one user, to collect non-admin telemetry. `dev-login.ts` is existing related infra.
+1. **Test-user provisioning → ORB-324 (open).** The one open item from the auth arc (scoped out of ORB-323, now filed). Real test non-admins + admins with a login-bypass for one admin + one user, to collect non-admin telemetry. `dev-login.ts` is existing related infra.
 2. **ORB-292** — design user-facing Value/Balanced/Deep Thinking modes, per-user allowances, consent-based Orb tuning proposals.
 
 _(Reprioritize with Stan. Removed stale candidates: ORB-303/ORB-317/ORB-287/ORB-254 are all closed — file a fresh focused ticket if any has genuinely unfinished scope rather than reviving a closed one.)_
