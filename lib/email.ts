@@ -51,7 +51,7 @@ export async function sendInviteEmail({
   <p style="margin-bottom: 12px;"><strong>Your data is visible to me.</strong> As the developer and admin, I can see your projects and tasks. This helps me improve the app and troubleshoot issues. I won't share your data with anyone. Please do not put any confidential information in Orb.</p>
   <p style="margin-bottom: 12px;"><strong>Availability is not guaranteed.</strong> Orb is a personal project under active development. Features may change, and access may be modified or discontinued at any time. Think of it as an early preview — not a permanent service.</p>
 
-  <p style="font-size: 14px; color: #555;">Orb works on most modern browsers. For example: Safari, Chrome, Firefox, and Edge.</p>
+  <p style="font-size: 14px; color: #555;">Orb supports Safari, Chrome, and Edge.</p>
 
   <h3 style="margin-top: 28px; margin-bottom: 12px;">How to give feedback:</h3>
   <p>Just tell Orb. Say something like <em>"I have a suggestion"</em> or <em>"something's broken"</em> — it'll log it automatically and it goes straight to me.</p>

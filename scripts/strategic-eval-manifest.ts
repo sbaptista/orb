@@ -1,14 +1,13 @@
 import { STRATEGIC_EVAL_CASES } from './strategic-eval-cases'
+import { ORB_EVAL_DEFAULT_MODEL } from '../lib/orb-model/gemini'
 
 export const STRATEGIC_EVAL_MANIFEST = {
-  id: 'orb-265-exploratory-2026-06-23',
-  createdAt: '2026-06-23',
+  id: 'orb-334-gemini-default-2026-07-13',
+  createdAt: '2026-07-13',
   contextPacketVersion: 'pending-frozen-packets-v1',
   promptVersion: 'orb-system-v0.6.40',
   candidates: [
-    { provider: 'anthropic', model: 'claude-haiku-4-5', role: 'reference' },
-    { provider: 'google', model: 'gemini-3.1-pro-preview', role: 'challenger' },
-    { provider: 'mistral', model: 'mistral-medium-latest', role: 'challenger' },
+    { provider: 'google', model: ORB_EVAL_DEFAULT_MODEL, role: 'reference' },
   ],
   scenarioIds: [
     'urgent-next-step',

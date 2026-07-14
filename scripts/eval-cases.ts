@@ -2,6 +2,8 @@
 // Add new cases by appending to the EVAL_CASES array.
 // Each case tests a specific Orb behavior — tool correctness or speech content.
 
+import { ORB_EVAL_DEFAULT_MODEL } from '../lib/orb-model/gemini'
+
 export type EvalCase = {
   id: string
   description: string
@@ -269,6 +271,21 @@ export const EVAL_CASES: EvalCase[] = [
     input: 'no, leave it',
     tier: 1,
     expectNoTool: true,
+  },
+
+  {
+    id: 'permission-complaint-does-not-confirm',
+    description: 'Discussing permission from an earlier request does not authorize a pending mutation',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    history: [
+      { role: 'user', text: 'Delete foobar from Orb' },
+      { role: 'assistant', text: 'Confirm: delete ORB-333, “foobar”, from Orb?' },
+    ],
+    pendingSummary: 'delete ORB-333, “foobar”, from Orb',
+    input: 'You should have picked it up already. I already said that you had my permission, but that is okay.',
+    tier: 1,
+    forbidTools: ['confirm_mutation'],
   },
 
   {
@@ -570,13 +587,13 @@ export const EVAL_CASES: EvalCase[] = [
 
   {
     id: 'mutation-stays-on-operational-route',
-    description: 'A create request remains on Haiku even while automatic routing is evaluated',
+    description: 'A create request remains operational even when Gemini is the shared evaluator',
     productCode: 'ORB',
     input: 'Create a task: [EVAL] operational routing safety',
     autoRoute: true,
     tier: 1,
     expectTool: { name: 'create_todo', params: { product_code: 'ORB' } },
-    expectProvider: 'anthropic',
+    expectProvider: 'google',
     expectRouteRole: 'operational',
   },
 
@@ -588,7 +605,7 @@ export const EVAL_CASES: EvalCase[] = [
     voiceMode: true,
     autoRoute: true,
     tier: 1,
-    expectProvider: 'anthropic',
+    expectProvider: 'google',
     expectRouteRole: 'operational',
   },
 
@@ -621,15 +638,15 @@ export const EVAL_CASES: EvalCase[] = [
 
   {
     id: 'one-model-strategic-route-stays-tool-free',
-    description: 'Haiku can serve the strategic role without gaining mutation authority',
+    description: 'Gemini can serve the strategic role without gaining mutation authority',
     productCode: 'ORB',
     input: 'Give me a strategic read: what should I focus on next, and why?',
     autoRoute: true,
-    provider: 'anthropic',
-    model: 'claude-haiku-4-5',
+    provider: 'gemini',
+    model: ORB_EVAL_DEFAULT_MODEL,
     tier: 1,
     expectNoTool: true,
-    expectProvider: 'anthropic',
+    expectProvider: 'google',
     expectRouteRole: 'strategic',
   },
 
@@ -862,6 +879,64 @@ DORMANT:
     },
   },
 
+  // The Anthropic harness cannot execute the isolated OpenAI Realtime tool
+  // surface. These focused Tier 1 analogues protect the same three intent
+  // routes; the signed-reference/proposal/RPC boundary is verified directly
+  // with rollback database tests and representative DEV-operator acceptance.
+  {
+    id: 'realtime-update-intent-analogue',
+    description: 'A precise non-closing todo update routes to the existing update capability',
+    productCode: 'ORB',
+    backlogOverride: `Orb [code: ORB]:
+  SUMMARY: active_count=1 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ACTIVE:
+  ORB-325 [P3] [open] Fix voice issues`,
+    input: 'Set ORB-325 to high priority.',
+    tier: 1,
+    expectTool: { name: 'update_todo', params: { code: 'ORB-325', new_priority: 2 } },
+  },
+  {
+    id: 'realtime-near-exact-title-update-analogue',
+    description: 'A near-exact natural title remains more specific than competing todos on the same broad topic',
+    productCode: 'ORB',
+    backlogOverride: `Orb [code: ORB]:
+  SUMMARY: active_count=3 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ACTIVE:
+  ORB-251 [P3] [open] True voice conversation with Orb (not just text dictation)
+  ORB-328 [P3] [open] Test voice architecture
+  ORB-336 [P3] [open] Voice Permission Test`,
+    input: 'Change voice permission tests to normal priority, and you have my approval.',
+    tier: 1,
+    expectTool: { name: 'update_todo', params: { code: 'ORB-336', new_priority: 3 } },
+  },
+  {
+    id: 'realtime-delete-intent-analogue',
+    description: 'A precise todo deletion routes to the existing delete capability',
+    productCode: 'ORB',
+    backlogOverride: `Orb [code: ORB]:
+  SUMMARY: active_count=1 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ACTIVE:
+  ORB-325 [P3] [open] Fix voice issues`,
+    input: 'Delete ORB-325.',
+    tier: 1,
+    expectTool: { name: 'delete_todo', params: { code: 'ORB-325' } },
+  },
+  {
+    id: 'realtime-move-intent-analogue',
+    description: 'A precise todo move routes to the existing move capability',
+    productCode: 'ORB',
+    backlogOverride: `Orb [code: ORB]:
+  SUMMARY: active_count=1 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ACTIVE:
+  ORB-325 [P3] [open] Fix voice issues
+
+Helm [code: HELM]:
+  SUMMARY: active_count=0 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)`,
+    input: 'Move ORB-325 to Helm.',
+    tier: 1,
+    expectTool: { name: 'move_todo', params: { code: 'ORB-325', target_project_code: 'HELM' } },
+  },
+
   // ═══════════════════════════════════════════════════════════════════════
   // ORB-266: Memory tools
   // ═══════════════════════════════════════════════════════════════════════
@@ -994,6 +1069,45 @@ DORMANT:
     speechContains: ['Orb', 'active', 'parked'],
     speechPattern: /^(.|\n){1,360}$/,
     speechNotContains: ['project is moving well', 'moving well', '**', '- **', '\n-'],
+  },
+
+  {
+    id: 'voice-owned-active-count-stays-grounded',
+    description: 'A voice answer preserves the exact owned-project active count and canonical status definition from its factual snapshot',
+    productCode: 'ORB',
+    backlogOverride: `Adele's adulations [code: ADELESADUL]:
+  SUMMARY: active_count=3 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ACTIVE:
+  ADELESADUL-1 [P5] [open] Brilliant
+  ADELESADUL-2 [P5] [open] Radiant
+  ADELESADUL-3 [P5] [in progress] Splendid`,
+    input: 'How many active tasks do I have?',
+    voiceMode: true,
+    tier: 2,
+    expectNoTool: true,
+    speechContains: ['3', 'active', 'open + in progress'],
+    speechNotContains: ['21', 'no active tasks', 'projects you do not own'],
+  },
+
+  {
+    id: 'voice-project-open-count-stays-scoped',
+    description: 'A named-project voice count preserves open-only status instead of expanding to active tasks or other projects',
+    productCode: 'ORB',
+    backlogOverride: `Orb [code: ORB]:
+  SUMMARY: open_count=2; in_progress_count=1; active_count=3 (open + in progress); deferred_count=0; on_hold_count=0; parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ACTIVE:
+  ORB-1 [P2] [open] First open task
+  ORB-2 [P3] [open] Second open task
+  ORB-3 [P4] [in progress] Work already underway
+
+Helm [code: HELM]:
+  SUMMARY: open_count=4; in_progress_count=0; active_count=4 (open + in progress); deferred_count=0; on_hold_count=0; parked_count=0 (deferred + on hold); closed_count=0 (excluded)`,
+    input: 'How many open todos are in Orb?',
+    voiceMode: true,
+    tier: 2,
+    expectNoTool: true,
+    speechContains: ['Orb', '2', 'open'],
+    speechNotContains: ['3 open', '7', 'Helm', 'all projects'],
   },
 
   {

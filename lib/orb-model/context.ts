@@ -252,7 +252,11 @@ export async function buildOrbContext(
     const parkedTodos = nonClosedTodos.filter((t: any) => isParked(t.status))
     const otherNonClosedTodos = nonClosedTodos.filter((t: any) => !isActive(t.status) && !isParked(t.status))
     const closedCount = projectTodos.length - nonClosedTodos.length
-    const summary = `  SUMMARY: active_count=${activeTodos.length} (open + in progress); parked_count=${parkedTodos.length} (deferred + on hold); closed_count=${closedCount} (excluded)`
+    const openCount = activeTodos.filter((t: any) => t.status === 'open').length
+    const inProgressCount = activeTodos.filter((t: any) => t.status === 'in progress').length
+    const deferredCount = parkedTodos.filter((t: any) => t.status === 'deferred').length
+    const onHoldCount = parkedTodos.filter((t: any) => t.status === 'on hold').length
+    const summary = `  SUMMARY: open_count=${openCount}; in_progress_count=${inProgressCount}; active_count=${activeTodos.length} (open + in progress); deferred_count=${deferredCount}; on_hold_count=${onHoldCount}; parked_count=${parkedTodos.length} (deferred + on hold); closed_count=${closedCount} (excluded)`
     const activeLine = activeTodos.map(todoLine).join('\n')
     const parkedLine = parkedTodos.map(todoLine).join('\n')
     const otherLine = otherNonClosedTodos.map(todoLine).join('\n')

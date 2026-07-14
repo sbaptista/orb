@@ -6,6 +6,79 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.196',
+    date: '2026-07-13',
+    changes: [
+      'Instrumented Realtime ambient-turn diagnosis without adding a speculative speech filter. The session now requests input-transcription log probabilities and records only aggregate token count, average/minimum log probability, geometric confidence, and server-VAD audio duration; transcript text and audio remain unrecorded.',
+      'Preserved transcript confidence metadata through later fact or mutation tool calls, allowing false ambient turns and legitimate short commands to be compared before choosing a suppression threshold.',
+    ],
+  },
+  {
+    version: 'v0.6.195',
+    date: '2026-07-13',
+    changes: [
+      'Closed the Realtime post-tool authorization loop. Once the server returns exact proposal text, an error, or a canonical database receipt, the follow-up speech response is created with response-level tools disabled and must only speak that server-authored text. A successfully pre-authorized mutation can no longer be followed by a redundant confirmation-tool call that falsely reports failure after the database already committed the change.',
+      'Extended voice telemetry with privacy-safe pre-authorized and canonical-receipt flags so mutation success can be distinguished from later model narration without recording the user’s words.',
+    ],
+  },
+  {
+    version: 'v0.6.194',
+    date: '2026-07-13',
+    changes: [
+      'Moved the Realtime response boundary from raw voice-activity detection to the matching completed transcript. Server VAD still commits native audio and interrupts immediately, but only the client creates a model response after correlating the committed audio item with the current turn. Late transcripts remain visible without authorizing or answering a newer turn, and ambient/no-transcript events can no longer trigger unsolicited Orb speech.',
+      'Recognized the natural upfront-authorization phrase “you have my approval” through the same shared server grammar used by text and Realtime mutations. The phrase remains effectful only when that utterance also produces a concrete mutation proposal.',
+      'Removed trailing passive dashboard status announcements together with the passive greeting when Realtime starts, leaving one synchronized audible greeting without erasing earlier conversation history.',
+    ],
+  },
+  {
+    version: 'v0.6.193',
+    date: '2026-07-13',
+    changes: [
+      'Improved safe natural-title resolution for Realtime todo mutations by reusing Orb’s existing relevance scorer after exact matching. A uniquely stronger near-exact title now wins over broad topical matches, while tied candidates still require clarification; the voice model is also told to preserve the user’s full title phrase instead of reducing it to keywords.',
+      'Removed competing Realtime startup announcements. Starting the DEV voice operator now replaces the passive dashboard greeting with its synchronized audible greeting and suppresses urgency-transition narration while the Realtime session is connecting or active.',
+    ],
+  },
+  {
+    version: 'v0.6.192',
+    date: '2026-07-13',
+    changes: [
+      'Fixed Realtime voice recovery after a 12-second response timeout. The watchdog still cancels and quarantines the stalled provider response, but it no longer pauses the session-owned WebRTC audio element and thereby silently mutes every later answer. Telemetry now records whether the remote element was paused when inbound audio first arrived so received network packets cannot be mistaken for audible playback.',
+      'Made natural priority labels deterministic in the Realtime mutation contract: urgent, high, normal, and low map directly to values 1, 2, 3, and 4. Orb no longer asks for an internal priority number after the user has already supplied a known label.',
+    ],
+  },
+  {
+    version: 'v0.6.191',
+    date: '2026-07-13',
+    changes: [
+      'Changed Orb’s routine Tier 1, Tier 2, and strategic evaluation suites to use Gemini 3.1 Pro Preview as their centralized default evaluator instead of Claude Haiku 4.5. The CLI now prints the evaluator before a run, the server endpoint applies the same default, and explicit provider/model overrides remain available for deliberate future comparisons.',
+      'Updated routing fixtures so they still verify operational-versus-strategic classification while Gemini evaluates both roles, and reduced the strategic manifest to the same Gemini reference model. Production Orb model routing is unchanged.',
+    ],
+  },
+  {
+    version: 'v0.6.190',
+    date: '2026-07-13',
+    changes: [
+      'Added an isolated localhost Realtime voice architecture spike behind Orb’s existing DEV panel without replacing the production voice path. A persistent authenticated WebRTC session now owns microphone input, semantic turn detection, synchronized transcript events, speech output, and provider-level interruption for controlled testing.',
+      'Added a narrow database Fact Gateway for voice. Active-task counts and next-step recommendations are read from fresh owned-project database snapshots with canonical active-status definitions, typed packets, exact observation times, and server-composed factual speech instead of model memory or Orb’s broad cached context.',
+      'Extended the Fact Gateway after the first iPad test: named-project counts now resolve the user-facing project server-side and preserve exact open, active, parked, or all-status scope, so “open tasks in Orb alone” cannot silently become an all-project active count.',
+      'Added an app-owned create transaction: signed short-lived proposals, one confirmation boundary, authorized execution, audit logging, database read-back, and canonical receipts. Production hardening now persists proposals and confirms them through one row-locked database transaction, so replay returns the same receipt while the todo and audit event are written exactly once across server processes.',
+      'Instrumented the Realtime comparison from tap to the first inbound WebRTC audio packet and through microphone return, including microphone permission, SDP/data-channel setup, transcript completion, fact/action tool boundaries, interruption, response completion, and microphone return. Browser echo cancellation/noise suppression/automatic gain control plus Realtime far-field filtering and noise-thresholded server VAD reduce ambient false interruptions, while a privacy-safe probe records whether playback interruptions produced a transcript. Provider response IDs and application turn IDs now abort or quarantine late read/proposal results so interrupted work cannot complete a replacement turn. Updated the voice architecture plan, performance matrix, and focused factual-count evaluation cases.',
+      'Added failure recovery from the representative browser pass: startup failures now retain sanitized diagnostic details, and every transcribed turn is protected by a 12-second response watchdog across initial generation, response creation, and verified tool-result handoff. A stalled response is cancelled, quarantined from later turns, reported in performance telemetry, and returned to listening instead of leaving the microphone stuck indefinitely.',
+      'Added the matching input-side recovery for Firefox: if voice activity starts but transcription never completes, Orb clears the stuck audio buffer, resets the microphone boundary, records a transcription timeout, and returns to listening rather than silently ceasing to hear later questions.',
+      'Corrected a Firefox event-order race where the previous answer’s completion could arrive milliseconds after the next speech began and incorrectly close the new input turn. A prior response can no longer clear a turn that is still awaiting transcription.',
+      'Added an exact live project-directory Fact Packet so Realtime voice can answer how many projects the user owns and name them without inferring from task context.',
+      'Made task-count project scope explicit and fail-closed: Realtime must identify either one named project or an explicitly requested all-owned-project total, and the server rejects missing or inconsistent scope instead of silently widening an Orb-only question to every project.',
+      'Narrowed the supported browser matrix to Safari, Chrome, and Edge after repeated Firefox Realtime sessions stopped detecting microphone input after a few turns without emitting a provider speech event. The Firefox paths remain available for investigation under ORB-330 but no longer block the voice architecture decision.',
+      'Accepted the Realtime architecture for controlled production hardening. Production endpoints now require an explicit server enable flag plus an exact authenticated-email allowlist, while development retains the DEV control and the main production voice button stays on the serial fallback until capability parity or deterministic fallback is complete.',
+      'Started capability parity with fresh detailed todo reads: Realtime can now read one natural todo title or code or list a bounded set of matching todos with explicit named-project/all-owned and status scope. Missing, ambiguous, or inconsistent scope fails closed rather than silently widening, and server-composed factual speech preserves codes, titles, statuses, projects, priorities, and due dates.',
+      'Extended the durable Realtime transaction boundary to todo updates, deletions, and moves. Every target resolves from a natural title/code and optional project name to one fresh accessible row, every interpreted change is persisted before authorization, and one row-locked database RPC re-authorizes the user, rejects stale row versions, writes exactly one todo change plus audit event, and returns the same canonical receipt on replay. Cross-project moves lock both projects in stable order and allocate the destination code transactionally; deletes are soft. Closing remains on the full Orb workflow until resolution notes and Knowledge Repository duties can be enforced in the same transaction.',
+      'Corrected receipt retention for todos created through Realtime: deleting one later from the normal list can now clear the proposal’s live todo reference while preserving its immutable executed receipt. The original constraint required both fields forever and therefore blocked hard deletion of the first durably-created Realtime todo.',
+      'Removed the Realtime requirement to speak internal todo codes. Update, delete, move, and detailed reads now accept a natural todo title or code plus an optional project name; the server resolves one fresh accessible database row and rejects ambiguous matches before creating a proposal.',
+      'Unified text and Realtime mutation authorization behind one shared server rule set. Realtime waits for the actual completed transcription, honors permission granted in the requesting utterance without asking again, and requires a bare affirmation for a pending proposal. The serial model is no longer offered its confirmation tool on complaints or reminders about earlier permission, and both server paths reject such calls defensively.',
+      'Made the voice response watchdog a true absolute 12-second post-transcription deadline across model and tool phases instead of resetting the clock at each handoff. Tool failures now mark the complete telemetry turn unsuccessful rather than being recorded as successful after an error response.',
+    ],
+  },
+  {
     version: 'v0.6.189',
     date: '2026-07-12',
     changes: [

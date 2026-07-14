@@ -36,6 +36,7 @@ import { logAudit } from '@/app/actions/log-audit'
 import { deleteProject } from '@/app/actions/manage-project'
 import DragDivider from './DragDivider'
 import { useVoiceMode, type TtsConfig } from '@/lib/hooks/useVoiceMode'
+import { useRealtimeVoiceSpike } from '@/lib/hooks/useRealtimeVoiceSpike'
 import { getTtsConfig } from '@/app/actions/orb-ai-settings'
 // useDoubleTap no longer needed — voice bar has explicit controls
 import TaskListView from './views/TaskListView'
@@ -295,7 +296,25 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     return () => window.removeEventListener(TTS_CONFIG_CHANGED_EVENT, handleTtsConfigChanged)
   }, [refreshTtsConfig])
   const voiceActiveRef = useRef(false)
-  voiceActiveRef.current = voice.voiceActive
+  const realtimeSpike = useRealtimeVoiceSpike({
+    currentProjectId: selectedId,
+    onUserTranscript: text => {
+      setInput(text)
+      setMessages(previous => [...previous, { id: genId(), type: 'user', text }])
+      setConversationActive(true)
+    },
+    onOrbTranscript: text => {
+      setMessages(previous => [...previous, { id: genId(), type: 'orb', text }])
+      setConversationActive(true)
+    },
+    onMutation: () => {
+      setPulse(true)
+      window.setTimeout(() => setPulse(false), 420)
+      void fetchOrbTodos()
+      void fetchTodos()
+    },
+  })
+  voiceActiveRef.current = voice.voiceActive || realtimeSpike.active
 
   // ── Mutation gate ──
   const pendingMutationRef = useRef<PendingMutation | null>(null)
@@ -332,6 +351,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const inactivityRef          = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevSelectedId         = useRef<string | null>(null)
   const greetingFiredRef       = useRef(false)
+  const passiveGreetingIdRef   = useRef<string | null>(null)
   const prevUrgencyRef         = useRef<Urgency | null>(null)
   const lastUrgencyMsgRef      = useRef<number>(0)
   const prevOverallUrgencyRef  = useRef<Urgency | null>(null)
@@ -544,12 +564,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     inactivityRef.current = setTimeout(() => setConversationActive(false), INACTIVITY_MS)
   }
 
-  function addOrbMessage(text: string) {
+  function addOrbMessage(text: string, source?: ConversationMessage['source']) {
     setMessages(prev => {
       // Deduplicate: don't repeat the same message if it's the last orb message
       const lastOrb = [...prev].reverse().find(m => m.type === 'orb')
       if (lastOrb && lastOrb.text === text) return prev
-      return [...prev, { id: genId(), type: 'orb', text }]
+      return [...prev, { id: genId(), type: 'orb', text, source }]
     })
     setConversationActive(true)
     resetInactivity()
@@ -616,6 +636,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       immediateFlush: true,
       metadata: { projectId: selectedId, isMobile },
     })
+    if (realtimeSpike.active) realtimeSpike.stop()
     if (noProject) { measurement.end(false, 'no_project'); return }
     if (!voice.supportsVoice) { measurement.end(false, 'voice_not_supported'); return }
 
@@ -652,7 +673,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     voice.speak(greeting)
     measurement.end(true, null, { usedExistingConversation: hasExistingConversation })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noProject, voice.voiceActive, voice.supportsVoice, user?.first_name, refreshTtsConfig])
+  }, [noProject, voice.voiceActive, voice.supportsVoice, user?.first_name, refreshTtsConfig, realtimeSpike.active, realtimeSpike.stop])
 
   useEffect(() => {
     if (!voiceStarting) return
@@ -936,7 +957,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   useEffect(() => {
     if (greetingFiredRef.current || !selectedId || isNewUser || messages.length > 0) return
     greetingFiredRef.current = true
-    setMessages([{ id: genId(), type: 'orb', text: makeOrbGreeting(user?.first_name) }])
+    const greetingId = genId()
+    passiveGreetingIdRef.current = greetingId
+    setMessages([{ id: greetingId, type: 'orb', text: makeOrbGreeting(user?.first_name) }])
     setConversationActive(true)
     resetInactivity()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1119,7 +1142,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     if (urgentCount > 0) parts.push(`${urgentCount} urgent`)
     if (inProgressCount > 0) parts.push(`${inProgressCount} in progress`)
     else if (active.length >= 3) parts.push('nothing in progress')
-    addOrbMessage(parts.join('. ') + '.')
+    addOrbMessage(parts.join('. ') + '.', 'passive-status')
     prevUrgencyRef.current = urgency
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orbTodos])
@@ -1147,7 +1170,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     else if (prev === 'urgent' && urgency === 'busy') explanation = 'Urgent queue cleared. Orb shifted back to busy.'
     else if (prev === 'urgent' && urgency === 'calm') explanation = 'Backlog is light. Orb is calm.'
     else if (prev === 'busy' && urgency === 'calm') explanation = 'Backlog thinned out. Orb is calm.'
-    if (explanation) addOrbMessage(explanation)
+    if (explanation) addOrbMessage(explanation, 'passive-status')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urgency, noProject])
 
@@ -2375,6 +2398,27 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         messages={messages} onForceQuiet={() => setConversationActive(false)}
         onErrorTest={() => setDevError(true)}
         simulateError={simulateError} onSimulateErrorChange={setSimulateError}
+        realtimeSpikeStatus={realtimeSpike.status}
+        realtimeSpikeError={realtimeSpike.error}
+        onRealtimeSpikeToggle={() => {
+          if (realtimeSpike.active) realtimeSpike.stop()
+          else {
+            if (voice.voiceActive) voice.exitVoiceMode()
+            voiceActiveRef.current = true
+            const passiveGreetingId = passiveGreetingIdRef.current
+            setMessages(previous => {
+              let end = previous.length
+              while (end > 0) {
+                const message = previous[end - 1]
+                if (message.id !== passiveGreetingId && message.source !== 'passive-status') break
+                end -= 1
+              }
+              return end === previous.length ? previous : previous.slice(0, end)
+            })
+            passiveGreetingIdRef.current = null
+            void realtimeSpike.start()
+          }
+        }}
       />
 
       {/* Orb animations */}

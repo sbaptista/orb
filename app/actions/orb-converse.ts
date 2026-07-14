@@ -35,6 +35,7 @@ import type { OrbModelProviderId } from '@/lib/orb-model/types'
 import { extractCitedCodes, isFalseCompletionClaim } from '@/lib/orb-model/false-claim-guard'
 import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, pendingTodoUndercount, resolveActionSetReference, todoCode } from '@/lib/orb-model/context'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
+import { buildPendingMutationConfirmationInstruction, grantsUpfrontMutationPermission, isBareMutationAffirmation, isBareMutationDecline } from '@/lib/orb-model/mutation-authorization'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -107,21 +108,6 @@ function pendingTodoOperations(pending: PendingMutation | undefined): PendingMut
 // "yes go ahead", "okay do it"). Accept any input made up solely of
 // affirmation phrases, in any combination — mixed content still falls
 // through to the model.
-function isBareAffirmation(input: string): boolean {
-  return /^(?:(?:yes|yep|yeah|yup|sure|okay|ok|go ahead|do it|go|confirmed|confirm|please do|please|sounds good|that['’]?s right|that is right)[,.!\s]*)+$/i.test(input.trim())
-}
-
-function isBareDecline(input: string): boolean {
-  return /^(?:(?:no|nope|nah|cancel|stop|don['’]?t|do not|never mind|nevermind|leave it|skip it|forget it)[,.!\s]*)+$/i.test(input.trim())
-}
-
-// The user granted permission up front, in the same message that asked for
-// the action ("you have my permission", "no need to confirm"). Execute the
-// held operations directly instead of asking them to confirm again.
-function grantsUpfrontPermission(input: string): boolean {
-  return /\b(?:you have my permission|i give you (?:my )?permission|you(?:'re| are) authorized|no need to (?:ask|confirm|check)|without (?:asking|confirming|confirmation)|don['’]?t ask(?: me)?(?: for confirmation| to confirm)?|just do it)\b/i.test(input)
-}
-
 function isPendingStatusQuestion(input: string): boolean {
   return /\?*\s*$/i.test(input.trim())
     && /\b(is it|did it|was it|are they|did they|has it|have they)\b/i.test(input)
@@ -160,7 +146,7 @@ function inferConfirmedDeleteOpsFromHistory(
   history: Array<{ role: 'user' | 'assistant'; text: string }> | undefined,
   input: string,
 ): PendingMutationOperation[] {
-  if (!isBareAffirmation(input)) return []
+  if (!isBareMutationAffirmation(input)) return []
   const lastAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
   if (!/\b(confirm|go ahead)\b/i.test(lastAssistant)) return []
   if (!/\b(delete|deleting|remove|removing)\b/i.test(lastAssistant)) return []
@@ -752,7 +738,7 @@ export async function orbConverse(req: OrbRequest) {
           ? req.pendingMutation.summary
           : summarizeTodoOperations(pendingTodoOps)
 
-        if (isBareDecline(req.input)) {
+        if (isBareMutationDecline(req.input)) {
           const speech = `Okay — I did not ${pendingSummary}.`
           recordModelRequest(speech)
           recordMetrics(speech.length)
@@ -768,7 +754,7 @@ export async function orbConverse(req: OrbRequest) {
           return
         }
 
-        if (isBareAffirmation(req.input)) {
+        if (isBareMutationAffirmation(req.input)) {
           await executeTodoOperationsAndFinish(pendingTodoOps)
           return
         }
@@ -823,13 +809,14 @@ export async function orbConverse(req: OrbRequest) {
       // Server-held pending PROJECT mutation (propose/confirm/execute). The client
       // echoes nothing — the server is the source of truth for what's awaiting confirmation.
       const pendingMutation: PendingMutationRow | null = await getPendingMutation(auth.admin, auth.user.id)
+      const projectConfirmationAllowed = Boolean(pendingMutation) && isBareMutationAffirmation(req.input)
       if (pendingMutation) {
         // Consume on load: a pending is confirmable ONLY on the turn directly after it
         // was proposed. Clear it now (the in-memory copy still serves this turn's
         // confirm_mutation) so it can never linger and be confirmed on a later, unrelated
         // turn. If the user doesn't confirm this turn, it's already gone — fail-safe.
         await clearPendingMutation(auth.admin, auth.user.id)
-        messages.push({ role: 'user', content: `[SYSTEM: This note applies ONLY if the user's latest message is a bare affirmation (e.g. "yes", "go", "go ahead", "do it", "yep", "confirm" — including stacked repeats like "confirm confirm", common in voice transcripts). If so, they are approving the action you proposed on the previous turn — "${pendingMutation.summary}" — so call confirm_mutation. For ANY other message (a new or changed request, a question, or a decline), ignore this note completely and respond as if it were not here: do not call confirm_mutation, and never mention a pending, held, or previous action to the user.]` })
+        messages.push({ role: 'user', content: buildPendingMutationConfirmationInstruction(pendingMutation.summary) })
       }
 
       const routeRole = routeOrbRequest(req.input, aiPolicy.routingEnabled, aiPolicy.strategicReadsEnabled)
@@ -1014,12 +1001,14 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           messages,
           tools: routeRole === 'strategic'
             ? []
-            // confirm_mutation is always offered (not filtered by pendingMutation): tools
-            // render ahead of the system prompt in the prompt-cache prefix, so toggling
-            // the tool set on every propose/confirm cycle voided the cache mid-conversation.
-            // The server already rejects a confirm with nothing pending, and the eval
-            // harness has always run with it unconditionally present.
-            : [...availableOrbTools, ...ORB_PREFERENCE_TOOLS, ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []), ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_ADAPTATION_TOOL],
+            : [
+                ...availableOrbTools.filter(tool => tool.name !== 'confirm_mutation' || projectConfirmationAllowed),
+                ...ORB_PREFERENCE_TOOLS,
+                ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []),
+                ORB_CAPABILITIES_TOOL,
+                ORB_DEV_CHANNEL_TOOL,
+                ORB_ADAPTATION_TOOL,
+              ],
           stream: true,
         }, { timeout: 60_000 })
 
@@ -1153,6 +1142,12 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
 
           // ── Project mutation: EXECUTE the exact stored intent ──
           if (tc.name === 'confirm_mutation') {
+            if (!isBareMutationAffirmation(req.input)) {
+              output = { error: 'The current message did not explicitly confirm the proposed action.' }
+              toolErrors.push('confirm_mutation: current message was not a bare affirmation')
+              toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
+              continue
+            }
             // pendingMutation was consumed (cleared) on load; the in-memory copy is the
             // sole source of truth for this turn. Null means nothing was pending.
             const pend = pendingMutation
@@ -2104,7 +2099,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           // Permission granted in the requesting message itself — don't make
           // the user confirm what they already authorized. Stop remains the
           // escape hatch, and deletes are soft.
-          if (grantsUpfrontPermission(req.input)) {
+          if (grantsUpfrontMutationPermission(req.input)) {
             await executeTodoOperationsAndFinish(heldTodoOperations, { preAuthorized: true })
             return
           }

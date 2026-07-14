@@ -1,6 +1,8 @@
 import type { OrbModelInvocationSource, OrbModelRateSnapshot, OrbModelUsage } from './types'
 
 export const GEMINI_STRATEGIC_EVAL_MODEL = 'gemini-3.1-pro-preview'
+export const ORB_EVAL_DEFAULT_PROVIDER = 'gemini' as const
+export const ORB_EVAL_DEFAULT_MODEL = GEMINI_STRATEGIC_EVAL_MODEL
 
 const GEMINI_3_1_PRO_RATE_SNAPSHOT: OrbModelRateSnapshot = {
   version: 'google-2026-06-22',

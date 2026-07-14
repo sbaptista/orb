@@ -13,7 +13,7 @@ import { DB_SCHEMA } from '@/lib/db-schema'
 import { CHANGELOG } from '@/lib/changelog'
 import { ANTHROPIC_HAIKU_REFERENCE_MODEL, normalizeAnthropicUsage } from '@/lib/orb-model/anthropic'
 import { recordOrbModelRequest } from '@/lib/orb-model/record'
-import { completeGeminiEvaluation, GEMINI_STRATEGIC_EVAL_MODEL } from '@/lib/orb-model/gemini'
+import { completeGeminiEvaluation, ORB_EVAL_DEFAULT_MODEL, ORB_EVAL_DEFAULT_PROVIDER } from '@/lib/orb-model/gemini'
 import { completeMistralEvaluation, MISTRAL_STRATEGIC_EVAL_MODEL } from '@/lib/orb-model/mistral'
 import { STRATEGIC_CONTEXT_PACKETS } from '@/lib/orb-model/strategic-eval-packets'
 import { buildStrategicContextPacket, renderStrategicEvaluationPrompt } from '@/lib/orb-model/strategic-context'
@@ -23,6 +23,7 @@ import { budgetBlockMessage, type OrbBudgetCheck } from '@/lib/orb-model/budget'
 import { extractCitedCodes, isFalseCompletionClaim, EFFECTFUL_TOOL_NAMES } from '@/lib/orb-model/false-claim-guard'
 import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, pendingTodoUndercount, resolveActionSetReference, todoCode, type OrbActionSetReference } from '@/lib/orb-model/context'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
+import { buildPendingMutationConfirmationInstruction, isBareMutationAffirmation } from '@/lib/orb-model/mutation-authorization'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 
@@ -286,7 +287,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
 
   // Mirror production's server-held pending-mutation injection (lib/orb-mutations.ts flow).
   if (pendingSummary) {
-    messages.push({ role: 'user', content: `[SYSTEM: This note applies ONLY if the user's latest message is a bare affirmation (e.g. "yes", "go", "go ahead", "do it", "yep", "confirm" — including stacked repeats like "confirm confirm", common in voice transcripts). If so, they are approving the action you proposed on the previous turn — "${pendingSummary}" — so call confirm_mutation. For ANY other message (a new or changed request, a question, or a decline), ignore this note completely and respond as if it were not here: do not call confirm_mutation, and never mention a pending, held, or previous action to the user.]` })
+    messages.push({ role: 'user', content: buildPendingMutationConfirmationInstruction(pendingSummary) })
   }
 
   try {
@@ -361,10 +362,18 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       : systemPrompt
     const tools = isStrategicEvaluation
       ? []
-      : [...ORB_TOOLS, ...ORB_PREFERENCE_TOOLS, ...ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_ADAPTATION_TOOL] as any[]
-    const requestedProvider = autoRoute
-      ? provider ?? (routeRole === 'strategic' ? 'gemini' : 'anthropic')
-      : provider ?? 'anthropic'
+      : [
+          ...ORB_TOOLS.filter(tool => tool.name !== 'confirm_mutation' || (Boolean(pendingSummary) && isBareMutationAffirmation(input))),
+          ...ORB_PREFERENCE_TOOLS,
+          ...ORB_MEMORY_TOOLS,
+          ORB_CAPABILITIES_TOOL,
+          ORB_DEV_CHANNEL_TOOL,
+          ORB_ADAPTATION_TOOL,
+        ] as any[]
+    // Eval model choice is deliberately independent of production role routing.
+    // routeRole still verifies operational vs strategic classification, while
+    // routine suite calls use the current strategic-quality reference model.
+    const requestedProvider = provider ?? ORB_EVAL_DEFAULT_PROVIDER
     let speech = ''
     let toolCalls: Array<{ name: string; params: Record<string, any> }> = []
     let tokenUsage: { input_tokens: number; output_tokens: number }
@@ -373,7 +382,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
 
     if (requestedProvider === 'gemini') {
       const result = await completeGeminiEvaluation({
-        model: model ?? GEMINI_STRATEGIC_EVAL_MODEL,
+        model: model ?? ORB_EVAL_DEFAULT_MODEL,
         source: 'eval',
         systemPrompt: evalSystemPrompt,
         messages,

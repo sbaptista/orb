@@ -12,6 +12,7 @@ import { EVAL_CASES, type EvalCase } from './eval-cases'
 import * as dotenv from 'dotenv'
 import * as path from 'path'
 import type { OrbModelUsage } from '../lib/orb-model/types'
+import { ORB_EVAL_DEFAULT_MODEL, ORB_EVAL_DEFAULT_PROVIDER } from '../lib/orb-model/gemini'
 
 // dotenv/BASE_URL are computed up front (before --help/--list) so the usage
 // text below can reference the real target instead of a hardcoded guess that
@@ -55,6 +56,8 @@ Case ids come from scripts/eval-cases.ts (the "id" field on each case) — run
 
 Requires the dev server reachable at ${BASE_URL} (override via EVAL_BASE_URL
 in .env.local). --help and --list make no network calls and need no server.
+Default evaluator: ${ORB_EVAL_DEFAULT_PROVIDER}/${ORB_EVAL_DEFAULT_MODEL}
+(override explicitly with EVAL_PROVIDER and EVAL_MODEL).
 
 Direct npx invocation (skips the npm wrapper) needs the TLS bypass BASE_URL
 requires as a self-signed-HTTPS target, added manually:
@@ -97,8 +100,8 @@ if (BASE_URL.startsWith('https://') && process.env.NODE_TLS_REJECT_UNAUTHORIZED 
 }
 
 const API_SECRET = process.env.ORB_API_SECRET
-const EVAL_PROVIDER = process.env.EVAL_PROVIDER
-const EVAL_MODEL = process.env.EVAL_MODEL
+const EVAL_PROVIDER = process.env.EVAL_PROVIDER ?? ORB_EVAL_DEFAULT_PROVIDER
+const EVAL_MODEL = process.env.EVAL_MODEL ?? ORB_EVAL_DEFAULT_MODEL
 const EVAL_USER_EMAIL = process.env.EVAL_USER_EMAIL
 const EVAL_CONTEXT_PACKET_ID = process.env.EVAL_CONTEXT_PACKET_ID
 
@@ -467,6 +470,7 @@ async function main() {
   console.log(`\n🔮 Orb Eval — ${cases.length} cases, ${totalRuns} total runs\n`)
   console.log(`   Started: ${formatDateTime(startedAt)}`)
   console.log(`   Target: ${BASE_URL}`)
+  console.log(`   Evaluator: ${EVAL_PROVIDER}/${EVAL_MODEL}`)
   console.log(`   Tier 1 (deterministic): ${cases.filter(c => c.tier === 1).length} cases`)
   console.log(`   Tier 2 (behavioral, 3× each): ${cases.filter(c => c.tier === 2).length} cases`)
   console.log()
@@ -485,6 +489,8 @@ async function main() {
     let passCount = 0
     let lastFailures: string[] = []
     let lastResponse: EvalResponse | null = null
+    let lastFailureResponse: EvalResponse | null = null
+    let completedCaseRuns = 0
     const modelUsages: OrbModelUsage[] = []
     let totalMs = 0
 
@@ -512,7 +518,9 @@ async function main() {
           passCount++
         } else {
           lastFailures = allFailures
+          lastFailureResponse = response
         }
+        completedCaseRuns++
       } catch (err: any) {
         totalMs += Date.now() - runStart
         const msg = err.message || ''
@@ -522,6 +530,8 @@ async function main() {
           continue
         }
         lastFailures = [`Error: ${msg}`]
+        lastFailureResponse = null
+        completedCaseRuns++
       }
       completedRuns++
 
@@ -531,10 +541,10 @@ async function main() {
 
     // Tier 1: must pass 1/1. Tier 2: must pass majority of COMPLETED runs.
     // Skipped runs (API limits) don't count against the test.
-    const completedThisCase = passCount + lastFailures.length > 0 ? passCount + (lastFailures.length > 0 ? 1 : 0) : runs
-    const passThreshold = testCase.tier === 2 ? Math.max(1, Math.ceil(completedThisCase * 0.66)) : 1
+    const passThreshold = testCase.tier === 2 ? Math.max(1, Math.ceil(completedCaseRuns * 0.66)) : 1
     const passed = passCount >= passThreshold
     if (passed) passedCases++; else failedCases++
+    const diagnosticResponse = passed ? lastResponse : lastFailureResponse
 
     const result: TestResult = {
       id: testCase.id,
@@ -544,12 +554,12 @@ async function main() {
       runs,
       passCount,
       failures: passed ? [] : lastFailures,
-      speech: lastResponse?.speech?.slice(0, 200),
-      toolCalls: lastResponse?.toolCalls,
-      tokens: lastResponse?.tokenUsage
-        ? lastResponse.tokenUsage.input_tokens + lastResponse.tokenUsage.output_tokens
+      speech: diagnosticResponse?.speech?.slice(0, 200),
+      toolCalls: diagnosticResponse?.toolCalls,
+      tokens: diagnosticResponse?.tokenUsage
+        ? diagnosticResponse.tokenUsage.input_tokens + diagnosticResponse.tokenUsage.output_tokens
         : undefined,
-      modelUsage: lastResponse?.modelUsage,
+      modelUsage: diagnosticResponse?.modelUsage,
       modelUsages,
       durationMs: Math.round(totalMs / runs),
     }

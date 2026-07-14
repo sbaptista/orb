@@ -1,6 +1,6 @@
 # ORB-325 — Voice Interaction Rethink
 
-**Status:** Architecture review in progress. Further symptom-level voice patches are paused. Firefox input works and several Safari defects were corrected, but the extended Safari conversation failed the interaction-quality gate.
+**Status:** Realtime/WebRTC architecture accepted for Safari, Chrome, and Edge on 2026-07-13. Production hardening is in progress on a controlled allowlist path; the production serial voice path remains the fallback and Firefox is deferred to ORB-330.
 
 ## Decision to make
 
@@ -8,7 +8,75 @@ The question is no longer whether individual browsers can capture and play audio
 
 Voice stays as a full conversational mode only if the complete turn—recognition, interpretation, routing, tools, response, speech, interruption, and microphone return—can be predictable and fast. If that cannot be achieved, narrow the product to a reliable voice-operator or dictation surface instead of preserving a broad but clunky promise.
 
-No implementation follows from this document without Stan's explicit approval.
+Stan approved the isolated spike on 2026-07-13. This approval does not authorize replacing production voice; promotion requires the controlled browser/device results and a separate decision.
+
+Stan accepted the measured architecture for production hardening on 2026-07-13. This is not a flag-day replacement. Production access requires both `ORB_REALTIME_VOICE_ENABLED=true` and an exact authenticated email in `ORB_REALTIME_VOICE_ALLOWLIST`; development remains available through the existing DEV control. Users outside the allowlist stay on the serial voice path.
+
+### Production-hardening capability boundary
+
+The accepted Realtime operator currently has a deliberately narrow, verified surface:
+
+| Capability | Realtime status | Promotion rule |
+|---|---|---|
+| Exact task count by named/all-owned and open/active/parked/all scope | Implemented | Database Fact Packet; scope fails closed |
+| Exact owned-project count and names | Implemented | Database Fact Packet |
+| One verified next step | Implemented | Database Fact Packet |
+| Create one todo | Implemented | Persisted proposal + one confirmation + transactional receipt |
+| Replay/idempotency | Durable | Database row lock returns one canonical receipt; todo and audit write once |
+| Interruption/cancellation | Implemented | Provider interruption plus application turn quarantine/watchdogs |
+| Detailed todo reads | Implemented; device verification pending | Natural title or code and scoped-list Fact Packets read fresh database state; ambiguous references and project scope fail closed; list is capped for voice |
+| Todo update/delete/move | Implemented; hardening retest pending | Natural title/project reference resolves one fresh row, then durable proposal + shared authorization + transactional receipt |
+| Project mutation, knowledge, tickets, audit, repository, navigation, adaptations | Not yet promoted | Remain on the serial operator until explicitly implemented and verified |
+
+The server allowlist may expose the hardened endpoints before the dashboard chooses them, but the main voice control must not route an allowlisted user to Realtime until unsupported intents have a deterministic fallback or the required capability parity. Endpoint availability and product-default routing are separate gates.
+
+The Anthropic eval harness cannot execute the OpenAI Realtime tool surface. Intent analogues remain covered by `query-uses-tool` (scoped list) and `exact-task-read-no-invented-blockers` (exact read), while the Realtime packet/tool wiring requires direct DEV-operator acceptance. This is an explicit harness boundary, not a claim that the serial cases execute Realtime code.
+
+## Approved five-plane contract
+
+The spike separates responsibilities that the current serial implementation mixes together:
+
+1. **Interaction plane:** one persistent OpenAI Realtime WebRTC session owns microphone input, tunable turn detection, audio output, transcript events, and provider-level interruption.
+2. **Truth plane:** a narrow server-side Fact Gateway performs fresh database reads and returns typed Fact Packets. Counts, statuses, owners, identifiers, dates, and task selection never come from model memory or the broad cached conversation context.
+3. **Action plane:** Orb's server owns reference resolution, proposal, authorization, confirmation, execution, idempotency, audit, and read-back. The voice model supplies a natural todo title/code and project name but never receives database authority, and may only claim completion from a database-backed receipt. Text and Realtime use the same server authorization grammar.
+4. **Reasoning plane:** the model supplies natural language and judgment around verified packets. Simple operational turns stay small; strategic work is bounded and cancellable.
+5. **Presentation plane:** React displays the synchronized user and Orb transcripts and provides the dev-only switch. React rerenders do not create the audio session, decide factual truth, execute mutations, or infer microphone handoff.
+
+The spike is deliberately a sibling of `useVoiceMode`, not a rewrite of it. It is started from the cataloged global DEV panel and uses existing `dev-*` controls with no new visual pattern. The authenticated SDP route keeps the standard OpenAI key on the server. The browser holds only the WebRTC connection and tool-call transport.
+
+### Factual invariant
+
+For “How many active tasks do I have?”, “my” means tasks in non-dormant projects whose `created_by` is the authenticated user. “Active” is imported from the canonical status group (`open` + `in progress`). For a named project, the gateway resolves the user-facing project name server-side within the caller's accessible project set and preserves the requested status scope: `open` is exact status `open`, `active` is `open + in progress`, `parked` is `deferred + on hold`, and `all` is every non-deleted status. The gateway returns the observation time, included statuses, canonical project, source, count, and exact spoken factual core.
+
+For “What should I do next?”, the gateway first restricts to that same owned-project set, then chooses the highest-priority active task from a fresh snapshot and returns its real code, title, status, priority, and project. No survey is part of this path.
+
+### Mutation invariant and durable confirmation
+
+“Create a todo” first persists the authenticated user, exact project, title, proposal ID, and expiry, then returns a signed five-minute token containing only the proposal identity, user, and expiry. Confirmation calls one database transaction that locks the proposal, re-authorizes and locks the project during todo-number allocation, creates one todo and one audit event, stores the canonical receipt, and returns it. Replaying the same proposal returns the stored receipt rather than inserting again, including across server processes.
+
+The original process-local replay map was spike-grade and has been removed. The durable table/RPC boundary was applied and verified inside a rolled-back transaction: first confirmation reported `replayed:false`; the second returned the identical receipt with `replayed:true`; exactly one todo and one audit row existed before rollback.
+
+### Performance and cancellation evidence
+
+The spike emits `voice` focus events for tap-to-first-WebRTC-audio-packet and speech-to-microphone-return, including microphone request/ready, SDP readiness, data-channel open, inbound RTP audio growth, speech start, transcript completion, each fact/action tool boundary, response completion, interruption, and microphone return. The first iPad run established that WebRTC audio is delivered on the peer media track without dependable granular audio-delta events on Safari; first-audio timing therefore observes inbound audio bytes through `RTCPeerConnection.getStats()`, rather than the continuously playing `<audio>` element or a WebSocket-oriented delta event. A dedicated playback-interruption probe records whether a `speech_started` event produced a non-empty transcript, but never records transcript or audio content.
+
+After two iPad sessions each produced a no-transcript playback interruption consistent with steady fan noise, the spike moved from semantic VAD (which has no activation-threshold control) to server VAD with a **0.65** activation threshold, **300ms** prefix padding, and **450ms** silence detection. The higher threshold is intended to reject ambient noise while the short silence window protects turn speed. The browser still requests echo cancellation, noise suppression, and automatic gain control; Realtime applies `far_field` noise reduction before VAD. Starting a qualified utterance clears the unfinished visible transcript buffer and relies on Realtime's native WebRTC `interrupt_response` cancellation/truncation; the app no longer competes by pausing and restarting the shared media element each turn.
+
+Later runs produced short Korean/other transcripts when the user did not deliberately speak. Cursor state is not an input to the voice hook, so these are treated as microphone/VAD false triggers plus plausible ASR output, not pointer events. Do not reject Korean, foreign-language, or single-word input by heuristic. The session requests transcription log probabilities and records only aggregate token count, average/minimum log probability, geometric confidence, and VAD audio duration; transcript text and audio remain unrecorded. The collected false and legitimate short turns overlap in confidence and duration, so no safe suppression threshold has been established and none is active. Automatic language detection must remain available: Orb must understand multilingual input and support requests to speak another language. This work is paused until a language-independent speech/non-speech boundary can preserve quiet, accented, short confirmation, and multilingual utterances while rejecting ambient noise.
+
+Every provider response is bound to the application turn that created it. A new `speech_started` event advances the turn ID, aborts in-flight read/proposal requests, and prevents a late tool result or cancelled `response.done` event from completing the new turn. A confirmed mutation may finish server-side after an interruption—confirmation is the commit boundary—but its receipt is added without automatically speaking into the replacement turn.
+
+The cross-browser pass exposed one Firefox response that received a verified fact result but never emitted the final response or returned the microphone; it remained stuck until the session was stopped after 56 seconds. The first watchdog draft armed only after a tool result, leaving pre-tool and tool-free stalls uncovered. The corrected watchdog starts one absolute 12-second deadline when input transcription completes. Response creation and verified tool-result handoffs update the recorded phase without extending that original deadline. A timeout cancels provider output, aborts/quarantines the turn, records `response_timeout`, the watchdog phase, and the absolute-deadline flag, displays a retry message, and returns the still-connected session to listening. Tool failures now make the whole turn unsuccessful in telemetry instead of allowing the final spoken error to close it as a success. Startup failures retain the sanitized browser/provider error name and message so a failed data-channel attempt is diagnosable rather than merely labeled `start_failed`.
+
+Mutation authorization is not delegated to the Realtime model. The client waits for the provider's completed transcription before sending any proposal or confirmation request and attaches that trusted current-turn utterance. The server evaluates it through `lib/orb-model/mutation-authorization.ts`, the same predicates used by the serial text path. Upfront permission in the requesting utterance executes the persisted proposal without a redundant confirmation turn; a later confirmation must be a bare affirmation. The serial/eval model is not even offered `confirm_mutation` unless a proposal exists and the current utterance passes that predicate, and both server handlers recheck defensively. Complaints, discussions, or reminders about earlier permission therefore cannot execute a proposal. Natural todo title/project references resolve exact matches first, then one unique fuzzy match; ambiguity fails closed. Codes remain available for precision and receipts but are no longer required user input.
+
+A later Firefox run exposed the complementary input-side failure: `speech_started` arrived, but transcription never completed and no response watchdog could therefore arm. Every speech start now also gets a 12-second transcription watchdog. If transcription never completes, the client clears the provider input buffer, briefly resets the microphone track to force a clean audio boundary, quarantines the incomplete turn, records `transcription_timeout`, displays a retry message, and returns to listening. Successful transcription cancels this input watchdog before the response watchdog takes ownership.
+
+The repeatable “stops hearing after about three questions” case revealed a Firefox event-order race rather than a fixed turn quota. Immediately after a completed answer, Firefox emitted the next `speech_started`, then the prior answer's `response.done` four milliseconds later. When that completion could not be associated reliably by response ID, it closed the new input measurement and stranded VAD before transcription. While a transcription watchdog is active, `response.done` is now treated as belonging to prior output and cannot close, clear, or mark the new user turn complete. The new turn remains owned by either transcription completion or its timeout recovery.
+
+### Database impact
+
+The original spike added no schema. Production hardening adds the RLS-enabled `orb_realtime_proposals` ledger plus row-locked confirmation RPC through the two applied ORB-325 migrations; it adds no `postgres_changes` subscription, polling, per-render write, or transcript/audio storage. Natural todo resolution introduces one read pattern over accessible non-deleted todos, project-scoped whenever the user supplies a project or the dashboard has a current project. Existing partial indexes on `(product_id, deleted_at/urgency)` and `(product_id, todo_number, deleted_at)` cover the common scoped and code paths; unique fuzzy title matching currently filters the bounded accessible rows in application code. Gateway time is already measured. No new index or database re-platforming is justified without deployed evidence; run `EXPLAIN (ANALYZE, BUFFERS)` and add an index only if the plan demonstrates a real scan at meaningful scale.
 
 ## Evidence from the Safari transcript
 
@@ -173,6 +241,7 @@ The 75.437s strategic call and 8–11s model-only survey turns fail these propos
 - Give active workflow resolution precedence over general strategic keyword matching.
 - Enforce legal stage transitions and idempotent side effects before any tool reaches the database.
 - Preserve tool outcomes as structured turn state rather than relying on assistant narration in text history.
+- For todo mutations, resolve a natural title/code and optional project name to one fresh accessible row, persist the interpreted proposal, apply the shared authorization predicates to the current transcript, ask once only when permission was not already granted, and commit through one row-locked database RPC. Update/delete/move return canonical receipts and replay those receipts without repeating writes. Ambiguity or a row-version mismatch fails closed. Closing remains on the full serial workflow until resolution-note and Knowledge Repository obligations can be enforced inside the same boundary.
 - Make cancellation propagate to the provider call.
 - Spike a persistent Realtime/WebRTC operator against the optimized serial path using the same fixed transcript scenarios and latency budget. Do not choose based on demo smoothness alone; confirm tool correctness, transcript fidelity, interruption, cost, and browser support.
 
@@ -186,7 +255,7 @@ The 75.437s strategic call and 8–11s model-only survey turns fail these propos
 
 ### Phase 4 — controlled device matrix
 
-Run the same short script on Mac, iPad, and iPhone across Safari, Chrome, Edge, and Firefox. Record capability state, recognition path, recognized text, first-audio time, interruption behavior, completion, and microphone return. Include “Orb,” a short status question, a correction, a mutation requiring confirmation, and an explicit strategic request.
+Run the same short script on Mac, iPad, and iPhone across Safari, Chrome, and Edge. Record capability state, recognition path, recognized text, first-audio time, interruption behavior, completion, and microphone return. Include “Orb,” a short status question, a correction, a mutation requiring confirmation, and an explicit strategic request. Firefox is no longer an ORB-325 release gate; ORB-330 owns its separate reliability investigation.
 
 ## Required regression coverage for any implementation
 
@@ -201,7 +270,7 @@ Run the same short script on Mac, iPad, and iPhone across Safari, Chrome, Edge, 
 ## Impact decisions
 
 - **Performance instrumentation:** required. Existing stage events are useful but were not active in the failed Safari run; correlation and cancellation evidence are missing.
-- **Database:** this review makes no schema or data change. A future survey-idempotency implementation may add a lookup keyed by reporter and survey stage/response identity; that is a new query pattern and must be checked for an index before implementation. No Realtime subscription is justified.
+- **Database:** ORB-325 adds the service-role-only `orb_realtime_proposals` transaction ledger and one confirmation RPC. The expanded mutation slice adds indexed target-todo and destination-project references plus proposal params; confirmation uses primary/FK lookups and existing todo/project indexes. Writes occur only after a user proposal and confirmation. No polling, per-render/keystroke write, or `postgres_changes` subscription is added. A future survey-idempotency implementation may add a lookup keyed by reporter and survey stage/response identity; that new pattern must be checked for an index before implementation.
 - **UI catalog:** no visual implementation in this review. Any new progress or strategic-result surface must first select an existing catalog pattern.
 - **Orb eval:** any routing, workflow, cancellation-policy, or defined speech change requires matching cases in `scripts/eval-cases.ts` in the same implementation.
 
