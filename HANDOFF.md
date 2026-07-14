@@ -13,7 +13,7 @@
 - **Branch:** `codex/orb-325-production-hardening` (required short-lived migration branch; not pushed)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.196**; production remains **v0.6.188**. v0.6.189–v0.6.196 are committed locally on this branch but not pushed. v0.6.190 begins the ORB-325 Realtime hardening release; v0.6.191 adds the ORB-334 Gemini eval default; v0.6.192 fixes timeout-muted Realtime playback plus natural priority-label mapping; v0.6.193 adds ranked title resolution; v0.6.194 makes completed transcription the response boundary; v0.6.195 disables tools during canonical post-tool speech; and v0.6.196 instruments ASR confidence/VAD duration.
+- **Version:** local/canonical **0.6.196**; production remains **v0.6.188**. v0.6.189–v0.6.196 are committed locally on this branch at checkpoint `51b2850` but not pushed. v0.6.190 begins the ORB-325 Realtime hardening release; v0.6.191 adds the ORB-334 Gemini eval default; v0.6.192 fixes timeout-muted Realtime playback plus natural priority-label mapping; v0.6.193 adds ranked title resolution; v0.6.194 makes completed transcription the response boundary; v0.6.195 disables tools during canonical post-tool speech; and v0.6.196 instruments ASR confidence/VAD duration.
 
 ---
 
@@ -23,7 +23,7 @@
 
 Routine Tier 1, Tier 2, and strategic eval runs now use the shared `gemini-3.1-pro-preview` constant by default instead of `anthropic/claude-haiku-4-5`. The runner prints the chosen evaluator, the server endpoint uses the same default, the strategic manifest contains only the Gemini reference candidate, and routing cases now test operational/strategic role classification without forcing Haiku. Explicit `EVAL_PROVIDER`/`EVAL_MODEL` and request-level overrides remain available for deliberate comparisons; production Orb routing is unchanged. No database query/write, app workflow, or user-facing performance path changed, so additional performance instrumentation is not required. Static verification is green. Stan's representative run passed Tier 1 **2/2** and Tier 2 **1/1**; usage correctly reported `google/gemini-3.1-pro-preview` with ~209,229 tokens, ~$0.2330 estimated cost, 11.281s average model latency, and 1m36s elapsed. Keep future runs focused because the strategic-quality evaluator is materially slower and more expensive than a lightweight operational evaluator. Closed with resolution notes at `2026-07-14T01:49:27Z`; Knowledge Repository entry `a2d3d716-b389-485e-8cd6-7a18f7a2f44d`.
 
-**ORB-325 Realtime voice architecture + production hardening — 2026-07-13 (Codex, GPT-5) — v0.6.190 — OPEN / HARDENING**
+**ORB-325 Realtime voice architecture + production hardening — 2026-07-14 (Codex, GPT-5) — v0.6.190–v0.6.196 — OPEN / HANDOFF**
 
 Implemented the approved five-plane Realtime operator without replacing current voice: authenticated OpenAI Realtime WebRTC interaction; fresh typed database Fact Packets for owned-project active counts and next-step selection; signed create proposals with one confirmation, authorized write, audit, read-back, and replay receipt; synchronized user/Orb transcript callbacks; provider-level interruption; and correlated `voice` performance stages. Development starts it from the existing global DEV panel and reuses cataloged controls. Production endpoints are now separately allowlist-gated for hardening, but the main voice button remains on the serial fallback. Production hardening added one migration-backed transaction ledger/RPC; no new CSS/UI pattern, Realtime database subscription, or dependency was added.
 
@@ -48,6 +48,8 @@ The next Firefox run completed two fact turns, then stopped hearing. Telemetry p
 The following Firefox run exposed one event-order race: after two completed fact turns, a new `speech_started` armed the transcription watchdog, then the prior answer's `response.done` arrived **4ms** later and was misattributed to the new turn. Guarding that boundary did not solve the broader failure. In the final run, two exchanges completed and the next spoken utterance produced **no provider `speech_started` event at all**, so neither provider-event watchdog could observe or recover it. Removing the app's competing per-turn pause/play control from the WebRTC audio element also failed the sustained-turn test. Firefox is therefore deferred from the supported/release matrix; ORB-330 owns the separate microphone/WebRTC lifecycle investigation. Safari, Chrome, and Edge remain the ORB-325 gate.
 
 The latest supported-browser runs exposed a separate ambient-input problem: room/handling noise was transcribed as short foreign-language or nonsense turns (`分支`, `Kit`, `음`), while a real quiet “Hello” was once transcribed as `bela`. Privacy-safe telemetry now records VAD duration plus transcription token/log-probability summaries, but the observed distributions overlap: false turns ranged from roughly **0.052–0.812** geometric confidence and **876–1,132ms**, while legitimate short speech ranged from roughly **0.254–0.974** and **1,260–1,292ms**. There is therefore no defensible confidence or duration cutoff from this sample. An English transcription lock was considered but explicitly rejected and **not implemented**: Orb must retain automatic multilingual understanding, and the user must be able to ask it to speak another language. Work is paused here. The next design must distinguish speech from non-speech independently of language and must preserve short, quiet, accented, confirmation, and multilingual utterances. Do not add word/language heuristics, canned responses, or a threshold based on the current sample.
+
+**Do not close ORB-325 yet.** It was briefly closed on 2026-07-14, then immediately reopened when Stan clarified that he had lost track of the remaining product-default work. The authoritative durable checkpoint is Knowledge Repository entry `8d4c4ac3-a3c7-4a09-8d4c-f0beb877c24a`. The main voice control still uses the serial runtime. Before Realtime can become the default, it needs either typed parity or a deterministic serial fallback for unsupported intents; safe todo closing with atomic resolution-note/Knowledge Repository duties; a measured language-independent solution for ambient false turns; supported-browser acceptance; and a green full Tier 1 production gate. Firefox remains separate under ORB-330.
 
 That final transcript also exposed a distinct capability gap: the spike could count tasks but not count or name projects. A fresh `get_project_directory` Fact Packet now returns the exact count and names of current, non-dormant projects owned by the user. The production eval analogue `query-projects-tool` now explicitly covers the same count-and-directory intent.
 
@@ -156,8 +158,9 @@ The recurring Safari/iPad login loop was **not** cookie corruption (the discarde
 
 ## Active Risks / Unresolved Work
 
-- **ORB-325 is accepted for production hardening, not yet product-default routing.** Durable create idempotency and the endpoint allowlist are complete. The remaining gate is capability parity or deterministic fallback for unsupported intents before the main voice control may choose Realtime.
+- **ORB-325 is open and not product-default.** Realtime lacks project mutations, Knowledge Repository operations, tickets, audit/repository inspection, navigation/client actions, adaptations/preferences/memory, and safe closing. Decide typed parity versus a deterministic serial fallback that preserves transcript, pending mutation/authorization state, and conversational continuity.
 - **ORB-325 ambient-input filtering is unresolved and deliberately paused.** Automatic language detection remains enabled. The current confidence/VAD instrumentation is diagnostic only; no threshold is active. Resume with a language-independent speech/non-speech design, not an English hint or phrase-specific filter.
+- **Production gate is incomplete.** The complete combined change set has focused/manual passes but no final green full Tier 1 run. Stan must run `npm run eval:t1`; do not push or promote Realtime before it is green.
 - **Preserve TICKETS-48–54 as evidence.** Four are duplicate survey side effects, but cleanup requires separate authorization; do not dismiss or delete them silently.
 - **Standing, low priority (verified 2026-07-12):** full-project `npm run lint` reports **6 errors + 63 warnings**, all in pre-existing files unrelated to recent work. Focused ORB-325 lint has 0 errors and retains one pre-existing `react-hooks/set-state-in-effect` warning at `useCapabilities.ts:142`.
 
@@ -165,9 +168,11 @@ The recurring Safari/iPad login loop was **not** cookie corruption (the discarde
 
 ## Next Priorities
 
-1. **ORB-325** — before more paid/manual voice testing, design a language-independent speech/non-speech boundary for the ambient false-turn problem. Preserve multilingual input/output and short confirmations. Then continue capability/fallback parity; do not flip the main voice button yet.
-2. **ORB-326** — Claude Code's SystemStateProvider poll dedup is waiting for release bookkeeping after v0.6.189 is committed.
-3. **ORB-292** — design user-facing Value/Balanced/Deep Thinking modes, per-user allowances, consent-based Orb tuning proposals.
+1. **ORB-325 capability boundary** — decide and document typed parity versus deterministic serial fallback. Prefer a structural router that preserves transcript, pending mutation/authorization state, and conversational continuity. Include a safe closing workflow; do not flip the main voice button yet.
+2. **ORB-325 ambient classifier spike** — shadow mode only. Evaluate a language-independent acoustic classifier (Silero VAD is the leading candidate, not an approved dependency), reusing the exact microphone stream and leaving the WebRTC sender untouched. Measure total model/worklet/WASM load, initialization, CPU/memory, and Mac/iPad/iPhone behavior. Validate noise, quiet confirmations, accents, and multiple non-English utterances before considering enforcement. Rejected turns must eventually remove/exclude the provider conversation item as well as skip transcript/response creation.
+3. **ORB-325 acceptance/release** — manually verify supported-browser reads, natural-title mutations, upfront permission, one confirmation, interruption, timeout recovery, factual grounding, and unsupported-intent fallback. Then Stan runs `npm run eval:t1`; fix regressions before any push. Decide separately whether Realtime becomes the main voice path.
+4. **ORB-326** — Claude Code's SystemStateProvider poll dedup has an existing unstaged diff; coordinate before release bookkeeping.
+5. **ORB-292** — design user-facing Value/Balanced/Deep Thinking modes, per-user allowances, consent-based Orb tuning proposals.
 
 Deferred and non-blocking: **ORB-330** owns Firefox Realtime voice reliability before Firefox can re-enter the supported browser matrix.
 
@@ -191,7 +196,7 @@ Load-bearing invariants for anyone touching Orb behavior. Full operating rules l
 
 ## AI Tool Used Last Session
 
-`2026-07-13 — Codex (GPT-5)`
+`2026-07-14 — Codex (GPT-5)`
 
 ---
 

@@ -39,6 +39,9 @@
 
 ## Immediate next steps
 
-1. Do not spend more model calls or add a threshold from the current sample. First design a language-independent speech/non-speech boundary that preserves quiet, accented, short confirmation, and multilingual utterances.
-2. Continue capability/fallback parity; do not route the main voice button to Realtime yet.
-3. Run the production build only when it will not disturb Stan's user-owned dev server.
+1. ORB-325 is **OPEN**. It was briefly closed and immediately reopened after Stan clarified that the main Realtime path is not product-default and remaining scope was unclear. Durable checkpoint: Knowledge Repository `8d4c4ac3-a3c7-4a09-8d4c-f0beb877c24a`.
+2. Decide typed capability parity versus deterministic serial fallback. Realtime still lacks project mutation, Knowledge Repository, tickets, audit/repository inspection, navigation/client actions, adaptations/preferences/memory, and safe todo closing. Any fallback must preserve transcript, pending mutation/authorization state, and continuity; do not rely on the model merely apologizing for unsupported work.
+3. Do not spend more model calls or add an ASR-confidence/duration threshold from the current sample. For ambient false turns, evaluate a language-independent acoustic classifier in shadow mode only. Silero VAD is a candidate, not an approved dependency. Reuse the exact existing MediaStream, do not alter the WebRTC sender, measure total model/worklet/WASM and device cost, and validate quiet confirmations plus multilingual speech across Mac/iPad/iPhone Safari/Chrome/Edge.
+4. If suppression is later justified, rejected turns must clear watchdog/state, skip the visible transcript and `response.create`, end telemetry as expected suppression, quarantine late events, and delete/exclude the provider input item so nonsense cannot pollute later context. A response gate alone does not prevent false provider interruptions.
+5. Manually accept supported-browser factual reads, natural-title mutations, upfront permission, one confirmation, interruptions, watchdog recovery, and unsupported-intent fallback. Then Stan runs `npm run eval:t1`; no push or product-default switch until Tier 1 is green.
+6. Run the production build only when it will not disturb Stan's user-owned dev server.
