@@ -1,5 +1,5 @@
 import { STRATEGIC_EVAL_CASES } from './strategic-eval-cases'
-import { ORB_EVAL_DEFAULT_MODEL } from '../lib/orb-model/gemini'
+import { GEMINI_STRATEGIC_EVAL_MODEL } from '../lib/orb-model/gemini'
 
 export const STRATEGIC_EVAL_MANIFEST = {
   id: 'orb-334-gemini-default-2026-07-13',
@@ -7,7 +7,7 @@ export const STRATEGIC_EVAL_MANIFEST = {
   contextPacketVersion: 'pending-frozen-packets-v1',
   promptVersion: 'orb-system-v0.6.40',
   candidates: [
-    { provider: 'google', model: ORB_EVAL_DEFAULT_MODEL, role: 'reference' },
+    { provider: 'google', model: GEMINI_STRATEGIC_EVAL_MODEL, role: 'reference' },
   ],
   scenarioIds: [
     'urgent-next-step',

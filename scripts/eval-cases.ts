@@ -2,7 +2,7 @@
 // Add new cases by appending to the EVAL_CASES array.
 // Each case tests a specific Orb behavior — tool correctness or speech content.
 
-import { ORB_EVAL_DEFAULT_MODEL } from '../lib/orb-model/gemini'
+import { GEMINI_STRATEGIC_EVAL_MODEL } from '../lib/orb-model/gemini'
 
 export type EvalCase = {
   id: string
@@ -286,6 +286,21 @@ export const EVAL_CASES: EvalCase[] = [
     input: 'You should have picked it up already. I already said that you had my permission, but that is okay.',
     tier: 1,
     forbidTools: ['confirm_mutation'],
+  },
+
+  {
+    id: 'explicit-sentence-approval-confirms',
+    description: 'An explicit sentence-form approval authorizes the pending mutation — approval is not restricted to bare tokens like "yes" (ORB-325: users were left unable to authorize anything because every natural explicit approval was rejected)',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    history: [
+      { role: 'user', text: 'Delete foobar from Orb' },
+      { role: 'assistant', text: 'Confirm: delete ORB-333, “foobar”, from Orb?' },
+    ],
+    pendingSummary: 'delete ORB-333, “foobar”, from Orb',
+    input: 'Yes, apply the change to delete ORB-333.',
+    tier: 1,
+    expectTool: { name: 'confirm_mutation' },
   },
 
   {
@@ -643,7 +658,7 @@ export const EVAL_CASES: EvalCase[] = [
     input: 'Give me a strategic read: what should I focus on next, and why?',
     autoRoute: true,
     provider: 'gemini',
-    model: ORB_EVAL_DEFAULT_MODEL,
+    model: GEMINI_STRATEGIC_EVAL_MODEL,
     tier: 1,
     expectNoTool: true,
     expectProvider: 'google',
@@ -935,6 +950,18 @@ Helm [code: HELM]:
     input: 'Move ORB-325 to Helm.',
     tier: 1,
     expectTool: { name: 'move_todo', params: { code: 'ORB-325', target_project_code: 'HELM' } },
+  },
+  {
+    id: 'realtime-close-intent-analogue',
+    description: 'A todo close-with-resolution routes to the existing closing capability (Realtime propose_close_todo analogue)',
+    productCode: 'ORB',
+    backlogOverride: `Orb [code: ORB]:
+  SUMMARY: active_count=1 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ACTIVE:
+  ORB-325 [P3] [open] Fix voice issues`,
+    input: 'Close ORB-325 — I fixed the voice issues by hardening the Realtime path.',
+    tier: 1,
+    expectTool: { name: 'update_todo', params: { code: 'ORB-325', new_status: 'closed' } },
   },
 
   // ═══════════════════════════════════════════════════════════════════════

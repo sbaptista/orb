@@ -27,7 +27,7 @@ export type OrbRealtimeFactPacket = {
 }
 
 export type OrbRealtimeProposal = {
-  kind: 'create_todo' | 'update_todo' | 'delete_todo' | 'move_todo'
+  kind: 'create_todo' | 'update_todo' | 'delete_todo' | 'move_todo' | 'close_todo'
   proposalToken: string
   project: { id: string; name: string; code: string }
   title: string
@@ -38,16 +38,18 @@ export type OrbRealtimeProposal = {
     status?: 'open' | 'in progress' | 'deferred' | 'on hold'
     priority?: number
   }
+  resolutionNotes?: string
   spokenText: string
 }
 
 export type OrbRealtimeMutationReceipt = {
-  kind: 'create_todo' | 'update_todo' | 'delete_todo' | 'move_todo'
+  kind: 'create_todo' | 'update_todo' | 'delete_todo' | 'move_todo' | 'close_todo'
   receiptId: string
   code: string
   oldCode?: string
   title: string
   project: string
+  knowledgeEntryId?: string
   observedAt: string
   source: 'database'
   spokenText: string

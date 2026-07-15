@@ -6,6 +6,21 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.199',
+    date: '2026-07-14',
+    changes: [
+      'Fixed confirmation of a pending change being far too strict to use. Only a bare “yes” or “confirm” was accepted, so natural explicit approvals — “approved”, “I confirm the change”, “Yes, apply the change to close ORB-338” — were all refused, and a change could end up impossible to approve at all. An unambiguous explicit approval now authorizes the pending change, while questions, declines, and complaints or reminders about permission you gave earlier still never authorize anything on their own.',
+      'Stopped Orb describing or guessing which exact words count as approval. It had begun telling people that accepted phrases were rejected and suggesting wordings that could not work; the server alone decides, so Orb now simply restates the pending change and asks you to approve it in your own words.',
+    ],
+  },
+  {
+    version: 'v0.6.197',
+    date: '2026-07-14',
+    changes: [
+      'Began Realtime voice capability parity (still developer/allowlist-gated, not the default voice control). The Realtime operator can now close a todo through a dedicated, confirmed workflow that atomically saves resolution notes, writes a matching Knowledge Repository entry, records one audit event, and returns a single durable receipt — closing is never a silent status change and is not available through the plain update path.',
+    ],
+  },
+  {
     version: 'v0.6.196',
     date: '2026-07-13',
     changes: [

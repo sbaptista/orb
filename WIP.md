@@ -1,5 +1,41 @@
 # ORB-325 Production Hardening WIP
 
+---
+
+## 2026-07-14 — Claude Code (Opus 4.8) — typed parity, Phase 1: safe todo closing
+
+**Ownership:** Codex is out of usage for several days (Stan), so Claude Code owns the full ORB-325 Realtime surface. Direction **decided by Stan 2026-07-14: typed capability parity** — build native Realtime tools for every remaining capability, **not** a serial fallback. Closing uses a **dedicated `propose_close_todo`**, not an overloaded update path.
+
+**Phase sequence (Stan-approved):** 1) safe closing ← *this* · 2) project mutations · 3) knowledge repo · 4) read-only parity (tickets/audit/bounded query_db) · 5) navigation/client actions + adaptations · 6) ambient VAD classifier (Silero, shadow-mode only, separate, needs dependency approval — do NOT bundle). Stan-only gates: browser acceptance, `npm run eval:t1` green, decision to flip the main voice button.
+
+**Phase 1 status: code complete, migration NOT applied, NOT committed.** Version 0.6.196 → **0.6.197**.
+- NEW `scripts/migrations/20260714_realtime_todo_closing.sql` — `close_todo` added to proposal `kind` CHECK; `confirm_realtime_todo_mutation` gains a `close_todo` branch (stale-check + project lock + authorize → set status=closed + resolution_notes + closed_at, insert ONE knowledge_repo entry with origin_todo_id/product_id, insert ONE `todo_close` audit, durable receipt). **NOT YET APPLIED.**
+- `lib/orb-realtime/types.ts`, `app/api/orb-realtime/turn/route.ts` (new `propose_close_todo` op, app-layer AI attribution + length caps), `app/api/orb-realtime/session/route.ts` (instructions + `propose_close_todo` tool), `lib/hooks/useRealtimeVoiceSpike.ts` (dispatch), `scripts/eval-cases.ts` (`realtime-close-intent-analogue`), `docs/object-capability-matrix.md`, `lib/changelog.ts`.
+- Static: `npx tsc --noEmit` clean.
+
+**Eval default reverted to Haiku (v0.6.198, internal — no changelog entry).** ORB-334's Gemini default was Stan's deliberate *token-cost experiment*, not a permanent choice. The routine suite is the production gate, so it must exercise production's model (`orb-converse.ts` → `claude-haiku-4-5`); gating Haiku on Gemini's tool choices proves nothing either way. Full T1 on Gemini (2026-07-14) was 48/52 — the 3 non-Realtime failures (`update-knowledge-correction-tool`, `memory-save-offered`, `approval-follow-through`) were all "Gemini prefers verify-first" (search/recall/query instead of update/save/update), i.e. cross-model drift, not regressions. That run also cost ~1.9M tokens / ~$1.35 / 12m 5s.
+- NEW `lib/orb-model/eval-defaults.ts` — provider-neutral `ORB_EVAL_DEFAULT_PROVIDER='anthropic'` / `ORB_EVAL_DEFAULT_MODEL=ANTHROPIC_HAIKU_REFERENCE_MODEL`. Removed those constants from `gemini.ts` (a provider module is the wrong home for a neutral default).
+- Each provider branch in `app/api/orb-eval/route.ts` now falls back to **its own** model (gemini→`GEMINI_STRATEGIC_EVAL_MODEL`), never another provider's — the previous shared fallback would have handed Haiku to Gemini once the default flipped.
+- Gemini/Mistral remain fully available via `EVAL_PROVIDER`/`EVAL_MODEL` or per-case overrides; the strategic manifest and `one-model-strategic-route-stays-tool-free` now pin `GEMINI_STRATEGIC_EVAL_MODEL` directly.
+- Runner verified: `Default evaluator: anthropic/claude-haiku-4-5`.
+
+**Confirmation grammar fixed (v0.6.199, user-facing).** Stan's DEV acceptance found closing was *impossible to authorize*: `isBareMutationAffirmation` was anchored `^…$` over bare tokens only, and lacked "approved"/"approve" entirely. So "approved", "I confirm the change", and "Yes, apply the change to close ORB-338" were all refused — the user could never close ORB-338. Orb compounded it by inventing grammar guidance (claimed "confirmed" was rejected — it wasn't — and suggested "I approve closing ORB-338", which the server refused).
+- `lib/orb-model/mutation-authorization.ts`: added `isExplicitMutationApproval` + a single `authorizesPendingMutation` = bare affirmation OR explicit approval act (approve/confirm/authorize, apply|execute|make|do the change|it|that, go ahead/proceed) **guarded by** not-a-question, not-negated, and not-retrospective (already / should have / told you / again / why). The retrospective guard is what keeps `permission-complaint-does-not-confirm` refusing. Bare vocabulary gained approved/approve/affirmative/absolutely/definitely/correct.
+- All confirm gates now use `authorizesPendingMutation`: `orb-converse.ts` (4 sites), `orb-eval/route.ts` tool-availability filter, `orb-realtime/turn/route.ts` handler recheck. Upfront-permission path unchanged.
+- Session instructions + `buildPendingMutationConfirmationInstruction`: never describe/quote/guess the accepted wording; on rejection restate the pending change and ask for approval in the user's own words.
+- Eval: added Tier 1 `explicit-sentence-approval-confirms`; `permission-complaint-does-not-confirm` must stay green.
+- Verified by direct predicate exercise (scratchpad script): 36/36 — every transcript phrase authorizes, every complaint/question/decline/noise/empty refuses.
+- **Needs Stan's re-test in the DEV operator, plus a focused eval run on the two authorization cases.**
+
+**Immediate next steps for Phase 1:**
+1. Stan approves applying the migration (`psql … -f scripts/migrations/20260714_realtime_todo_closing.sql`).
+2. Rollback-test the close RPC: one closed todo (resolution_notes+closed_at), one KB row, one `todo_close` audit, receipt replays identically, already-closed + missing-notes fail closed.
+3. Stan runs `npm run eval:t1` (incl. new close analogue).
+4. Stan DEV-operator acceptance: "Close ORB-XXX, I did …" → one proposal → one confirm → receipt; verify DB.
+5. Commit Phase 1 (ask first; never push without approval). Then Phase 2.
+
+---
+
 ## ORB-334 eval provider checkpoint
 
 - Routine Tier 1, Tier 2, and strategic suites now default to `google/gemini-3.1-pro-preview` through shared constants in `lib/orb-model/gemini.ts`.
@@ -40,7 +76,7 @@
 ## Immediate next steps
 
 1. ORB-325 is **OPEN**. It was briefly closed and immediately reopened after Stan clarified that the main Realtime path is not product-default and remaining scope was unclear. Durable checkpoint: Knowledge Repository `8d4c4ac3-a3c7-4a09-8d4c-f0beb877c24a`.
-2. Decide typed capability parity versus deterministic serial fallback. Realtime still lacks project mutation, Knowledge Repository, tickets, audit/repository inspection, navigation/client actions, adaptations/preferences/memory, and safe todo closing. Any fallback must preserve transcript, pending mutation/authorization state, and continuity; do not rely on the model merely apologizing for unsupported work.
+2. **DECIDED 2026-07-14 (Stan): typed capability parity, not fallback** — see the Claude Code section at the top. Realtime still lacks project mutation, Knowledge Repository, tickets, audit/repository inspection, navigation/client actions, adaptations/preferences/memory; safe closing is now built in Phase 1 (pending apply/accept). Build each remaining capability as native typed Realtime tools per the phase sequence above.
 3. Do not spend more model calls or add an ASR-confidence/duration threshold from the current sample. For ambient false turns, evaluate a language-independent acoustic classifier in shadow mode only. Silero VAD is a candidate, not an approved dependency. Reuse the exact existing MediaStream, do not alter the WebRTC sender, measure total model/worklet/WASM and device cost, and validate quiet confirmations plus multilingual speech across Mac/iPad/iPhone Safari/Chrome/Edge.
 4. If suppression is later justified, rejected turns must clear watchdog/state, skip the visible transcript and `response.create`, end telemetry as expected suppression, quarantine late events, and delete/exclude the provider input item so nonsense cannot pollute later context. A response gate alone does not prevent false provider interruptions.
 5. Manually accept supported-browser factual reads, natural-title mutations, upfront permission, one confirmation, interruptions, watchdog recovery, and unsupported-intent fallback. Then Stan runs `npm run eval:t1`; no push or product-default switch until Tier 1 is green.

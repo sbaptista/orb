@@ -3,11 +3,20 @@ import { getAuthContext, type AuthContext } from '@/lib/auth'
 import { getRealtimeVoiceAccess } from '@/lib/orb-realtime/access'
 import { getNextStepPacket, getProjectDirectoryPacket, getTaskCountPacket, getTodoDetailsPacket, getTodoListPacket } from '@/lib/orb-realtime/fact-gateway'
 import { fuzzyMatch, scoreTextMatch } from '@/lib/fuzzy-search'
-import { grantsUpfrontMutationPermission, isBareMutationAffirmation } from '@/lib/orb-model/mutation-authorization'
+import { authorizesPendingMutation, grantsUpfrontMutationPermission } from '@/lib/orb-model/mutation-authorization'
 import { resolveProjectByReference } from '@/lib/projects'
 import type { OrbRealtimeMutationReceipt, OrbRealtimeProposal } from '@/lib/orb-realtime/types'
 
 export const runtime = 'nodejs'
+
+const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1'
+
+// Shared attribution rule (AGENTS.md working rule #9): every AI-authored
+// resolution note / knowledge entry leads with `YYYY-MM-DD — Tool (Model)`.
+function attribute(text: string) {
+  const date = new Date().toISOString().slice(0, 10)
+  return `${date} — Orb (${REALTIME_MODEL})\n\n${text.trim()}`
+}
 
 type ProposalPayload = { type: 'proposal'; proposalId: string; userId: string; expiresAt: number }
 type TodoReferencePayload = { type: 'todo_reference'; todoId: string; userId: string; expiresAt: number }
@@ -160,6 +169,9 @@ export async function POST(request: Request) {
       newStatus?: UpdateStatus
       newPriority?: number
       targetProjectName?: string
+      resolutionNotes?: string
+      knowledgeTitle?: string
+      knowledgeContent?: string
       userUtterance?: string
     }
     const startedAt = performance.now()
@@ -238,7 +250,7 @@ export async function POST(request: Request) {
       }
       return Response.json({ proposal, gatewayMs: Math.round(performance.now() - startedAt) })
     }
-    if (body.operation === 'propose_update_todo' || body.operation === 'propose_delete_todo' || body.operation === 'propose_move_todo') {
+    if (body.operation === 'propose_update_todo' || body.operation === 'propose_delete_todo' || body.operation === 'propose_move_todo' || body.operation === 'propose_close_todo') {
       let todo: ResolvedTodo
       if (body.referenceToken) {
         const reference = readTodoReference(body.referenceToken)
@@ -271,6 +283,7 @@ export async function POST(request: Request) {
       let spokenText: string
       let destinationProject: { id: string; name: string; code: string } | undefined
       let changes: OrbRealtimeProposal['changes']
+      let resolutionNotes: string | undefined
 
       if (body.operation === 'propose_update_todo') {
         const newTitle = body.newTitle?.trim().slice(0, 240)
@@ -300,6 +313,20 @@ export async function POST(request: Request) {
       } else if (body.operation === 'propose_delete_todo') {
         kind = 'delete_todo'
         spokenText = `Confirm: delete ${code}, “${todo.title}”, from ${project.name}?`
+      } else if (body.operation === 'propose_close_todo') {
+        if (todo.status === 'closed') return Response.json({ error: `${code} is already closed.` }, { status: 400 })
+        const notes = body.resolutionNotes?.trim()
+        if (!notes) return Response.json({ error: 'Closing requires resolution notes describing what was done.' }, { status: 400 })
+        // Attribution + length caps are applied here; the RPC persists the final
+        // strings verbatim and stays model-agnostic.
+        params.resolution_notes = attribute(notes.slice(0, 4000))
+        const knowledgeTitle = body.knowledgeTitle?.trim().slice(0, 200)
+        if (knowledgeTitle) params.knowledge_title = knowledgeTitle
+        const knowledgeContent = body.knowledgeContent?.trim().slice(0, 8000)
+        params.knowledge_content = attribute(knowledgeContent || notes.slice(0, 4000))
+        resolutionNotes = params.resolution_notes as string
+        kind = 'close_todo'
+        spokenText = `Confirm: close ${code}, “${todo.title}”, in ${project.name}? I'll save your resolution notes and a knowledge entry.`
       } else {
         const targetName = body.targetProjectName?.trim()
         if (!targetName) return Response.json({ error: 'A destination project name is required.' }, { status: 400 })
@@ -339,13 +366,14 @@ export async function POST(request: Request) {
         code,
         ...(destinationProject ? { destinationProject } : {}),
         ...(changes ? { changes } : {}),
+        ...(resolutionNotes ? { resolutionNotes } : {}),
         spokenText,
       }
       return Response.json({ proposal, gatewayMs: Math.round(performance.now() - startedAt) })
     }
     if (body.operation === 'confirm_todo_mutation' || body.operation === 'confirm_create_todo') {
       if (!body.proposalToken) return Response.json({ error: 'Missing proposal.' }, { status: 400 })
-      if (!isBareMutationAffirmation(body.userUtterance ?? '')) {
+      if (!authorizesPendingMutation(body.userUtterance ?? '')) {
         return Response.json({ error: 'That response did not explicitly approve the pending change.' }, { status: 409 })
       }
       const payload = readProposal(body.proposalToken)

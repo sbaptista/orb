@@ -325,6 +325,18 @@ export function useRealtimeVoiceSpike(options: Options) {
         targetProjectName: args.target_project_name,
         userUtterance: trustedUtterance,
       }
+    } else if (item.name === 'propose_close_todo') {
+      operation = 'propose_close_todo'
+      body = {
+        operation,
+        todoReference: args.todo_reference,
+        projectName: args.project_name,
+        currentProjectId: currentProjectIdRef.current,
+        resolutionNotes: args.resolution_notes,
+        knowledgeTitle: args.knowledge_title,
+        knowledgeContent: args.knowledge_content,
+        userUtterance: trustedUtterance,
+      }
     } else if (item.name === 'confirm_todo_mutation') {
       operation = 'confirm_todo_mutation'
       body = {

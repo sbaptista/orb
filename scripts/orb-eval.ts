@@ -12,7 +12,7 @@ import { EVAL_CASES, type EvalCase } from './eval-cases'
 import * as dotenv from 'dotenv'
 import * as path from 'path'
 import type { OrbModelUsage } from '../lib/orb-model/types'
-import { ORB_EVAL_DEFAULT_MODEL, ORB_EVAL_DEFAULT_PROVIDER } from '../lib/orb-model/gemini'
+import { ORB_EVAL_DEFAULT_MODEL, ORB_EVAL_DEFAULT_PROVIDER } from '../lib/orb-model/eval-defaults'
 
 // dotenv/BASE_URL are computed up front (before --help/--list) so the usage
 // text below can reference the real target instead of a hardcoded guess that

@@ -13,7 +13,8 @@ import { DB_SCHEMA } from '@/lib/db-schema'
 import { CHANGELOG } from '@/lib/changelog'
 import { ANTHROPIC_HAIKU_REFERENCE_MODEL, normalizeAnthropicUsage } from '@/lib/orb-model/anthropic'
 import { recordOrbModelRequest } from '@/lib/orb-model/record'
-import { completeGeminiEvaluation, ORB_EVAL_DEFAULT_MODEL, ORB_EVAL_DEFAULT_PROVIDER } from '@/lib/orb-model/gemini'
+import { completeGeminiEvaluation, GEMINI_STRATEGIC_EVAL_MODEL } from '@/lib/orb-model/gemini'
+import { ORB_EVAL_DEFAULT_PROVIDER } from '@/lib/orb-model/eval-defaults'
 import { completeMistralEvaluation, MISTRAL_STRATEGIC_EVAL_MODEL } from '@/lib/orb-model/mistral'
 import { STRATEGIC_CONTEXT_PACKETS } from '@/lib/orb-model/strategic-eval-packets'
 import { buildStrategicContextPacket, renderStrategicEvaluationPrompt } from '@/lib/orb-model/strategic-context'
@@ -23,7 +24,7 @@ import { budgetBlockMessage, type OrbBudgetCheck } from '@/lib/orb-model/budget'
 import { extractCitedCodes, isFalseCompletionClaim, EFFECTFUL_TOOL_NAMES } from '@/lib/orb-model/false-claim-guard'
 import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, pendingTodoUndercount, resolveActionSetReference, todoCode, type OrbActionSetReference } from '@/lib/orb-model/context'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
-import { buildPendingMutationConfirmationInstruction, isBareMutationAffirmation } from '@/lib/orb-model/mutation-authorization'
+import { authorizesPendingMutation, buildPendingMutationConfirmationInstruction } from '@/lib/orb-model/mutation-authorization'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 
@@ -363,16 +364,17 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     const tools = isStrategicEvaluation
       ? []
       : [
-          ...ORB_TOOLS.filter(tool => tool.name !== 'confirm_mutation' || (Boolean(pendingSummary) && isBareMutationAffirmation(input))),
+          ...ORB_TOOLS.filter(tool => tool.name !== 'confirm_mutation' || (Boolean(pendingSummary) && authorizesPendingMutation(input))),
           ...ORB_PREFERENCE_TOOLS,
           ...ORB_MEMORY_TOOLS,
           ORB_CAPABILITIES_TOOL,
           ORB_DEV_CHANNEL_TOOL,
           ORB_ADAPTATION_TOOL,
         ] as any[]
-    // Eval model choice is deliberately independent of production role routing.
-    // routeRole still verifies operational vs strategic classification, while
-    // routine suite calls use the current strategic-quality reference model.
+    // Eval model choice is deliberately independent of production role routing:
+    // routeRole still verifies operational vs strategic classification. The
+    // routine default mirrors production's model (see lib/orb-model/eval-defaults);
+    // each provider branch below falls back to its own model, never another's.
     const requestedProvider = provider ?? ORB_EVAL_DEFAULT_PROVIDER
     let speech = ''
     let toolCalls: Array<{ name: string; params: Record<string, any> }> = []
@@ -382,7 +384,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
 
     if (requestedProvider === 'gemini') {
       const result = await completeGeminiEvaluation({
-        model: model ?? ORB_EVAL_DEFAULT_MODEL,
+        model: model ?? GEMINI_STRATEGIC_EVAL_MODEL,
         source: 'eval',
         systemPrompt: evalSystemPrompt,
         messages,

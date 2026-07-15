@@ -35,7 +35,7 @@ import type { OrbModelProviderId } from '@/lib/orb-model/types'
 import { extractCitedCodes, isFalseCompletionClaim } from '@/lib/orb-model/false-claim-guard'
 import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, pendingTodoUndercount, resolveActionSetReference, todoCode } from '@/lib/orb-model/context'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
-import { buildPendingMutationConfirmationInstruction, grantsUpfrontMutationPermission, isBareMutationAffirmation, isBareMutationDecline } from '@/lib/orb-model/mutation-authorization'
+import { authorizesPendingMutation, buildPendingMutationConfirmationInstruction, grantsUpfrontMutationPermission, isBareMutationDecline } from '@/lib/orb-model/mutation-authorization'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -146,7 +146,7 @@ function inferConfirmedDeleteOpsFromHistory(
   history: Array<{ role: 'user' | 'assistant'; text: string }> | undefined,
   input: string,
 ): PendingMutationOperation[] {
-  if (!isBareMutationAffirmation(input)) return []
+  if (!authorizesPendingMutation(input)) return []
   const lastAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
   if (!/\b(confirm|go ahead)\b/i.test(lastAssistant)) return []
   if (!/\b(delete|deleting|remove|removing)\b/i.test(lastAssistant)) return []
@@ -754,7 +754,7 @@ export async function orbConverse(req: OrbRequest) {
           return
         }
 
-        if (isBareMutationAffirmation(req.input)) {
+        if (authorizesPendingMutation(req.input)) {
           await executeTodoOperationsAndFinish(pendingTodoOps)
           return
         }
@@ -809,7 +809,7 @@ export async function orbConverse(req: OrbRequest) {
       // Server-held pending PROJECT mutation (propose/confirm/execute). The client
       // echoes nothing — the server is the source of truth for what's awaiting confirmation.
       const pendingMutation: PendingMutationRow | null = await getPendingMutation(auth.admin, auth.user.id)
-      const projectConfirmationAllowed = Boolean(pendingMutation) && isBareMutationAffirmation(req.input)
+      const projectConfirmationAllowed = Boolean(pendingMutation) && authorizesPendingMutation(req.input)
       if (pendingMutation) {
         // Consume on load: a pending is confirmable ONLY on the turn directly after it
         // was proposed. Clear it now (the in-memory copy still serves this turn's
@@ -1142,9 +1142,9 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
 
           // ── Project mutation: EXECUTE the exact stored intent ──
           if (tc.name === 'confirm_mutation') {
-            if (!isBareMutationAffirmation(req.input)) {
+            if (!authorizesPendingMutation(req.input)) {
               output = { error: 'The current message did not explicitly confirm the proposed action.' }
-              toolErrors.push('confirm_mutation: current message was not a bare affirmation')
+              toolErrors.push('confirm_mutation: current message did not explicitly approve the pending action')
               toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
               continue
             }
