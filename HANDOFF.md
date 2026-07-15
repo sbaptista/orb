@@ -13,11 +13,25 @@
 - **Branch:** `codex/orb-325-production-hardening` (required short-lived migration branch; not pushed)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.196**; production remains **v0.6.188**. v0.6.189–v0.6.196 are committed locally on this branch at checkpoint `51b2850` but not pushed. v0.6.190 begins the ORB-325 Realtime hardening release; v0.6.191 adds the ORB-334 Gemini eval default; v0.6.192 fixes timeout-muted Realtime playback plus natural priority-label mapping; v0.6.193 adds ranked title resolution; v0.6.194 makes completed transcription the response boundary; v0.6.195 disables tools during canonical post-tool speech; and v0.6.196 instruments ASR confidence/VAD duration.
+- **Version:** local/canonical **0.6.200**; production remains **v0.6.188**. v0.6.189–v0.6.200 are committed locally on this branch (`51b2850`, then `0fb3f4f` = v0.6.197–199, `bbd3208` = v0.6.200) but **not pushed**. v0.6.190 begins the ORB-325 Realtime hardening release; v0.6.191 adds the ORB-334 Gemini eval default; v0.6.192 fixes timeout-muted Realtime playback plus natural priority-label mapping; v0.6.193 adds ranked title resolution; v0.6.194 makes completed transcription the response boundary; v0.6.195 disables tools during canonical post-tool speech; and v0.6.196 instruments ASR confidence/VAD duration.
 
 ---
 
 ## Last Session Completed
+
+**ORB-325 typed capability parity — 2026-07-14 (Claude Code, Opus 4.8) — v0.6.197–v0.6.200 — OPEN / Phase 2 in progress**
+
+Codex is out of usage for several days, so Claude Code took over the whole ORB-325 Realtime surface (Codex's 2026-07-13 claim was stale; no live diff on those files). **Stan decided the capability boundary: typed parity — build native Realtime tools for every remaining capability — NOT a deterministic serial fallback.** A competing plan proposing a `trigger_serial_fallback` tool was reviewed and its fallback direction rejected; only its closing-RPC design was harvested. Do not reintroduce a fallback escape hatch. Phase order: 1 closing ✅ · 2 project mutations (in progress) · 3 knowledge repo · 4 read-only parity (tickets/audit/query_db) · 5 navigation + adaptations · 6 ambient VAD classifier (shadow-only, needs Stan's dependency approval, never bundled with feature phases). Full detail + resume instructions live in **WIP.md**.
+
+**Phase 1 — safe todo closing (v0.6.197), committed `0fb3f4f`, migration applied, live-accepted.** Closing is a **dedicated** `propose_close_todo` (Stan's call over overloading update). One transaction stale-checks the row, re-authorizes, sets `closed`+`resolution_notes`+`closed_at`, writes exactly one `knowledge_repo` entry and one `todo_close` audit event, and returns a replay-identical receipt. Closing remains unreachable via `propose_update_todo`. Attribution/length caps are composed app-side so the RPC stays model-agnostic. Rollback-verified (1 KB row, 1 audit, identical replay, already-closed + missing-notes fail closed, 0 rows persisted); Stan closed ORB-338 live on "approved".
+
+**Eval default returned to Haiku (v0.6.198, internal).** ORB-334's Gemini default was Stan's deliberate token-cost experiment, not a permanent choice. The routine suite is the production gate and must exercise production's model (`orb-converse.ts` → `claude-haiku-4-5`). A full Tier 1 on Gemini scored 48/52; all three non-Realtime failures were cross-model "verify-first" drift (`search_knowledge` not `update_knowledge`, `recall_memories` not `save_memory`, `query_todos` not `update_todo`) and passed **3/3 on Haiku** — not regressions. New provider-neutral `lib/orb-model/eval-defaults.ts`; each provider branch now falls back to its own model (the Gemini branch would otherwise have been handed Haiku). Gemini/Mistral still available via `EVAL_PROVIDER`/`EVAL_MODEL`.
+
+**Confirmation grammar was unsatisfiable (v0.6.199).** Stan's DEV acceptance found a pending change could not be approved at all: `isBareMutationAffirmation` matched only strings made entirely of bare tokens and lacked "approved"/"approve", so "approved", "I confirm the change" and "Yes, apply the change to close ORB-338" were all refused; Orb compounded it by inventing grammar guidance (claiming accepted phrases were rejected, suggesting wordings the server refused). Added `isExplicitMutationApproval` + one `authorizesPendingMutation` used by every confirm gate (serial, eval, Realtime): bare affirmation OR an explicit approval act, guarded by not-a-question / not-negated / not-retrospective. The retrospective guard is what keeps complaints from self-confirming. Verified 36/36 by direct predicate exercise; focused eval `explicit-sentence-approval-confirms` + `permission-complaint-does-not-confirm` **2/2**.
+
+**Phase 2 foundation (v0.6.200), committed `bbd3208`.** (a) Project code generation extracted to **`lib/project-codes.ts`** — it must not be ported to SQL or a second generator would diverge from the web UI's, and it could not be exported from `manage-project.ts` because that file is `'use server'` (every export becomes a callable server action). (b) **`knowledge_repo.product_id` was ON DELETE CASCADE**, so deleting a project destroyed every entry originating from it, including those Phase 1 now writes; 244 of 253 entries are project-attached. Migration applied: FK → SET NULL plus a BEFORE DELETE trigger annotating each entry (`**ORIGINATING PROJECT DELETED (date):** …`, original body preserved below). Rollback-verified. `origin_todo_id` was already correctly SET NULL.
+
+**Correction — ORB-336 references below are stale.** The "Voice Permission Test" task this file tracks through priority 2→3 was **hard-deleted**; its code was then recycled and now belongs to an unrelated todo. Filed **ORB-337**: `todo_number` is reassigned as `MAX(todo_number)+1` over *existing* rows, so a move or hard delete frees the number and the next todo silently reuses the code — codes are not stable identifiers (audit_log already holds 8 "ORB-336" events across three different `record_id`s). Also filed **ORB-336** (new): investigate eval token cost — a full Tier 1 is ~1.9M tokens/~$1.35/12m and is input-dominated, with evidence the shared cached prefix is not being hit (a 2-case Haiku run 21s apart logged cache read 0, cache write ~35k).
 
 **ORB-334 eval-suite Gemini default — 2026-07-13 (Codex, GPT-5) — v0.6.191 — CLOSED**
 
@@ -150,15 +164,16 @@ The recurring Safari/iPad login loop was **not** cookie corruption (the discarde
 
 ## Current Uncommitted Changes
 
-- `ACTIVE_WORK/codex.md` — Codex's live long-running ORB-325 claim; intentionally not committed as session history.
-- `components/SystemStateProvider.tsx`, `ACTIVE_WORK/claude-code.md` — Claude Code's active ORB-326 SystemStateProvider poll-dedup slice; Codex did not stage or commit these files.
-- `.claude/settings.local.json` — intentional local tool-settings change (never committed with feature work).
+- `ACTIVE_WORK/claude-code.md` — Claude Code's active long-running ORB-325 typed-parity claim (Phase 2 continues) + the stale-claim notice for Codex; intentionally uncommitted per the protocol's working-tree-signal rule.
+- `ACTIVE_WORK/codex.md` — Codex's stale ORB-325 claim; Codex is usage-exhausted. Never edited by another agent.
+- `components/SystemStateProvider.tsx` — Claude Code's ORB-326 poll-dedup slice, still unstaged and unreleased (derives `isOnline` from the `/api/version` poll; drops the separate `/api/health` fetch). Deliberately kept out of the ORB-325 commits.
+- `.claude/settings.local.json` — intentional local tool-settings change (never committed with feature work). Its `"ask": ["Bash(git push *)"]` entry is the push gate working correctly — it is **not** an allowlist entry; do not "fix" it.
 
 ---
 
 ## Active Risks / Unresolved Work
 
-- **ORB-325 is open and not product-default.** Realtime lacks project mutations, Knowledge Repository operations, tickets, audit/repository inspection, navigation/client actions, adaptations/preferences/memory, and safe closing. Decide typed parity versus a deterministic serial fallback that preserves transcript, pending mutation/authorization state, and conversational continuity.
+- **ORB-325 is open and not product-default.** Safe closing is now built (Phase 1). Realtime still lacks project mutations (Phase 2, in progress), Knowledge Repository operations, tickets, audit/repository inspection, navigation/client actions, and adaptations/preferences/memory. **Boundary decided 2026-07-14 (Stan): typed parity — build these as native Realtime tools. A deterministic serial fallback was explicitly rejected; do not add a `trigger_serial_fallback`-style escape hatch.**
 - **ORB-325 ambient-input filtering is unresolved and deliberately paused.** Automatic language detection remains enabled. The current confidence/VAD instrumentation is diagnostic only; no threshold is active. Resume with a language-independent speech/non-speech design, not an English hint or phrase-specific filter.
 - **Production gate is incomplete.** The complete combined change set has focused/manual passes but no final green full Tier 1 run. Stan must run `npm run eval:t1`; do not push or promote Realtime before it is green.
 - **Preserve TICKETS-48–54 as evidence.** Four are duplicate survey side effects, but cleanup requires separate authorization; do not dismiss or delete them silently.
@@ -168,8 +183,12 @@ The recurring Safari/iPad login loop was **not** cookie corruption (the discarde
 
 ## Next Priorities
 
-1. **ORB-325 capability boundary** — decide and document typed parity versus deterministic serial fallback. Prefer a structural router that preserves transcript, pending mutation/authorization state, and conversational continuity. Include a safe closing workflow; do not flip the main voice button yet.
-2. **ORB-325 ambient classifier spike** — shadow mode only. Evaluate a language-independent acoustic classifier (Silero VAD is the leading candidate, not an approved dependency), reusing the exact microphone stream and leaving the WebRTC sender untouched. Measure total model/worklet/WASM load, initialization, CPU/memory, and Mac/iPad/iPhone behavior. Validate noise, quiet confirmations, accents, and multiple non-English utterances before considering enforcement. Rejected turns must eventually remove/exclude the provider conversation item as well as skip transcript/response creation.
+1. **ORB-325 Phase 2 — project mutations (RESUME HERE).** Foundation is committed; the remaining build is specced step-by-step in **WIP.md** with the schema facts already verified (don't re-query). Migration `20260714_realtime_project_mutations.sql` adding `create_project|update_project|delete_project` kinds + RPC branches **before** the todo-targeted ELSE block; propose ops (name-first, ambiguity fails closed, code generated at propose time via `lib/project-codes.ts` and re-validated under lock); session tools; hook dispatch; Tier 1 analogues; matrix; rollback test; then Stan's focused eval + DEV acceptance. Note `delete_project` is a genuine **hard** delete cascading to all todos — Realtime's confirmation must say so plainly.
+2. **ORB-325 remaining phases** — 3 knowledge repo · 4 read-only parity (tickets/audit/query_db) · 5 navigation + adaptations · 6 ambient classifier spike (shadow mode only; Silero is a candidate, **not** an approved dependency; never bundle it with a feature phase).
+3. **Full Tier 1 on Haiku before any push.** Only focused runs are green so far; the v0.6.199 grammar change touches every confirm gate in the serial path, so the full suite is owed. Then decide separately whether Realtime becomes the main voice path (deliberately last).
+4. **ORB-337** — `todo_number` recycling; codes are not stable identifiers. Needs a design decision, not a patch.
+5. **ORB-336** — eval token-cost investigation (input-dominated; cached prefix appears not to be hit).
+6. **ORB-325 ambient classifier spike** — shadow mode only. Evaluate a language-independent acoustic classifier (Silero VAD is the leading candidate, not an approved dependency), reusing the exact microphone stream and leaving the WebRTC sender untouched. Measure total model/worklet/WASM load, initialization, CPU/memory, and Mac/iPad/iPhone behavior. Validate noise, quiet confirmations, accents, and multiple non-English utterances before considering enforcement. Rejected turns must eventually remove/exclude the provider conversation item as well as skip transcript/response creation.
 3. **ORB-325 acceptance/release** — manually verify supported-browser reads, natural-title mutations, upfront permission, one confirmation, interruption, timeout recovery, factual grounding, and unsupported-intent fallback. Then Stan runs `npm run eval:t1`; fix regressions before any push. Decide separately whether Realtime becomes the main voice path.
 4. **ORB-326** — Claude Code's SystemStateProvider poll dedup has an existing unstaged diff; coordinate before release bookkeeping.
 5. **ORB-292** — design user-facing Value/Balanced/Deep Thinking modes, per-user allowances, consent-based Orb tuning proposals.
@@ -196,7 +215,7 @@ Load-bearing invariants for anyone touching Orb behavior. Full operating rules l
 
 ## AI Tool Used Last Session
 
-`2026-07-14 — Codex (GPT-5)`
+`2026-07-14 — Claude Code (Opus 4.8)`
 
 ---
 
