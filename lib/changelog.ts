@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.200',
+    date: '2026-07-14',
+    changes: [
+      'Knowledge Repository entries now survive deleting the project they came from. Deleting a project used to permanently destroy every distilled lesson that originated from it — the entries are meant to outlive the work that produced them, and are shared rather than owned by one project. Each surviving entry keeps its full original content and gains a note at the top recording which project was deleted and when, so nothing silently loses its context.',
+    ],
+  },
+  {
     version: 'v0.6.199',
     date: '2026-07-14',
     changes: [

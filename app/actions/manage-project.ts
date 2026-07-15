@@ -1,36 +1,8 @@
 'use server'
 
 import { getAuthContext, requireAdmin } from '@/lib/auth'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
-
-async function checkCodeConflict(admin: ReturnType<typeof createAdminClient>, code: string, userId: string, excludeId?: string) {
-  const query = admin.from('projects').select('id').ilike('code', code).eq('created_by', userId).is('deleted_at', null)
-  if (excludeId) query.neq('id', excludeId)
-  const { data } = await query.maybeSingle()
-  return !!data
-}
-
-
-async function generateUniqueCode(admin: ReturnType<typeof createAdminClient>, name: string, userId: string): Promise<string> {
-  let baseCode = name.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
-  if (!baseCode) {
-    baseCode = 'PROJ'
-  }
-  if (baseCode.length > 10) {
-    baseCode = baseCode.substring(0, 10)
-  }
-
-  let code = baseCode
-  let counter = 1
-  while (await checkCodeConflict(admin, code, userId)) {
-    counter++
-    const suffix = counter.toString()
-    const maxBaseLen = 10 - suffix.length
-    code = baseCode.substring(0, maxBaseLen) + suffix
-  }
-  return code
-}
+import { checkCodeConflict, generateUniqueCode } from '@/lib/project-codes'
 
 export async function createProject(data: {
   name: string

@@ -27,6 +27,38 @@
 - Verified by direct predicate exercise (scratchpad script): 36/36 — every transcript phrase authorizes, every complaint/question/decline/noise/empty refuses.
 - **Needs Stan's re-test in the DEV operator, plus a focused eval run on the two authorization cases.**
 
+---
+
+### PHASE 2 IN PROGRESS — project mutations (create/update/delete)
+
+**Phase 1 is COMMITTED at `0fb3f4f`** (v0.6.197–v0.6.199), migration applied, live-accepted (ORB-338 closed on "approved"). Not pushed.
+
+**Design decided (do not re-litigate):** project **code generation must not be ported to SQL**. `createProject` (app/actions/manage-project.ts) generated codes in TS via a private `generateUniqueCode`; duplicating that in the RPC would create a second generator that silently diverges from the web UI's. Instead:
+- **DONE:** extracted `checkCodeConflict` / `generateUniqueCode` / `normalizeProjectCode` into **`lib/project-codes.ts`** (a plain module — NOT app/actions/manage-project.ts, which is `'use server'`, where every export becomes a publicly callable server action). `manage-project.ts` now imports them; behaviour unchanged; tsc + eslint clean.
+- **PLAN:** generate the candidate code at **propose** time in TS (analogous to how todo proposals snapshot `expected_*`), store it in the proposal params, and have the RPC re-validate name/code conflict under lock and commit atomically, failing closed on a race. One generator, still exactly-once.
+
+**Schema facts already verified (don't re-query):**
+- `orb_realtime_proposals`: `project_id` nullable (SET NULL), `todo_id` nullable, `title` NOT NULL 1–240 (store the project name there). Phase 1's `execution_shape` CHECK already permits `status='executed'` with `todo_id IS NULL`, so project mutations fit with no constraint change.
+- `projects`: `code` varchar NULLABLE with **no DB trigger** generating it (app-layer only); `created_by` NOT NULL; `is_dormant` NOT NULL default false; trigger `products_updated_at` maintains `updated_at`.
+- `todos_product_id_fkey` is **ON DELETE CASCADE** — serial `delete_project` is a genuine HARD delete of the project and all its todos (unlike `delete_todo`, which is soft). Realtime must match that semantic and say so plainly in the confirmation.
+
+**Remaining Phase 2 steps:**
+1. Migration `20260714_realtime_project_mutations.sql`: add `create_project|update_project|delete_project` to the kind CHECK; add RPC branches **before** the todo-targeted ELSE block (they have no `target_todo_id`). create → insert with the pre-generated code + `created_by=p_user_id` + audit `project_create`; update → lock/authorize, snapshot-check `expected_updated_at`/`expected_name`, set name/description only (code immutable), audit `project_update`; delete → lock/authorize, hard delete, audit `project_delete`. Receipt + replay for each. The final `UPDATE … SET todo_id = v_todo.id` yields NULL for project kinds — fine.
+2. `lib/orb-realtime/types.ts`: add the three kinds.
+3. `turn/route.ts`: `propose_create_project` / `propose_update_project` / `propose_delete_project` (name-first resolution via `resolveProjectByReference`, ambiguity fails closed; create generates the code via `lib/project-codes`).
+4. `session/route.ts`: three tools + instructions (name-first; delete is irreversible incl. all todos).
+5. `useRealtimeVoiceSpike.ts`: dispatch.
+6. `scripts/eval-cases.ts`: Tier 1 `realtime-create/update/delete-project-intent-analogue`.
+7. `docs/object-capability-matrix.md` projects row + version bump + changelog.
+8. Rollback-only DB test, then Stan: focused eval + DEV acceptance, then commit.
+
+**RESOLVED (v0.6.200) — knowledge now survives project deletion.** `knowledge_repo_product_id_fkey` was ON DELETE CASCADE, so hard-deleting a project destroyed every entry originating from it, including the ones Phase 1's closing workflow writes. Stan chose: SET NULL **plus a note that the project no longer exists**.
+- Migration `20260714_knowledge_survives_project_delete.sql` (APPLIED): FK → ON DELETE SET NULL, plus a BEFORE DELETE trigger on `projects` (`note_project_deleted_on_knowledge`) that prepends `**ORIGINATING PROJECT DELETED (YYYY-MM-DD):** the project “X” no longer exists…` while the name is still readable, preserving the original body below (same banner convention as SUPERSEDED entries).
+- `origin_todo_id` was already correctly SET NULL — verified, so cascaded todos don't drag their entries down. Only `product_id` was wrong.
+- Rollback-verified: both a plain entry and a close-workflow entry survived, `product_id` nulled, note present and naming the project, original body intact, 0 test rows persisted. 253 entries exist today (244 project-attached) — this was live exposure, not theoretical.
+
+---
+
 **Immediate next steps for Phase 1:**
 1. Stan approves applying the migration (`psql … -f scripts/migrations/20260714_realtime_todo_closing.sql`).
 2. Rollback-test the close RPC: one closed todo (resolution_notes+closed_at), one KB row, one `todo_close` audit, receipt replays identically, already-closed + missing-notes fail closed.
