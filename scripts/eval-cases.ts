@@ -590,10 +590,12 @@ export const EVAL_CASES: EvalCase[] = [
 
   {
     id: 'explicit-strategic-read-routes-to-gemini',
-    description: 'A direct strategic read uses the adviser route with no mutation tools',
+    description: 'A direct strategic read uses the Gemini adviser route with no mutation tools. Pins the provider explicitly: the routine evaluator default is the production model (Haiku), so a case about Gemini must ask for Gemini rather than rely on whatever the default happens to be.',
     productCode: 'ORB',
     input: 'Give me a strategic read: what should I focus on next, and why?',
     autoRoute: true,
+    provider: 'gemini',
+    model: GEMINI_STRATEGIC_EVAL_MODEL,
     tier: 1,
     expectNoTool: true,
     expectProvider: 'google',
@@ -602,10 +604,12 @@ export const EVAL_CASES: EvalCase[] = [
 
   {
     id: 'mutation-stays-on-operational-route',
-    description: 'A create request remains operational even when Gemini is the shared evaluator',
+    description: 'A create request is still classified operational even when Gemini is the evaluator — role classification must not follow the model. Pins Gemini explicitly, since the routine default is now the production model (Haiku) and the case would otherwise silently stop testing its own premise.',
     productCode: 'ORB',
     input: 'Create a task: [EVAL] operational routing safety',
     autoRoute: true,
+    provider: 'gemini',
+    model: GEMINI_STRATEGIC_EVAL_MODEL,
     tier: 1,
     expectTool: { name: 'create_todo', params: { product_code: 'ORB' } },
     expectProvider: 'google',
@@ -614,13 +618,12 @@ export const EVAL_CASES: EvalCase[] = [
 
   {
     id: 'voice-status-question-stays-operational',
-    description: 'Voice mode affects response style, not routing; ordinary status questions stay operational',
+    description: 'Voice mode affects response style, not routing; ordinary status questions stay operational. Deliberately asserts no provider — which model answers is incidental to this case, and pinning it to whatever the evaluator default happens to be is what made it break when the default changed.',
     productCode: 'ORB',
     input: 'How is the Orb project doing?',
     voiceMode: true,
     autoRoute: true,
     tier: 1,
-    expectProvider: 'google',
     expectRouteRole: 'operational',
   },
 
@@ -911,16 +914,16 @@ DORMANT:
     expectTool: { name: 'update_todo', params: { code: 'ORB-325', new_priority: 2 } },
   },
   {
-    id: 'realtime-near-exact-title-update-analogue',
-    description: 'A near-exact natural title remains more specific than competing todos on the same broad topic',
+    id: 'realtime-exact-title-update-analogue',
+    description: 'An exact natural title targets that todo (not a broader one on the same topic), maps the natural priority label “normal” to 3, and executes on upfront permission without a second ask. Deliberately uses an EXACT title: near-exact ranking is resolved server-side by the shared scoreTextMatch ranker in the Realtime path (verified directly against that resolver — “voice permission tests” scores ORB-336 20 vs 10/10, and a bare “voice” ties at 80 and fails closed). The serial path has no server-side title ranker — update_todo takes a code, so the model must pick it from the backlog unaided — so asserting rank-the-near-miss here tested model judgment, not the ranker, and was a coin flip (it passed on Gemini and failed on Haiku, production’s own model). That real serial gap is tracked separately rather than hidden behind a green test.',
     productCode: 'ORB',
     backlogOverride: `Orb [code: ORB]:
   SUMMARY: active_count=3 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
   ACTIVE:
   ORB-251 [P3] [open] True voice conversation with Orb (not just text dictation)
   ORB-328 [P3] [open] Test voice architecture
-  ORB-336 [P3] [open] Voice Permission Test`,
-    input: 'Change voice permission tests to normal priority, and you have my approval.',
+  ORB-336 [P2] [open] Voice Permission Test`,
+    input: 'Change "Voice Permission Test" to normal priority, and you have my approval.',
     tier: 1,
     expectTool: { name: 'update_todo', params: { code: 'ORB-336', new_priority: 3 } },
   },
