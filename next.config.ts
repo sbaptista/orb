@@ -10,6 +10,19 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ['192.168.86.90', 'https://192.168.86.90:3001', '172.20.10.3', 'https://172.20.10.3:3001', '192.168.99.36', 'https://192.168.99.36:3001'],
   devIndicators: process.env.NODE_ENV === 'production' ? false : undefined,
   outputFileTracingRoot: process.cwd(),
+  async headers() {
+    return [
+      {
+        source: '/vad/0.0.30/:asset*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+    ]
+  },
   turbopack: {
     root: process.cwd(),
   },

@@ -1,5 +1,5 @@
 export type OrbRealtimeFactPacket = {
-  kind: 'task_count' | 'next_step' | 'project_directory' | 'todo_details' | 'todo_list'
+  kind: 'task_count' | 'next_step' | 'project_directory' | 'todo_details' | 'todo_list' | 'knowledge_search'
   observedAt: string
   source: 'database'
   statuses: string[]
@@ -23,11 +23,30 @@ export type OrbRealtimeFactPacket = {
     dueAt: string | null
     project: string
   }>
+  knowledgeEntries?: Array<{
+    id: string
+    title: string
+    content: string
+    tags: string[]
+    project: string | null
+    projectCode: string | null
+    updatedAt: string | null
+  }>
   spokenText: string
 }
 
 export type OrbRealtimeProposal = {
-  kind: 'create_todo' | 'update_todo' | 'delete_todo' | 'move_todo' | 'close_todo'
+  kind:
+    | 'create_todo'
+    | 'update_todo'
+    | 'delete_todo'
+    | 'move_todo'
+    | 'close_todo'
+    | 'create_project'
+    | 'update_project'
+    | 'delete_project'
+    | 'add_knowledge'
+    | 'update_knowledge'
   proposalToken: string
   project: { id: string; name: string; code: string }
   title: string
@@ -37,13 +56,25 @@ export type OrbRealtimeProposal = {
     title?: string
     status?: 'open' | 'in progress' | 'deferred' | 'on hold'
     priority?: number
+    name?: string
+    description?: string | null
   }
   resolutionNotes?: string
   spokenText: string
 }
 
 export type OrbRealtimeMutationReceipt = {
-  kind: 'create_todo' | 'update_todo' | 'delete_todo' | 'move_todo' | 'close_todo'
+  kind:
+    | 'create_todo'
+    | 'update_todo'
+    | 'delete_todo'
+    | 'move_todo'
+    | 'close_todo'
+    | 'create_project'
+    | 'update_project'
+    | 'delete_project'
+    | 'add_knowledge'
+    | 'update_knowledge'
   receiptId: string
   code: string
   oldCode?: string

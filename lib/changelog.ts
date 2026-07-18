@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.212',
+    date: '2026-07-17',
+    changes: [
+      'Rebuilt the allowlisted Realtime voice operator on provider-owned turn-taking. OpenAI server VAD now owns turn detection and barge-in interruption; the client creates a response only once a turn has transcribed and never cancels one. This removes the fatal “no active response to cancel” and “conversation already has an active response” errors that could end a session after a handful of turns, and it fixes lost/empty responses. Parallel tool calls within one turn are batched into a single response, and the session opens straight into listening with no greeting.',
+      'Completed native typed-capability parity for Realtime voice: managing todos and projects, preserving and correcting Knowledge Repository entries, inspecting tickets, audit history, source, project facts, and bounded database reads, navigating the app, managing preferences and memories, proposing adaptations, filing tickets, and messaging developer tools. Project and Knowledge Repository mutations are transactional and replay-safe — confirmation rechecks ownership, conflicts, and stale state, writes one audit event, and returns one durable receipt; project deletion warns that every todo in it is permanently deleted; Knowledge deletion stays deliberately unavailable.',
+      'Fixed named-project todo creation so “add this to Helm” can no longer land in whichever project happens to be selected, and made Realtime project reads speak the human owner and dormancy rather than an internal identifier.',
+      'Retained a self-hosted Silero VAD classifier (pinned `@ricky0123/vad-web` 0.0.30 with self-hosted Silero V5 / ONNX Runtime assets under an immutable-cache path) as advisory telemetry only; it never gates, suppresses, or alters provider audio. Voice telemetry records privacy-safe lifecycle and per-turn evidence with no transcript or audio content retained.',
+      'Realtime voice remains developer/allowlist-gated and is not yet the default voice control. Supported-browser acceptance and ambient false-turn tuning still precede any product-default switch.',
+    ],
+  },
+  {
     version: 'v0.6.200',
     date: '2026-07-14',
     changes: [

@@ -1,6 +1,6 @@
 {
   "name": "orb",
-  "version": "0.6.201",
+  "version": "0.6.212",
   "private": true,
   "scripts": {
     "prebuild": "node scripts/generate-repository-bundle.mjs",
@@ -16,6 +16,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^1.1.9",
     "@anthropic-ai/sdk": "^0.92.0",
+    "@ricky0123/vad-web": "0.0.30",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
     "ai": "^4.1.24",

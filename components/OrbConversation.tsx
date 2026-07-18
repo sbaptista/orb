@@ -13,7 +13,7 @@ export type ConversationMessage = {
     isServiceError?: boolean
     thoughts?: string[]
     senderLabel?: string
-    source?: 'passive-status'
+    source?: 'passive-status' | 'passive-greeting'
 }
 
 type Props = {

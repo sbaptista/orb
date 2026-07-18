@@ -296,6 +296,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     return () => window.removeEventListener(TTS_CONFIG_CHANGED_EVENT, handleTtsConfigChanged)
   }, [refreshTtsConfig])
   const voiceActiveRef = useRef(false)
+  const realtimeSpikeControlRef = useRef<{ stop: (reason?: string) => void } | null>(null)
   const realtimeSpike = useRealtimeVoiceSpike({
     currentProjectId: selectedId,
     onUserTranscript: text => {
@@ -313,7 +314,25 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       void fetchOrbTodos()
       void fetchTodos()
     },
+    onClientAction: action => {
+      if (action.action === 'switch_project' && action.target) {
+        const project = resolveProjectByReference(products, action.target)
+        if (project) {
+          orbSwitchingRef.current = true
+          setSelectedId(project.id)
+        }
+      } else if (action.action === 'open_settings') {
+        router.push('/settings')
+      } else if (action.action === 'open_help') {
+        openHelp()
+      } else if (action.action === 'set_voice' && action.target) {
+        voice.setVoice(action.target)
+      } else if (action.action === 'exit_voice') {
+        realtimeSpikeControlRef.current?.stop('exit_voice')
+      }
+    },
   })
+  realtimeSpikeControlRef.current = realtimeSpike
   voiceActiveRef.current = voice.voiceActive || realtimeSpike.active
 
   // ── Mutation gate ──
@@ -636,7 +655,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       immediateFlush: true,
       metadata: { projectId: selectedId, isMobile },
     })
-    if (realtimeSpike.active) realtimeSpike.stop()
+    if (realtimeSpike.active) realtimeSpike.stop('orb_tap')
     if (noProject) { measurement.end(false, 'no_project'); return }
     if (!voice.supportsVoice) { measurement.end(false, 'voice_not_supported'); return }
 
@@ -959,7 +978,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     greetingFiredRef.current = true
     const greetingId = genId()
     passiveGreetingIdRef.current = greetingId
-    setMessages([{ id: greetingId, type: 'orb', text: makeOrbGreeting(user?.first_name) }])
+    setMessages([{
+      id: greetingId,
+      type: 'orb',
+      text: makeOrbGreeting(user?.first_name),
+      source: 'passive-greeting',
+    }])
     setConversationActive(true)
     resetInactivity()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2400,8 +2424,14 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         simulateError={simulateError} onSimulateErrorChange={setSimulateError}
         realtimeSpikeStatus={realtimeSpike.status}
         realtimeSpikeError={realtimeSpike.error}
+        onRealtimeCopyTrace={() => {
+          const trace = realtimeSpike.getTrace()
+          void navigator.clipboard.writeText(trace || '(no Realtime trace yet)')
+            .then(() => addOrbMessage('Copied the Realtime lifecycle trace to the clipboard.'))
+            .catch(() => addOrbMessage('Could not copy the Realtime trace.'))
+        }}
         onRealtimeSpikeToggle={() => {
-          if (realtimeSpike.active) realtimeSpike.stop()
+          if (realtimeSpike.active) realtimeSpike.stop('dev_toggle')
           else {
             if (voice.voiceActive) voice.exitVoiceMode()
             voiceActiveRef.current = true
@@ -2410,13 +2440,17 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               let end = previous.length
               while (end > 0) {
                 const message = previous[end - 1]
-                if (message.id !== passiveGreetingId && message.source !== 'passive-status') break
+                if (
+                  message.id !== passiveGreetingId
+                  && message.source !== 'passive-status'
+                  && message.source !== 'passive-greeting'
+                ) break
                 end -= 1
               }
               return end === previous.length ? previous : previous.slice(0, end)
             })
             passiveGreetingIdRef.current = null
-            void realtimeSpike.start()
+            void realtimeSpike.start('dev_toggle')
           }
         }}
       />
