@@ -70,6 +70,12 @@ export function useRealtimeVoiceSpike(options: Options) {
   const pendingCreateTurnRef = useRef<number | null>(null)
   const activeTurnIdRef = useRef(0)
   const responseTurnIdsRef = useRef(new Map<string, number>())
+  // response.done has been observed redelivered for the same response.id
+  // (iPad Safari). Once an id's response.done is handled, its turn mapping is
+  // deleted, so a redelivered event would otherwise fall back to
+  // activeTurnIdRef.current and could be misread as belonging to whatever
+  // turn is active by then. Track handled ids so a repeat is dropped outright.
+  const handledResponseIdsRef = useRef(new Set<string>())
   const inputItemTurnIdsRef = useRef(new Map<string, number>())
   const toolControllersRef = useRef(new Map<string, AbortController>())
   const currentProjectIdRef = useRef(options.currentProjectId)
@@ -204,6 +210,7 @@ export function useRealtimeVoiceSpike(options: Options) {
     toolControllersRef.current.forEach(controller => controller.abort())
     toolControllersRef.current.clear()
     responseTurnIdsRef.current.clear()
+    handledResponseIdsRef.current.clear()
     inputItemTurnIdsRef.current.clear()
     assistantSpeakingRef.current = false
     responseInFlightRef.current = false
@@ -732,12 +739,23 @@ export function useRealtimeVoiceSpike(options: Options) {
     }
 
     if (message.type === 'response.done') {
+      const responseId = message.response?.id
+      // iPad Safari has been observed redelivering response.done for the same
+      // response.id. Its turn mapping is deleted on first handling, so a
+      // redelivery would otherwise fall back to activeTurnIdRef.current and
+      // could be misread as belonging to whatever turn is active by then —
+      // re-running tool dispatch and flickering status. Drop it outright.
+      if (responseId && handledResponseIdsRef.current.has(responseId)) {
+        emitTrace.current(`response.done duplicate ignored (id=${responseId})`)
+        return
+      }
+      if (responseId) handledResponseIdsRef.current.add(responseId)
       responseInFlightRef.current = false
       const calls = message.response?.output?.filter(item => item.type === 'function_call') ?? []
-      const responseTurnId = message.response?.id
-        ? responseTurnIdsRef.current.get(message.response.id) ?? activeTurnIdRef.current
+      const responseTurnId = responseId
+        ? responseTurnIdsRef.current.get(responseId) ?? activeTurnIdRef.current
         : activeTurnIdRef.current
-      if (message.response?.id) responseTurnIdsRef.current.delete(message.response.id)
+      if (responseId) responseTurnIdsRef.current.delete(responseId)
       emitTrace.current(`response.done calls=${calls.length} turn=${responseTurnId} active=${activeTurnIdRef.current}`)
       if (calls.length) {
         // The model wants to use tools. Run them all, then send one continuation
@@ -928,6 +946,7 @@ export function useRealtimeVoiceSpike(options: Options) {
       if (startupMeasurementRef.current === measurement) startupMeasurementRef.current = null
       const message = startError instanceof Error ? startError.message : 'Could not start Realtime voice'
       const errorName = startError instanceof Error ? startError.name : 'UnknownError'
+      emitTrace.current(`START FAILED: ${errorName}: ${message.slice(0, 240)}`)
       measurement.end(false, 'start_failed', {
         hookInstanceId: hookInstanceIdRef.current,
         connectionGeneration: generation,

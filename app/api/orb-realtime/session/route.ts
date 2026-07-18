@@ -43,7 +43,14 @@ export async function POST(request: Request) {
         transcription: { model: 'gpt-4o-mini-transcribe' },
         turn_detection: {
           type: 'server_vad',
-          threshold: 0.65,
+          // Raised from 0.65 (Stan, 2026-07-17): on speakerphone, Orb's own
+          // voice echoes back into the mic and the provider VAD misread that
+          // echo as the user interrupting, cutting Orb off mid-sentence.
+          // Confirmed acoustic (clean with headphones/AirPods) rather than an
+          // over-eager VAD, so the fix is a stricter volume gate rather than
+          // gating interruption through Silero. Real speech remains well above
+          // this threshold; re-tune from live speakerphone testing.
+          threshold: 0.8,
           prefix_padding_ms: 300,
           silence_duration_ms: 450,
           // The provider truncates its own audio the instant the user speaks

@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.213',
+    date: '2026-07-17',
+    changes: [
+      'Fixed Realtime voice cutting itself off on speakerphone: Orb’s own voice echoing back into the microphone was misread by the provider as an interruption. Raised the volume gate for what counts as speech so acoustic echo no longer triggers a false interruption while real speech still does; validated clean on Mac (Safari, Chrome, Edge), iPad Safari, and iPhone Safari.',
+      'Fixed a brief status flicker on iPad Safari caused by the provider occasionally redelivering the same turn-completion event; a repeat is now dropped outright instead of being misattributed to a different turn.',
+      'Added the specific connection-failure reason to the Realtime lifecycle trace so a failed voice session can be diagnosed from one copied trace instead of separate console digging.',
+    ],
+  },
+  {
     version: 'v0.6.212',
     date: '2026-07-17',
     changes: [
