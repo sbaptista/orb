@@ -464,6 +464,24 @@ export function useRealtimeVoiceSpike(options: Options) {
         knowledgeContent: args.knowledge_content,
         userUtterance: trustedUtterance,
       }
+    } else if (item.name === 'propose_todo_batch') {
+      operation = 'propose_todo_batch'
+      const rawOperations = Array.isArray(args.operations) ? args.operations as Array<Record<string, unknown>> : []
+      body = {
+        operation,
+        operations: rawOperations.map(op => ({
+          action: op.action,
+          todoReference: op.todo_reference,
+          projectName: op.project_name,
+          title: op.title,
+          newTitle: op.new_title,
+          newStatus: op.new_status,
+          newPriority: op.new_priority,
+          targetProjectName: op.target_project_name,
+        })),
+        currentProjectId: currentProjectIdRef.current,
+        userUtterance: trustedUtterance,
+      }
     } else if (item.name === 'propose_create_project') {
       operation = 'propose_create_project'
       body = {
@@ -595,19 +613,22 @@ export function useRealtimeVoiceSpike(options: Options) {
       .filter(outcome => outcome.createResponse && outcome.exactText)
       .map(outcome => outcome.exactText as string)
     armResponseWatchdog(turnId)
-    if (exactTexts.length === 1) {
-      // Exactly one canonical text to speak — force it verbatim and block further
-      // tool calls while narrating it.
+    if (exactTexts.length > 0) {
+      // One or several canonical texts — force ALL of them verbatim. A prior
+      // version only did this for exactly one and let the model freely
+      // improvise for 2+ (e.g. three parallel propose_delete_todo calls from
+      // "delete test1, test2, test3"), which silently dropped every pending
+      // proposal's actual confirmation text in favor of vague paraphrase —
+      // the user was never told what was actually pending.
+      const instructions = exactTexts.length === 1
+        ? `Say exactly this, with no added facts or follow-up: ${exactTexts[0]}`
+        : `Say exactly these, one after another, with no added facts or follow-up: ${exactTexts.join(' ')}`
       send({
         type: 'response.create',
-        response: {
-          instructions: `Say exactly this, with no added facts or follow-up: ${exactTexts[0]}`,
-          tool_choice: 'none',
-          tools: [],
-        },
+        response: { instructions, tool_choice: 'none', tools: [] },
       })
     } else {
-      // Zero or several canonical texts — let the model synthesize one reply from
+      // No canonical text to force — let the model synthesize one reply from
       // the tool outputs (the session contract still requires it to preserve any
       // factual core).
       send({ type: 'response.create' })

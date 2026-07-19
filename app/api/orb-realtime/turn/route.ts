@@ -247,6 +247,16 @@ export async function POST(request: Request) {
       dbFilters?: Array<{ column?: string; op?: string; value?: unknown }>
       dbOrder?: string
       userUtterance?: string
+      operations?: Array<{
+        action?: 'create' | 'update' | 'delete' | 'move'
+        todoReference?: string
+        projectName?: string
+        title?: string
+        newTitle?: string
+        newStatus?: UpdateStatus
+        newPriority?: number
+        targetProjectName?: string
+      }>
     }
     const startedAt = performance.now()
 
@@ -1267,9 +1277,148 @@ export async function POST(request: Request) {
       }
       return Response.json({ proposal, gatewayMs: Math.round(performance.now() - startedAt) })
     }
+    if (body.operation === 'propose_todo_batch') {
+      const operations = body.operations ?? []
+      if (operations.length < 2) {
+        return Response.json({ error: 'A batch needs at least two operations; propose a single change directly for just one.' }, { status: 400 })
+      }
+      if (operations.length > 20) {
+        return Response.json({ error: 'Batches are limited to 20 operations at a time.' }, { status: 400 })
+      }
+
+      // Mutation targets must exclude dormant projects, same as every
+      // singular propose_* handler above — accessibleProjectRows() itself
+      // doesn't filter dormancy (it's shared with read-only listing paths).
+      const needsProjectLookup = operations.some(op => op.action === 'create' || op.action === 'move')
+      const availableProjects = needsProjectLookup
+        ? (await accessibleProjectRows(auth)).filter(project => !project.is_dormant)
+        : []
+
+      type ResolvedBatchOp = { params: Record<string, unknown>; summary: string; projectId: string | null }
+      const resolvedOps: ResolvedBatchOp[] = []
+
+      // Sequential and read-only: nothing is written until every operation in
+      // the batch resolves cleanly, so one bad reference fails the whole
+      // batch closed before the proposal is even inserted.
+      for (const [index, op] of operations.entries()) {
+        const label = `Batch item ${index + 1}`
+        if (op.action === 'create') {
+          const title = op.title?.trim().slice(0, 240)
+          if (!title) throw new RealtimeInputError(`${label} needs a title to create.`)
+          const reference = op.projectName?.trim() || body.projectName?.trim()
+          const project = reference
+            ? resolveProjectByReference(availableProjects, reference)
+            : availableProjects.find(item => item.id === body.currentProjectId) ?? null
+          if (!project) throw new RealtimeInputError(`${label}: choose a project you can edit before creating "${title}".`)
+          resolvedOps.push({
+            params: { action: 'create', title, project_id: project.id },
+            summary: `create “${title}” in ${project.name}`,
+            projectId: project.id,
+          })
+          continue
+        }
+
+        if (!op.todoReference?.trim()) throw new RealtimeInputError(`${label} needs to name a todo to ${op.action ?? 'change'}.`)
+        const todo = await resolveTodoReference(auth, {
+          reference: op.todoReference,
+          projectName: op.projectName ?? body.projectName,
+          currentProjectId: body.currentProjectId,
+        })
+        const code = `${todo.projects.code}-${todo.todo_number}`
+        const baseParams: Record<string, unknown> = {
+          todo_id: todo.id,
+          expected_updated_at: todo.updated_at,
+          expected_title: todo.title,
+          expected_status: todo.status,
+          expected_priority: todo.priority_value,
+          expected_product_id: todo.product_id,
+          expected_todo_number: todo.todo_number,
+        }
+
+        if (op.action === 'update') {
+          const newTitle = op.newTitle?.trim().slice(0, 240)
+          if (op.newTitle !== undefined && !newTitle) throw new RealtimeInputError(`${label}: the new title for ${code} cannot be empty.`)
+          if (op.newStatus !== undefined && !UPDATE_STATUSES.includes(op.newStatus)) {
+            throw new RealtimeInputError(`${label}: use the dedicated close workflow for ${code} so resolution notes and knowledge are preserved.`)
+          }
+          if (op.newPriority !== undefined && (!Number.isInteger(op.newPriority) || op.newPriority < 1 || op.newPriority > 4)) {
+            throw new RealtimeInputError(`${label}: priority for ${code} must be an integer from 1 through 4.`)
+          }
+          if (op.newTitle === undefined && op.newStatus === undefined && op.newPriority === undefined) {
+            throw new RealtimeInputError(`${label}: describe at least one change for ${code}.`)
+          }
+          const changeText = [
+            op.newTitle !== undefined ? `title to “${newTitle}”` : '',
+            op.newStatus !== undefined ? `status to ${op.newStatus}` : '',
+            op.newPriority !== undefined ? `priority to ${op.newPriority}` : '',
+          ].filter(Boolean).join(', ')
+          resolvedOps.push({
+            params: {
+              action: 'update',
+              ...baseParams,
+              ...(op.newTitle !== undefined ? { new_title: newTitle } : {}),
+              ...(op.newStatus !== undefined ? { new_status: op.newStatus } : {}),
+              ...(op.newPriority !== undefined ? { new_priority: op.newPriority } : {}),
+            },
+            summary: `update ${code}, “${todo.title}”: ${changeText}`,
+            projectId: todo.product_id,
+          })
+        } else if (op.action === 'delete') {
+          resolvedOps.push({
+            params: { action: 'delete', ...baseParams },
+            summary: `delete ${code}, “${todo.title}”`,
+            projectId: todo.product_id,
+          })
+        } else if (op.action === 'move') {
+          const targetName = op.targetProjectName?.trim()
+          if (!targetName) throw new RealtimeInputError(`${label}: a destination project is required to move ${code}.`)
+          const destination = resolveProjectByReference(availableProjects, targetName)
+          if (!destination) throw new RealtimeInputError(`${label}: could not resolve one accessible project named “${targetName}”.`)
+          if (destination.id === todo.product_id) throw new RealtimeInputError(`${label}: ${code} is already in ${destination.name}.`)
+          resolvedOps.push({
+            params: { action: 'move', ...baseParams, destination_project_id: destination.id },
+            summary: `move ${code}, “${todo.title}”, to ${destination.name}`,
+            projectId: destination.id,
+          })
+        } else {
+          throw new RealtimeInputError(`${label} has an unsupported action.`)
+        }
+      }
+
+      const proposalId = crypto.randomUUID()
+      const expiresAt = Date.now() + 5 * 60_000
+      const uniformProjectId = resolvedOps.every(op => op.projectId === resolvedOps[0].projectId) ? resolvedOps[0].projectId : null
+      const itemLines = resolvedOps.slice(0, 10).map(op => op.summary)
+      const extra = resolvedOps.length > 10 ? `, and ${resolvedOps.length - 10} more` : ''
+      const spokenText = `Confirm: ${itemLines.join('; ')}${extra}?`
+      const title = `Batch: ${resolvedOps.length} todo operations`.slice(0, 240)
+
+      const { error: proposalError } = await auth.admin.from('orb_realtime_proposals').insert({
+        id: proposalId,
+        user_id: auth.user.id,
+        project_id: uniformProjectId,
+        kind: 'batch_todo_action',
+        title,
+        params: { operations: resolvedOps.map(op => op.params) },
+        expires_at: new Date(expiresAt).toISOString(),
+      })
+      if (proposalError) throw proposalError
+      if (grantsUpfrontMutationPermission(body.userUtterance ?? '')) {
+        const result = await confirmProposal(auth, proposalId)
+        return Response.json({ ...result, preAuthorized: true, gatewayMs: Math.round(performance.now() - startedAt) })
+      }
+      const proposal: OrbRealtimeProposal = {
+        kind: 'batch_todo_action',
+        proposalToken: signPayload({ type: 'proposal', proposalId, userId: auth.user.id, expiresAt }),
+        title,
+        operationCount: resolvedOps.length,
+        spokenText,
+      }
+      return Response.json({ proposal, gatewayMs: Math.round(performance.now() - startedAt) })
+    }
     if (body.operation === 'confirm_todo_mutation' || body.operation === 'confirm_create_todo') {
       if (!body.proposalToken) return Response.json({ error: 'Missing proposal.' }, { status: 400 })
-      if (!authorizesPendingMutation(body.userUtterance ?? '')) {
+      if (!(await authorizesPendingMutation(body.userUtterance ?? ''))) {
         return Response.json({ error: 'That response did not explicitly approve the pending change.' }, { status: 409 })
       }
       const payload = readProposal(body.proposalToken)

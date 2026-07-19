@@ -361,10 +361,13 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     const evalSystemPrompt = isStrategicEvaluation
       ? frozenStrategicPrompt ?? `${systemPrompt}\n\nEVALUATION MODE: This is a strategic-quality comparison. The supplied BACKLOG, audit context, memories, and preferences are complete for this answer. Do not call tools. Analyze the supplied evidence directly, state uncertainty when warranted, and give your best strategic response.`
       : systemPrompt
+    const confirmMutationAllowed = isStrategicEvaluation
+      ? false
+      : Boolean(pendingSummary) && (await authorizesPendingMutation(input))
     const tools = isStrategicEvaluation
       ? []
       : [
-          ...ORB_TOOLS.filter(tool => tool.name !== 'confirm_mutation' || (Boolean(pendingSummary) && authorizesPendingMutation(input))),
+          ...ORB_TOOLS.filter(tool => tool.name !== 'confirm_mutation' || confirmMutationAllowed),
           ...ORB_PREFERENCE_TOOLS,
           ...ORB_MEMORY_TOOLS,
           ORB_CAPABILITIES_TOOL,

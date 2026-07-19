@@ -304,6 +304,21 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
+    id: 'non-english-confirmation-confirms',
+    description: 'A genuine non-English confirmation authorizes the pending mutation via the semantic fallback, not just the English regex path (ORB-325: Stan\'s exact reported utterance — "確認", the Japanese word for "confirmed" — was rejected because authorizesPendingMutation only matched English words)',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    history: [
+      { role: 'user', text: 'Delete foobar from Orb' },
+      { role: 'assistant', text: 'Confirm: delete ORB-333, “foobar”, from Orb?' },
+    ],
+    pendingSummary: 'delete ORB-333, “foobar”, from Orb',
+    input: '確認',
+    tier: 1,
+    expectTool: { name: 'confirm_mutation' },
+  },
+
+  {
     id: 'disambiguation-pick-routes-to-delete',
     description: 'After the Orb asks which duplicate-named project, the user\'s code pick routes to delete_project',
     productCode: 'ORB',
@@ -965,6 +980,28 @@ Helm [code: HELM]:
     input: 'Close ORB-325 — I fixed the voice issues by hardening the Realtime path.',
     tier: 1,
     expectTool: { name: 'update_todo', params: { code: 'ORB-325', new_status: 'closed' } },
+  },
+  {
+    id: 'realtime-batch-todo-mutation-intent-analogue',
+    description: 'Naming 2+ todos for the same action in one utterance is the shared intent Realtime\'s propose_todo_batch tool now covers in one combined confirmation (2026-07-19). The Anthropic harness cannot call that Realtime-only tool directly, so this analogue verifies the underlying serial behavior it mirrors: one tool call per named todo collected into one combined confirmation, same as bulk-delete-project-todos-calls-tools.',
+    productCode: 'TEST',
+    mutationApproval: 'ask',
+    backlogOverride: `Test [code: TEST]:
+  SUMMARY: active_count=3 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ACTIVE:
+  TEST-1 [P-] [open] Alpha eval
+  TEST-2 [P-] [open] Beta eval
+  TEST-3 [P-] [open] Gamma eval`,
+    input: 'Delete Alpha eval, Beta eval, and Gamma eval.',
+    tier: 1,
+    expectTool: {
+      name: 'delete_todo',
+      params: { code: 'TEST-1' },
+    },
+    expectToolCount: {
+      name: 'delete_todo',
+      count: 3,
+    },
   },
   {
     id: 'realtime-create-project-intent-analogue',

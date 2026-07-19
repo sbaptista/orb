@@ -13,22 +13,32 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.218**.
+- **Version:** local/canonical **0.6.219**.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
 
 ## Last Session Completed
 
-**ORB-325 main-button flip built + two live-testing bug fixes — 2026-07-18 (Claude Code, Opus 4.8) — v0.6.218 — FLIP BUILT (uncommitted testing pending), TWO FIXES COMMITTED**
+**ORB-325 mutation-authorization hardening + Realtime batch todo mutations — 2026-07-19 (Claude Code, Sonnet 5) — v0.6.219 — CLOSED**
 
-**The main-button flip is built** (this was "in progress" as of the last Codex entry below; it landed in the same v0.6.217 release commit since it was sitting uncommitted in the shared working tree when Stan committed). `handleOrbTap` (tap Orb / "Talk to Orb" menu / ⌘⇧O — all three funnel through it) now starts/stops `useRealtimeVoiceSpike` directly; toggles off if already engaged. No greeting, no TTS-config preload. The orb sphere's color/animation/icon/label now key off `realtimeSpike.status`: Listening/Speaking unchanged; **Connecting/Thinking** reuse the existing neutral `.ud-voice-progress` "gathering data" treatment (no new color, per Stan); **Error** is a new red/danger state (ring, glow, sphere tint, new alert-circle icon) — a DEV-only `simulateError()` on the hook plus a "Simulate voice error" DEV panel button preview it without needing a real failure. `oc-voice-box` lost its live transcript-preview line (redundant — the user's words already appear as a message the instant they're recognized) and its manual "Stop" button (no safe interrupt-one-utterance primitive exists after the crash-fix work removed all `response.cancel` calls — flagged to Stan as a deliberate scope decision, not an oversight; barge-in already covers manual interruption). Allowlist removed entirely (`lib/orb-realtime/access.ts` + the dead `capability/route.ts` deleted); Realtime is available to every authenticated user now. `docs/ui-catalog.md`, `components/OrbHelp.tsx`, and `components/OrbTour.tsx` updated to match (also fixed a pre-existing bug: Help documented a "Continue" button — `onVoiceContinue` — that was already dead code, never rendered).
+Five fixes/features, all from Stan's live device testing, bundled into one pending release:
 
-**Stan's first live device test (iPhone/Chrome) surfaced two real bugs, both fixed and committed (v0.6.218):** (1) The Realtime session's instructions never included `lib/db-schema.ts`'s `DB_SCHEMA` — the serial engine has always had it — so `query_db` calls had no ground truth for real column names; a request needing one (e.g. "which task has gone longest without an update") could guess a non-existent column and fail at the database layer. Fixed by injecting the same `DB_SCHEMA` into the Realtime session instructions (appended as its own block so its line breaks survive; the rest of the instructions are space-joined into one paragraph). (2) The turn route's catch-all only read `.message` from `instanceof Error` objects; a Supabase/Postgrest query error is a plain object with a `.message` but isn't an `Error` instance, so its real reason was silently replaced by a generic "Realtime turn failed." — broadened to read `.message` from any object that has one. Added `realtime-query-db-schema-column-intent-analogue` (Tier 1) and a note in `docs/object-capability-matrix.md`. `npx tsc --noEmit` + focused ESLint clean throughout (0 errors on every touched file).
+1. **Transcription mishearing.** A short, low-context confirmation word (bare "confirmed") was the case most prone to being misheard in a different script entirely — Stan reported saying "confirmed" and having it transcribed as "確認". Added a `transcription.prompt` vocabulary hint (`session/route.ts`) biasing recognition toward the words that matter most, without locking the model to English. Reduces, does not eliminate — ASR stays probabilistic.
+2. **Multilingual confirmation fallback.** The server previously only recognized a narrow English-phrase grammar as approval. `lib/orb-model/mutation-authorization.ts` now falls back to a cheap Haiku semantic classifier (`isSemanticMutationApproval`) when the bare-affirmation/explicit-English-act checks miss, so a clear "yes"/confirmed-style reply in any language is accepted. All four call sites in `app/actions/orb-converse.ts` and the eval route made `await`-aware.
+3. **Confabulation honesty.** Orb was inventing plausible-sounding but false explanations when asked why it mistranscribed something or rejected a confirmation (Stan caught this directly). Added an explicit instruction in `lib/orb-prompt.ts` (`ORB_SELF_DIAGNOSTICS`) and the Realtime session instructions: never guess at system internals (transcription, server-side matching) — say plainly it can't see the reason.
+4. **`executeToolBatch` narration fix.** When 2+ proposals landed in one turn (e.g. "delete test1, test2, test3" → three parallel `propose_delete_todo` calls), the client only forced the canonical `spokenText` verbatim when *exactly one* tool produced it — 2+ silently fell back to vague free-form narration, never telling the user what was actually pending. `lib/hooks/useRealtimeVoiceSpike.ts`: now forces **all** pending texts verbatim, one after another.
+5. **`propose_todo_batch` — Realtime's first genuine batch mutation capability.** Stan's principle for this work: voice and text must eventually call the *exact same* operations, not diverge into separate paths. Investigation found **three** separate pending-mutation mechanisms already existed (serial todo-batch: client-held; serial project/knowledge: DB-backed via `lib/orb-mutations.ts`; Realtime: DB-backed via signed tokens + `orb_realtime_proposals` + transactional RPC — the most robust of the three). Rather than bolt a weak Realtime-only feature on, gave Realtime a create/update/delete/move batch proposal built on its own robust pattern: `scripts/migrations/20260719_realtime_batch_todo_mutations.sql` adds `batch_todo_action` to the proposal kind CHECK and a new `confirm_realtime_batch_todo_mutation` RPC (one transaction, all-or-nothing, one audit row per operation, one combined replay-safe receipt — compact "Deleted 3 todos in X." when uniform, itemized otherwise), routed through the existing `confirm_realtime_mutation` dispatcher. `app/api/orb-realtime/turn/route.ts` adds the `propose_todo_batch` handler (sequential resolve-then-insert, fails the whole batch closed on any bad reference); `session/route.ts` adds the tool schema + routing instruction; the hook dispatches it. Explicitly intended as **the start of a shared canonical proposal pattern for both engines** — full serial/Realtime convergence filed separately as **ORB-342**, not attempted here. Closing stays excluded from batches (needs per-todo resolution notes + knowledge entry, same as serial's `todo_action_transaction` scope).
 
-**Concurrency note:** this work happened while Codex was mid-release (ORB-326 + ORB-337 + v0.6.217, see below) on the same working tree/branch. Confirmed via `git show --stat` that the button-flip work wasn't lost — Stan's `dbbaec0` release commit bundled it in alongside Codex's work. Confirmed no file/line overlap between the two live-testing fixes above and Codex's `query_db` contract-shape fix (different bug: Codex restored the tool's required `table` parameter in the generated contract; this session gave the model the actual column names) before touching anything.
+Migration applied and rollback-verified live against real ORB/Helm data: mixed-action batch (update+delete+move → itemized receipt), uniform-action batch (2 creates → compact receipt), replay idempotency (`replayed: true`, no double-execution), and stale-item rejection aborting a batch that also contained otherwise-valid operations (all-or-nothing confirmed — nothing partially applied). Test rows cleaned up after verification. Added `non-english-confirmation-confirms` and `realtime-batch-todo-mutation-intent-analogue` (Tier 1). Updated `docs/object-capability-matrix.md` and `docs/orb-325-realtime-voice-flow.md`. `npx tsc --noEmit` + focused ESLint clean throughout (0 errors on every touched file).
 
-**Still open before the flip is product-default:** DEV-operator acceptance of the typed capabilities themselves (project/knowledge mutations, reads, navigation, prefs, memory, adaptation) on the real main-button control across Safari/Chrome/Edge — prior sessions validated voice reliability/audio quality via the DEV panel, not this. Then a green full Tier 1 before any push. The "Stop button" and "banner dismissibility" decisions above are settled; nothing else is a known open question.
+**Stan validated live on iPad/Chrome (2026-07-19)** and confirmed it works well. Stan ran `npm run eval:t1`: **70/73**. Two of the three failures were pre-existing/unrelated (confirmed via `git diff` showing zero changes to the implicated files); the third, `non-english-confirmation-confirms`, was a real bug in this session's own new test — the semantic classifier itself worked (verified directly against Haiku), but `buildPendingMutationConfirmationInstruction` told the *model* to pre-judge whether a message "explicitly approves" before attempting the tool call, and a bare non-English token like "確認" didn't read as confidently explicit to Haiku, so it never called `confirm_mutation` and instead tried to independently look up the (fabricated test) todo, failing honestly. Fixed in `lib/orb-model/mutation-authorization.ts`: the instruction now tells the model any short phrase in any language can be approval and to defer to the server's determination rather than gatekeeping it itself. Focused re-run of the 3 flagged cases: **2/3** — the fix's case now passes, the flaky knowledge-routing case passed clean on rerun (confirmed pre-existing flakiness, unrelated), and `mutation-stays-on-operational-route` is a genuine pre-existing Gemini tool-schema bug (`additionalProperties` in a nested array `items` sub-schema that Gemini's API rejects, in whatever converts `lib/orb-contract.ts`'s Anthropic-format `ORB_TOOLS` to Gemini's function-declaration format) — confirmed unrelated (`lib/orb-contract.ts` untouched this session), filed as **ORB-348**.
+
+**ORB-325 closed (2026-07-19)** via the REST API with full resolution notes; a new Knowledge Repository entry (`0d8ec52a-8dc1-4862-bc41-7c0627681391`, "ORB-325 resolved: Realtime voice is the production default") records the final state and supersedes the prior 2026-07-14 checkpoint entry (`8d4c4ac3-a3c7-4a09-8d4c-f0beb877c24a`, title now marked `[SUPERSEDED]`) per the knowledge-repo close convention.
+
+**Also flagged to Stan, not yet fixed:** `onMutation` in `components/UnifiedDashboard.tsx` only refetches todos after a mutation, never projects — `switch_project` can silently no-op against a stale local project list while the server still speaks a false success confirmation. Not addressed this session; unclear if in scope for a future pass or deserves its own fix.
+
+**Prior session (2026-07-18, condensed):** ORB-325 main-button flip built (Realtime replaces the serial voice path entirely, allowlist removed, new red/danger orb error state with a DEV-only `simulateError()` preview) plus two live-testing fixes shipped as v0.6.218 — Realtime session instructions gained the same `DB_SCHEMA` the serial engine always had (fixes `query_db` guessing non-existent columns), and the turn route's catch-all now reads `.message` from any object that has one, not just `instanceof Error` (Supabase/Postgrest errors aren't `Error` instances).
 
 **ORB-337 never recycle todo numbers — 2026-07-18 (Codex, GPT-5) — v0.6.216 — DATABASE MIGRATED + VERIFIED / APP RELEASE PENDING**
 
@@ -82,7 +92,26 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ## Current Uncommitted Changes
 
-Clean as of this session's v0.6.218 commit, except the two standing exceptions below (never committed with feature work):
+This session's v0.6.219 work, awaiting Stan's commit approval:
+- `app/actions/orb-converse.ts` — `authorizesPendingMutation` call sites made `await`-aware; `inferConfirmedDeleteOpsFromHistory` made `async`.
+- `app/api/orb-eval/route.ts` — hoisted the async `authorizesPendingMutation` check out of a synchronous `.filter()`.
+- `app/api/orb-realtime/session/route.ts` — transcription vocabulary hint, confabulation-honesty instruction, `propose_todo_batch` tool schema + routing instruction.
+- `app/api/orb-realtime/turn/route.ts` — new `propose_todo_batch` handler.
+- `docs/object-capability-matrix.md` — batch mutation capability + rollback verification notes.
+- `docs/orb-325-realtime-voice-flow.md` — narration fix + batch mutation architecture notes.
+- `lib/hooks/useRealtimeVoiceSpike.ts` — `executeToolBatch` multi-proposal narration fix; `propose_todo_batch` dispatch.
+- `lib/orb-model/mutation-authorization.ts` — multilingual semantic confirmation fallback (`isSemanticMutationApproval`).
+- `lib/orb-prompt.ts` — confabulation-honesty clause in `ORB_SELF_DIAGNOSTICS`.
+- `lib/orb-realtime/types.ts` — `batch_todo_action` kind added to `OrbRealtimeProposal`/`OrbRealtimeMutationReceipt`; `project` made optional; `operationCount` added.
+- `scripts/eval-cases.ts` — `non-english-confirmation-confirms`, `realtime-batch-todo-mutation-intent-analogue`.
+- `scripts/migrations/20260719_realtime_batch_todo_mutations.sql` (new, applied) — `batch_todo_action` proposal kind, `confirm_realtime_batch_todo_mutation` RPC, updated `confirm_realtime_mutation` dispatcher.
+- `lib/orb-model/mutation-authorization.ts` — also fixes the real Tier 1 regression found (`buildPendingMutationConfirmationInstruction` no longer requires the model to pre-judge a non-English/short-token approval as explicit before calling the tool).
+- `package.json`, `lib/version.ts`, `lib/changelog.ts` — v0.6.219 bump + changelog entry.
+- `ACTIVE_WORK/claude-code.md` — this session's claim.
+
+ORB-325 itself is closed via the REST API (resolution notes + a new Knowledge Repository entry, `0d8ec52a-8dc1-4862-bc41-7c0627681391`) — not a local file change, already live in the database. ORB-348 (pre-existing Gemini tool-schema bug) filed the same way.
+
+Standing exceptions (never committed with feature work):
 - `.claude/settings.local.json` — intentional local tool-settings. Its `"ask": ["Bash(git push *)"]` is the push gate working correctly — not an allowlist entry, do not "fix" it.
 - `docs/orb-327-architecture-audit-plan.md` — unrelated untracked architecture-audit plan; preserve.
 
@@ -90,19 +119,22 @@ Clean as of this session's v0.6.218 commit, except the two standing exceptions b
 
 ## Active Risks / Unresolved Work
 
+- **ORB-348 (new, 2026-07-19) — pre-existing Gemini tool-schema bug.** `mutation-stays-on-operational-route` (Tier 1) fails with a Gemini API 400 (`additionalProperties` in a nested array `items` sub-schema — Gemini's function-declaration format doesn't support it). Confirmed unrelated to ORB-325/this session (`lib/orb-contract.ts` untouched). Needs the Anthropic→Gemini tool-schema conversion found and fixed.
+- **ORB-342 (serial/Realtime convergence) is filed but not attempted.** Three separate pending-mutation mechanisms still exist (serial todo-batch: client-held; serial project/knowledge: DB-backed; Realtime: DB-backed, most robust). `propose_todo_batch` is meant as the start of a shared canonical pattern, not the convergence itself.
+- **`onMutation` in `components/UnifiedDashboard.tsx` only refetches todos, never projects**, after any mutation — flagged to Stan, not yet fixed. `switch_project` can silently no-op against a stale local project list while the server still speaks a false success confirmation.
 - **ORB-337 migration + v0.6.217 release cycle is complete** — production maintenance confirmed ended by Stan 2026-07-18. The emergency rollback script remains emergency-only; do not run it outside a genuine incident.
-- **ORB-325 main-button flip is built but not yet product-accepted.** Voice reliability/audio quality is validated (prior sessions); the flip itself and this session's two bug fixes are code-complete and committed, but not yet DEV-tested by Stan on the real main control (only the DEV panel path was tested before). What's left: DEV-operator acceptance of the typed capabilities across Safari/Chrome/Edge, then a full green Tier 1. A deterministic serial fallback remains rejected; Realtime is the decided destination.
 - **Ambient false turns from genuine background noise** (not echo — that's fixed) remain an open, lower-priority quality question; Silero is gathering device evidence but is advisory-only today. Never add an English/phrase-specific filter.
-- **Standing, low priority (verified 2026-07-12):** full-project `npm run lint` reports 6 errors + 63 warnings, all pre-existing/unrelated. Focused ORB-325 lint is 0 errors.
+- **Standing, low priority (verified 2026-07-12):** full-project `npm run lint` reports 6 errors + 129 warnings (verified 2026-07-19; count drifted from the 2026-07-12 baseline of 6+63, all still pre-existing/unrelated — not investigated further). Focused ORB-325 lint is 0 errors.
 
 ---
 
 ## Next Priorities
 
-1. **Stan tests the real main-button flip** (not just the DEV panel path) across Safari/Chrome/Edge: start/stop, ⌘⇧O, long-press-exit, tool calls/mutations, and the new red error state (use the DEV panel's "Simulate voice error" button to preview it without a real failure).
-2. **DEV-operator acceptance of the typed capabilities themselves** (project/knowledge mutations, reads, navigation, prefs, memory, adaptation, explicit named-project create, one confirmation, upfront permission, interruption) on the real control.
-3. Then a green full Tier 1 (Stan runs `npm run eval:t1`) before any push.
+1. **ORB-348** — fix the pre-existing Gemini tool-schema `additionalProperties` incompatibility.
+2. **ORB-342** — the fuller serial/Realtime pending-mutation convergence (three mechanisms → one shared pattern), once `propose_todo_batch` has some real-world use.
+3. **The `onMutation` project-list-refresh gap** in `UnifiedDashboard.tsx` — decide whether it's its own fix or folds into ORB-342.
 4. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
+5. Continued live use of Realtime voice (now production-default, ORB-325 closed) — watch for anything `propose_todo_batch`, the multilingual confirmation fallback, or the confabulation-honesty fix miss in practice.
 
 ---
 
@@ -117,7 +149,8 @@ Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation beh
 - **Provider incidents (billing/rate-limit/outage) always go through `lib/orb-model/incidents.ts`** (`classifyProviderFailure` + `notifyOrbIncident` — ticket + admin email, deduplicated), never a one-off log line. Realtime voice was wired to this in v0.6.214 after an OpenAI quota failure was found surfacing only in the server terminal.
 - **Name-first identifiers.** Project **NAME** is the identifier everywhere users/model interact. Project **code** is internal-only, auto-generated, immutable, prefixes todo codes only. References resolve name → exact code → fuzzy name.
 - **Todo identity model** (ORB-337): `id` (uuid) permanent identity; `code` (project code + `todo_number`) the current address, changes on move, **never recycled**; `title` a non-unique human search key (resolver fails closed on ambiguity). Move renumbers.
-- **Structural mutation gate** (not prompt-only). CRUD tools held server-side: the model calls the tool, the server persists a proposal, shared server predicates evaluate the actual current utterance. Upfront permission executes without a duplicate ask; otherwise a bare affirmation / explicit approval confirms. The DB is the commit boundary with transactional confirm RPCs + durable receipts.
+- **Structural mutation gate** (not prompt-only). CRUD tools held server-side: the model calls the tool, the server persists a proposal, shared server predicates evaluate the actual current utterance. Upfront permission executes without a duplicate ask; otherwise a bare affirmation / explicit approval, **or (2026-07-19) a semantic classifier fallback accepting a clear "yes" in any language**, confirms. The DB is the commit boundary with transactional confirm RPCs + durable receipts.
+- **Voice/text must converge on identical operations, not diverge into separate paths (Stan's principle, 2026-07-19).** Three separate pending-mutation mechanisms exist today (serial todo-batch: client-held; serial project/knowledge: DB-backed; Realtime: DB-backed, most robust). `propose_todo_batch` extends Realtime's own robust pattern rather than bolting on a weaker one, and is meant as the start of a shared canonical pattern for both engines. Full convergence is **ORB-342**, not yet attempted.
 - **Identifier provenance.** Task/project codes may only be used if actually seen this conversation (backlog, tool result, or the user's words) — never constructed or remembered across a cleared session. Enforced at prompt + server gate.
 - **Browser support.** Safari/Chrome/Edge required; Firefox temporarily experimental (ORB-330). Canonical: `docs/browser-support-policy.md`.
 - **Git push is never automatic** — explicit in-chat approval every time (also structurally enforced via settings.local.json).
@@ -127,7 +160,7 @@ Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation beh
 
 ## AI Tool Used Last Session
 
-`2026-07-18 — Claude Code (Opus 4.8)`
+`2026-07-19 — Claude Code (Sonnet 5)`
 
 ---
 

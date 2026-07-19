@@ -46,11 +46,11 @@ There are **zero** `response.cancel` sends.
 
 ## 4. Parallel tool calls
 
-A single `response.done` can carry several function calls (e.g. `client_action` + `get_task_count`). `executeToolBatch`:
+A single `response.done` can carry several function calls (e.g. `client_action` + `get_task_count`, or three parallel `propose_delete_todo` calls from "delete test1, test2, test3"). `executeToolBatch`:
 - runs every call via `executeToolCall` (each sends only its `function_call_output`),
-- then sends **one** continuation `response.create` — forcing the canonical `spokenText` verbatim (`tool_choice:'none'`, `tools:[]`) when exactly one tool produced canonical text, otherwise a plain create the model synthesizes.
+- then sends **one** continuation `response.create` — forcing **every** canonical `spokenText` produced this turn verbatim, one after another (`tool_choice:'none'`, `tools:[]`), or a plain create the model synthesizes only when none produced canonical text.
 
-Creating one `response.create` per tool (the pre-fix behavior) collided → `conversation_already_has_active_response`.
+Creating one `response.create` per tool (the pre-fix behavior) collided → `conversation_already_has_active_response`. A later bug (fixed 2026-07-19): the verbatim-forcing only applied when *exactly one* tool produced canonical text, so 2+ simultaneous proposals silently fell back to free-form narration and never told the user what was actually pending — see [`propose_todo_batch`](#7-mutation-safety-unchanged-still-strong) below for the complementary fix (giving the model one batch tool to call instead of N parallel singular ones in the first place).
 
 ## 5. Status model (truthful, audio-driven)
 
@@ -80,12 +80,15 @@ Status is driven by the provider's `output_audio_buffer.*` events, so `speaking`
 | [`lib/hooks/useRealtimeVoiceSpike.ts`](../lib/hooks/useRealtimeVoiceSpike.ts) | WebRTC peer/mic/audio/data channel; provider event handling; status; turn ids; the three guarded `response.create` sites; tool dispatch + batching; connection-generation/abort lifecycle; the always-on DEV trace. |
 | [`lib/voice/silero-shadow.ts`](../lib/voice/silero-shadow.ts) | Self-hosted Silero V5 on the same mic stream. **Advisory telemetry only** — gates nothing. (`shouldSuppressPlaybackCoupledTurn` remains exported but is no longer used.) |
 | [`app/api/orb-realtime/session/route.ts`](../app/api/orb-realtime/session/route.ts) | Auth + allowlist; session prompt/audio/VAD/tool contract; SDP exchange with OpenAI. |
-| [`app/api/orb-realtime/turn/route.ts`](../app/api/orb-realtime/turn/route.ts) | Authenticates every tool call; reads live facts; builds proposals; enforces authorization grammar; invokes transactional confirmation RPCs; returns fact packets / proposals / receipts / client actions. **Unchanged by the voice-runtime rewrite.** |
+| [`app/api/orb-realtime/turn/route.ts`](../app/api/orb-realtime/turn/route.ts) | Authenticates every tool call; reads live facts; builds proposals (including `propose_todo_batch`, 2026-07-19); enforces authorization grammar; invokes transactional confirmation RPCs; returns fact packets / proposals / receipts / client actions. |
 | [`scripts/migrations/20260713_*`, `20260714_*`, `20260716_*`](../scripts/migrations/) | `orb_realtime_proposals` + the transactional `confirm_realtime_*` RPCs for todo/project/knowledge mutations. Applied. |
+| [`scripts/migrations/20260719_realtime_batch_todo_mutations.sql`](../scripts/migrations/20260719_realtime_batch_todo_mutations.sql) | Adds `batch_todo_action` to the `orb_realtime_proposals` kind CHECK, the `confirm_realtime_batch_todo_mutation` RPC (create/update/delete/move, all-or-nothing, one audit row per operation, one combined receipt), and routes it through `confirm_realtime_mutation`. Applied and rollback-verified. |
 
 ## 7. Mutation safety (unchanged, still strong)
 
 The DB is the commit boundary. A proposal is persisted before it is returned to the model; confirmation runs one transactional RPC that locks the proposal + target, stale-checks the row, writes one domain change + one audit event, stores a canonical receipt, and replays it on re-confirm. The model cannot authorize its own proposal — `confirm_todo_mutation` re-checks the actual current utterance via the shared grammar in [`lib/orb-model/mutation-authorization.ts`](../lib/orb-model/mutation-authorization.ts). Identity resolves to a row id, never free text; ambiguity fails closed.
+
+**Batch todo mutations (2026-07-19):** when the user names 2+ todos for the same or related create/update/delete/move, the model calls `propose_todo_batch` once instead of N parallel singular proposals. The route resolves every operation sequentially and fails the whole batch closed on the first unresolvable reference or stale row — nothing is written and no proposal row is even inserted until every operation resolves cleanly. Confirmation runs `confirm_realtime_batch_todo_mutation` — one transaction, one row-lock per target, one audit event per operation, one combined replay-safe receipt (a compact "Deleted 3 todos in X." when every operation shares an action and project, an itemized sentence otherwise). Closing is deliberately excluded from batches — same scope as serial's `todo_action_transaction` — since it requires resolution notes and a knowledge entry per todo. This is intended as the start of a canonical shared proposal pattern for both engines; see ORB-342 for the fuller serial/Realtime convergence.
 
 ## 8. Diagnostics
 

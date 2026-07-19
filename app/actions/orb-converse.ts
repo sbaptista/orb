@@ -142,11 +142,11 @@ function isDeleteRequest(input: string): boolean {
   return /\b(delete|remove|clear|trash|get rid of)\b/i.test(input)
 }
 
-function inferConfirmedDeleteOpsFromHistory(
+async function inferConfirmedDeleteOpsFromHistory(
   history: Array<{ role: 'user' | 'assistant'; text: string }> | undefined,
   input: string,
-): PendingMutationOperation[] {
-  if (!authorizesPendingMutation(input)) return []
+): Promise<PendingMutationOperation[]> {
+  if (!(await authorizesPendingMutation(input))) return []
   const lastAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
   if (!/\b(confirm|go ahead)\b/i.test(lastAssistant)) return []
   if (!/\b(delete|deleting|remove|removing)\b/i.test(lastAssistant)) return []
@@ -754,7 +754,7 @@ export async function orbConverse(req: OrbRequest) {
           return
         }
 
-        if (authorizesPendingMutation(req.input)) {
+        if (await authorizesPendingMutation(req.input)) {
           await executeTodoOperationsAndFinish(pendingTodoOps)
           return
         }
@@ -769,7 +769,7 @@ export async function orbConverse(req: OrbRequest) {
         }
       }
 
-      const confirmedDeleteOps = inferConfirmedDeleteOpsFromHistory(req.history, req.input)
+      const confirmedDeleteOps = await inferConfirmedDeleteOpsFromHistory(req.history, req.input)
       if (!req.pendingMutation && confirmedDeleteOps.length > 0) {
         await executeTodoOperationsAndFinish(confirmedDeleteOps)
         return
@@ -809,7 +809,7 @@ export async function orbConverse(req: OrbRequest) {
       // Server-held pending PROJECT mutation (propose/confirm/execute). The client
       // echoes nothing — the server is the source of truth for what's awaiting confirmation.
       const pendingMutation: PendingMutationRow | null = await getPendingMutation(auth.admin, auth.user.id)
-      const projectConfirmationAllowed = Boolean(pendingMutation) && authorizesPendingMutation(req.input)
+      const projectConfirmationAllowed = Boolean(pendingMutation) && (await authorizesPendingMutation(req.input))
       if (pendingMutation) {
         // Consume on load: a pending is confirmable ONLY on the turn directly after it
         // was proposed. Clear it now (the in-memory copy still serves this turn's
@@ -1142,7 +1142,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
 
           // ── Project mutation: EXECUTE the exact stored intent ──
           if (tc.name === 'confirm_mutation') {
-            if (!authorizesPendingMutation(req.input)) {
+            if (!(await authorizesPendingMutation(req.input))) {
               output = { error: 'The current message did not explicitly confirm the proposed action.' }
               toolErrors.push('confirm_mutation: current message did not explicitly approve the pending action')
               toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })

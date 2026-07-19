@@ -47,8 +47,11 @@ export type OrbRealtimeProposal = {
     | 'delete_project'
     | 'add_knowledge'
     | 'update_knowledge'
+    | 'batch_todo_action'
   proposalToken: string
-  project: { id: string; name: string; code: string }
+  // Single-project mutations always carry one; a batch spanning several
+  // projects omits it rather than fake a project that isn't accurate.
+  project?: { id: string; name: string; code: string }
   title: string
   code?: string
   destinationProject?: { id: string; name: string; code: string }
@@ -60,6 +63,7 @@ export type OrbRealtimeProposal = {
     description?: string | null
   }
   resolutionNotes?: string
+  operationCount?: number
   spokenText: string
 }
 
@@ -75,6 +79,7 @@ export type OrbRealtimeMutationReceipt = {
     | 'delete_project'
     | 'add_knowledge'
     | 'update_knowledge'
+    | 'batch_todo_action'
   receiptId: string
   code: string
   oldCode?: string

@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.219',
+    date: '2026-07-19',
+    changes: [
+      'Fixed the voice assistant occasionally mishearing a short confirmation word (like "confirmed") as an entirely different language, by giving its speech recognizer a vocabulary hint toward the words it needs to catch most reliably.',
+      'Orb (both the voice assistant and text chat) now accepts a clear "yes"/confirmed style response in any language as approval for a pending change, instead of only recognizing a narrow set of English phrases or hesitating over an unfamiliar-looking short reply.',
+      'Fixed the voice assistant sometimes inventing a plausible-sounding but false explanation when asked why it mistranscribed something or rejected a confirmation. It now says plainly when it cannot see the reason, rather than guessing.',
+      'Fixed the voice assistant silently narrating something vague instead of telling the user what was actually pending, when it proposed several changes at once (e.g. asking to delete three todos by name in one sentence).',
+      'The voice assistant can now propose several todo changes at once (create, update, delete, and/or move, in any mix) as one combined confirmation, instead of asking about each one separately or losing track when several are proposed together.',
+    ],
+  },
+  {
     version: 'v0.6.218',
     date: '2026-07-18',
     changes: [
