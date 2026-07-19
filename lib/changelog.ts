@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.220',
+    date: '2026-07-19',
+    changes: [
+      'Fixed Gemini strategic-routing requests failing before the model could respond when an Orb tool contained nested strict-object schemas. Orb now recursively removes Gemini-unsupported `additionalProperties` keywords only from the Gemini provider payload.',
+      'Kept the canonical generated Orb contract strict for Anthropic and every other consumer instead of weakening the shared API specification to accommodate one provider.',
+      'Added a deterministic compatibility check covering deeply nested schemas, union branches, the real Orb tool catalog, canonical-schema immutability, and legitimate arguments named `additionalProperties`.',
+    ],
+  },
+  {
     version: 'v0.6.219',
     date: '2026-07-19',
     changes: [

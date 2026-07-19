@@ -41,11 +41,53 @@ function toGeminiContents(messages: Array<{ role: 'user' | 'assistant'; content:
   }))
 }
 
-function toGeminiFunctionDeclarations(tools: Array<any>) {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Gemini generateContent function declarations accept a narrower schema than
+ * Anthropic tools. Keep ORB_TOOLS strict and provider-neutral, then remove the
+ * unsupported keyword at this provider boundary at every nested schema node.
+ *
+ * Schema maps such as `properties` and `$defs` need special handling because
+ * their keys are argument/schema names rather than schema keywords. Sanitizing
+ * their values (not their keys) preserves a legitimate argument named
+ * `additionalProperties` while the general recursion covers every schema shape.
+ */
+export function sanitizeGeminiSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(value => sanitizeGeminiSchema(value))
+  if (!isRecord(schema)) return schema
+
+  const sanitized: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(schema)) {
+    if (key === 'additionalProperties') continue
+
+    if (
+      (key === 'properties'
+        || key === '$defs'
+        || key === 'defs'
+        || key === 'patternProperties'
+        || key === 'dependentSchemas')
+      && isRecord(value)
+    ) {
+      sanitized[key] = Object.fromEntries(
+        Object.entries(value).map(([name, childSchema]) => [name, sanitizeGeminiSchema(childSchema)]),
+      )
+      continue
+    }
+
+    sanitized[key] = sanitizeGeminiSchema(value)
+  }
+
+  return sanitized
+}
+
+export function toGeminiFunctionDeclarations(tools: Array<any>) {
   return tools.map(tool => ({
     name: tool.name,
     description: tool.description,
-    parameters: tool.input_schema,
+    parameters: sanitizeGeminiSchema(tool.input_schema),
   }))
 }
 
