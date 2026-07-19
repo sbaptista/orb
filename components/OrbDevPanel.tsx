@@ -34,6 +34,7 @@ type Props = {
   realtimeSpikeError?: string | null
   onRealtimeSpikeToggle: () => void
   onRealtimeCopyTrace: () => void
+  onRealtimeSimulateError: () => void
 }
 
 const SPEECH_PRESETS: Record<string, Speech> = {
@@ -45,7 +46,7 @@ const SPEECH_PRESETS: Record<string, Speech> = {
   },
 }
 
-function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChange, onSpeak, onSubmit, dryRun, onDryRunChange, messages, onForceQuiet, onErrorTest, simulateError, onSimulateErrorChange, realtimeSpikeStatus, realtimeSpikeError, onRealtimeSpikeToggle, onRealtimeCopyTrace }: Props) {
+function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChange, onSpeak, onSubmit, dryRun, onDryRunChange, messages, onForceQuiet, onErrorTest, simulateError, onSimulateErrorChange, realtimeSpikeStatus, realtimeSpikeError, onRealtimeSpikeToggle, onRealtimeCopyTrace, onRealtimeSimulateError }: Props) {
   const [slot, setSlot] = useState<HTMLElement | null>(null)
 
   const copyTranscript = () => {
@@ -147,6 +148,9 @@ function OrbDevPanelInner({ override, onChange, roleOverride, onRoleOverrideChan
           </button>
           <button type="button" className="dev-btn" onClick={onRealtimeCopyTrace}>
             Copy Realtime trace
+          </button>
+          <button type="button" className="dev-btn" onClick={onRealtimeSimulateError}>
+            Simulate voice error
           </button>
           {realtimeSpikeError && <div className="dev-note">{realtimeSpikeError}</div>}
 

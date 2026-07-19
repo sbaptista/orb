@@ -361,16 +361,6 @@ export async function createTodoFromTicket(
 ) {
   const ctx = await requireAdmin()
 
-  // Get next todo_number for the project
-  const { data: maxRow } = await ctx.admin
-    .from('todos')
-    .select('todo_number')
-    .eq('product_id', todoData.projectId)
-    .order('todo_number', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  const nextNum = (maxRow?.todo_number ?? 0) + 1
-
   // Fetch ticket details to populate todo description
   const { data: ticket } = await ctx.admin
     .from('tickets')
@@ -400,7 +390,6 @@ export async function createTodoFromTicket(
     .from('todos')
     .insert({
       product_id: todoData.projectId,
-      todo_number: nextNum,
       title: todoData.title,
       description: description || null,
       status: 'open',

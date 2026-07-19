@@ -4438,31 +4438,6 @@ mark.crud-highlight {
   box-shadow: 0 0 12px rgba(180, 150, 40, 0.2);
 }
 
-/* Red button — always interactive */
-.oc-voice-ind-red {
-  color: #c00;
-  border-color: rgba(200, 0, 0, 0.35);
-  background: rgba(200, 0, 0, 0.04);
-  cursor: pointer;
-}
-.oc-voice-ind-red:hover {
-  background: rgba(200, 0, 0, 0.12);
-  border-color: #e00;
-  color: #e00;
-}
-.oc-voice-ind-red:active {
-  background: rgba(200, 0, 0, 0.2);
-  transform: scale(0.95);
-}
-
-.oc-voice-stop-square {
-  display: block;
-  width: 12px;
-  height: 12px;
-  background: currentColor;
-  border-radius: 2px;
-}
-
 /* X exit button — top right of the box */
 .oc-voice-exit {
   position: absolute;

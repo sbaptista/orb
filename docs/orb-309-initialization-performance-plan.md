@@ -72,7 +72,7 @@ Relevant Knowledge Repo lessons:
 - `components/Providers.tsx`
   - Mounts `SystemStateProvider`, `ToastProvider`, `TooltipProvider`, `TableTuner`, and `GlobalDevPanel`.
 - `components/SystemStateProvider.tsx`
-  - Initial `/api/health` and `/api/version` checks.
+  - One initial `/api/version` check supplies both reachability and system state; `/api/health` remains available for external probes but is no longer polled by the app shell.
   - Periodic version checks: 5 seconds in dev, 30 seconds in production while visible.
   - Focus/visibility/network-triggered checks.
 - `proxy.ts`

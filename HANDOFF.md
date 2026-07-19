@@ -13,11 +13,32 @@
 - **Branch:** `codex/orb-325-production-hardening` (required short-lived migration branch; not pushed)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.214** (committed on this branch this session); production remains **v0.6.188**. The whole `codex/orb-325-production-hardening` branch is unpushed.
+- **Version:** local/canonical **0.6.217**; production remains **v0.6.188**. The whole `codex/orb-325-production-hardening` branch is unpushed.
+- **Production maintenance:** **ACTIVE** while the ORB-337 database migration waits for the aligned v0.6.217 app release. Keep active until Tier 1 is green, Stan approves the push, deployment is confirmed, and production move/create checks pass.
 
 ---
 
 ## Last Session Completed
+
+**ORB-337 never recycle todo numbers — 2026-07-18 (Codex, GPT-5) — v0.6.216 — DATABASE MIGRATED + VERIFIED / APP RELEASE PENDING**
+
+Todo UUID remains permanent identity; project code plus `todo_number` remains the current address. A new RLS-protected per-project high-water table and database trigger now own all ordinary create/move allocation with atomic row locking. Seed data comes from every surviving row (including soft-deleted todos) plus parseable audit history, and the migration aborts if any surviving or audited number exceeds the seeded counter. `todo_number` becomes positive, non-null, immutable outside a move, and fully unique across surviving and soft-deleted rows. Delete never changes the counter, and a move consumes a new destination number without returning its source address.
+
+Removed independent `MAX(todo_number) + 1` allocation from REST moves, both serial Orb move paths, Realtime confirmation, and ticket-to-todo creation. Backup & Recovery now sends todos through a service-role-only restore RPC that preserves exported UUID/project/number pairs while the allocation triggers remain enabled, advances the high-water, is idempotent for the same archive row, and rejects a different UUID claiming an occupied address. Archive cleanup now also preserves JSON-array columns such as todo URLs and Knowledge Repository tags. Added an emergency maintenance-only rollback plus a disposable-project verification script covering parallel allocation, failed-write rollback, delete/move non-reuse, immutability, and restore integrity.
+
+Database design impact: one indexed counter-row upsert per todo create/move; no Realtime subscription, render/poll write, or new unindexed query. Existing Todo CRUD interaction spans include the allocator, so no trigger-side timing writes were added. The optimized production build, `npx tsc --noEmit`, focused ESLint (0 errors; seven pre-existing warnings in touched legacy files), and `git diff --check` pass. The guarded Realtime rewrite was matched exactly against the live stored function, and the restore column list was checked against the live 21-column `todos` table.
+
+Production migration completed transactionally on 2026-07-18 HST under audited maintenance mode. Preflight found `todos` at 20.9% dead rows; every public application table above the mandated threshold was vacuumed/analyzed, leaving `todos` at 0% before migration. Seeded high-waters: ADELESADUL 4, CAN26 44, HELM 64, MIRACLESON 6, ORB 341, PRETO 7, STOKELYFRO 4, TICKETS 2. All eight projects have exactly one counter; the new constraints/triggers are present; restore execute privilege is false for anon/authenticated and true only for service role; the Realtime stored function contains no legacy maximum allocator.
+
+The first disposable verification attempt encountered transient PostgREST schema-cache reload error `PGRST002` after DDL and left two empty test projects; both were removed directly, an explicit schema reload was requested, and REST readiness returned HTTP 200. The full rerun passed concurrency, failed-write rollback, hard-delete/move non-reuse, immutability, restore idempotency/collision/high-water behavior, and cleaned up successfully. Postflight found no test residue, no RLS initplan regressions, strong disk cache health, `todos` at 4.5% dead rows, and verification-churn tables vacuumed back to 0%. Maintenance was briefly cleared after verification, then immediately restored when the old production app/version boundary was rechecked; the public `/api/version` endpoint now confirms `maintenance: true`.
+
+Stan’s first Tier 1 run was 68/70. The failures exposed two pre-existing contract/routing gaps rather than an ORB-337 allocator failure: `query_db` had disappeared from the generated serial tool contract despite its implementation/prompt/Realtime schema/eval remaining present, so the model supplied no required `table`; and an exact visible task close redundantly queried before mutating. v0.6.217 restores the canonical `query_db` schema from `docs/api-spec.yaml` and clarifies direct exact-code mutation routing. Contract generation, TypeScript, focused lint (0 errors; six pre-existing warnings), `git diff --check`, and the optimized production build pass. The two repaired cases passed 2/2; Stan explicitly chose to skip a second complete Tier 1 run and approved the v0.6.217 push based on the original 68 passing cases plus the repaired 2/2 focused result.
+
+**ORB-326 SystemStateProvider poll dedup — 2026-07-18 (Codex, GPT-5) — v0.6.215 — CLOSED**
+
+The app shell now makes one `/api/version` request per initial, visible-tab interval, focus/visibility, online-event, manual-refresh, or DEV-simulation trigger. That response drives both `isOnline` and the existing version/maintenance/lockout/broadcast state, eliminating the redundant `/api/health` client request. Network exceptions and non-OK responses set offline; a later successful response restores online and refreshes the full state packet. The lightweight `/api/health` route remains deployed for possible external probes; a repository/config audit found no in-app, Vercel, or GitHub consumer that requires deletion or further changes.
+
+Added opt-in `background / system-state / version_poll` telemetry; ordinary runs enqueue no measurement traffic. Updated the ORB-309 initialization plan, consolidation reference, and performance matrix. No UI pattern, database query, schema, Realtime subscription, or Orb conversation contract changed. `npx tsc --noEmit`, focused ESLint, and `git diff --check` pass. Localhost access was restored and ORB-326 was closed with resolution notes plus a Knowledge Repository entry.
 
 **ORB-325 Realtime voice — provider-owned turn-taking rewrite, cross-platform quality fixes, checkpoint — 2026-07-17 (Claude Code, Opus 4.8) — v0.6.213 — VOICE RUNTIME VALIDATED across the full supported matrix / still allowlist-gated**
 
@@ -49,9 +70,11 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ---
 
-## Current Uncommitted Changes (after this session's v0.6.214 commit)
+## Current Uncommitted Changes
 
-- `components/SystemStateProvider.tsx` — Claude Code's separate **ORB-326** poll-dedup slice (derive `isOnline` from the `/api/version` poll; drop the separate `/api/health` fetch). Deliberately kept OUT of the ORB-325 commit; still unstaged/unreleased.
+- ORB-337 v0.6.216: `scripts/migrations/20260718_never_recycle_todo_numbers.sql`, `scripts/rollbacks/20260718_never_recycle_todo_numbers.sql`, `scripts/verify-never-recycle-todo-numbers.ts`, `app/api/tasks/[id]/route.ts`, `app/actions/orb-converse.ts`, `app/actions/ticket-actions.ts`, `app/actions/import-data.ts`, `docs/api-spec.yaml`, `docs/object-capability-matrix.md`, `docs/orb-337-never-recycle-todo-numbers-plan.md`, `package.json`, `package-lock.json`, `lib/version.ts`, `lib/changelog.ts`, and `HANDOFF.md`.
+- ORB-326 v0.6.215: `components/SystemStateProvider.tsx`, `docs/Consolidate_API_Health_and_Version_Polling.md`, and `docs/orb-309-initialization-performance-plan.md`; shared matrix/release/handoff files now also include ORB-337.
+- ORB-325 main-button work owned by Claude: preserve its uncommitted Realtime/UI files; do not stage or rewrite them as ORB-337 work.
 - `.claude/settings.local.json` — intentional local tool-settings; never committed with feature work. Its `"ask": ["Bash(git push *)"]` is the push gate working correctly — not an allowlist entry, do not "fix" it.
 - `docs/orb-327-architecture-audit-plan.md` — unrelated untracked architecture-audit plan; preserve.
 
@@ -59,6 +82,7 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ## Active Risks / Unresolved Work
 
+- **ORB-337 database migration is active; production maintenance must stay on until the app catches up.** Stan reruns the two repaired Tier 1 cases, then the full Tier 1 suite if focused checks pass; after it is green, push only with Stan's explicit approval, confirm v0.6.217 deployment plus production REST/UI/serial/Realtime create and move behavior, then disable maintenance. Do not leave v0.6.188 paired with the migrated database outside maintenance because its old move narration can calculate the wrong destination address even though the trigger persists the correct one. The rollback reopens the original defect and is emergency-only.
 - **ORB-325 Realtime voice quality is validated; the main-button flip itself is unbuilt.** Voice reliability, audio quality (echo/interruption), and glitches are resolved across the supported matrix. What's left is a full typed-capability sweep + full Tier 1 green, then finalizing and building the actual flip (see Next Priorities — one open sub-question on the warning banner's dismissibility). A deterministic serial fallback remains rejected; Realtime is the decided destination.
 - **Ambient false turns from genuine background noise** (not echo — that's fixed) remain an open, lower-priority quality question; Silero is gathering device evidence but is advisory-only today. Never add an English/phrase-specific filter.
 - **Standing, low priority (verified 2026-07-12):** full-project `npm run lint` reports 6 errors + 63 warnings, all pre-existing/unrelated. Focused ORB-325 lint is 0 errors.
@@ -67,12 +91,11 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ## Next Priorities
 
-1. **Finalize + build the main-button flip** (planning underway; visual design decided, written plan + reworked prototype next). This is real code: wire the main Orb control to `useRealtimeVoiceSpike` instead of `useVoiceMode`/`handleOrbTap`'s serial path; remove the allowlist gate entirely (Realtime for every user); show the persistent/dismiss-once-per-session warning banner on unsupported browsers instead of blocking; remove the serial voice UI once Realtime is confirmed live in production. Bring the complete plan back to Stan for explicit go-ahead before building (standing rule). Test the v0.6.214 incident-reporting wiring (ticket + admin email actually firing) during this pass.
-2. **DEV-operator acceptance on Safari/Chrome/Edge:** the typed capabilities themselves (project/knowledge mutations, reads, navigation, prefs, memory, adaptation, explicit named-project create, one confirmation, upfront permission, interruption) — this session validated voice reliability/audio quality, not every tool.
-3. Then a green full Tier 1 (Stan runs `npm run eval:t1`) before any push.
-4. **ORB-337** — never recycle `todo_number` (monotonic per-project high-water counter). Design pass before building; notes on the todo.
-5. **ORB-326** — Claude Code's `SystemStateProvider` poll-dedup has an unstaged diff; coordinate before its own release bookkeeping.
-6. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
+1. **Stan reruns `npm run eval -- --id realtime-close-intent-analogue,realtime-query-db-intent-analogue`, then `npm run eval:t1` if focused green.** If the full tier is green, obtain explicit push approval, deploy the aligned v0.6.217 app, verify production create/move surfaces, then disable maintenance and close ORB-337 with resolution notes + Knowledge Repository entry.
+2. **Finalize + build the main-button flip** (Claude-owned implementation now present in the working tree; preserve its ownership boundary and complete its acceptance/release work).
+3. **DEV-operator acceptance on Safari/Chrome/Edge:** the typed capabilities themselves (project/knowledge mutations, reads, navigation, prefs, memory, adaptation, explicit named-project create, one confirmation, upfront permission, interruption).
+4. Then a green full Tier 1 (Stan runs `npm run eval:t1`) before any push.
+5. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
 
 ---
 
@@ -96,7 +119,7 @@ Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation beh
 
 ## AI Tool Used Last Session
 
-`2026-07-17 — Claude Code (Opus 4.8)`
+`2026-07-18 — Codex (GPT-5)`
 
 ---
 

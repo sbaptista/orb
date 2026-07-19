@@ -94,6 +94,42 @@ info:
           search: { type: string, description: 'Text search against summary.' }
           max_results: { type: integer, description: 'Max tickets to return. Default 20.' }
 
+    query_db:
+      confidence: well-tested
+      description: 'Run a bounded read-only structural query through the Supabase query builder. Use for date ranges, URL/array filters, cross-table lookups, and columns not exposed by a first-class read tool. Never raw SQL. Always provide the allowlisted table explicitly.'
+      input_schema:
+        type: object
+        additionalProperties: false
+        properties:
+          table:
+            type: string
+            enum: ['todos', 'projects', 'knowledge_repo', 'audit_log', 'statuses', 'priorities', 'categories', 'groups', 'tickets']
+            description: 'Allowlisted table to query.'
+          select:
+            type: string
+            description: 'Comma-separated plain column names. Defaults to all columns.'
+          filters:
+            type: array
+            items:
+              type: object
+              additionalProperties: false
+              properties:
+                column: { type: string }
+                op:
+                  type: string
+                  enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'is', 'in', 'contains', 'overlaps', 'not.is']
+                value: {}
+              required: ['column', 'op', 'value']
+          order:
+            type: string
+            description: 'Column name, or -column for descending order.'
+          limit:
+            type: integer
+            minimum: 1
+            maximum: 200
+            description: 'Maximum rows. Defaults to 50.'
+        required: ['table']
+
     client_action:
       confidence: well-tested
       description: 'Navigate or switch UI state. Use switch_project to change the active project, open_settings to go to settings, open_help for help. Use set_voice to change the TTS voice (target = voice name). Use exit_voice to end voice conversation mode when the user signals they want to stop. For switch_project, call the tool and do not narrate "Switching to...", "I switched", "done", or "is now active" in the same response; the client confirms after navigation succeeds.'
@@ -249,7 +285,9 @@ components:
           format: uuid
         todo_number:
           type: integer
-          description: Auto-incremented, unique per product.
+          description: |
+            Database-assigned current address number. Unique within the
+            project and never reissued during that project's lifetime.
         title:
           type: string
         description:
@@ -325,8 +363,8 @@ components:
           type: string
           description: |
             Move the task to a different project by providing the
-            target project code (e.g. "HELM"). The task gets a new
-            todo_number in the target project.
+            target project code (e.g. "HELM"). The database assigns the
+            task a new, never-before-issued todo_number in the target project.
         urls:
           oneOf:
             - type: array
@@ -432,17 +470,24 @@ paths:
         Updates only the fields provided. Ignores soft-deleted tasks.
 
         NOT SUPPORTED:
-        - Changing the product/project a task belongs to.
-        - Changing todo_number.
+        - Supplying or directly changing todo_number.
         - Changing created_at.
 
-        To move a task between products: POST to create in the target
-        product, then DELETE the original.
+        To move a task between products, provide product_code. The task keeps
+        its UUID and receives the target project's next database-owned,
+        never-before-issued todo_number.
       x-orb-tool:
         name: update_todo
         confidence: well-tested
         description: |
-          Update an existing todo by task code (e.g. ORB-73). Supports: title, status, priority, description, resolution_notes, urls. Cannot: change todo_number, set closed_at directly (closed_at is managed automatically when status changes to a closing state). To move a task between projects, use move_todo instead.
+          Update an existing todo by task code (e.g. ORB-73). Supports: title,
+          status, priority, description, resolution_notes, urls. When the user
+          supplies an exact task code already visible in their request or the
+          BACKLOG, call update_todo directly; do not query_todos merely to
+          reconfirm it. The server resolves and validates the current row.
+          Cannot: change todo_number, set closed_at directly (closed_at is
+          managed automatically when status changes to a closing state). To
+          move a task between projects, use move_todo instead.
         parameters:
           - name: code
             in: custom

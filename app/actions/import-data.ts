@@ -8,7 +8,9 @@ function cleanForUpsert(data: any[]) {
   return data.map((row: any) => {
     const clean = { ...row }
     Object.keys(clean).forEach(key => {
-      if (clean[key] && typeof clean[key] === 'object') {
+      // Supabase relationship objects are not writable columns, but JSON array
+      // columns (todos.urls, knowledge_repo.tags) are part of the archive.
+      if (clean[key] && typeof clean[key] === 'object' && !Array.isArray(clean[key])) {
         delete clean[key]
       }
     })
@@ -67,7 +69,7 @@ export async function importData(payload: any) {
 
     if (payload.todos) {
       const data = cleanForUpsert(payload.todos)
-      const { error } = await ctx.admin.from('todos').upsert(data, { onConflict: 'id' })
+      const { error } = await ctx.admin.rpc('restore_todos_from_archive', { p_rows: data })
       if (error) throw error
     }
 

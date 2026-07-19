@@ -273,7 +273,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // ── Voice mode ──
   const [ttsConfig, setTtsConfig] = useState<TtsConfig | undefined>(undefined)
   const voice = useVoiceMode(ttsConfig)
-  const [voiceStarting, setVoiceStarting] = useState(false)
   const updateTtsConfigRef = useRef(voice.updateTtsConfig)
   updateTtsConfigRef.current = voice.updateTtsConfig
   const refreshTtsConfig = useCallback(async (): Promise<TtsConfig | null> => {
@@ -333,7 +332,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     },
   })
   realtimeSpikeControlRef.current = realtimeSpike
-  voiceActiveRef.current = voice.voiceActive || realtimeSpike.active
+  voiceActiveRef.current = voice.voiceActive || realtimeSpike.status !== 'off'
 
   // ── Mutation gate ──
   const pendingMutationRef = useRef<PendingMutation | null>(null)
@@ -402,13 +401,27 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const noProject    = !selectedId
   const urgentValues = useMemo(() => new Set(priorities.filter(p => p.is_urgent).map(p => p.value)), [priorities])
   const urgency      = moodOverride ?? computeUrgency(orbTodos, urgentValues, urgencyThreshold)
-  const voiceStyle   = voice.isListening
+  // Realtime voice status: 'off'|'connecting'|'listening'|'thinking'|'speaking'|'error'.
+  const voiceEngaged   = realtimeSpike.status !== 'off'
+  const realtimeListening = realtimeSpike.status === 'listening'
+  const realtimeSpeaking  = realtimeSpike.status === 'speaking'
+  // Connecting and Thinking deliberately stay neutral (current urgency palette,
+  // same as the existing "gathering data" convention) rather than introducing a
+  // new accent color. Only Listening, Speaking, and the new Error state get a
+  // distinct color.
+  const realtimeConnecting = realtimeSpike.status === 'connecting'
+  const realtimeThinking   = realtimeSpike.status === 'thinking'
+  const realtimeBusy   = realtimeConnecting || realtimeThinking
+  const realtimeErrored = realtimeSpike.status === 'error'
+  const voiceStyle   = realtimeListening
     ? { orbMid: '#c8e8e8', orbLo: '#a0d0d0', glow: 'rgba(60,180,180,0.5)', countColor: '#1a6060', labelColor: '#5aa0a0' }
-    : voice.isSpeaking
+    : realtimeSpeaking
     ? { orbMid: '#f0e8d0', orbLo: '#e8d8b0', glow: 'rgba(200,170,80,0.5)', countColor: '#8a6a20', labelColor: '#b8a050' }
+    : realtimeErrored
+    ? { orbMid: '#f5dede', orbLo: '#e8b8b8', glow: 'rgba(200,50,50,0.5)', countColor: '#a83232', labelColor: '#a83232' }
     : null
   const style        = voiceStyle ?? ORB_STYLE[urgency]
-  const speed        = voice.isListening ? '3s' : voice.isSpeaking ? '2.5s' : ORB_SPEED[urgency]
+  const speed        = realtimeListening ? '3s' : realtimeSpeaking ? '2.5s' : realtimeErrored ? '2s' : ORB_SPEED[urgency]
   const activeTodos  = orbTodos.filter(t => isActive(t.status))
 
   const closedNames  = useMemo(() => new Set(statuses.filter(s => s.is_closed).map(s => s.name)), [statuses])
@@ -646,7 +659,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleOrbTap = useCallback(async () => {
+  // Tapping the Orb toggles Realtime voice: stop if already engaged (any status
+  // but 'off'), otherwise start it. No greeting, no TTS-config preload — the
+  // provider handles both turn-taking and audio output itself.
+  const handleOrbTap = useCallback(() => {
     const measurement = startInteraction({
       focus: 'voice',
       flow: 'dashboard',
@@ -655,51 +671,33 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       immediateFlush: true,
       metadata: { projectId: selectedId, isMobile },
     })
-    if (realtimeSpike.active) realtimeSpike.stop('orb_tap')
-    if (noProject) { measurement.end(false, 'no_project'); return }
-    if (!voice.supportsVoice) { measurement.end(false, 'voice_not_supported'); return }
-
-    if (voice.voiceActive) { measurement.end(false, 'voice_already_active'); return }
-
-    messagesRef.current
-      .filter(m => m.type === 'orb')
-      .forEach(m => stoppedVoiceMessageIdsRef.current.add(m.id))
-    setVoiceStarting(true)
-    voice.startConversation()
-    measurement.mark('voice_runtime_started')
-    setConversationActive(true)
-    resetInactivity()
-    const cfg = await refreshTtsConfig()
-    measurement.mark('tts_config_loaded')
-    if (!cfg) {
-      const msg = 'I could not load voice settings, so I did not start voice playback. Check your connection and try again.'
-      setMessages(prev => [...prev, { id: genId(), type: 'orb', text: msg }])
-      setConversationActive(true)
-      voice.exitVoiceMode()
-      setVoiceStarting(false)
-      measurement.end(false, 'tts_config_load_failed')
+    if (realtimeSpike.active) {
+      realtimeSpike.stop('orb_tap')
+      measurement.end(true, null, { toggledOff: true })
       return
     }
-
-    const greeting = makeOrbGreeting(user?.first_name)
-    const greetingId = genId()
-    const hasExistingConversation = messagesRef.current.length > 0
-    greetingFiredRef.current = true
-    lastSpokenVoiceMessageRef.current = { id: greetingId, text: greeting }
-    if (!hasExistingConversation) {
-      setMessages(prev => [...prev, { id: greetingId, type: 'orb', text: greeting }])
-    }
-    voice.speak(greeting)
-    measurement.end(true, null, { usedExistingConversation: hasExistingConversation })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noProject, voice.voiceActive, voice.supportsVoice, user?.first_name, refreshTtsConfig, realtimeSpike.active, realtimeSpike.stop])
-
-  useEffect(() => {
-    if (!voiceStarting) return
-    if (voice.isSpeaking || voice.isListening || voice.ttsError || voice.wasInterrupted || !voice.voiceActive) {
-      setVoiceStarting(false)
-    }
-  }, [voice.isListening, voice.isSpeaking, voice.ttsError, voice.voiceActive, voice.wasInterrupted, voiceStarting])
+    if (noProject) { measurement.end(false, 'no_project'); return }
+    if (voice.voiceActive) voice.exitVoiceMode()
+    const passiveGreetingId = passiveGreetingIdRef.current
+    setMessages(previous => {
+      let end = previous.length
+      while (end > 0) {
+        const message = previous[end - 1]
+        if (
+          message.id !== passiveGreetingId
+          && message.source !== 'passive-status'
+          && message.source !== 'passive-greeting'
+        ) break
+        end -= 1
+      }
+      return end === previous.length ? previous : previous.slice(0, end)
+    })
+    passiveGreetingIdRef.current = null
+    setConversationActive(true)
+    resetInactivity()
+    void realtimeSpike.start('orb_tap')
+    measurement.end(true, null, { toggledOff: false })
+  }, [noProject, isMobile, selectedId, voice, realtimeSpike])
 
   // Auto-TTS: speak each Orb response exactly once, when its turn completes.
   // Voice never chases the stream — the screen shows streaming progress, and
@@ -725,21 +723,18 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     speakRef.current(spokenText)
   }, [messages, voice.voiceActive])
 
-  // Keyboard shortcut: Cmd+Shift+O toggles voice mode
+  // Keyboard shortcut: Cmd+Shift+O toggles voice mode (handleOrbTap already
+  // stops Realtime if engaged, or starts it otherwise).
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'o' && (e.metaKey || e.ctrlKey) && e.shiftKey) {
         e.preventDefault()
-        if (voice.voiceActive) {
-          voice.exitVoiceMode()
-        } else {
-          handleOrbTap()
-        }
+        handleOrbTap()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleOrbTap, voice])
+  }, [handleOrbTap])
 
   // Restore conversation on mount
   useEffect(() => {
@@ -1755,18 +1750,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // ══════════════════════════════════════════════════════════
 
   const orbScale = (isInputFocused && isMobile) ? 0.45 : 1.0
-  const voiceBusy = submitting || messages.some(m => m.isStreaming)
-  const voiceGathering = voice.voiceActive && !voice.isListening && !voice.isSpeaking && voiceBusy
 
   const orbElement = (
-    <div className="dash-orb-wrap" data-tour="orb" data-mode={voice.voiceActive ? 'voice' : conversationActive ? 'dialogue' : 'ambient'}>
+    <div className="dash-orb-wrap" data-tour="orb" data-mode={voiceEngaged ? 'voice' : conversationActive ? 'dialogue' : 'ambient'}>
       <div
         onPointerDown={() => {
           orbPressedRef.current = false
           orbLongPressRef.current = setTimeout(() => {
             orbPressedRef.current = true
-            if (voice.voiceActive) {
-              voice.exitVoiceMode()
+            if (voiceEngaged) {
+              realtimeSpike.stop('long_press')
             } else if (conversationActive) {
               setConversationActive(false)
               if (inactivityRef.current) { clearTimeout(inactivityRef.current); inactivityRef.current = null }
@@ -1785,11 +1778,11 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             handleOrbTap()
           }
         }}
-        data-tooltip={voice.voiceActive ? (voice.isListening ? 'Listening...' : voice.isSpeaking ? 'Speaking...' : 'Voice active') : noProject ? 'Select a project first' : 'Tap to talk'}
+        data-tooltip={voiceEngaged ? (realtimeListening ? 'Listening...' : realtimeSpeaking ? 'Speaking...' : realtimeErrored ? 'Voice error' : realtimeConnecting ? 'Connecting...' : 'Voice active') : noProject ? 'Select a project first' : 'Tap to talk'}
         style={{
           position: 'relative',
-          width: voice.voiceActive ? 'clamp(150px, 24vh, 215px)' : 'clamp(140px, 25vh, 200px)',
-          height: voice.voiceActive ? 'clamp(150px, 24vh, 215px)' : 'clamp(140px, 25vh, 200px)',
+          width: voiceEngaged ? 'clamp(150px, 24vh, 215px)' : 'clamp(140px, 25vh, 200px)',
+          height: voiceEngaged ? 'clamp(150px, 24vh, 215px)' : 'clamp(140px, 25vh, 200px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: 'pointer', pointerEvents: 'auto',
           transform: `scale(${orbScale})`, transformOrigin: 'top center',
@@ -1797,16 +1790,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           opacity: orbFading ? 0 : 1,
           WebkitTouchCallout: 'none', userSelect: 'none',
         }}
-        aria-label={voice.voiceActive ? 'Voice conversation active' : `${activeTodos.length} active todos`}
+        aria-label={voiceEngaged ? 'Voice conversation active' : `${activeTodos.length} active todos`}
         role="button" tabIndex={0}
       >
         {/* Glow */}
         {/* Voice mode ring */}
-        {voice.voiceActive && (
+        {voiceEngaged && (
           <div style={{
             position: 'absolute', inset: '-6px', borderRadius: '50%',
-            border: `2px solid ${voice.isListening ? 'rgba(60,180,180,0.6)' : voice.isSpeaking ? 'rgba(200,170,80,0.6)' : 'rgba(120,160,120,0.3)'}`,
-            animation: voice.isListening || voice.isSpeaking ? `orb-voice-ring ${speed} ease-in-out infinite` : 'none',
+            border: `2px solid ${realtimeListening ? 'rgba(60,180,180,0.6)' : realtimeSpeaking ? 'rgba(200,170,80,0.6)' : realtimeErrored ? 'rgba(200,50,50,0.6)' : 'rgba(120,160,120,0.3)'}`,
+            animation: realtimeListening || realtimeSpeaking || realtimeErrored ? `orb-voice-ring ${speed} ease-in-out infinite` : 'none',
             transition: 'border-color 0.5s',
             pointerEvents: 'none',
           }} />
@@ -1814,10 +1807,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
         {/* Glow */}
         <div style={{
-          position: 'absolute', inset: noProject ? '-18px' : voice.isListening ? '-42px' : voice.isSpeaking ? '-48px' : ORB_GLOW[urgency].inset, borderRadius: '50%',
+          position: 'absolute', inset: noProject ? '-18px' : realtimeListening ? '-42px' : realtimeSpeaking ? '-48px' : realtimeErrored ? '-46px' : ORB_GLOW[urgency].inset, borderRadius: '50%',
           background: `radial-gradient(circle at 40% 35%, ${noProject ? NO_PROJECT_STYLE.glow : style.glow}, transparent 70%)`,
-          filter: `blur(${noProject ? '20px' : voice.isListening ? '32px' : voice.isSpeaking ? '36px' : ORB_GLOW[urgency].blur})`,
-          animation: noProject ? 'none' : voice.isListening ? `orb-glow-listening ${speed} ease-in-out infinite` : voice.isSpeaking ? `orb-glow-speaking ${speed} ease-in-out infinite` : `todos-glow-${urgency} ${speed} ease-in-out infinite`,
+          filter: `blur(${noProject ? '20px' : realtimeListening ? '32px' : realtimeSpeaking ? '36px' : realtimeErrored ? '34px' : ORB_GLOW[urgency].blur})`,
+          animation: noProject ? 'none' : realtimeListening ? `orb-glow-listening ${speed} ease-in-out infinite` : (realtimeSpeaking || realtimeErrored) ? `orb-glow-speaking ${speed} ease-in-out infinite` : `todos-glow-${urgency} ${speed} ease-in-out infinite`,
           transition: 'inset 0.8s, filter 0.8s, background 0.8s',
         }} />
 
@@ -1839,21 +1832,21 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           position: 'relative', width: '100%', height: '100%', borderRadius: '50%',
           background: `radial-gradient(circle at 36% 30%, #ffffff, ${noProject ? NO_PROJECT_STYLE.orbMid : style.orbMid} 45%, ${noProject ? NO_PROJECT_STYLE.orbLo : style.orbLo} 82%)`,
           boxShadow: `0 8px 32px ${noProject ? NO_PROJECT_STYLE.glow : style.glow}, 0 2px 8px rgba(0,0,0,0.06), inset 0 -4px 12px rgba(0,0,0,0.04), inset 0 2px 8px rgba(255,255,255,0.9)`,
-          animation: noProject ? 'none' : voice.isListening ? `orb-listening ${speed} ease-in-out infinite` : voice.isSpeaking ? `orb-speaking ${speed} ease-in-out infinite` : `${ORB_ANIMATION[urgency]} ${speed} ease-in-out infinite`,
+          animation: noProject ? 'none' : realtimeListening ? `orb-listening ${speed} ease-in-out infinite` : (realtimeSpeaking || realtimeErrored) ? `orb-speaking ${speed} ease-in-out infinite` : `${ORB_ANIMATION[urgency]} ${speed} ease-in-out infinite`,
           display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '2px',
           transition: 'background 0.8s, box-shadow 0.8s',
         }}>
-          {voice.voiceActive ? (
+          {voiceEngaged ? (
             <>
               {/* Voice state icon */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', position: 'relative', zIndex: 1 }}>
-                {voiceGathering && (
+                {realtimeBusy && (
                   <div className="ud-voice-progress" aria-hidden="true">
                     <span />
                   </div>
                 )}
-                {voiceStarting ? (
-                  /* Sound waves — starting */
+                {realtimeConnecting ? (
+                  /* Sound waves — connecting */
                   <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={style.labelColor} strokeWidth="1.5" strokeLinecap="round" style={{ transition: 'stroke 0.8s' }}>
                     <line x1="4" y1="8" x2="4" y2="16"/>
                     <line x1="8" y1="5" x2="8" y2="19"/>
@@ -1861,7 +1854,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                     <line x1="16" y1="5" x2="16" y2="19"/>
                     <line x1="20" y1="8" x2="20" y2="16"/>
                   </svg>
-                ) : voice.isListening ? (
+                ) : realtimeListening ? (
                   /* Sound waves — listening */
                   <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={style.labelColor} strokeWidth="1.5" strokeLinecap="round" style={{ transition: 'stroke 0.8s' }}>
                     <line x1="4" y1="8" x2="4" y2="16"/>
@@ -1870,7 +1863,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                     <line x1="16" y1="5" x2="16" y2="19"/>
                     <line x1="20" y1="8" x2="20" y2="16"/>
                   </svg>
-                ) : voice.isSpeaking ? (
+                ) : realtimeSpeaking ? (
                   /* Sound waves — speaking (bolder) */
                   <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={style.labelColor} strokeWidth="2" strokeLinecap="round" style={{ transition: 'stroke 0.8s' }}>
                     <line x1="4" y1="8" x2="4" y2="16"/>
@@ -1879,12 +1872,19 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                     <line x1="16" y1="4" x2="16" y2="20"/>
                     <line x1="20" y1="8" x2="20" y2="16"/>
                   </svg>
-                ) : voiceBusy ? (
+                ) : realtimeThinking ? (
                   /* Lightbulb — thinking */
                   <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={style.labelColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'stroke 0.8s' }}>
                     <path d="M9 18h6"/>
                     <path d="M10 22h4"/>
                     <path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>
+                  </svg>
+                ) : realtimeErrored ? (
+                  /* Alert circle — connection error */
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={style.labelColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'stroke 0.8s' }}>
+                    <circle cx="12" cy="12" r="9"/>
+                    <line x1="12" y1="7" x2="12" y2="13"/>
+                    <line x1="12" y1="16.5" x2="12" y2="16.51"/>
                   </svg>
                 ) : (
                   /* Ready — transient state while recognition restarts */
@@ -1897,10 +1897,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                   </svg>
                 )}
                 <span style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-xs)', fontWeight: 'var(--fw-semibold)', letterSpacing: 'var(--ls-wide)', color: style.labelColor, transition: 'color 0.8s' }}>
-                  {voiceStarting ? 'Starting…' : voice.isListening ? 'Listening…' : voice.isSpeaking ? 'Speaking…' : voiceGathering ? 'Gathering data…' : voice.wasInterrupted ? 'Stopped' : 'Ready'}
+                  {realtimeConnecting ? 'Connecting…' : realtimeListening ? 'Listening…' : realtimeSpeaking ? 'Speaking…' : realtimeThinking ? 'Gathering data…' : realtimeErrored ? 'Error' : 'Ready'}
                 </span>
                 {/* Thinking progress line */}
-                {voiceGathering && (() => {
+                {realtimeThinking && (() => {
                   const lastThought = [...messages].reverse().find(m => m.type === 'orb' && m.thoughts?.length)
                   const thought = lastThought?.thoughts?.[lastThought.thoughts.length - 1]
                   return thought ? (
@@ -2059,18 +2059,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                 setShowAddProduct(true)
                 measurement.end(true)
               }}
-              voiceActive={voice.voiceActive}
-              voiceListening={voice.isListening}
-              voiceSpeaking={voice.isSpeaking}
-              voiceTranscript={voice.transcript}
-              voiceInterrupted={voice.wasInterrupted}
-              voiceError={voice.ttsError}
-              voiceWarnings={voice.capabilities.warnings}
-              supportsVoiceMode={voice.supportsVoice && !noProject}
+              voiceActive={voiceEngaged}
+              voiceListening={realtimeListening}
+              voiceError={realtimeErrored ? (realtimeSpike.error ?? 'Voice error') : null}
+              supportsVoiceMode={!noProject}
               onStartVoiceMode={handleOrbTap}
-              onVoiceContinue={voice.resumeListening}
-              onVoiceStop={handleStop}
-              onExitVoiceMode={() => { handleStop(); voice.exitVoiceMode() }}
+              onExitVoiceMode={() => { handleStop(); realtimeSpike.stop('exit_voice') }}
             />
           </div>
           )}
@@ -2430,6 +2424,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             .then(() => addOrbMessage('Copied the Realtime lifecycle trace to the clipboard.'))
             .catch(() => addOrbMessage('Could not copy the Realtime trace.'))
         }}
+        onRealtimeSimulateError={() => realtimeSpike.simulateError()}
         onRealtimeSpikeToggle={() => {
           if (realtimeSpike.active) realtimeSpike.stop('dev_toggle')
           else {

@@ -72,7 +72,7 @@ export function runOrbTour(env: TourEnv) {
       popover: {
         title: 'Or just talk',
         description:
-          'Tap the Orb to start a voice conversation. Speak naturally — the Orb listens, responds aloud, and the mic comes back automatically. No buttons between turns. You can also find <em>Talk to Orb</em> in the More menu, or press <strong>⌘ Shift O</strong>.',
+          'Tap the Orb to start a voice conversation. Speak naturally — the Orb is always listening, even while it\'s talking, so you can interrupt it just by speaking over it. You can also find <em>Talk to Orb</em> in the More menu, or press <strong>⌘ Shift O</strong>.',
         side: env.isMobile ? 'bottom' : 'right',
         align: 'center',
       },

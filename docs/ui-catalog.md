@@ -331,28 +331,28 @@ Pagination arrow button.
 ### Orb Voice Mode States
 **Files:** `components/UnifiedDashboard.tsx` (inline styles + keyframes)
 
-The Orb sphere has two voice-specific visual states that temporarily override urgency colors:
+The main Orb is the Realtime voice control (ORB-325). The sphere has voice-specific visual states that temporarily override urgency colors:
 
 | State | Palette | Animation | Arc Label |
 |---|---|---|---|
 | **Listening** | Teal/cyan (`orbMid: #c8e8e8`, glow: `rgba(60,180,180,0.5)`) | `orb-listening` — gentle scale breath (1→1.03) at 3s | LISTENING |
 | **Speaking** | Warm gold (`orbMid: #f0e8d0`, glow: `rgba(200,170,80,0.5)`) | `orb-speaking` — rhythmic ripple pulse at 2.5s | SPEAKING |
-| **Gathering data** | Current urgency/voice palette | `ud-voice-progress-sweep` indeterminate bar above the icon | GATHERING DATA |
+| **Connecting** / **Thinking** | Current urgency/voice palette (deliberately neutral, no new accent color) | `ud-voice-progress-sweep` indeterminate bar above the icon | CONNECTING / GATHERING DATA |
+| **Error** | Red/danger (`orbMid: #f5dede`, glow: `rgba(200,50,50,0.5)`) | Reuses `orb-speaking`'s pulse rhythm | ERROR |
 
-Since v0.6.113, voice speaks each response once, after it finishes streaming: **Gathering data** covers the whole thinking + streaming window (transcript text may visibly stream during it), and **Speaking** begins only when the complete spoken summary starts playing. No visual classes changed — only the timing of when each state is active.
-
-A thin `orb-voice-ring` animation pulses around the Orb sphere whenever voice mode is active, regardless of listening/speaking/idle state.
+A thin `orb-voice-ring` animation pulses around the Orb sphere while Listening, Speaking, or Error; it stays static (dim, non-animated) during Connecting/Thinking, matching the existing neutral "gathering data" convention.
 
 The conversation transcript remains readable in voice mode (`oc-thread` is not blurred) so the user can scan what the Orb said while the large voice Orb remains the primary state indicator.
 
 In voice mode the Orb is a featured top-right presence: larger than the dialogue minimap Orb, smaller than the former centered voice Orb, and positioned so the transcript can remain the primary reading surface.
 
-**Interaction model:**
-- **Tap Orb** — toggle voice recording on/off
-- **Double-tap Orb** — interrupt TTS
+**Interaction model (provider-owned turn-taking, no greeting):**
+- **Tap Orb** — start voice mode, or stop it if already engaged (any status but off)
+- **Just talk** — the provider truncates its own audio the instant you speak over it; no separate interrupt gesture
 - **Long-press Orb** — exit voice mode (or conversation mode)
-- **Cmd+Space** — keyboard toggle for voice listening
+- **Cmd+Shift+O** — keyboard toggle, same start/stop behavior as tapping the Orb
 - Text input and toolbar are disabled during voice mode (opacity 0.5, pointer-events none), with a "Switch to text" button visible.
+- The voice control box (`oc-voice-box`) shows only Speak/Listen status lights and an End (exit) button — no live transcript preview (the user's words already appear as a message in the conversation the instant they're recognized) and no separate manual interrupt button (barge-in is automatic).
 
 ### Orb Conversation Tool Button (`oc-tool-btn`)
 Used for buttons below the input field in the Orb conversation view. Styled with standard primary button background (`var(--btn-primary-bg)`).

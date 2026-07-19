@@ -41,7 +41,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "update_todo",
-    "description": "[Confidence: well-tested] Update an existing todo by task code (e.g. ORB-73). Supports: title, status, priority, description, resolution_notes, urls. Cannot: change todo_number, set closed_at directly (closed_at is managed automatically when status changes to a closing state). To move a task between projects, use move_todo instead.",
+    "description": "[Confidence: well-tested] Update an existing todo by task code (e.g. ORB-73). Supports: title,\nstatus, priority, description, resolution_notes, urls. When the user\nsupplies an exact task code already visible in their request or the\nBACKLOG, call update_todo directly; do not query_todos merely to\nreconfirm it. The server resolves and validates the current row.\nCannot: change todo_number, set closed_at directly (closed_at is\nmanaged automatically when status changes to a closing state). To\nmove a task between projects, use move_todo instead.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -82,7 +82,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         },
         "product_code": {
           "type": "string",
-          "description": "Move the task to a different project by providing the\ntarget project code (e.g. \"HELM\"). The task gets a new\ntodo_number in the target project.\n"
+          "description": "Move the task to a different project by providing the\ntarget project code (e.g. \"HELM\"). The database assigns the\ntask a new, never-before-issued todo_number in the target project.\n"
         },
         "urls": {
           "type": "array",
@@ -254,6 +254,84 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
           "description": "Max tickets to return. Default 20."
         }
       }
+    }
+  },
+  {
+    "name": "query_db",
+    "description": "[Confidence: well-tested] Run a bounded read-only structural query through the Supabase query builder. Use for date ranges, URL/array filters, cross-table lookups, and columns not exposed by a first-class read tool. Never raw SQL. Always provide the allowlisted table explicitly.",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "table": {
+          "type": "string",
+          "enum": [
+            "todos",
+            "projects",
+            "knowledge_repo",
+            "audit_log",
+            "statuses",
+            "priorities",
+            "categories",
+            "groups",
+            "tickets"
+          ],
+          "description": "Allowlisted table to query."
+        },
+        "select": {
+          "type": "string",
+          "description": "Comma-separated plain column names. Defaults to all columns."
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "column": {
+                "type": "string"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "eq",
+                  "neq",
+                  "gt",
+                  "gte",
+                  "lt",
+                  "lte",
+                  "like",
+                  "ilike",
+                  "is",
+                  "in",
+                  "contains",
+                  "overlaps",
+                  "not.is"
+                ]
+              },
+              "value": {}
+            },
+            "required": [
+              "column",
+              "op",
+              "value"
+            ]
+          }
+        },
+        "order": {
+          "type": "string",
+          "description": "Column name, or -column for descending order."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "description": "Maximum rows. Defaults to 50."
+        }
+      },
+      "required": [
+        "table"
+      ]
     }
   },
   {

@@ -70,16 +70,7 @@ export async function PATCH(
       return NextResponse.json({ error: `Project "${product_code}" not found` }, { status: 404 })
     }
 
-    const { data: maxRow } = await supabase
-      .from('todos')
-      .select('todo_number')
-      .eq('product_id', targetProject.id)
-      .order('todo_number', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
     updates.product_id = targetProject.id
-    updates.todo_number = (maxRow?.todo_number ?? 0) + 1
   }
 
   if (status !== undefined) {
@@ -107,7 +98,14 @@ export async function PATCH(
     return NextResponse.json({ error: 'Todo not found' }, { status: 404 })
   }
 
-  await logAuditEvent({ action: 'todo_update', table_name: 'todos', record_id: id, after: updates, actor: 'rest-api', user_id: targetUserId })
+  await logAuditEvent({
+    action: 'todo_update',
+    table_name: 'todos',
+    record_id: id,
+    after: { ...updates, todo_number: todo.todo_number },
+    actor: 'rest-api',
+    user_id: targetUserId,
+  })
 
   return NextResponse.json(todo)
 }

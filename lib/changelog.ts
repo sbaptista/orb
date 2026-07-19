@@ -6,6 +6,33 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.217',
+    date: '2026-07-18',
+    changes: [
+      'Restored `query_db` to the canonical generated serial Orb tool contract. Its implementation, routing policy, Realtime schema, and regression case already existed, but the generated tool list no longer exposed its required table/filter schema; structural date queries could therefore name the tool without supplying the required table.',
+      'Clarified exact-code mutation routing: when a current request or visible backlog already provides the precise task code, Orb calls the matching update/close/delete/move tool directly and lets the server resolve and validate the live row instead of performing a redundant read first.',
+    ],
+  },
+  {
+    version: 'v0.6.216',
+    date: '2026-07-18',
+    changes: [
+      'Made todo addresses monotonic and concurrency-safe within each project. Creates and moves now allocate from a row-locked database high-water counter; soft deletes, hard deletes, and moves never return a number to the pool, and positive/non-null/full-history uniqueness constraints defend the invariant across every surviving row.',
+      'Seeded each project counter from both surviving todos and parseable audit history, with fail-closed validation that no existing or audited number exceeds the recovered high-water. REST, serial Orb, Realtime Orb, and ticket-to-todo paths now rely on the same database allocator instead of independently calculating a maximum.',
+      'Fixed Backup & Recovery so restoring or merging an archive preserves each todo UUID, project, exported number, and JSON-array fields through a service-role-only restore function. Triggers remain enabled throughout the transaction; occupied-address collisions fail closed, repeated restores are idempotent, and subsequent creates continue above the restored high-water.',
+      'Added an emergency maintenance-only rollback and a disposable-project verification harness covering concurrent inserts, failed-write rollback, hard-delete and move non-reuse, direct-address immutability, and restore integrity. Existing create/move interaction telemetry measures counter overhead without adding per-allocation logging.',
+    ],
+  },
+  {
+    version: 'v0.6.215',
+    date: '2026-07-18',
+    changes: [
+      'Halved app-shell system-state polling from two requests to one. The existing `/api/version` response now supplies both reachability and version, maintenance, lockout, and broadcast state, so initial checks, visible-tab intervals, focus/visibility events, network recovery, manual refresh, and DEV simulation no longer make a redundant `/api/health` request.',
+      'Preserved the lightweight `/api/health` endpoint for possible external uptime probes while confirming there is no remaining in-app caller. Network errors and non-successful `/api/version` responses set Orb offline; the next successful response restores online state and refreshes the complete system-state packet.',
+      'Added opt-in background performance telemetry for the consolidated version poll and updated the standing initialization and flow-performance documentation with the one-request contract.',
+    ],
+  },
+  {
     version: 'v0.6.214',
     date: '2026-07-17',
     changes: [

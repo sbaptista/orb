@@ -203,27 +203,34 @@ const TOPICS: Topic[] = [
         <div className="help-section">
           <h2 className="help-h2">How it flows</h2>
           <p className="help-p">
-            Once voice mode is active, conversation flows naturally. Speak, pause, and the Orb responds — no buttons needed between turns. The mic re-activates automatically after the Orb finishes speaking.
+            Once voice mode is active, just start talking — no need to wait for a beep or tap anything first. The Orb is always listening while voice mode is on, even while it&apos;s still talking, so you can interrupt it just by speaking over it.
           </p>
         </div>
 
         <div className="help-section">
           <h2 className="help-h2">Voice controls</h2>
-          <p className="help-p">A voice bar replaces the text input with three buttons:</p>
+          <p className="help-p">A voice bar replaces the text input. Two lights show what&apos;s happening, and two buttons act:</p>
           <div style={{ borderTop: '1px solid var(--border)' }}>
             <div className="help-key-row">
               <span className="help-key-cell" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--btn-primary-bg)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                Continue
+                <span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#3c8c3c', borderRadius: '50%', flexShrink: 0 }} />
+                Speak
               </span>
-              <span className="help-desc-cell">Resume listening after you&apos;ve interrupted the Orb</span>
+              <span className="help-desc-cell">Lights up while you&apos;re talking</span>
+            </div>
+            <div className="help-key-row">
+              <span className="help-key-cell" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#b49628', borderRadius: '50%', flexShrink: 0 }} />
+                Listen
+              </span>
+              <span className="help-desc-cell">Lights up while the Orb is responding</span>
             </div>
             <div className="help-key-row">
               <span className="help-key-cell" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#c00', borderRadius: '1.5px', flexShrink: 0 }} />
                 Stop
               </span>
-              <span className="help-desc-cell">Interrupt the Orb while it&apos;s speaking</span>
+              <span className="help-desc-cell">Interrupt the Orb right away</span>
             </div>
             <div className="help-key-row">
               <span className="help-key-cell" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -238,7 +245,7 @@ const TOPICS: Topic[] = [
         <div className="help-section">
           <h2 className="help-h2">Voice settings</h2>
           <p className="help-p">
-            Choose the Orb&apos;s voice and speaking rate in <strong>Settings → Voice</strong>. You can also ask the Orb conversationally: <em>&quot;What voices do you have?&quot;</em> or <em>&quot;Switch to Daniel.&quot;</em>
+            Choose the Orb&apos;s voice in <strong>Settings → Voice</strong>, or ask conversationally: <em>&quot;Switch to Daniel.&quot;</em> A new voice takes effect the next time you start a voice conversation, not the one already in progress.
           </p>
         </div>
 
@@ -252,7 +259,7 @@ const TOPICS: Topic[] = [
         </div>
 
         <p className="help-p text-sm text-muted" style={{ marginTop: '20px', marginBottom: 0 }}>
-          Orb supports Safari, Chrome, and Edge. Voice uses native browser speech recognition where available. Firefox support is temporarily experimental while a multi-turn microphone reliability issue is investigated. If microphone access is blocked, the voice panel shows browser-specific steps to allow it and reload Orb. Voice quality may still vary by browser, device, microphone, and selected voice.
+          Voice works in Safari, Chrome, Edge, and Firefox. Firefox may behave less predictably — Orb will let you know before you start. If microphone access is blocked, the voice panel shows browser-specific steps to allow it and reload Orb.
         </p>
       </div>
     ),

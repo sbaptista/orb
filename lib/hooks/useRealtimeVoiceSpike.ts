@@ -962,12 +962,22 @@ export function useRealtimeVoiceSpike(options: Options) {
 
   useEffect(() => () => stop('component_unmount'), [stop])
 
+  // DEV-only: preview the error visual state without a real connection failure.
+  // Never wires a peer, so a subsequent real start() is unaffected.
+  const simulateError = useCallback((message = 'Simulated voice error (DEV)') => {
+    if (process.env.NODE_ENV === 'production') return
+    emitTrace.current(`SIMULATED ERROR: ${message}`)
+    setError(message)
+    setStatus('error')
+  }, [])
+
   return {
     status,
     error,
     active: status !== 'off' && status !== 'error',
     start,
     stop,
+    simulateError,
     getTrace: () => traceRef.current.map(entry => `+${entry.t}ms  ${entry.e}`).join('\n'),
   }
 }

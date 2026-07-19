@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { VERSION } from '@/lib/version'
 import { clearVersionVolatileState, LAST_APPLIED_VERSION_KEY } from '@/lib/client-state'
+import { startInteraction } from '@/lib/performance/telemetry'
 
 type BroadcastType = 'info' | 'warning' | 'urgent'
 
@@ -46,23 +47,22 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const serverBootIdRef = useRef<string | null>(null)
 
-  const checkHealth = useCallback(async () => {
+  // ORB-326: a successful /api/version response doubles as the reachability
+  // check, so this single poll also drives isOnline — the old separate
+  // /api/health fetch was redundant (it only ever set isOnline). One request
+  // per tick instead of two.
+  const checkSystemState = useCallback(async () => {
+    const measurement = startInteraction({
+      focus: 'background',
+      flow: 'system-state',
+      interaction: 'version_poll',
+      surface: 'app-shell',
+    })
+
+    // Dev-only offline simulation short-circuit.
     if (typeof window !== 'undefined' && localStorage.getItem('todos_dev_simulate_offline') === 'true') {
       setIsOnline(false)
-      return
-    }
-
-    try {
-      const res = await fetch('/api/health', { cache: 'no-store' })
-      setIsOnline(res.ok)
-    } catch {
-      setIsOnline(false)
-    }
-  }, [])
-
-  const checkMaintenance = useCallback(async () => {
-    // If we are offline, don't attempt to query version to save server resources
-    if (typeof window !== 'undefined' && localStorage.getItem('todos_dev_simulate_offline') === 'true') {
+      measurement.end(true, null, { simulatedOffline: true })
       return
     }
 
@@ -71,8 +71,13 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
         cache: 'no-store',
         headers: { 'cache-control': 'no-cache' },
       })
-      if (!res.ok) return
+      if (!res.ok) {
+        setIsOnline(false)
+        measurement.end(false, `http_${res.status}`)
+        return
+      }
       const data = await res.json()
+      setIsOnline(true)
 
       setVersion(data.version || '')
       if (IS_DEVELOPMENT && data.serverBootId) {
@@ -86,7 +91,12 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
       setLockedOut(!!data.lockedOut)
       setBroadcast(data.broadcast ?? null)
       setLastCheckedAt(Date.now())
+      measurement.end(true)
     } catch (err) {
+      setIsOnline(false)
+      measurement.end(false, 'network_error', {
+        errorName: err instanceof Error ? err.name : 'UnknownError',
+      })
       console.error('[SystemStateProvider] Failed to fetch server version/maintenance status:', err)
     }
   }, [])
@@ -132,19 +142,17 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
       clearTimeout(debounceTimeoutRef.current)
     }
     debounceTimeoutRef.current = setTimeout(() => {
-      checkHealth()
-      checkMaintenance()
+      checkSystemState()
     }, 500)
-  }, [checkHealth, checkMaintenance])
+  }, [checkSystemState])
 
   // Run initial check on mount (deferred to avoid synchronous setState inside effect body)
   useEffect(() => {
     const timer = setTimeout(() => {
-      checkHealth()
-      checkMaintenance()
+      checkSystemState()
     }, 0)
     return () => clearTimeout(timer)
-  }, [checkHealth, checkMaintenance])
+  }, [checkSystemState])
 
   // Long-lived tabs should discover a new deployment without requiring a focus change.
   useEffect(() => {
@@ -169,8 +177,7 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
       triggerChecks()
     }
     const handleOnline = () => {
-      checkHealth()
-      checkMaintenance()
+      checkSystemState()
     }
     const handleOffline = () => {
       setIsOnline(false)
@@ -194,16 +201,16 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
         clearTimeout(debounceTimeoutRef.current)
       }
     }
-  }, [triggerChecks, checkHealth, checkMaintenance])
+  }, [triggerChecks, checkSystemState])
 
   // DEV panel event listeners for simulations
   useEffect(() => {
     const handleOfflineSimChange = () => {
-      checkHealth()
+      checkSystemState()
     }
     const handleUpdateSimChange = () => {
       setSimulatedUpdate(localStorage.getItem('todos_dev_simulate_update') === 'true')
-      checkMaintenance()
+      checkSystemState()
     }
 
     if (typeof window !== 'undefined') {
@@ -220,7 +227,7 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
     }
 
     return undefined
-  }, [checkHealth, checkMaintenance])
+  }, [checkSystemState])
 
   const value = React.useMemo(() => ({
     isOnline,
@@ -234,11 +241,10 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
     lockedOut,
     broadcast,
     refresh: () => {
-      checkHealth()
-      checkMaintenance()
+      checkSystemState()
     },
     applyUpdate,
-  }), [isOnline, version, clientVersion, updateAvailable, updateReason, isApplyingUpdate, lastCheckedAt, maintenance, lockedOut, broadcast, checkHealth, checkMaintenance, applyUpdate])
+  }), [isOnline, version, clientVersion, updateAvailable, updateReason, isApplyingUpdate, lastCheckedAt, maintenance, lockedOut, broadcast, checkSystemState, applyUpdate])
 
   return (
     <SystemStateContext.Provider value={value}>

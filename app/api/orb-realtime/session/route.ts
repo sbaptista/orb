@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 import { createClient } from '@/lib/supabase/server'
-import { getRealtimeVoiceAccess } from '@/lib/orb-realtime/access'
 import { classifyProviderFailure, notifyOrbIncident } from '@/lib/orb-model/incidents'
 
 export const runtime = 'nodejs'
@@ -11,7 +10,6 @@ export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
-  if (!getRealtimeVoiceAccess(user.email).enabled) return Response.json({ error: 'Not found' }, { status: 404 })
   if (!process.env.OPENAI_API_KEY) return Response.json({ error: 'OPENAI_API_KEY not configured' }, { status: 503 })
 
   const sdp = await request.text()

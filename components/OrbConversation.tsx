@@ -37,15 +37,9 @@ type Props = {
     orbElement?: React.ReactNode
     voiceActive?: boolean
     voiceListening?: boolean
-    voiceSpeaking?: boolean
-    voiceTranscript?: string
-    voiceInterrupted?: boolean
     voiceError?: string | null
-    voiceWarnings?: string[]
     supportsVoiceMode?: boolean
     onStartVoiceMode?: () => void
-    onVoiceContinue?: () => void
-    onVoiceStop?: () => void
     onExitVoiceMode?: () => void
 }
 
@@ -175,15 +169,9 @@ export default function OrbConversation({
     orbElement,
     voiceActive = false,
     voiceListening = false,
-    voiceSpeaking = false,
-    voiceTranscript = '',
-    voiceInterrupted = false,
     voiceError = null,
-    voiceWarnings = [],
     supportsVoiceMode = false,
     onStartVoiceMode,
-    onVoiceContinue,
-    onVoiceStop,
     onExitVoiceMode,
 }: Props) {
     const threadRef             = useRef<HTMLDivElement>(null)
@@ -462,16 +450,12 @@ export default function OrbConversation({
             <div className="oc-input-wrap" data-tour="conversation-input" style={{ position: 'relative' }}>
                 {voiceActive ? (
                     <div className="oc-voice-box">
-                        {/* STT transcript field — top */}
+                        {/* Error field only — no live transcript preview. The user's
+                            words already appear as a message in the conversation above
+                            the instant they're recognized, so repeating them here would
+                            just duplicate it. */}
                         <div className="oc-voice-stt">
-                            {voiceError
-                                ? <span style={{ color: 'var(--color-danger)' }}>{voiceError}</span>
-                                : voiceTranscript || (voiceListening ? 'Listening…' : voiceInterrupted ? 'Returning to listening…' : ' ')}
-                            {voiceWarnings.length > 0 && !voiceError && (
-                                <div style={{ color: 'var(--color-warning, #e6a817)', fontSize: 'var(--fs-xs)', marginTop: '4px', opacity: 0.85 }}>
-                                    {voiceWarnings[0]}
-                                </div>
-                            )}
+                            {voiceError ? <span style={{ color: 'var(--color-danger)' }}>{voiceError}</span> : ' '}
                         </div>
 
                         {/* Traffic-light indicators + stop button */}
@@ -497,7 +481,7 @@ export default function OrbConversation({
                             {/* Yellow — Listening (user listens, Orb acts) */}
                             <div className="oc-voice-ind-wrap">
                                 <div
-                                    className={`oc-voice-ind oc-voice-ind-yellow${!voiceListening && !voiceInterrupted ? ' oc-voice-ind-active' : ''}`}
+                                    className={`oc-voice-ind oc-voice-ind-yellow${!voiceListening ? ' oc-voice-ind-active' : ''}`}
                                     data-tooltip="Orb is responding"
                                     aria-label="Listen mode"
                                 >
@@ -511,19 +495,6 @@ export default function OrbConversation({
                                 <span className="oc-voice-ind-label">Listen</span>
                             </div>
 
-                            {/* Red — Stop Orb (always enabled) */}
-                            <div className="oc-voice-ind-wrap">
-                                <button
-                                    type="button"
-                                    className="oc-voice-ind oc-voice-ind-red"
-                                    onClick={onVoiceStop}
-                                    data-tooltip="Stop Orb"
-                                    aria-label="Stop Orb"
-                                >
-                                    <span className="oc-voice-stop-square" />
-                                </button>
-                                <span className="oc-voice-ind-label">Stop</span>
-                            </div>
                         </div>
 
                         {/* Exit button — far right */}

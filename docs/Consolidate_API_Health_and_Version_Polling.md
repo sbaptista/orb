@@ -80,10 +80,14 @@ return (
 
 ## Verification Plan
 
+### ORB-326 follow-up
+
+`SystemStateProvider` now derives `isOnline` from the existing `/api/version` request, reducing every initial, interval, focus/visibility, online-event, manual-refresh, and DEV-simulation check from two client requests to one. `/api/health` remains deployed for possible external probes but has no app-shell caller. Optional `background / system-state / version_poll` telemetry records success, HTTP/network failure, and simulated-offline checks; ordinary runs enqueue no measurement traffic unless background performance telemetry is enabled.
+
 ### Automated Tests
 *   Run `npm run build` to verify Next.js compiles successfully.
 
 ### Manual Verification
-*   Open the dev server, open Chrome DevTools Network panel, and focus/unfocus the browser tab. Confirm that only a single `/api/health` and `/api/version` are requested.
+*   Open the dev server, open Chrome DevTools Network panel, and focus/unfocus the browser tab. Confirm that exactly one `/api/version` request and zero `/api/health` requests are made by the app shell.
 *   Simulate offline mode (via developer panel or DevTools) and verify the `OfflinePage` breathing Julia set overlay displays correctly.
 *   Verify the update/maintenance overlays function normally.

@@ -4,7 +4,6 @@ import { getAuthContext, type AuthContext } from '@/lib/auth'
 import { createTicket } from '@/app/actions/ticket-actions'
 import { sendAdaptationEmail } from '@/lib/email'
 import { ALLOWED_OPS, ALLOWED_TABLES, COLUMN_NAME_RE, SOFT_DELETE_TABLES } from '@/lib/db-schema'
-import { getRealtimeVoiceAccess } from '@/lib/orb-realtime/access'
 import { getNextStepPacket, getProjectDirectoryPacket, getTaskCountPacket, getTodoDetailsPacket, getTodoListPacket } from '@/lib/orb-realtime/fact-gateway'
 import { fuzzyMatch, scoreTextMatch } from '@/lib/fuzzy-search'
 import { authorizesPendingMutation, grantsUpfrontMutationPermission } from '@/lib/orb-model/mutation-authorization'
@@ -187,7 +186,6 @@ function readTodoReference(token: string) {
 export async function POST(request: Request) {
   try {
     const auth = await getAuthContext()
-    if (!getRealtimeVoiceAccess(auth.user.email).enabled) return Response.json({ error: 'Not found' }, { status: 404 })
     const body = await request.json() as {
       operation?: string
       projectId?: string

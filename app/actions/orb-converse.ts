@@ -597,21 +597,21 @@ export async function orbConverse(req: OrbRequest) {
           const { data: targetProject } = await moveTargetQuery.maybeSingle()
           if (!targetProject) return { ok: false, summary: `Move ${input.code} failed`, error: `project "${targetCode}" not found` }
           if (targetProject.id === todo.product_id) return { ok: false, summary: `Move ${input.code} failed`, error: 'task is already in that project' }
-          const { data: maxRow } = await supabase
+          const { data: movedTodo, error } = await supabase
             .from('todos')
-            .select('todo_number')
-            .eq('product_id', targetProject.id)
-            .order('todo_number', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-          const nextNum = (maxRow?.todo_number ?? 0) + 1
-          const { error } = await supabase
-            .from('todos')
-            .update({ product_id: targetProject.id, todo_number: nextNum })
+            .update({ product_id: targetProject.id })
             .eq('id', todo.id)
-          if (error) return { ok: false, summary: `Move ${input.code} failed`, error: error.message }
+            .select('todo_number')
+            .single()
+          if (error || !movedTodo) {
+            return {
+              ok: false,
+              summary: `Move ${input.code} failed`,
+              error: error?.message ?? 'move returned no todo',
+            }
+          }
           const oldCode = `${sourceProject?.code ?? '???'}-${todo.todo_number}`
-          const newCode = `${targetProject.code}-${nextNum}`
+          const newCode = `${targetProject.code}-${movedTodo.todo_number}`
           await logAuditEvent({
             action: 'todo_move',
             table_name: 'todos',
@@ -1610,25 +1610,18 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               } else if (targetProject.id === todo.product_id) {
                 output = { error: 'task is already in that project' }
               } else {
-                const { data: maxRow } = await supabase
+                const { data: movedTodo, error } = await supabase
                   .from('todos')
-                  .select('todo_number')
-                  .eq('product_id', targetProject.id)
-                  .order('todo_number', { ascending: false })
-                  .limit(1)
-                  .maybeSingle()
-                const nextNum = (maxRow?.todo_number ?? 0) + 1
-
-                const { error } = await supabase
-                  .from('todos')
-                  .update({ product_id: targetProject.id, todo_number: nextNum })
+                  .update({ product_id: targetProject.id })
                   .eq('id', todo.id)
+                  .select('todo_number')
+                  .single()
 
-                if (error) {
-                  output = { error: error.message }
+                if (error || !movedTodo) {
+                  output = { error: error?.message ?? 'move returned no todo' }
                 } else {
                   const oldCode = `${sourceProject?.code ?? '???'}-${todo.todo_number}`
-                  const newCode = `${targetProject.code}-${nextNum}`
+                  const newCode = `${targetProject.code}-${movedTodo.todo_number}`
                   output = { ok: true, old_code: oldCode, new_code: newCode }
                   stream.update({ speech: accumulatedSpeech, thought: `Moved ${oldCode} → ${newCode}`, refresh: true, mutatedProductId: sourceProject?.id, mutationType: 'update' })
                   hasMutated = true; hasActed = true
