@@ -102,7 +102,9 @@ export function classifyProviderFailure(error: any, provider: OrbModelProviderId
   const reason = billing ? 'billing or spend limit' : rateLimited ? 'rate limit or provider quota' : unavailable ? 'provider unavailable' : 'provider error'
   const userMessage = role === 'strategic'
     ? `Strategic reads are temporarily unavailable through ${providerLabel(provider)}. Everyday task help remains available.`
-    : `Orb's operational assistant is temporarily unavailable through ${providerLabel(provider)}. You can still manage tasks directly in the list.`
+    : role === 'voice'
+      ? `Realtime voice is temporarily unavailable through ${providerLabel(provider)}. Try again in a moment — text input still works.`
+      : `Orb's operational assistant is temporarily unavailable through ${providerLabel(provider)}. You can still manage tasks directly in the list.`
   return {
     type,
     message,

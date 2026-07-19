@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { createClient } from '@/lib/supabase/server'
 import { getRealtimeVoiceAccess } from '@/lib/orb-realtime/access'
+import { classifyProviderFailure, notifyOrbIncident } from '@/lib/orb-model/incidents'
 
 export const runtime = 'nodejs'
 
@@ -170,7 +171,17 @@ export async function POST(request: Request) {
   const body = await response.text()
   if (!response.ok) {
     console.error('[orb-realtime] session creation failed:', response.status, body.slice(0, 500))
-    return Response.json({ error: 'Could not start the Realtime voice test.' }, { status: 502 })
+    const parsedError = (() => { try { return JSON.parse(body) } catch { return { message: body.slice(0, 500) } } })()
+    const failure = classifyProviderFailure(parsedError, 'openai', 'voice')
+    notifyOrbIncident({
+      summary: failure.summary,
+      provider: 'openai',
+      role: 'voice',
+      reason: failure.reason,
+      detail: { error: failure.message, type: failure.type, status: response.status },
+      consoleUrl: failure.consoleUrl,
+    }).catch(error => console.error('[orb-realtime] Incident notification failed:', error))
+    return Response.json({ error: failure.userMessage }, { status: 502 })
   }
   return new Response(body, { headers: { 'Content-Type': 'application/sdp' } })
 }

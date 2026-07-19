@@ -1,6 +1,6 @@
 import type { OrbModelProviderId } from './types'
 
-export type OrbModelRole = 'operational' | 'strategic'
+export type OrbModelRole = 'operational' | 'strategic' | 'voice'
 
 export type OrbModelDefinition = {
   provider: OrbModelProviderId

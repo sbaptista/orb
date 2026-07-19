@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.214',
+    date: '2026-07-17',
+    changes: [
+      'Realtime voice failures (OpenAI outage, rate limit, or billing/quota issues) now go through the same incident pipeline as every other Orb AI provider: a deduplicated ticket is filed, every admin is emailed with the reason and a direct link to the provider console, and the person using voice sees a specific explanation instead of a generic failure message.',
+    ],
+  },
+  {
     version: 'v0.6.213',
     date: '2026-07-17',
     changes: [
