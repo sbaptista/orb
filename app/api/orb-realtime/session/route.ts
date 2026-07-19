@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { createClient } from '@/lib/supabase/server'
+import { DB_SCHEMA } from '@/lib/db-schema'
 import { classifyProviderFailure, notifyOrbIncident } from '@/lib/orb-model/incidents'
 
 export const runtime = 'nodejs'
@@ -35,7 +36,11 @@ export async function POST(request: Request) {
       'A proposal is not a completed action. Ask for confirmation exactly once.',
       'When a tool returns spokenText, say that exact factual core without changing any number, identifier, title, project, or completion state.',
       'Do not offer surveys or unrelated follow-up work.',
-    ].join(' '),
+      // query_db needs real column names, or it fails at the database layer
+      // (guessed columns error out — the model has no other way to know them).
+      // Kept as its own block, appended after the space-joined prose above, so
+      // the schema's table/column line breaks reach the model intact.
+    ].join(' ') + '\n\nDATABASE SCHEMA (for query_db, allowlisted tables/columns only):\n' + DB_SCHEMA,
     audio: {
       input: {
         noise_reduction: { type: 'far_field' },

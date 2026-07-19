@@ -54,6 +54,8 @@ The **only** test mechanism in this repo is the Orb eval suite (`scripts/eval-ca
 
 **v0.6.217 contract repair:** `query_db` remains the bounded fallback represented by this matrix. Its implementation and routing had survived, but its generated serial tool definition was missing; the canonical `docs/api-spec.yaml` internal-tool schema now exposes its required allowlisted `table` and bounded query parameters again. `realtime-query-db-intent-analogue` guards the serial contract shape used as the Realtime parity analogue.
 
+**Follow-up found in live Realtime testing (2026-07-18):** the Realtime session's own instructions never included `lib/db-schema.ts`'s `DB_SCHEMA` (the serial engine's system prompt has carried it since it existed) — the Realtime model had no ground truth for real column names when reaching for `query_db`, so a request needing an actual column (e.g. "which task has gone longest without an update") could guess a non-existent one and fail at the database layer. Fixed by injecting the same `DB_SCHEMA` into the Realtime session instructions. Separately, the turn route's catch-all error handler only read `.message` from `instanceof Error` objects; a Supabase/Postgrest query error is a plain object with a `.message` but is not an `Error` instance, so its real reason was silently replaced by a generic "Realtime turn failed." — broadened to also read `.message` from any object that has one. `realtime-query-db-schema-column-intent-analogue` guards the schema-dependent case.
+
 ---
 
 ## Part 2 — Flow / Performance Matrix

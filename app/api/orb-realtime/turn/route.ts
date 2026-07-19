@@ -1280,8 +1280,16 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Unsupported operation.' }, { status: 400 })
   } catch (error) {
     console.error('[orb-realtime] turn failed:', error)
+    // Supabase/Postgrest errors are plain objects with a `.message` string, not
+    // `instanceof Error` — without this, their real reason (e.g. an unknown
+    // column) was silently discarded in favor of a generic message.
+    const message = error instanceof Error
+      ? error.message
+      : (typeof error === 'object' && error !== null && typeof (error as { message?: unknown }).message === 'string')
+        ? (error as { message: string }).message
+        : 'Realtime turn failed.'
     return Response.json(
-      { error: error instanceof Error ? error.message : 'Realtime turn failed.' },
+      { error: message },
       { status: error instanceof RealtimeInputError ? 400 : 500 },
     )
   }

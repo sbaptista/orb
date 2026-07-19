@@ -10,15 +10,25 @@
 
 ## App State
 
-- **Branch:** `codex/orb-325-production-hardening` (required short-lived migration branch; not pushed)
+- **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.217**; production remains **v0.6.188**. The whole `codex/orb-325-production-hardening` branch is unpushed.
-- **Production maintenance:** **ACTIVE** while the ORB-337 database migration waits for the aligned v0.6.217 app release. Keep active until Tier 1 is green, Stan approves the push, deployment is confirmed, and production move/create checks pass.
+- **Version:** local/canonical **0.6.218**.
+- **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
 
 ## Last Session Completed
+
+**ORB-325 main-button flip built + two live-testing bug fixes — 2026-07-18 (Claude Code, Opus 4.8) — v0.6.218 — FLIP BUILT (uncommitted testing pending), TWO FIXES COMMITTED**
+
+**The main-button flip is built** (this was "in progress" as of the last Codex entry below; it landed in the same v0.6.217 release commit since it was sitting uncommitted in the shared working tree when Stan committed). `handleOrbTap` (tap Orb / "Talk to Orb" menu / ⌘⇧O — all three funnel through it) now starts/stops `useRealtimeVoiceSpike` directly; toggles off if already engaged. No greeting, no TTS-config preload. The orb sphere's color/animation/icon/label now key off `realtimeSpike.status`: Listening/Speaking unchanged; **Connecting/Thinking** reuse the existing neutral `.ud-voice-progress` "gathering data" treatment (no new color, per Stan); **Error** is a new red/danger state (ring, glow, sphere tint, new alert-circle icon) — a DEV-only `simulateError()` on the hook plus a "Simulate voice error" DEV panel button preview it without needing a real failure. `oc-voice-box` lost its live transcript-preview line (redundant — the user's words already appear as a message the instant they're recognized) and its manual "Stop" button (no safe interrupt-one-utterance primitive exists after the crash-fix work removed all `response.cancel` calls — flagged to Stan as a deliberate scope decision, not an oversight; barge-in already covers manual interruption). Allowlist removed entirely (`lib/orb-realtime/access.ts` + the dead `capability/route.ts` deleted); Realtime is available to every authenticated user now. `docs/ui-catalog.md`, `components/OrbHelp.tsx`, and `components/OrbTour.tsx` updated to match (also fixed a pre-existing bug: Help documented a "Continue" button — `onVoiceContinue` — that was already dead code, never rendered).
+
+**Stan's first live device test (iPhone/Chrome) surfaced two real bugs, both fixed and committed (v0.6.218):** (1) The Realtime session's instructions never included `lib/db-schema.ts`'s `DB_SCHEMA` — the serial engine has always had it — so `query_db` calls had no ground truth for real column names; a request needing one (e.g. "which task has gone longest without an update") could guess a non-existent column and fail at the database layer. Fixed by injecting the same `DB_SCHEMA` into the Realtime session instructions (appended as its own block so its line breaks survive; the rest of the instructions are space-joined into one paragraph). (2) The turn route's catch-all only read `.message` from `instanceof Error` objects; a Supabase/Postgrest query error is a plain object with a `.message` but isn't an `Error` instance, so its real reason was silently replaced by a generic "Realtime turn failed." — broadened to read `.message` from any object that has one. Added `realtime-query-db-schema-column-intent-analogue` (Tier 1) and a note in `docs/object-capability-matrix.md`. `npx tsc --noEmit` + focused ESLint clean throughout (0 errors on every touched file).
+
+**Concurrency note:** this work happened while Codex was mid-release (ORB-326 + ORB-337 + v0.6.217, see below) on the same working tree/branch. Confirmed via `git show --stat` that the button-flip work wasn't lost — Stan's `dbbaec0` release commit bundled it in alongside Codex's work. Confirmed no file/line overlap between the two live-testing fixes above and Codex's `query_db` contract-shape fix (different bug: Codex restored the tool's required `table` parameter in the generated contract; this session gave the model the actual column names) before touching anything.
+
+**Still open before the flip is product-default:** DEV-operator acceptance of the typed capabilities themselves (project/knowledge mutations, reads, navigation, prefs, memory, adaptation) on the real main-button control across Safari/Chrome/Edge — prior sessions validated voice reliability/audio quality via the DEV panel, not this. Then a green full Tier 1 before any push. The "Stop button" and "banner dismissibility" decisions above are settled; nothing else is a known open question.
 
 **ORB-337 never recycle todo numbers — 2026-07-18 (Codex, GPT-5) — v0.6.216 — DATABASE MIGRATED + VERIFIED / APP RELEASE PENDING**
 
@@ -72,18 +82,16 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ## Current Uncommitted Changes
 
-- ORB-337 v0.6.216: `scripts/migrations/20260718_never_recycle_todo_numbers.sql`, `scripts/rollbacks/20260718_never_recycle_todo_numbers.sql`, `scripts/verify-never-recycle-todo-numbers.ts`, `app/api/tasks/[id]/route.ts`, `app/actions/orb-converse.ts`, `app/actions/ticket-actions.ts`, `app/actions/import-data.ts`, `docs/api-spec.yaml`, `docs/object-capability-matrix.md`, `docs/orb-337-never-recycle-todo-numbers-plan.md`, `package.json`, `package-lock.json`, `lib/version.ts`, `lib/changelog.ts`, and `HANDOFF.md`.
-- ORB-326 v0.6.215: `components/SystemStateProvider.tsx`, `docs/Consolidate_API_Health_and_Version_Polling.md`, and `docs/orb-309-initialization-performance-plan.md`; shared matrix/release/handoff files now also include ORB-337.
-- ORB-325 main-button work owned by Claude: preserve its uncommitted Realtime/UI files; do not stage or rewrite them as ORB-337 work.
-- `.claude/settings.local.json` — intentional local tool-settings; never committed with feature work. Its `"ask": ["Bash(git push *)"]` is the push gate working correctly — not an allowlist entry, do not "fix" it.
+Clean as of this session's v0.6.218 commit, except the two standing exceptions below (never committed with feature work):
+- `.claude/settings.local.json` — intentional local tool-settings. Its `"ask": ["Bash(git push *)"]` is the push gate working correctly — not an allowlist entry, do not "fix" it.
 - `docs/orb-327-architecture-audit-plan.md` — unrelated untracked architecture-audit plan; preserve.
 
 ---
 
 ## Active Risks / Unresolved Work
 
-- **ORB-337 database migration is active; production maintenance must stay on until the app catches up.** Stan reruns the two repaired Tier 1 cases, then the full Tier 1 suite if focused checks pass; after it is green, push only with Stan's explicit approval, confirm v0.6.217 deployment plus production REST/UI/serial/Realtime create and move behavior, then disable maintenance. Do not leave v0.6.188 paired with the migrated database outside maintenance because its old move narration can calculate the wrong destination address even though the trigger persists the correct one. The rollback reopens the original defect and is emergency-only.
-- **ORB-325 Realtime voice quality is validated; the main-button flip itself is unbuilt.** Voice reliability, audio quality (echo/interruption), and glitches are resolved across the supported matrix. What's left is a full typed-capability sweep + full Tier 1 green, then finalizing and building the actual flip (see Next Priorities — one open sub-question on the warning banner's dismissibility). A deterministic serial fallback remains rejected; Realtime is the decided destination.
+- **ORB-337 migration + v0.6.217 release cycle is complete** — production maintenance confirmed ended by Stan 2026-07-18. The emergency rollback script remains emergency-only; do not run it outside a genuine incident.
+- **ORB-325 main-button flip is built but not yet product-accepted.** Voice reliability/audio quality is validated (prior sessions); the flip itself and this session's two bug fixes are code-complete and committed, but not yet DEV-tested by Stan on the real main control (only the DEV panel path was tested before). What's left: DEV-operator acceptance of the typed capabilities across Safari/Chrome/Edge, then a full green Tier 1. A deterministic serial fallback remains rejected; Realtime is the decided destination.
 - **Ambient false turns from genuine background noise** (not echo — that's fixed) remain an open, lower-priority quality question; Silero is gathering device evidence but is advisory-only today. Never add an English/phrase-specific filter.
 - **Standing, low priority (verified 2026-07-12):** full-project `npm run lint` reports 6 errors + 63 warnings, all pre-existing/unrelated. Focused ORB-325 lint is 0 errors.
 
@@ -91,11 +99,10 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ## Next Priorities
 
-1. **Stan reruns `npm run eval -- --id realtime-close-intent-analogue,realtime-query-db-intent-analogue`, then `npm run eval:t1` if focused green.** If the full tier is green, obtain explicit push approval, deploy the aligned v0.6.217 app, verify production create/move surfaces, then disable maintenance and close ORB-337 with resolution notes + Knowledge Repository entry.
-2. **Finalize + build the main-button flip** (Claude-owned implementation now present in the working tree; preserve its ownership boundary and complete its acceptance/release work).
-3. **DEV-operator acceptance on Safari/Chrome/Edge:** the typed capabilities themselves (project/knowledge mutations, reads, navigation, prefs, memory, adaptation, explicit named-project create, one confirmation, upfront permission, interruption).
-4. Then a green full Tier 1 (Stan runs `npm run eval:t1`) before any push.
-5. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
+1. **Stan tests the real main-button flip** (not just the DEV panel path) across Safari/Chrome/Edge: start/stop, ⌘⇧O, long-press-exit, tool calls/mutations, and the new red error state (use the DEV panel's "Simulate voice error" button to preview it without a real failure).
+2. **DEV-operator acceptance of the typed capabilities themselves** (project/knowledge mutations, reads, navigation, prefs, memory, adaptation, explicit named-project create, one confirmation, upfront permission, interruption) on the real control.
+3. Then a green full Tier 1 (Stan runs `npm run eval:t1`) before any push.
+4. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
 
 ---
 
@@ -103,8 +110,9 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation behavior in **eval cases** + `lib/orb-contract.ts`; Realtime runtime in `docs/orb-325-realtime-voice-flow.md`.
 
-- **Voice — Realtime IS the destination, provider-owned (decided by Stan; implemented 2026-07-17; audio/quality validated same day).** The provider (OpenAI server VAD, `threshold: 0.8`) owns turn detection and barge-in interruption; the client never sends `response.cancel` and creates a response only after a turn transcribes (never for a user turn otherwise). No greeting. Validated clean on Mac Safari/Chrome/Edge, iPad Safari, iPhone Safari. Realtime replaces the serial voice path once the main-button flip is built and gates pass; until then production defaults to serial and Realtime stays dev/allowlist-gated. Do not restore a client-side manual turn state machine or an ASR-confidence/duration ambient filter. No phrase-specific patches or canned responses.
-- **No allowlist once the flip ships (decided by Stan, 2026-07-17).** Realtime becomes available to every authenticated user, not staged per-email — the user base is small enough (Stan + a couple testers) that the staged-rollout mechanism is unneeded overhead. `getRealtimeVoiceAccess`/`ORB_REALTIME_VOICE_ENABLED`/`ORB_REALTIME_VOICE_ALLOWLIST` are to be deleted when the flip is built, not just widened. An unsupported browser (Firefox, or anything unrecognized) is **warned, never blocked** — Realtime still runs, with a banner (reuse the amber alert-banner catalog pattern) saying results may be unpredictable; **persistent every session, dismissible once per session**. The serial voice UI is removed (not kept dormant) once Realtime is confirmed live in production.
+- **Voice — Realtime IS the destination, provider-owned, main button flipped (decided by Stan 2026-07-17; audio/quality validated same day; button flip built 2026-07-18).** The provider (OpenAI server VAD, `threshold: 0.8`) owns turn detection and barge-in interruption; the client never sends `response.cancel` and creates a response only after a turn transcribes. No greeting. `handleOrbTap`/⌘⇧O/"Talk to Orb" all drive `useRealtimeVoiceSpike` directly now — the serial voice engine (`useVoiceMode`) is unreachable from any UI path but not yet deleted (kept as inert rollback code until Realtime is confirmed live in production, then removed, not kept dormant). Do not restore a client-side manual turn state machine or an ASR-confidence/duration ambient filter. No phrase-specific patches or canned responses.
+- **No allowlist (built 2026-07-18).** `getRealtimeVoiceAccess`/`ORB_REALTIME_VOICE_ENABLED`/`ORB_REALTIME_VOICE_ALLOWLIST`/the capability probe route are deleted — Realtime is available to every authenticated user, no staged per-email rollout (small user base makes this the right call). An unsupported browser (Firefox, or anything unrecognized) is **warned, never blocked** — Realtime still runs, with a banner (reuse the amber alert-banner catalog pattern) saying results may be unpredictable; **persistent every session, dismissible once per session** (banner UI itself still to be built — the decision is settled, the warning banner component is not yet wired in).
+- **The voice control box (`oc-voice-box`) has no manual "Stop" button (decided 2026-07-18).** After the crash-fix work removed every `response.cancel` call, there is no safe way to interrupt just one utterance — only a full session stop exists. Wiring "Stop" to that would silently duplicate "End" with a misleading label, so it was removed rather than built with a misleading affordance. Barge-in (talking over Orb) already covers manual interruption. Revisit only as a separate, carefully-reviewed piece of work if Stan wants a dedicated interrupt primitive.
 - **Voice panel visual states reuse existing orb code, no new colors (decided by Stan, 2026-07-17).** Idle/listening/speaking keep production's exact colors/animations. Connecting and Thinking both reuse the existing neutral `.ud-voice-progress` sweep-bar motif (rendered inside the orb sphere, today's "gathering data" indicator) — explicitly not the new accent color a first prototype proposed. The new `error` status (no prior orb precedent) reuses the existing danger/red treatment. `oc-voice-box` needs no changes.
 - **Provider incidents (billing/rate-limit/outage) always go through `lib/orb-model/incidents.ts`** (`classifyProviderFailure` + `notifyOrbIncident` — ticket + admin email, deduplicated), never a one-off log line. Realtime voice was wired to this in v0.6.214 after an OpenAI quota failure was found surfacing only in the server terminal.
 - **Name-first identifiers.** Project **NAME** is the identifier everywhere users/model interact. Project **code** is internal-only, auto-generated, immutable, prefixes todo codes only. References resolve name → exact code → fuzzy name.
@@ -119,7 +127,7 @@ Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation beh
 
 ## AI Tool Used Last Session
 
-`2026-07-18 — Codex (GPT-5)`
+`2026-07-18 — Claude Code (Opus 4.8)`
 
 ---
 

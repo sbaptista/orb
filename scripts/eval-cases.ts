@@ -1119,6 +1119,14 @@ Helm [code: HELM]:
     tier: 1,
     expectTool: { name: 'query_db', params: { table: 'todos' } },
   },
+  {
+    id: 'realtime-query-db-schema-column-intent-analogue',
+    description: 'A Realtime request needing a real column (not exposed by a first-class read tool) routes to query_db — the model must have the actual schema, not guess a column name (ORB-325: Realtime session instructions now inject DB_SCHEMA, matching the serial engine)',
+    productCode: 'ORB',
+    input: 'Which active task has gone the longest without being updated? Check the database directly.',
+    tier: 1,
+    expectTool: { name: 'query_db', params: { table: 'todos' } },
+  },
 
   // ═══════════════════════════════════════════════════════════════════════
   // ORB-266: Memory tools

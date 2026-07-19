@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.218',
+    date: '2026-07-18',
+    changes: [
+      'Fixed Realtime voice database lookups that need a specific column (e.g. "which task has gone longest without an update") failing with a generic error. The voice assistant now has the same database schema reference the text assistant has always had, instead of having to guess column names.',
+      'Fixed Realtime voice errors sometimes reporting a generic failure message instead of the actual reason, making some issues harder to diagnose.',
+    ],
+  },
+  {
     version: 'v0.6.217',
     date: '2026-07-18',
     changes: [
