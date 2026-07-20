@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.221',
+    date: '2026-07-19',
+    changes: [
+      'Unified TodoForm and TodoPanel into a single TodoEditor component, eliminating duplicate form code. Category field is now optional with None as the first option mapping to NULL. Priority label standardized to None. Status field is always visible on both create and edit. URLs field removed from the UI (kept in database). Per-field validation with s-error class displays inline errors in real-time; required fields like Title show errors immediately on form open. Fixed project ID assignment for new todos to use the currently selected project instead of defaulting to the first project alphabetically.',
+    ],
+  },
+  {
     version: 'v0.6.220',
     date: '2026-07-19',
     changes: [

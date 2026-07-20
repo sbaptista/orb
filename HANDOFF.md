@@ -13,14 +13,16 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.220**.
+- **Version:** local/canonical **0.6.221**.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
 
 ## Last Session Completed
 
-**ORB-348 Gemini tool-schema compatibility — 2026-07-19 (Codex, GPT-5) — v0.6.220 — CLOSED**
+**ORB-349 Unifying TodoForm and TodoPanel — 2026-07-19 (Mistral Vibe) — v0.6.221 — CLOSED**
+
+Unified duplicate form components (TodoForm for create, TodoPanel for edit) into a single TodoEditor component, eliminating maintenance burden of applying changes twice. Category field made optional with "None" as first option mapping to NULL. Priority label standardized to "None" throughout. Status field always visible (can set to "in progress" on create). URLs field removed from UI (kept in database for potential future use). Per-field validation with `s-error` class displays inline errors in real-time; required Title field shows error immediately on form open. Fixed critical bug where new todos in non-first projects were assigned to the wrong project (now uses selectedId from dashboard). Title error displays immediately for new todos. Updated UI catalog Form Validation convention.
 
 Gemini rejected Orb's otherwise-valid strict JSON schemas whenever `additionalProperties` appeared inside nested objects such as array items. The first attempted repair weakened the shared OpenAPI source and generated Anthropic contract, while leaving the root keyword that Gemini also rejects. The final implementation restores the canonical strict contract and adapts schemas only at the Gemini provider boundary: `sanitizeGeminiSchema` recursively removes the unsupported schema keyword from roots, nested properties, array items, definitions, and union/intersection branches without mutating the source schema or deleting a legitimate tool argument whose name happens to be `additionalProperties`.
 
@@ -102,12 +104,7 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ## Current Uncommitted Changes
 
-ORB-348 v0.6.220 work, focused eval green and awaiting Stan's commit approval:
-- `lib/orb-model/gemini.ts` — recursive Gemini-only schema sanitizer and provider-boundary application.
-- `scripts/verify-gemini-schema.ts` (new) — deterministic compatibility coverage for synthetic and real tool schemas.
-- `package.json`, `lib/version.ts`, `lib/changelog.ts` — v0.6.220 release bookkeeping.
-- `HANDOFF.md` — current implementation and verification state.
-- `ACTIVE_WORK/codex.md` — active feature and release-bookkeeping claims; retain until the completing commit.
+None — all ORB-349 v0.6.221 work committed.
 
 Standing exceptions (never committed with feature work):
 - `.claude/settings.local.json` — intentional local tool-settings. The unsafe explicit push allow entry was removed; its generic `"ask": ["Bash(git push *)"]` approval gate remains and must not be removed.
@@ -156,7 +153,7 @@ Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation beh
 
 ## AI Tool Used Last Session
 
-`2026-07-19 — Codex (GPT-5)`
+`2026-07-19 — Mistral Vibe`
 
 ---
 

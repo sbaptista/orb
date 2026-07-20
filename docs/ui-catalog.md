@@ -535,7 +535,7 @@ Do not use a gear icon for item-level actions. Do not use a kebab for page navig
 
 **Use for:** Todo edit, new project form, distill modal, any focused editing task.  
 **Use `modal-compose` for:** Compose/edit workflows with a live preview (e.g. ticket email editing).
-**Canonical examples:** `components/AddProductModal.tsx`, `components/TodoPanel.tsx`, `components/DistillModal.tsx`, `components/TodoForm.tsx`.
+**Canonical examples:** `components/AddProductModal.tsx`, `components/TodoEditor.tsx`, `components/DistillModal.tsx`.
 
 ### Editor Modal (`EditorModal`)
 **File:** `components/ui/EditorModal.tsx`, `lib/hooks/useDirtyForm.ts`
@@ -544,7 +544,7 @@ Behavioral owner for focused editor dialogs. It composes the existing `modal-cen
 - `useDirtyForm` holds the opening baseline and compares a normalized form value. Call `markSaved()` with normalized saved data after a successful persistence operation.
 - `EditorModal` owns backdrop/X/Escape dismissal requests, Shift+Return save-and-close, a single dirty-dismiss confirmation, focus placement, and default Save/Cancel footer behavior. `readOnly` supports inspection views; pair it with `showCloseFooter` for an X plus one Close command, and `stacked` when it opens above another modal.
 - Standard editor contract: untouched form = Save disabled; a changed form = Save enabled; reverted or successfully saved form = Save disabled.
-- Use `headerStart`, `footerStart`, and `destructiveConfirmation` only for domain controls such as TodoPanel's task reference and delete action. Do not replace the save/close lifecycle with arbitrary footer code.
+- Use `headerStart`, `footerStart`, and `destructiveConfirmation` only for domain controls such as TodoEditor's task reference and delete action. Do not replace the save/close lifecycle with arbitrary footer code.
 - Search, filter, confirmation, and command dialogs are separate modal families and do not inherit Shift+Return.
 
 **Deprecated patterns (removed):** `.apm-modal`, `.dm-modal`, `.tf-*` — replaced by `modal-center` with width modifiers.
@@ -567,9 +567,9 @@ Voice settings save/reset actions also dispatch the existing same-tab `orb:tts-c
 
 Selected state: `aria-selected="true"` → bg3 background, medium font weight. Meta text lightens to text3.
 
-### Todo Create Modal
-**File:** `components/TodoForm.tsx`
-Uses the canonical centered modal pattern with `modal-lg`, `modal-header`, `modal-body`, and `modal-footer`. The body uses `pf-field` labels, a larger title input, a responsive two-column metadata grid, and a monospace URL textarea. Do not reintroduce standalone `.tf-*` modal shells.
+### Todo Editor Modal
+**File:** `components/TodoEditor.tsx`
+Unified component handling both create and edit modes. Uses the `EditorModal` pattern with `modal-lg`, `modal-header`, `modal-body`, and `modal-footer`. The body uses `pf-field` labels, a larger title input, a responsive two-column metadata grid for Status and Priority, and ComboSelect for Category. Status field is always visible. URLs field removed from UI (kept in DB). Do not reintroduce standalone `.tf-*` modal shells.
 
 ### Slide Panel (`slide-panel`)
 **Status:** Being phased out in favor of `modal-center`  
@@ -587,7 +587,7 @@ Right-anchored slide-in panel. Still used in some places but `modal-center` is t
 ## Form Fields
 
 ### Panel/Modal Fields (`pf-*`)
-**Used in:** TodoPanel, TodoForm, any modal form
+**Used in:** TodoEditor, any modal form
 
 | Class | Purpose |
 |---|---|
@@ -597,9 +597,20 @@ Right-anchored slide-in panel. Still used in some places but `modal-center` is t
 | `pf-select` | Select dropdown — styled to match inputs |
 | `pf-textarea` | Multi-line textarea — min-height 80px |
 
+### Form Validation
+**Convention:** Per-field validation with inline error messages. Each field container that has a validation error gets the `s-error` class, and the specific error message is rendered as a child `<p className="s-error">` element below the input.
+
+- Real-time validation: errors appear/disappear as the user types
+- Required fields (Title) show error immediately until valid
+- Error message tells the user exactly what is wrong and how to fix it
+
+| Class | Purpose |
+|---|---|
+| `s-error` | Applied to field container when invalid; also used for error message text — small text (`var(--fs-sm)`), error color (`var(--error)`), with bottom margin (`var(--sp-md)`) |
+
 ### Searchable Select (`ComboSelect`)
 **File:** `components/ui/ComboSelect.tsx`
-**Used in:** TodoPanel, TodoForm (Category field)
+**Used in:** TodoEditor (Category field)
 
 For picking one item from a small-to-medium named list where a plain `pf-select` would be unwieldy (e.g. a per-project list that can grow past a dozen entries) but a full modal search (like the project switcher) is overkill for an inline form field. A `pf-input`-styled text box that opens a `pf-combo-menu` popover on focus, filtered live by typed text; click an option or press Enter on the top match to select, Escape or an outside click closes without changing the value. Not a full ARIA combobox widget — no arrow-key roving yet, click/Enter/Escape only.
 

@@ -1,4 +1,4 @@
-/** Shared todo/project domain types, used by TodoForm, QueryResultsModal, and TodoPanel. */
+/** Shared todo/project domain types, used by TodoEditor, QueryResultsModal. */
 
 export type Todo = {
   id: string

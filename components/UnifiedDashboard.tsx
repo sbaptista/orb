@@ -30,8 +30,7 @@ import FilterKebab from './ui/FilterKebab'
 import { isActive, ACTIVE_STATUSES, PARKED_STATUSES } from '@/lib/status-groups'
 import { computeUrgency, isDueWithinWarning, type Urgency } from '@/lib/orb-state'
 // PrintModal moved to AppNav
-import TodoPanel from './TodoPanel'
-import TodoForm from './TodoForm'
+import TodoEditor from './TodoEditor'
 import { logAudit } from '@/app/actions/log-audit'
 import { deleteProject } from '@/app/actions/manage-project'
 import DragDivider from './DragDivider'
@@ -918,7 +917,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     fetchStatuses()
   }, [supabase])
 
-  // Load categories — all visible projects at once (small table); TodoPanel
+  // Load categories — all visible projects at once (small table); TodoEditor
   // filters to the todo's own product_id, same pattern as priorities/statuses.
   useEffect(() => {
     async function fetchCategories() {
@@ -2312,18 +2311,27 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       </div>
 
       {/* ── Modals ── */}
-      {selectedTodo && (
-        <TodoPanel key={selectedTodo.id} todo={selectedTodo} products={products as any} priorities={priorities as any} statuses={statuses} categories={categories} isAll={false}
-          onClose={() => setSelectedTodo(null)}
-          onSave={updated => { setTodos(prev => prev.map(t => t.id === updated.id ? updated : t)); setSelectedTodo(updated); fetchOrbTodos() }}
-          onDelete={id => { setTodos(prev => prev.filter(t => t.id !== id)); setSelectedTodo(null); fetchOrbTodos() }}
-        />
-      )}
-
-      {showNewTodo && (
-        <TodoForm productId={selectedId ?? undefined} products={products as any} priorities={priorities as any} categories={categories}
-          onClose={() => setShowNewTodo(false)}
-          onCreate={todo => { setTodos(prev => [...prev, todo]); setShowNewTodo(false); fetchOrbTodos() }}
+      {(selectedTodo || showNewTodo) && (
+        <TodoEditor
+          key={selectedTodo?.id ?? 'new'}
+          todo={selectedTodo ?? null}
+          productId={selectedId ?? undefined}
+          products={products as any}
+          priorities={priorities as any}
+          statuses={statuses}
+          categories={categories}
+          onClose={() => { setSelectedTodo(null); setShowNewTodo(false) }}
+          onSave={updated => {
+            if (selectedTodo) {
+              setTodos(prev => prev.map(t => t.id === updated.id ? updated : t))
+              setSelectedTodo(updated)
+            } else {
+              setTodos(prev => [...prev, updated])
+              setShowNewTodo(false)
+            }
+            fetchOrbTodos()
+          }}
+          onDelete={selectedTodo ? (id => { setTodos(prev => prev.filter(t => t.id !== id)); setSelectedTodo(null); fetchOrbTodos() }) : undefined}
         />
       )}
 
