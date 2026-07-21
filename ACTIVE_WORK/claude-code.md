@@ -4,4 +4,4 @@ Written only by Claude Code. Rules: `docs/multi-agent-concurrency-protocol.md`.
 
 ## Active Claims
 
-*(none — ORB-325 mutation-authorization hardening + batch todo mutations shipped as v0.6.219, commit 184bb90, pushed 2026-07-19. ORB-325 closed. Follow-ups filed: ORB-342 (serial/Realtime convergence), ORB-348 (pre-existing Gemini tool-schema bug).)*
+*(none — ORB-336 eval/Orb prompt-cache cost fix shipped as v0.6.223, Tier 1 74/74. ORB-336 closed with resolution notes + Knowledge Repo entry b4abc5eb-0580-4e0d-be61-100d9effc06a.)*
