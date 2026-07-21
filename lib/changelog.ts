@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.223',
+    date: '2026-07-20',
+    changes: [
+      'Reduced Orb AI cost: the UI catalog reference (used internally so Orb knows the app\'s layout and navigation) was being resent at full price on every single request instead of being cached, since it sat in the wrong part of the prompt. Moved it into the cached portion — no change to what Orb can see or do, just cheaper to run.',
+    ],
+  },
+  {
     version: 'v0.6.221',
     date: '2026-07-19',
     changes: [
