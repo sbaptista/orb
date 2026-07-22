@@ -569,7 +569,7 @@ Selected state: `aria-selected="true"` → bg3 background, medium font weight. M
 
 ### Todo Editor Modal
 **File:** `components/TodoEditor.tsx`
-Unified component handling both create and edit modes. Uses the `EditorModal` pattern with `modal-lg`, `modal-header`, `modal-body`, and `modal-footer`. The body uses `pf-field` labels, a larger title input, a responsive two-column metadata grid for Status and Priority, and ComboSelect for Category. Status field is always visible. URLs field removed from UI (kept in DB). Do not reintroduce standalone `.tf-*` modal shells.
+Unified component handling both create and edit modes. Uses the `EditorModal` pattern with `modal-lg`, `modal-header`, `modal-body`, and `modal-footer`. The body uses `pf-field` labels, a larger title input, a responsive two-column metadata grid for Status and Priority, and the same native `pf-select` pattern for Status, Priority, Category, and Project. Status field is always visible. URLs field removed from UI (kept in DB). Do not reintroduce standalone `.tf-*` modal shells.
 
 ### Slide Panel (`slide-panel`)
 **Status:** Being phased out in favor of `modal-center`  
@@ -607,22 +607,6 @@ Right-anchored slide-in panel. Still used in some places but `modal-center` is t
 | Class | Purpose |
 |---|---|
 | `s-error` | Applied to field container when invalid; also used for error message text — small text (`var(--fs-sm)`), error color (`var(--error)`), with bottom margin (`var(--sp-md)`) |
-
-### Searchable Select (`ComboSelect`)
-**File:** `components/ui/ComboSelect.tsx`
-**Used in:** TodoEditor (Category field)
-
-For picking one item from a small-to-medium named list where a plain `pf-select` would be unwieldy (e.g. a per-project list that can grow past a dozen entries) but a full modal search (like the project switcher) is overkill for an inline form field. A `pf-input`-styled text box that opens a `pf-combo-menu` popover on focus, filtered live by typed text; click an option or press Enter on the top match to select, Escape or an outside click closes without changing the value. Not a full ARIA combobox widget — no arrow-key roving yet, click/Enter/Escape only.
-
-| Class | Purpose |
-|---|---|
-| `pf-combo` | Wrapper — `position: relative`, anchors the popover |
-| `pf-combo-backdrop` | Full-viewport invisible layer that closes the popover on outside click |
-| `pf-combo-menu` | Popover — opens below the input, `max-height: 220px` with scroll, same surface treatment (`--bg2`/`--border`/`--shadow-lg`) as `dropdown-menu` |
-| `pf-combo-item` | Option row — same hover/selected treatment as `dropdown-item`, but block-width and larger touch target (44px min-height) for a full-width form field rather than a narrow kebab menu |
-| `pf-combo-empty` | Muted message shown when there are zero options or zero matches |
-
-Reuses `pf-input` directly for the text field rather than inventing a second input style. `dropdown-menu`/`dropdown-item` were not reused as-is because they open upward and right-aligned for a narrow kebab-menu context — wrong direction and width for an inline form-field popover.
 
 ### Settings Fields (`s-form`)
 **Used in:** Settings pages  

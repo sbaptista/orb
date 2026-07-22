@@ -13,12 +13,22 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.221**.
+- **Version:** local/canonical **0.6.224**.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
 
 ## Last Session Completed
+
+**ORB-355 Category dropdown regression — 2026-07-21 (Codex, GPT-5) — v0.6.224 — CLOSED**
+
+The Todo editor's Category field now uses the same native `pf-select` dropdown as Status and Priority. All project categories render as native options, `None` remains the first option and maps to `category_id: null`, and changing projects still clears the category. Removed the now-unused `ComboSelect` component, its `pf-combo*` CSS, and its catalog entry; updated the canonical Todo Editor catalog description to record the shared native-select model.
+
+Verified locally against ORB-355: the modal exposed all ten Orb categories plus None; selecting Bug changed the form and enabled Save; the test change was discarded without persisting. `npx tsc --noEmit`, focused ESLint (0 errors; two pre-existing warnings in `TodoEditor.tsx`), and UI catalog verification pass. No Orb-conversation behavior, database query/schema, Realtime subscription, or async path changed, so no eval case, database health run, capability-matrix update, or new performance span was required; the existing todo-save span continues to measure persistence.
+
+Used the cataloged `TodoEditor`/`EditorModal` form family and the existing `pf-select` model from Status and Priority. The Knowledge Repository was searched before closure; entry `aae91929-af63-415b-9563-5731fc055b2b` links this fix to the ORB-349 unification entry rather than superseding it, because ORB-349's remaining facts are still valid.
+
+**Previous completed session:**
 
 **ORB-349 Unifying TodoForm and TodoPanel — 2026-07-19 (Mistral Vibe) — v0.6.221 — CLOSED**
 
@@ -30,7 +40,7 @@ Added `scripts/verify-gemini-schema.ts`, which tests synthetic deeply nested sch
 
 No UI, database schema, Realtime subscription, or user-facing performance path changed; no UI catalog, database health run, object-capability matrix update, or new performance instrumentation was required. ORB-348 was closed with full resolution notes. The Knowledge Repository was searched first; no entry covered the repair, so a new entry titled **“ORB-348 resolved: Gemini tool schemas adapt at the provider boundary”** was created. During repository inspection, an explicit `git push origin main` allow entry was removed from `.claude/settings.local.json`; the generic push approval gate remains intact.
 
-**Previous completed session:**
+**Earlier completed session:**
 
 **ORB-325 mutation-authorization hardening + Realtime batch todo mutations — 2026-07-19 (Claude Code, Sonnet 5) — v0.6.219 — CLOSED**
 
@@ -104,11 +114,16 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ## Current Uncommitted Changes
 
-None — all ORB-349 v0.6.221 work committed.
+None — ORB-355 v0.6.224 is committed locally.
 
 Standing exceptions (never committed with feature work):
 - `.claude/settings.local.json` — intentional local tool-settings. The unsafe explicit push allow entry was removed; its generic `"ask": ["Bash(git push *)"]` approval gate remains and must not be removed.
 - `docs/orb-327-architecture-audit-plan.md` — unrelated untracked architecture-audit plan; preserve.
+
+Other-agent/unrelated local state to preserve:
+- `ACTIVE_WORK/claude-code.md` — modified Claude Code ledger.
+- `ACTIVE_WORK/mistral-vibe.md` — untracked Mistral Vibe ledger.
+- `docs/orb-353-ai-usage-warning-plan.md` — untracked ORB-353 plan.
 
 ---
 
@@ -153,7 +168,7 @@ Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation beh
 
 ## AI Tool Used Last Session
 
-`2026-07-19 — Mistral Vibe`
+`2026-07-21 — Codex (GPT-5)`
 
 ---
 

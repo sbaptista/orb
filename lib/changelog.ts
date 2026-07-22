@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.224',
+    date: '2026-07-21',
+    changes: [
+      'Restored the Category list in the todo editor by replacing its unreliable custom searchable field with the same native dropdown used for Status and Priority. Category remains optional with None mapping to no category, and the obsolete custom popover code and styles were removed.',
+    ],
+  },
+  {
     version: 'v0.6.223',
     date: '2026-07-20',
     changes: [

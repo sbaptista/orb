@@ -2655,58 +2655,6 @@ mark.crud-highlight {
   background: var(--pill-active-bg);
 }
 
-.pf-combo {
-  position: relative;
-}
-
-.pf-combo-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 54;
-}
-
-.pf-combo-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin-top: 4px;
-  z-index: 55;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  box-shadow: var(--shadow-lg);
-  padding: 4px 0;
-  max-height: 220px;
-  overflow-y: auto;
-}
-
-.pf-combo-item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  border: none;
-  background: none;
-  padding: 8px 12px;
-  min-height: 40px;
-  font-size: var(--fs-base);
-  font-family: var(--font-ui);
-  color: var(--text);
-  cursor: pointer;
-  transition: background var(--transition);
-}
-
-.pf-combo-item:hover,
-.pf-combo-item[aria-selected="true"] {
-  background: var(--pill-active-bg);
-}
-
-.pf-combo-empty {
-  padding: 8px 12px;
-  font-size: var(--fs-sm);
-  color: var(--muted);
-}
-
 .btn-overflow {
   display: inline-flex;
   align-items: center;

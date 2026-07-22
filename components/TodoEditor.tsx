@@ -10,7 +10,6 @@ import { collectSystemInfo } from '@/lib/system-info'
 import type { Todo, Product, Priority, StatusDef } from '@/lib/todo-types'
 import { useDirtyForm } from '@/lib/hooks/useDirtyForm'
 import EditorModal from '@/components/ui/EditorModal'
-import ComboSelect from '@/components/ui/ComboSelect'
 import { startInteraction } from '@/lib/performance/telemetry'
 
 type Props = {
@@ -137,10 +136,7 @@ export default function TodoEditor({
     return true
   }
 
-  const projectCategories = [
-    { id: '', name: 'None', product_id: '' },
-    ...categories.filter(c => c.product_id === form.product_id),
-  ]
+  const projectCategories = categories.filter(c => c.product_id === form.product_id)
 
   // Helper to get error class for a field
   const getFieldClass = (field: keyof FieldErrors) => {
@@ -422,14 +418,17 @@ export default function TodoEditor({
           {/* Category */}
           <div className="pf-field">
             <label htmlFor="te-category" className="pf-label">Category</label>
-            <ComboSelect
+            <select
               id="te-category"
-              options={projectCategories}
+              className="pf-select"
               value={form.category_id ?? ''}
-              onChange={id => setForm(f => ({ ...f, category_id: id === '' ? null : id }))}
-              placeholder="Select a category..."
-              emptyMessage="This project has no categories yet — add one in Settings → Categories."
-            />
+              onChange={e => setForm(f => ({ ...f, category_id: e.target.value || null }))}
+            >
+              <option value="">None</option>
+              {projectCategories.map(category => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Product — only show when multiple projects */}
