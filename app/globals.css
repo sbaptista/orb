@@ -5699,7 +5699,8 @@ mark.crud-highlight {
   font-size: var(--fs-sm);
   color: var(--muted);
   cursor: pointer;
-  padding: 4px 0;
+  min-height: 44px;
+  padding: var(--sp-sm) var(--sp-md);
 }
 
 

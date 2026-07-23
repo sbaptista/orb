@@ -5,6 +5,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export interface PasskeyResult<T = void> {
   ok: boolean
   error?: string
+  failureCode?: PasskeyFailureCode
+  stage?: PasskeyRegistrationStage
   data?: T
 }
 
@@ -21,10 +23,27 @@ export type PasskeyAuthStage =
   | 'credential_serialized'
   | 'authentication_verified'
 
+export type PasskeyRegistrationStage =
+  | 'challenge_requested'
+  | 'challenge_received'
+  | 'credential_prompt_opened'
+  | 'credential_created'
+  | 'credential_verified'
+
+export type PasskeyFailureCode =
+  | 'cancelled'
+  | 'network_error'
+  | 'session_expired'
+  | 'unsupported'
+  | 'already_registered'
+  | 'security_error'
+  | 'unknown_error'
+
 // ── Support Detection ──
 
 /** The only domain where the WebAuthn RP ID is configured. */
 const PASSKEY_RP_HOSTNAME = 'orb-eight-lake.vercel.app'
+const PASSKEY_SETUP_DEFERRED_PREFIX = 'orb_passkey_setup_deferred_'
 
 /**
  * Check if the current browser supports WebAuthn / passkeys.
@@ -45,6 +64,19 @@ export function isPasskeyAvailable(): boolean {
   if (!isPasskeySupported()) return false
   if (typeof window === 'undefined') return false
   return window.location.hostname === PASSKEY_RP_HOSTNAME
+}
+
+/** User-scoped recovery preference: allow Orb without forcing enrollment again. */
+export function deferPasskeySetup(userId: string) {
+  try { localStorage.setItem(`${PASSKEY_SETUP_DEFERRED_PREFIX}${userId}`, 'true') } catch {}
+}
+
+export function isPasskeySetupDeferred(userId: string) {
+  try { return localStorage.getItem(`${PASSKEY_SETUP_DEFERRED_PREFIX}${userId}`) === 'true' } catch { return false }
+}
+
+export function clearPasskeySetupDeferred(userId: string) {
+  try { localStorage.removeItem(`${PASSKEY_SETUP_DEFERRED_PREFIX}${userId}`) } catch {}
 }
 
 // ── Conditional Mediation Support ──
@@ -119,6 +151,35 @@ function parseRequestOptions(options: any): PublicKeyCredentialRequestOptions {
   return parsed
 }
 
+/** Parse registration options for navigator.credentials.create(). */
+function parseCreationOptions(options: any): PublicKeyCredentialCreationOptions {
+  if (typeof PublicKeyCredential !== 'undefined' &&
+      'parseCreationOptionsFromJSON' in PublicKeyCredential &&
+      typeof (PublicKeyCredential as any).parseCreationOptionsFromJSON === 'function') {
+    return (PublicKeyCredential as any).parseCreationOptionsFromJSON(options)
+  }
+
+  const parsed: PublicKeyCredentialCreationOptions = {
+    ...options,
+    challenge: base64urlDecode(options.challenge).buffer,
+    user: {
+      ...options.user,
+      id: base64urlDecode(options.user.id).buffer,
+    },
+  }
+
+  if (options.excludeCredentials?.length > 0) {
+    parsed.excludeCredentials = options.excludeCredentials.map((cred: any) => ({
+      ...cred,
+      id: base64urlDecode(cred.id).buffer,
+      type: cred.type || 'public-key',
+      transports: cred.transports,
+    }))
+  }
+
+  return parsed
+}
+
 /**
  * Serialize a PublicKeyCredential response for Supabase's verify endpoint.
  */
@@ -145,6 +206,61 @@ function serializeCredentialResponse(credential: Credential): any {
     type: 'public-key',
     clientExtensionResults: cred.getClientExtensionResults(),
     authenticatorAttachment: (cred as any).authenticatorAttachment ?? undefined,
+  }
+}
+
+/** Serialize a registration credential for Supabase's verification endpoint. */
+function serializeRegistrationResponse(credential: Credential): any {
+  if ('toJSON' in credential && typeof (credential as any).toJSON === 'function') {
+    return (credential as any).toJSON()
+  }
+
+  const cred = credential as PublicKeyCredential
+  const response = cred.response as AuthenticatorAttestationResponse
+
+  return {
+    id: cred.id,
+    rawId: cred.id,
+    response: {
+      attestationObject: base64urlEncode(new Uint8Array(response.attestationObject)),
+      clientDataJSON: base64urlEncode(new Uint8Array(response.clientDataJSON)),
+    },
+    type: 'public-key',
+    clientExtensionResults: cred.getClientExtensionResults(),
+    authenticatorAttachment: (cred as any).authenticatorAttachment ?? undefined,
+  }
+}
+
+function passkeyErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message || error.name
+  if (error && typeof error === 'object') {
+    const value = error as { message?: unknown; name?: unknown; code?: unknown }
+    return [value.name, value.code, value.message].filter(part => typeof part === 'string').join(': ')
+  }
+  return String(error || 'Passkey registration failed')
+}
+
+function classifyRegistrationFailure(error: unknown): PasskeyFailureCode {
+  const message = passkeyErrorMessage(error).toLowerCase()
+  if (/abort|cancel|not.?allowed|timed? ?out/.test(message)) return 'cancelled'
+  if (/network|fetch|offline|connection/.test(message)) return 'network_error'
+  if (/session.*(missing|expired)|jwt.*expired|refresh token|not authenticated/.test(message)) return 'session_expired'
+  if (/not.?supported|unsupported|webauthn.*disabled/.test(message)) return 'unsupported'
+  if (/invalidstate|already.*(registered|exists)|exclude.*credential/.test(message)) return 'already_registered'
+  if (/security|relying party|rp.?id|domain|origin/.test(message)) return 'security_error'
+  return 'unknown_error'
+}
+
+function registrationFailure(
+  error: unknown,
+  stage: PasskeyRegistrationStage
+): PasskeyResult<PasskeyEntry> {
+  const failureCode = classifyRegistrationFailure(error)
+  return {
+    ok: false,
+    error: failureCode === 'cancelled' ? 'cancelled' : passkeyErrorMessage(error),
+    failureCode,
+    stage,
   }
 }
 
@@ -271,26 +387,48 @@ export async function authenticateWithPasskey(
  * Requires an active session.
  */
 export async function registerPasskey(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  onStage?: (stage: PasskeyRegistrationStage) => void
 ): Promise<PasskeyResult<PasskeyEntry>> {
+  let stage: PasskeyRegistrationStage = 'challenge_requested'
   try {
-    const { data, error } = await (supabase.auth as any).registerPasskey()
-
-    if (error) {
-      const m = error.message || ''
-      if (m.includes('AbortError') || m.includes('cancelled') || m.includes('canceled') || m.includes('not allowed')) {
-        return { ok: false, error: 'cancelled' }
-      }
-      return { ok: false, error: m }
+    onStage?.(stage)
+    const start = await (supabase.auth as any).passkey.startRegistration()
+    if (start.error || !start.data) {
+      return registrationFailure(start.error ?? new Error('Passkey registration challenge was unavailable'), stage)
     }
 
-    return { ok: true, data: data }
+    stage = 'challenge_received'
+    onStage?.(stage)
+    const publicKey = parseCreationOptions(start.data.options)
+
+    stage = 'credential_prompt_opened'
+    onStage?.(stage)
+    const credential = await navigator.credentials.create({ publicKey })
+    if (!credential) {
+      return registrationFailure(new Error('No credential was created'), stage)
+    }
+
+    stage = 'credential_created'
+    onStage?.(stage)
+    const serialized = serializeRegistrationResponse(credential)
+    const verify = await (supabase.auth as any).passkey.verifyRegistration({
+      challengeId: start.data.challenge_id,
+      credential: serialized,
+    })
+    if (verify.error) return registrationFailure(verify.error, stage)
+
+    stage = 'credential_verified'
+    onStage?.(stage)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user.id) clearPasskeySetupDeferred(session.user.id)
+    } catch {
+      // Enrollment succeeded; local preference cleanup must never turn that into a failure.
+    }
+    return { ok: true, data: verify.data as PasskeyEntry, stage }
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
-    if (msg.includes('not allowed')) {
-      return { ok: false, error: 'cancelled' }
-    }
-    return { ok: false, error: msg }
+    return registrationFailure(err, stage)
   }
 }
 

@@ -135,10 +135,10 @@ The Account page uses the calm `MuralCanvas` behind a centered settings surface.
 | `account-dialog-copy` | Readable explanatory dialog text |
 
 ### Login / Auth Pages (`auth-*`)
-**Files:** `app/auth/login/page.tsx`, `app/auth/verify-otp/page.tsx`
+**Files:** `app/auth/login/page.tsx`, `app/auth/verify-otp/page.tsx`, `app/auth/setup-passkey/page.tsx`
 **CSS prefix:** `auth-`
 
-Centered auth card over the calm `MuralCanvas`, matching the dashboard/account world. The login card leads with two explicit sign-in paths — a **passkey** button (key glyph, `auth-passkey-btn`) on top, then an email path that requests a verification code. There is no passkey autofill (WebAuthn conditional mediation was removed). When passkeys aren't available (unsupported browser / host), the passkey button and divider are hidden and the subtitle switches to the email-only prompt — the same state new users get. The calm ambient Orb (`auth-orb`) floats on the card's top-right corner, breathing at the calm 5.5s tempo.
+Centered auth card over the calm `MuralCanvas`, matching the dashboard/account world. The login card leads with two explicit sign-in paths — a **passkey** button (key glyph, `auth-passkey-btn`) on top, then an email path that requests a verification code. There is no passkey autofill (WebAuthn conditional mediation was removed). When passkeys aren't available (unsupported browser / host), the passkey button and divider are hidden and the subtitle switches to the email-only prompt — the same state new users get. The calm ambient Orb (`auth-orb`) floats on the card's top-right corner, breathing at the calm 5.5s tempo. First-run passkey setup uses the same card, primary action, error panel, and back-link patterns. A failed ceremony gives failure-specific recovery steps, retries, reconciles a credential that may have committed despite a response error, and always allows the invitee to continue to Orb and register later from Account.
 
 | Class | Purpose |
 |---|---|
@@ -152,6 +152,7 @@ Centered auth card over the calm `MuralCanvas`, matching the dashboard/account w
 | `auth-divider` | "or" separator between passkey and email paths |
 | `auth-field` / `auth-label` / `auth-input` | Email field |
 | `auth-info` / `auth-error` | Cooldown notice / error panel |
+| `auth-back` | Secondary auth navigation/recovery action with a 44px minimum touch target |
 | `auth-dev-bypass` | Dev-only quick login buttons |
 
 ### Ambient Dashboard (`dash-*`)

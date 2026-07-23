@@ -13,12 +13,20 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.230**.
+- **Version:** local/canonical **0.6.231**.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
 
 ## Last Session Completed
+
+**ORB-354 invited-user passkey recovery — 2026-07-23 (Codex, GPT-5) — v0.6.231 — RELEASED, TODO OPEN PENDING PRODUCTION-DOMAIN VERIFICATION**
+
+Live database evidence showed the invitee's “Apple Passwords” credential was created 12 seconds after her public user record and later authenticated successfully, despite the setup experience being reported as failed. The exact first error was unrecoverable because enrollment had no telemetry. Replaced the opaque registration call with Supabase's matching two-step challenge/device/verify flow so `auth / passkey-enrollment / register` records each boundary. After any non-cancellation error, setup now lists passkeys: if the server committed the credential despite a lost/failed response, the page treats it as success and continues instead of showing a false failure.
+
+When no credential exists, the page maps network, expired-session, unsupported-browser, device-security, duplicate-credential, and unknown failures to calm, concrete recovery instructions. Every authenticated invitee can choose **Continue to Orb — add a passkey later from Account**; that user-scoped browser preference prevents `PasskeyGate` from trapping them in a redirect loop, while Account's existing non-admin passkey manager remains available at `/account`. Successful registration clears the deferral preference. The setup page now uses the cataloged `auth-page`/`auth-card` family over the calm `MuralCanvas`, and the shared `auth-back` action now meets the 44px minimum touch target.
+
+No application-table query, schema, Realtime subscription, high-frequency write, or database migration was added. The only new calls are Supabase Auth passkey operations within the existing user-triggered ceremony. Updated the auth UI catalog and login/auth performance matrix. TypeScript, focused lint, UI catalog verification, and `git diff --check` pass. The real ceremony is production-domain-bound by the configured WebAuthn RP ID, so localhost cannot complete end-to-end registration; production-domain verification remains required before closing ORB-354. This is not an Orb-conversation change, so no eval case is required.
 
 **ORB-353 AI usage approaching-limit warning — 2026-07-22/23 (Claude Code, Sonnet 5) — v0.6.229 — CLOSED**
 
@@ -174,11 +182,12 @@ Standing exceptions (never committed with feature work):
 
 ## Next Priorities
 
-1. **ORB-357** — plan complete per-project category CRUD and lifecycle before restoring Category to todo editors (currently Deferred).
-2. **ORB-342** — the fuller serial/Realtime pending-mutation convergence (three mechanisms → one shared pattern), once `propose_todo_batch` has some real-world use.
-3. **The `onMutation` project-list-refresh gap** in `UnifiedDashboard.tsx` — decide whether it's its own fix or folds into ORB-342.
-4. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
-5. Continued live use of Realtime voice (now production-default, ORB-325 closed) — watch for anything `propose_todo_batch`, the multilingual confirmation fallback, or the confabulation-honesty fix miss in practice.
+1. **ORB-354** — verify successful registration, a simulated/reproducible failure, committed-credential reconciliation, and Continue-to-Orb recovery on the production domain before closing.
+2. **ORB-357** — plan complete per-project category CRUD and lifecycle before restoring Category to todo editors (currently Deferred).
+3. **ORB-342** — the fuller serial/Realtime pending-mutation convergence (three mechanisms → one shared pattern), once `propose_todo_batch` has some real-world use.
+4. **The `onMutation` project-list-refresh gap** in `UnifiedDashboard.tsx` — decide whether it's its own fix or folds into ORB-342.
+5. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
+6. Continued live use of Realtime voice (now production-default, ORB-325 closed) — watch for anything `propose_todo_batch`, the multilingual confirmation fallback, or the confabulation-honesty fix miss in practice.
 
 ---
 

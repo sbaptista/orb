@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.231',
+    date: '2026-07-23',
+    changes: [
+      'Hardened the invited-user passkey setup experience: enrollment now records each challenge, device-credential, and verification stage; an apparent failure checks whether the credential actually committed before showing an error; real failures provide concrete recovery instructions; and invitees can always continue into Orb with email verification and add a passkey later from Account.',
+      'Made the first-run passkey recovery preference user-specific on shared browsers, added calm failure-specific copy for network, expired-session, unsupported-browser, device-security, duplicate-credential, and unknown errors, and brought the secondary recovery action up to the 44px touch-target standard.',
+    ],
+  },
+  {
     version: 'v0.6.230',
     date: '2026-07-23',
     changes: [

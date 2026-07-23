@@ -3,12 +3,12 @@
 import { useState, useEffect, useMemo, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { isPasskeyAvailable, listPasskeys } from '@/lib/passkey'
+import { isPasskeyAvailable, isPasskeySetupDeferred, listPasskeys } from '@/lib/passkey'
 
 /**
- * Wraps authenticated pages. If the device supports passkeys and the user
- * has none registered, redirects to /auth/setup-passkey before showing
- * the page content. Users without WebAuthn support pass through immediately.
+ * Wraps authenticated pages. If the device supports passkeys, the user has
+ * none registered, and they have not chosen to register later, redirects to
+ * /auth/setup-passkey. Users without WebAuthn support pass through immediately.
  */
 export default function PasskeyGate({ children }: { children: ReactNode }) {
   const supabase = useMemo(() => createClient(), [])
@@ -24,9 +24,17 @@ export default function PasskeyGate({ children }: { children: ReactNode }) {
       }
 
       try {
+        // This is only a user-scoped UX preference, not an authorization decision.
+        // The dashboard's server component has already authenticated the request.
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user.id && isPasskeySetupDeferred(session.user.id)) {
+          setChecked(true)
+          return
+        }
+
         const result = await listPasskeys(supabase)
         if (result.ok && result.data && result.data.length === 0) {
-          // No passkeys registered — redirect to mandatory setup
+          // No passkeys registered and no recovery deferral — offer setup.
           router.replace('/auth/setup-passkey')
           return
         }
