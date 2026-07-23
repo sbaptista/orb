@@ -13,7 +13,7 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.229**.
+- **Version:** local/canonical **0.6.230**.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
@@ -40,9 +40,7 @@ Ticket asked for a broadcast + admin email when AI usage approaches its limit. R
 
 Migration `scripts/migrations/20260722_orb_353_usage_monitoring.sql` applied live (idempotent, rerun-safe — verified). `npx tsc --noEmit` and focused ESLint clean across every touched file; also found and fixed a duplicate policy-row-mapping function in `lib/orb-model/runtime-policy.ts` (now imports the same `mapPolicy` instead of a second stale copy) while wiring the new fields through. Not an Orb-conversation tool/param/policy change, so no eval case — confirmed against the suite's own stated boundary. Object capability matrix gained two rows.
 
-**Not yet done — needs Stan:** (1) add `ANTHROPIC_ADMIN_API_KEY`, `OPENAI_ADMIN_API_KEY`, `GOOGLE_BILLING_CREDENTIALS_JSON_BASE64` to Vercel's production env vars (only in local `.env.local` today); (2) confirm the Vercel plan tier supports a 15-minute cron interval (Hobby tier historically restricts cron frequency — not verified from here); (3) add the `gpt-realtime-2.1` rate card row; (4) live-verify on the running dev server — nothing in this session was tested against a real browser/dev server, per the standing "AI tools don't touch the dev server" rule.
-
-Also flagged, not investigated further: a large batch of Codex's work (ORB-356, todo category UI deferral, a routing determinism fix, v0.6.227 bookkeeping) was sitting uncommitted in the working tree at session start, matching a >22h-stale `ACTIVE_WORK/codex.md` claim. Stan confirmed he's aware and will reconcile it — not touched or discarded this session.
+Commit `ae71616` also includes Codex's previously uncommitted v0.6.225–v0.6.227 work: ORB-356 zero-project conversation, the todo-category UI deferral, and the Tier 1 routing determinism repair. The stale Codex ledger claims and handoff state were reconciled in v0.6.230; no feature code changed during that reconciliation.
 
 **Tier 1 routing repair — 2026-07-21 (Codex, GPT-5) — v0.6.227 — VERIFIED**
 
@@ -156,32 +154,16 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ## Current Uncommitted Changes
 
-- `components/UnifiedDashboard.tsx` — allows Realtime voice without a selected project and removes the unused TodoEditor category initialization query.
-- `components/TodoEditor.tsx` — hides Category in both new and edit modes while preserving stored values.
-- `app/api/orb-eval/route.ts` — represents an explicit no-current-project state in the eval harness.
-- `scripts/eval-cases.ts` — adds the Tier 1 zero-project voice/project-creation regression case and aligns the three existing routing-case descriptions with their deterministic boundaries.
-- `lib/orb-prompt.ts` — makes exact versus vague Knowledge corrections and explicit developer relays deterministic in the shared production/eval prompt.
-- `docs/api-spec.yaml`, `lib/orb-contract.ts` — make Knowledge read/update mutually exclusive for exact-title corrections in the canonical and generated tool descriptions.
-- `docs/ui-catalog.md`, `docs/object-capability-matrix.md` — record the category UI deferral and removed initialization fetch.
-- `package.json`, `lib/version.ts`, `lib/changelog.ts` — v0.6.228 release bookkeeping, stacked on top of Codex's uncommitted v0.6.227 entry (see below).
-- `HANDOFF.md` — this session record.
-- **ORB-353 (this session, Claude Code):** `scripts/migrations/20260722_orb_353_usage_monitoring.sql` (new, applied live), `lib/orb-model/policy.ts`, `lib/orb-model/ai-settings-core.ts`, `lib/orb-model/runtime-policy.ts` (deduped a stale copy of `mapPolicy`), `lib/orb-model/budget.ts` (voice bucketing fix), `lib/orb-model/usage-monitor.ts` (new), `lib/orb-model/incidents.ts` (added push to `notifyOrbIncident`), `lib/orb-model/types.ts` (`voice_realtime` source), `app/actions/orb-ai-settings.ts`, `app/api/cron/usage-check/route.ts` (new), `app/api/orb-realtime/usage/route.ts` (new), `lib/hooks/useRealtimeVoiceSpike.ts`, `components/settings/SettingsAI.tsx`, `vercel.json` (Cron entry added then removed after the daily-only plan limit was found), `.github/workflows/usage-check.yml` (new — the actual 15-min trigger), `docs/object-capability-matrix.md`, `docs/orb-353-ai-usage-warning-plan.md` (now tracked — full design/decision trail).
+*(none)*
 
 Standing exceptions (never committed with feature work):
 - `.claude/settings.local.json` — intentional local tool-settings. The unsafe explicit push allow entry was removed; its generic `"ask": ["Bash(git push *)"]` approval gate remains and must not be removed.
 - `docs/orb-327-architecture-audit-plan.md` — unrelated untracked architecture-audit plan; preserve.
 
-Other-agent state, not reconciled this session (Stan is aware, will catch up separately — see Active Risks):
-- `ACTIVE_WORK/claude-code.md` — Claude Code ledger, currently back at `*(none)*`.
-- `ACTIVE_WORK/mistral-vibe.md` — untracked Mistral Vibe ledger.
-- Codex's ORB-356 / todo-category-deferral / routing-fix / v0.6.227 work — see Active Risks below.
-
 ---
 
 ## Active Risks / Unresolved Work
 
-- **ORB-353 production activation status (updated 2026-07-22):** provider admin credentials added to Vercel prod env vars (done), `gpt-realtime-2.1` rate card added (done). Vercel's plan only permits daily cron — the 15-minute trigger moved to a **GitHub Actions scheduled workflow** (`.github/workflows/usage-check.yml`) instead; the Vercel Cron entry was removed from `vercel.json`. `CRON_SECRET` is now set as both a Vercel production env var and a GitHub repository secret (done, 2026-07-22) — this also closes a real gap: both cron endpoints (`reminders` and `usage-check`) were previously unauthenticated in production since `CRON_SECRET` had never been set at all. Takes effect on next deploy, not the currently-running one. **Stan completed dev-server verification 2026-07-22** — Settings UI, forced threshold crossing (push/email/broadcast/dedup), and voice usage logging all confirmed working. Ready to commit; not yet pushed.
-- **Codex left a substantial batch of uncommitted work in the tree** (ORB-356 zero-project conversation, todo category UI deferral, a routing determinism fix, v0.6.227 release bookkeeping) matching a >22-hour-stale claim in `ACTIVE_WORK/codex.md`. Stan confirmed awareness (2026-07-22) and will reconcile it himself; this session built ORB-353 on top of it without touching or discarding any of it.
 - **ORB-342 (serial/Realtime convergence) is filed but not attempted.** Three separate pending-mutation mechanisms still exist (serial todo-batch: client-held; serial project/knowledge: DB-backed; Realtime: DB-backed, most robust). `propose_todo_batch` is meant as the start of a shared canonical pattern, not the convergence itself.
 - **`onMutation` in `components/UnifiedDashboard.tsx` only refetches todos, never projects**, after any mutation — flagged to Stan, not yet fixed. `switch_project` can silently no-op against a stale local project list while the server still speaks a false success confirmation.
 - **ORB-337 migration + v0.6.217 release cycle is complete** — production maintenance confirmed ended by Stan 2026-07-18. The emergency rollback script remains emergency-only; do not run it outside a genuine incident.
@@ -192,12 +174,11 @@ Other-agent state, not reconciled this session (Stan is aware, will catch up sep
 
 ## Next Priorities
 
-1. **ORB-353 is fully built and verified** — commit when Stan asks (not yet committed or pushed), then push is Stan's call as always.
-2. **ORB-357** — plan complete per-project category CRUD and lifecycle before restoring Category to todo editors (currently Deferred).
-3. **ORB-342** — the fuller serial/Realtime pending-mutation convergence (three mechanisms → one shared pattern), once `propose_todo_batch` has some real-world use.
-4. **The `onMutation` project-list-refresh gap** in `UnifiedDashboard.tsx` — decide whether it's its own fix or folds into ORB-342.
-5. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
-6. Continued live use of Realtime voice (now production-default, ORB-325 closed) — watch for anything `propose_todo_batch`, the multilingual confirmation fallback, or the confabulation-honesty fix miss in practice.
+1. **ORB-357** — plan complete per-project category CRUD and lifecycle before restoring Category to todo editors (currently Deferred).
+2. **ORB-342** — the fuller serial/Realtime pending-mutation convergence (three mechanisms → one shared pattern), once `propose_todo_batch` has some real-world use.
+3. **The `onMutation` project-list-refresh gap** in `UnifiedDashboard.tsx` — decide whether it's its own fix or folds into ORB-342.
+4. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
+5. Continued live use of Realtime voice (now production-default, ORB-325 closed) — watch for anything `propose_todo_batch`, the multilingual confirmation fallback, or the confabulation-honesty fix miss in practice.
 
 ---
 

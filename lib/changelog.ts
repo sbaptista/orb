@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.230',
+    date: '2026-07-23',
+    changes: [
+      'Reconciled the session handoff and active-work ledger after the verified ORB-356, category deferral, and conversation-routing work was included in the concurrent ORB-353 commit. No application behavior changed.',
+    ],
+  },
+  {
     version: 'v0.6.229',
     date: '2026-07-23',
     changes: [
