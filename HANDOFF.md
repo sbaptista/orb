@@ -20,7 +20,9 @@
 
 ## Last Session Completed
 
-**ORB-353 AI usage approaching-limit warning — 2026-07-22 (Claude Code, Sonnet 5) — v0.6.228 — VERIFIED, READY TO COMMIT**
+**ORB-353 AI usage approaching-limit warning — 2026-07-22 (Claude Code, Sonnet 5) — v0.6.228 — CLOSED**
+
+Committed and pushed as `ae71616`. Closed via the REST API with full resolution notes; Knowledge Repository entry `4ca96cdd-32a1-4eaa-aaec-7b679a67b559` records the provider-research findings and architecture decisions for future usage/billing work.
 
 Ticket asked for a broadcast + admin email when AI usage approaches its limit. Research found the ticket's premise wrong — no broadcast fires automatically today; the real precedent was the reactive billing-error pipeline (`lib/orb-model/incidents.ts`, ORB-228). Extensive back-and-forth with Stan (see `docs/orb-353-ai-usage-warning-plan.md` for the full decision trail) landed on: cover **two independent ceilings** — Orb's own internal ledger budget (already existed for operational/strategic; **fixed a live bug** where voice silently folded into operational instead of its own bucket) and **real account-level spend**, pulled live from each provider rather than estimated, for every provider Orb can get real data for.
 
