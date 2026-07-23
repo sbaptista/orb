@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.229',
+    date: '2026-07-23',
+    changes: [
+      'AI usage warning messages (ORB-353) now name the provider, not just the internal role — "Orb operational budget is at 85%" didn\'t say which AI provider that was. Push, email, and the broadcast banner all now say things like "Orb operational budget (Anthropic) is at 85% of its limit."',
+    ],
+  },
+  {
     version: 'v0.6.228',
     date: '2026-07-22',
     changes: [

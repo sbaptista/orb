@@ -13,16 +13,18 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.228**.
+- **Version:** local/canonical **0.6.229**.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
 
 ## Last Session Completed
 
-**ORB-353 AI usage approaching-limit warning — 2026-07-22 (Claude Code, Sonnet 5) — v0.6.228 — CLOSED**
+**ORB-353 AI usage approaching-limit warning — 2026-07-22/23 (Claude Code, Sonnet 5) — v0.6.229 — CLOSED**
 
 Committed and pushed as `ae71616`. Closed via the REST API with full resolution notes; Knowledge Repository entry `4ca96cdd-32a1-4eaa-aaec-7b679a67b559` records the provider-research findings and architecture decisions for future usage/billing work.
+
+**Follow-up (2026-07-23, v0.6.229, commit `fcc8ef0`):** Stan saw the live broadcast banner ("Orb operational budget is at 85% of its limit.") and couldn't tell which AI provider it referred to — Orb's own ledger scopes are named after the *role* (operational/strategic/voice), not the provider backing that role. Added a `scopeDisplayLabel()` helper in `lib/orb-model/usage-monitor.ts` that appends `(ProviderName)` to any role-based scope's label across every message site (ticket summary, email subject/title, push body, broadcast text) — `scope.provider` was already being computed, just never surfaced in the human-readable text. Also manually patched the already-live `system_settings.broadcast_message` row so the fix showed immediately instead of waiting for the next cron cycle. **Caught in this same handoff update: the fcc8ef0 commit had been pushed without a version bump or changelog entry, breaking the "every local change gets a version bump" rule — corrected retroactively here as v0.6.229.** Knowledge Repository entry `1542de1a-0ed2-4a60-94f7-0c36a01fdebb` records this follow-up.
 
 Ticket asked for a broadcast + admin email when AI usage approaches its limit. Research found the ticket's premise wrong — no broadcast fires automatically today; the real precedent was the reactive billing-error pipeline (`lib/orb-model/incidents.ts`, ORB-228). Extensive back-and-forth with Stan (see `docs/orb-353-ai-usage-warning-plan.md` for the full decision trail) landed on: cover **two independent ceilings** — Orb's own internal ledger budget (already existed for operational/strategic; **fixed a live bug** where voice silently folded into operational instead of its own bucket) and **real account-level spend**, pulled live from each provider rather than estimated, for every provider Orb can get real data for.
 
