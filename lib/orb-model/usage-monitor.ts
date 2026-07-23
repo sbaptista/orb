@@ -241,17 +241,28 @@ async function collectScopes(admin: ReturnType<typeof createAdminClient>): Promi
   return { scopes, warningThresholdPct: policy.warningThresholdPct }
 }
 
+// scope.label alone is ambiguous for Orb's own ledger scopes ("Orb
+// operational budget" doesn't say which provider backs the operational
+// role) — those scopes carry a role and their label never names a
+// provider. The provider-org/ElevenLabs scopes already name the provider
+// directly in their label, so leave those as-is.
+function scopeDisplayLabel(scope: ScopeResult): string {
+  if (scope.role && scope.provider) return `${scope.label} (${providerLabel(scope.provider)})`
+  return scope.label
+}
+
 async function pushAndEmailAdmins(admin: ReturnType<typeof createAdminClient>, scope: ScopeResult, percent: number) {
   const { data: admins, error: adminsError } = await admin.from('users').select('id, email').in('role_id', [1, 3])
   if (adminsError || !admins?.length) return
 
+  const displayLabel = scopeDisplayLabel(scope)
   const providerText = scope.provider ? providerLabel(scope.provider) : 'Orb'
-  const summary = `${scope.label} approaching its limit (${percent.toFixed(0)}%) — Orb AI`
+  const summary = `${displayLabel} approaching its limit (${percent.toFixed(0)}%) — Orb AI`
   const consoleUrl = scope.provider ? providerConsoleUrl(scope.provider) : undefined
   const consoleAction = consoleUrl
     ? `<p style="margin: 0; font-size: 15px;"><strong>Action:</strong> Review the <a href="${consoleUrl}" style="color: #2d5a2d;">${providerText} console</a>.</p>`
     : ''
-  const html = `<!DOCTYPE html><html><body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; color: #2a332a; line-height: 1.6; background: #e8ede8;"><div style="background: #f2f5f2; border: 2px solid #7a5010; border-radius: 8px; padding: 28px;"><h2 style="margin: 0 0 16px; color: #2a332a;">${scope.label} is approaching its limit</h2><p style="margin: 0 0 12px;">Currently at <strong>${percent.toFixed(0)}%</strong> of the configured limit ($${scope.usedUsd.toFixed(2)} of $${scope.limitUsd.toFixed(2)}).</p>${consoleAction}</div></body></html>`
+  const html = `<!DOCTYPE html><html><body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; color: #2a332a; line-height: 1.6; background: #e8ede8;"><div style="background: #f2f5f2; border: 2px solid #7a5010; border-radius: 8px; padding: 28px;"><h2 style="margin: 0 0 16px; color: #2a332a;">${displayLabel} is approaching its limit</h2><p style="margin: 0 0 12px;">Currently at <strong>${percent.toFixed(0)}%</strong> of the configured limit ($${scope.usedUsd.toFixed(2)} of $${scope.limitUsd.toFixed(2)}).</p>${consoleAction}</div></body></html>`
 
   await createTicket({
     source: 'orb-auto',
@@ -289,8 +300,8 @@ async function writeAutoBroadcast(admin: ReturnType<typeof createAdminClient>, w
   if (currentlyAdminSet) return
 
   const message = warnedScopes.length === 1
-    ? `${warnedScopes[0].scope.label} is at ${warnedScopes[0].percent.toFixed(0)}% of its limit.`
-    : `${warnedScopes.length} AI usage scopes are approaching their limits: ${warnedScopes.map(w => `${w.scope.label} (${w.percent.toFixed(0)}%)`).join(', ')}.`
+    ? `${scopeDisplayLabel(warnedScopes[0].scope)} is at ${warnedScopes[0].percent.toFixed(0)}% of its limit.`
+    : `${warnedScopes.length} AI usage scopes are approaching their limits: ${warnedScopes.map(w => `${scopeDisplayLabel(w.scope)} (${w.percent.toFixed(0)}%)`).join(', ')}.`
 
   await admin.from('system_settings').upsert({
     key: 'broadcast_message',
