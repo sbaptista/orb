@@ -1,0 +1,18 @@
+name: Orb usage check
+
+# ORB-353: Vercel's plan on this project only allows daily cron, so the
+# 15-minute AI usage threshold check runs from GitHub Actions instead,
+# calling the same production endpoint Vercel Cron would have called.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger usage-check
+        run: |
+          curl -sS -f -X GET "https://orb-eight-lake.vercel.app/api/cron/usage-check" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

@@ -6,6 +6,35 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.228',
+    date: '2026-07-22',
+    changes: [
+      'Added proactive AI usage warnings (ORB-353): a new 15-minute background check compares Orb\'s own operational/strategic/voice budgets, plus real account spend pulled live from Anthropic, OpenAI, and Google (Gemini), against admin-configurable limits, and warns admins by push notification, email, and an in-app broadcast banner the moment a scope crosses its threshold — once per crossing, not repeatedly. ElevenLabs usage is checked against its own real reported limit. Real provider spend also now auto-fills the existing "provider bills" reconciliation table instead of requiring manual entry.',
+      'Fixed a bug where Realtime voice usage was never logged to Orb\'s cost ledger at all, and where it would have silently counted against the operational budget instead of its own; voice now has a genuinely separate budget reserve in AI Settings (previously mislabeled as shared with Strategic, which hasn\'t been true since Realtime voice stopped routing through the strategic text model).',
+    ],
+  },
+  {
+    version: 'v0.6.227',
+    date: '2026-07-21',
+    changes: [
+      'Made three Orb intent boundaries explicit after Tier 1 exposed routing drift: exact quoted Knowledge Repository titles update directly, vague references grounded only in assistant prose search before updating, and explicit messages to Codex or another developer tool relay immediately without an unrelated todo lookup. The read/update distinction now lives in both the shared routing prompt and the canonical generated tool contract.',
+    ],
+  },
+  {
+    version: 'v0.6.226',
+    date: '2026-07-21',
+    changes: [
+      'Temporarily removed Category from the new and edit todo modals until the complete per-project category experience is planned. Existing category assignments remain stored and survive unrelated edits, new todos default to no category, and the dashboard no longer makes an initialization request for categories it does not display.',
+    ],
+  },
+  {
+    version: 'v0.6.225',
+    date: '2026-07-21',
+    changes: [
+      'Orb text and Realtime voice conversation are now available before the user creates or selects a project. Project-dependent actions still ask for a project when needed, while Orb can answer questions and help create the first project from the zero-project state.',
+    ],
+  },
+  {
     version: 'v0.6.224',
     date: '2026-07-21',
     changes: [

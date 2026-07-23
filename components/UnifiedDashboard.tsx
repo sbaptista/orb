@@ -244,7 +244,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // ── List state ──
   const [todos, setTodos]               = useState<Todo[]>([])
   const [statuses, setStatuses]         = useState<StatusDef[]>([])
-  const [categories, setCategories]     = useState<{ id: string; name: string; product_id: string }[]>([])
   const [filterStatus, setFilterStatus] = useState('active')
   const [filterPriority, setFilterPriority] = useState('all')
   const [showFilters, setShowFilters]   = useState(false)
@@ -675,7 +674,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       measurement.end(true, null, { toggledOff: true })
       return
     }
-    if (noProject) { measurement.end(false, 'no_project'); return }
     if (voice.voiceActive) voice.exitVoiceMode()
     const passiveGreetingId = passiveGreetingIdRef.current
     setMessages(previous => {
@@ -696,7 +694,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     resetInactivity()
     void realtimeSpike.start('orb_tap')
     measurement.end(true, null, { toggledOff: false })
-  }, [noProject, isMobile, selectedId, voice, realtimeSpike])
+  }, [isMobile, selectedId, voice, realtimeSpike])
 
   // Auto-TTS: speak each Orb response exactly once, when its turn completes.
   // Voice never chases the stream — the screen shows streaming progress, and
@@ -915,23 +913,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       }
     }
     fetchStatuses()
-  }, [supabase])
-
-  // Load categories — all visible projects at once (small table); TodoEditor
-  // filters to the todo's own product_id, same pattern as priorities/statuses.
-  useEffect(() => {
-    async function fetchCategories() {
-      const perf = startInteraction({ focus: 'dashboard-init', flow: 'dashboard', interaction: 'categories_load', surface: 'dashboard' })
-      try {
-        const { data } = await supabase.from('categories').select('id, name, product_id').is('deleted_at', null).order('sort_order')
-        if (data) setCategories(data)
-        perf.end(true, null, { count: data?.length ?? 0 })
-      } catch (err) {
-        console.error('[UnifiedDashboard] Load categories failed:', err)
-        perf.end(false, 'categories_load_failed')
-      }
-    }
-    fetchCategories()
   }, [supabase])
 
   // Welcome modal — shown on first login, offers the guided tour
@@ -2061,7 +2042,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               voiceActive={voiceEngaged}
               voiceListening={realtimeListening}
               voiceError={realtimeErrored ? (realtimeSpike.error ?? 'Voice error') : null}
-              supportsVoiceMode={!noProject}
+              supportsVoiceMode
               onStartVoiceMode={handleOrbTap}
               onExitVoiceMode={() => { handleStop(); realtimeSpike.stop('exit_voice') }}
             />
@@ -2319,7 +2300,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           products={products as any}
           priorities={priorities as any}
           statuses={statuses}
-          categories={categories}
           onClose={() => { setSelectedTodo(null); setShowNewTodo(false) }}
           onSave={updated => {
             if (selectedTodo) {

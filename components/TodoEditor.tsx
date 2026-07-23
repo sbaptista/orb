@@ -18,7 +18,6 @@ type Props = {
   products: Product[]
   priorities: Priority[]
   statuses: StatusDef[]
-  categories: { id: string; name: string; product_id: string }[]
   onClose: () => void
   onSave: (todo: Todo) => void
   onDelete?: (id: string) => void
@@ -60,7 +59,6 @@ export default function TodoEditor({
   products,
   priorities,
   statuses,
-  categories,
   onClose,
   onSave,
   onDelete,
@@ -135,8 +133,6 @@ export default function TodoEditor({
     setErrors(prev => ({ ...prev, title: undefined }))
     return true
   }
-
-  const projectCategories = categories.filter(c => c.product_id === form.product_id)
 
   // Helper to get error class for a field
   const getFieldClass = (field: keyof FieldErrors) => {
@@ -413,22 +409,6 @@ export default function TodoEditor({
                 {priorities.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </div>
-          </div>
-
-          {/* Category */}
-          <div className="pf-field">
-            <label htmlFor="te-category" className="pf-label">Category</label>
-            <select
-              id="te-category"
-              className="pf-select"
-              value={form.category_id ?? ''}
-              onChange={e => setForm(f => ({ ...f, category_id: e.target.value || null }))}
-            >
-              <option value="">None</option>
-              {projectCategories.map(category => (
-                <option key={category.id} value={category.id}>{category.name}</option>
-              ))}
-            </select>
           </div>
 
           {/* Product — only show when multiple projects */}

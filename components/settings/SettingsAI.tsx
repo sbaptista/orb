@@ -38,7 +38,7 @@ export default function SettingsAI() {
       .finally(() => setLoading(false))
   }, [toastError])
 
-  const budgetError = policy.strategicBudgetUsd + policy.operationalBudgetUsd > policy.monthlyBudgetUsd
+  const budgetError = policy.strategicBudgetUsd + policy.operationalBudgetUsd + policy.voiceBudgetUsd > policy.monthlyBudgetUsd
   const policyDirty = useMemo(() => JSON.stringify(policy) !== JSON.stringify(savedPolicy), [policy, savedPolicy])
 
   async function savePolicy() {
@@ -66,7 +66,7 @@ export default function SettingsAI() {
       <div className="s-card flex-col gap-lg">
         <div>
           <h2 className="s-card-title">Model Roles</h2>
-          <p className="s-card-desc">Operational handles task management and queries. Strategic handles prioritization, guidance, and all voice conversations.</p>
+          <p className="s-card-desc">Operational handles task management and queries. Strategic handles prioritization and guidance. Realtime voice uses its own model (gpt-realtime) and does not route through Strategic.</p>
         </div>
 
         <div className="s-form" style={{ display: 'grid', gap: 'var(--sp-lg)' }}>
@@ -82,7 +82,7 @@ export default function SettingsAI() {
             </select>
           </label>
           <label>
-            <span className="label">Strategic + Voice Model</span>
+            <span className="label">Strategic Model</span>
             <select
               className="select"
               style={{ minHeight: 'var(--touch)', appearance: 'auto', WebkitAppearance: 'menulist' }}
@@ -120,11 +120,12 @@ export default function SettingsAI() {
           <p style={{ margin: 0, padding: 'var(--sp-md) var(--sp-lg)', background: 'rgba(122,80,16,0.06)', border: '1px solid rgba(122,80,16,0.15)', borderRadius: 'var(--r)', color: 'var(--warning)', fontSize: 'var(--fs-sm)' }}>New AI calls stop when the selected allowance is reached. Token rates and cost reporting live in AI Metrics.</p>
         </div>
 
-        <div className="s-form" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 'var(--sp-md)' }}>
+        <div className="s-form" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 'var(--sp-md)' }}>
           {[
             ['Monthly total', 'monthlyBudgetUsd'],
-            ['Strategic + Voice', 'strategicBudgetUsd'],
+            ['Strategic reserve', 'strategicBudgetUsd'],
             ['Operational reserve', 'operationalBudgetUsd'],
+            ['Voice reserve', 'voiceBudgetUsd'],
           ].map(([label, key]) => (
             <label key={key}>
               <span className="label">{label}</span>
@@ -132,13 +133,52 @@ export default function SettingsAI() {
                 type="number"
                 min="0"
                 step="1"
-                value={policy[key as keyof Pick<OrbAiPolicy, 'monthlyBudgetUsd' | 'strategicBudgetUsd' | 'operationalBudgetUsd'>]}
+                value={policy[key as keyof Pick<OrbAiPolicy, 'monthlyBudgetUsd' | 'strategicBudgetUsd' | 'operationalBudgetUsd' | 'voiceBudgetUsd'>]}
                 onChange={event => setPolicy(current => ({ ...current, [key]: Number(event.target.value) }))}
               />
             </label>
           ))}
         </div>
-        {budgetError && <p className="text-sm" style={{ margin: 0, color: 'var(--error)' }}>Strategic reads and operational reserve cannot exceed the monthly total.</p>}
+        {budgetError && <p className="text-sm" style={{ margin: 0, color: 'var(--error)' }}>Strategic, operational, and voice reserves cannot exceed the monthly total.</p>}
+      </div>
+
+      <div className="s-card flex-col gap-lg" style={{ marginTop: 'var(--sp-lg)' }}>
+        <div>
+          <h2 className="s-card-title">Usage Monitoring</h2>
+          <p className="s-card-desc">Warns admins (push, email, and a broadcast banner) when a usage scope approaches its limit — Orb&apos;s own budgets above, plus real provider account spend for the caps below. A cap of 0 disables that provider&apos;s check. ElevenLabs needs no cap here; its own API reports its real limit directly.</p>
+        </div>
+
+        <div className="s-form" style={{ display: 'grid', gap: 'var(--sp-lg)' }}>
+          <label>
+            <span className="label">Warning threshold (%)</span>
+            <input
+              type="number"
+              min="1"
+              max="100"
+              step="1"
+              value={policy.warningThresholdPct}
+              onChange={event => setPolicy(current => ({ ...current, warningThresholdPct: Number(event.target.value) }))}
+            />
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 'var(--sp-md)' }}>
+            {[
+              ['Anthropic spend cap ($)', 'anthropicSpendCapUsd'],
+              ['OpenAI spend cap ($)', 'openaiSpendCapUsd'],
+              ['Gemini spend cap ($)', 'geminiSpendCapUsd'],
+            ].map(([label, key]) => (
+              <label key={key}>
+                <span className="label">{label}</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={policy[key as keyof Pick<OrbAiPolicy, 'anthropicSpendCapUsd' | 'openaiSpendCapUsd' | 'geminiSpendCapUsd'>]}
+                  onChange={event => setPolicy(current => ({ ...current, [key]: Number(event.target.value) }))}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="flex-center gap-md mt-md">

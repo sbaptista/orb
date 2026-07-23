@@ -7,7 +7,7 @@ import { GEMINI_STRATEGIC_EVAL_MODEL } from '../lib/orb-model/gemini'
 export type EvalCase = {
   id: string
   description: string
-  productCode: string              // which project is "selected" in the UI
+  productCode: string | null       // which project is selected in the UI; null exercises the zero-project state
   input: string                    // what the user says to the Orb
   userEmail?: string               // optional admin context for strategic evaluations
   history?: Array<{ role: 'user' | 'assistant'; text: string }>
@@ -387,6 +387,20 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
+    id: 'voice-create-first-project-without-selection',
+    description: 'Voice conversation remains available before any project is selected and can create the first project',
+    productCode: null,
+    backlogOverride: 'No projects exist yet.',
+    input: 'Create my first project called __UNIQUE__.',
+    voiceMode: true,
+    tier: 1,
+    expectTool: {
+      name: 'create_project',
+      params: { name: '__UNIQUE__' },
+    },
+  },
+
+  {
     id: 'rename-project-proposes',
     description: 'Renaming a project calls update_project with the current name and new_name',
     productCode: 'ORB',
@@ -553,7 +567,7 @@ export const EVAL_CASES: EvalCase[] = [
 
   {
     id: 'update-knowledge-correction-tool',
-    description: 'Shared serial/Realtime intent analogue: correcting an entry by its EXACT title calls update_knowledge directly (server resolves the title, like update_project) — no search_knowledge round-trip needed when the title is already known',
+    description: 'Knowledge correction decision case 1: an actual quoted title routes directly to update_knowledge because the mutation tool resolves the title itself',
     productCode: 'ORB',
     mutationApproval: 'ask',
     input: 'Update the knowledge entry titled "Disk IO budget: auth.flow_state accumulation from abandoned OTP flows (GoTrue cleanup gap)" — it was fixed by the ORB-159 cooldown timer, note that it is resolved now, not still open.',
@@ -566,7 +580,7 @@ export const EVAL_CASES: EvalCase[] = [
 
   {
     id: 'update-knowledge-vague-reference-searches-first',
-    description: 'A vague reference ("that entry") from narrated (not tool-backed) history still calls search_knowledge first — the model does not trust a free-text conversational claim as grounding for a real title, matching the identifier-provenance principle used for todo codes',
+    description: 'Knowledge correction decision case 2: "that entry" after assistant-authored prose has no tool-grounded title, so it searches before updating',
     productCode: 'ORB',
     mutationApproval: 'ask',
     history: [
@@ -1142,7 +1156,7 @@ Helm [code: HELM]:
   },
   {
     id: 'realtime-send-developer-intent-analogue',
-    description: 'A Realtime explicit relay request routes to the developer channel',
+    description: 'An explicit recipient plus relay message routes immediately to the developer channel without a task lookup',
     productCode: 'ORB',
     input: 'Send this to Codex: verify the Realtime voice parity work.',
     tier: 1,

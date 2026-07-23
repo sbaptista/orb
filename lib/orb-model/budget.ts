@@ -53,17 +53,18 @@ export async function checkOrbBudget(admin: any, policy: OrbAiPolicy, role: OrbM
   const ledgerByRole = new Map<OrbModelRole, number>([
     ['operational', 0],
     ['strategic', 0],
+    ['voice', 0],
   ])
   let totalSpentUsd = 0
   for (const request of requests ?? []) {
     const amount = asAmount(request.estimated_cost_usd)
     totalSpentUsd += amount
-    const requestRole = request.route_role === 'strategic' ? 'strategic' : 'operational'
+    const requestRole: OrbModelRole = request.route_role === 'strategic' || request.route_role === 'voice' ? request.route_role : 'operational'
     ledgerByRole.set(requestRole, (ledgerByRole.get(requestRole) ?? 0) + amount)
   }
 
   const roleSpentUsd = ledgerByRole.get(role) ?? 0
-  const roleLimitUsd = role === 'strategic' ? policy.strategicBudgetUsd : policy.operationalBudgetUsd
+  const roleLimitUsd = role === 'strategic' ? policy.strategicBudgetUsd : role === 'voice' ? policy.voiceBudgetUsd : policy.operationalBudgetUsd
 
   if (totalSpentUsd >= policy.monthlyBudgetUsd) {
     return { allowed: false, scope: 'monthly', role, spentUsd: totalSpentUsd, limitUsd: policy.monthlyBudgetUsd, totalSpentUsd, totalLimitUsd: policy.monthlyBudgetUsd, totalSource: 'ledger' }
@@ -80,6 +81,9 @@ export function budgetBlockMessage(check: OrbBudgetCheck): string {
   }
   if (check.scope === 'operational') {
     return 'Orb\'s operational AI allowance has been reached. You can still manage tasks directly in the list.'
+  }
+  if (check.scope === 'voice') {
+    return 'Realtime voice has reached this month\'s allowance. Text input remains available.'
   }
   return 'Orb\'s monthly AI budget has been reached. The task list remains available while the budget is adjusted or the next period begins.'
 }

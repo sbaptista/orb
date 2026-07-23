@@ -10,6 +10,7 @@ export type OrbModelInvocationSource =
   | 'adaptation_proposal'
   | 'voice_tts'
   | 'voice_stt'
+  | 'voice_realtime'
 
 export type OrbModelRateSnapshot = {
   version: string

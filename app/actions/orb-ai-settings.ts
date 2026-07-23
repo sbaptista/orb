@@ -67,7 +67,13 @@ export async function saveOrbAiPolicy(next: OrbAiPolicy) {
   const monthlyBudgetUsd = toNumber(next.monthlyBudgetUsd, 'Monthly budget')
   const strategicBudgetUsd = toNumber(next.strategicBudgetUsd, 'Strategic budget')
   const operationalBudgetUsd = toNumber(next.operationalBudgetUsd, 'Operational budget')
-  if (strategicBudgetUsd + operationalBudgetUsd > monthlyBudgetUsd) throw new Error('Strategic and operational budgets cannot exceed the monthly total.')
+  const voiceBudgetUsd = toNumber(next.voiceBudgetUsd, 'Voice budget')
+  if (strategicBudgetUsd + operationalBudgetUsd + voiceBudgetUsd > monthlyBudgetUsd) throw new Error('Strategic, operational, and voice budgets cannot exceed the monthly total.')
+  const warningThresholdPct = toNumber(next.warningThresholdPct, 'Warning threshold')
+  if (warningThresholdPct <= 0 || warningThresholdPct > 100) throw new Error('Warning threshold must be between 0 and 100.')
+  const anthropicSpendCapUsd = toNumber(next.anthropicSpendCapUsd, 'Anthropic spend cap')
+  const openaiSpendCapUsd = toNumber(next.openaiSpendCapUsd, 'OpenAI spend cap')
+  const geminiSpendCapUsd = toNumber(next.geminiSpendCapUsd, 'Gemini spend cap')
 
   const { data: before, error: beforeError } = await ctx.admin.from('orb_ai_policy').select('*').eq('id', true).maybeSingle()
   if (beforeError) throw beforeError
@@ -82,9 +88,14 @@ export async function saveOrbAiPolicy(next: OrbAiPolicy) {
     monthly_budget_usd: monthlyBudgetUsd,
     strategic_budget_usd: strategicBudgetUsd,
     operational_budget_usd: operationalBudgetUsd,
+    voice_budget_usd: voiceBudgetUsd,
     tts_provider: next.ttsProvider || 'browser',
     tts_model: next.ttsModel || null,
     tts_voice_id: next.ttsVoiceId || null,
+    warning_threshold_pct: warningThresholdPct,
+    anthropic_spend_cap_usd: anthropicSpendCapUsd,
+    openai_spend_cap_usd: openaiSpendCapUsd,
+    gemini_spend_cap_usd: geminiSpendCapUsd,
     updated_at: new Date().toISOString(),
     updated_by: ctx.user.id,
   })

@@ -362,7 +362,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "search_knowledge",
-    "description": "[Confidence: well-tested] Read the Knowledge Repository — the CRUD read tool for knowledge_repo, usable for topic discovery AND precise single-entry lookup. Use `query` for topic/discovery search (\"what do we know about X\") — ranked results, up to 10 returned. Use `title` instead when the user names or references ONE specific entry (e.g. \"show me that entry\", \"show me the entry titled X\", verifying an update just made) — this resolves with leeway like update_knowledge does (exact match, then a partial/fuzzy reference covering most of its own words), not a literal exact string. Provide `query` or `title`, not both. Optionally scope to a specific project.",
+    "description": "[Confidence: well-tested] READ ONLY. Read the Knowledge Repository for topic discovery or when the user asks to see/verify an entry. Use `query` for topic discovery (\"what do we know about X\"). Use `title` for a precise read (\"show me the entry titled X\"). NEVER use this tool as a preflight lookup when the user asks to UPDATE an entry and supplies an actual title: call update_knowledge directly, because that tool resolves titles itself. Search before an update only when the request lacks an actual title (for example, \"fix that entry\" after assistant-authored prose). Provide `query` or `title`, not both. Optionally scope to a specific project.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -372,7 +372,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         },
         "title": {
           "type": "string",
-          "description": "A specific entry title reference for precise lookup — exact or approximate/partial is fine, leeway is intentional since the user may not recall the exact title. Resolves to one entry, asks to disambiguate if multiple match, or reports not found. Omit if using query."
+          "description": "A title reference for a READ request. Do not use for update preflight when the user already supplied the title; call update_knowledge instead. Exact or approximate/partial references resolve with leeway. Omit if using query."
         },
         "product_code": {
           "type": "string",
@@ -415,7 +415,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "update_knowledge",
-    "description": "[Confidence: new] Correct or amend an existing Knowledge Repository entry. Like update_project, call this directly with the title reference you have (exact or approximate) — the server resolves it (exact match, then substring) and tells you if it is ambiguous or not found; you do not need to search_knowledge first as a separate step. If the user says entry titled \"...\" then call update_knowledge immediately with that title. Only call search_knowledge beforehand if you genuinely do not know which entry the user means and need to find it by topic. A vague phrase like \"that entry\" plus an assistant natural-language summary is not a reliable title reference; search first. Held for user confirmation like update_project — never claim it is done until confirm_mutation succeeds. Do NOT include a date, timestamp, or attribution line in new_content — the server signs and stamps every update automatically. There is deliberately NO delete tool: if an entry looks stale or wrong and you cannot fix it with an update, use create_ticket to flag it for admin review instead.",
+    "description": "[Confidence: new] UPDATE ONLY. Correct or amend an existing Knowledge Repository entry. If the current user message supplies an actual title — especially `entry titled \"...\"` — you MUST call update_knowledge immediately with that title and MUST NOT call search_knowledge first. This tool performs title resolution itself (exact match, then substring) and reports ambiguity or absence. Search first only when no actual title is grounded in the user message or a prior tool result; assistant-authored prose plus \"that entry\" is not title grounding. Held for user confirmation like update_project — never claim completion until confirm_mutation succeeds. Do NOT include a date, timestamp, or attribution line in new_content; the server signs and stamps every update automatically. There is no delete tool: use create_ticket when a stale entry cannot be corrected.",
     "input_schema": {
       "type": "object",
       "properties": {

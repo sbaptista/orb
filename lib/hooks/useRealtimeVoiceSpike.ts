@@ -18,13 +18,34 @@ type Options = {
   onClientAction: (action: { action: string; target?: string }) => void
 }
 
+type RealtimeUsage = {
+  total_tokens?: number
+  input_tokens?: number
+  output_tokens?: number
+  input_token_details?: { cached_tokens?: number; text_tokens?: number; audio_tokens?: number }
+  output_token_details?: { text_tokens?: number; audio_tokens?: number }
+}
+
 type RealtimeEvent = {
   type: string
   item_id?: string
   transcript?: string
   delta?: string
-  response?: { id?: string; output?: Array<{ type?: string; name?: string; call_id?: string; arguments?: string }> }
+  response?: { id?: string; output?: Array<{ type?: string; name?: string; call_id?: string; arguments?: string }>; usage?: RealtimeUsage }
   error?: { message?: string }
+}
+
+// Fire-and-forget: log this response's token usage to Orb's own ledger so
+// ORB-353's usage warnings can see voice spend. Never blocks or throws into
+// the turn-taking path — a failed usage log must never affect the call.
+function reportRealtimeUsage(usage: RealtimeUsage | undefined) {
+  if (!usage) return
+  fetch('/api/orb-realtime/usage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usage }),
+    keepalive: true,
+  }).catch(() => {})
 }
 
 function parseArguments(value: string | undefined) {
@@ -772,6 +793,7 @@ export function useRealtimeVoiceSpike(options: Options) {
       }
       if (responseId) handledResponseIdsRef.current.add(responseId)
       responseInFlightRef.current = false
+      reportRealtimeUsage(message.response?.usage)
       const calls = message.response?.output?.filter(item => item.type === 'function_call') ?? []
       const responseTurnId = responseId
         ? responseTurnIdsRef.current.get(responseId) ?? activeTurnIdRef.current

@@ -569,7 +569,7 @@ Selected state: `aria-selected="true"` → bg3 background, medium font weight. M
 
 ### Todo Editor Modal
 **File:** `components/TodoEditor.tsx`
-Unified component handling both create and edit modes. Uses the `EditorModal` pattern with `modal-lg`, `modal-header`, `modal-body`, and `modal-footer`. The body uses `pf-field` labels, a larger title input, a responsive two-column metadata grid for Status and Priority, and the same native `pf-select` pattern for Status, Priority, Category, and Project. Status field is always visible. URLs field removed from UI (kept in DB). Do not reintroduce standalone `.tf-*` modal shells.
+Unified component handling both create and edit modes. Uses the `EditorModal` pattern with `modal-lg`, `modal-header`, `modal-body`, and `modal-footer`. The body uses `pf-field` labels, a larger title input, a responsive two-column metadata grid for Status and Priority, and the native `pf-select` pattern for Status, Priority, and Project. Status field is always visible. Category and URLs are hidden from the editor UI but retained in the database; existing category assignments are preserved when other fields are edited, and new todos default to no category. Do not reintroduce standalone `.tf-*` modal shells.
 
 ### Slide Panel (`slide-panel`)
 **Status:** Being phased out in favor of `modal-center`  

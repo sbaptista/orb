@@ -3,6 +3,7 @@ import 'server-only'
 import { createTicket } from '@/app/actions/ticket-actions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { FROM_EMAIL, getResend } from '@/lib/email'
+import { sendPushToUser } from '@/lib/push'
 import type { OrbModelProviderId } from './types'
 import type { OrbModelRole } from './catalog'
 
@@ -76,7 +77,7 @@ export async function notifyOrbIncident(incident: OrbIncident) {
   })
   if (ticketResult.error) return
 
-  const { data: admins, error: adminsError } = await admin.from('users').select('email').in('role_id', [1, 3])
+  const { data: admins, error: adminsError } = await admin.from('users').select('id, email').in('role_id', [1, 3])
   if (adminsError || !admins?.length) return
 
   const provider = incident.provider ? providerLabel(incident.provider) : 'Orb'
@@ -87,10 +88,16 @@ export async function notifyOrbIncident(incident: OrbIncident) {
   const html = `<!DOCTYPE html><html><body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; color: #2a332a; line-height: 1.6; background: #e8ede8;"><div style="background: #f2f5f2; border: 2px solid #b66a2b; border-radius: 8px; padding: 28px;"><h2 style="margin: 0 0 16px; color: #2a332a;">Orb AI attention needed</h2><p style="margin: 0 0 12px;"><strong>${escapeHtml(provider)} ${escapeHtml(role)}</strong> is unavailable or budget-blocked.</p><p style="margin: 0 0 12px;"><strong>Reason:</strong> ${escapeHtml(incident.reason)}</p>${consoleAction}</div></body></html>`
 
   const resend = getResend()
-  await Promise.all(admins.filter(adminUser => adminUser.email).map(adminUser =>
-    resend.emails.send({ from: FROM_EMAIL, to: adminUser.email!, subject: `[Orb] ${incident.summary}`, html })
-      .catch(error => console.error('[orbModel] Incident email failed:', error)),
-  ))
+  await Promise.all([
+    ...admins.filter(adminUser => adminUser.email).map(adminUser =>
+      resend.emails.send({ from: FROM_EMAIL, to: adminUser.email!, subject: `[Orb] ${incident.summary}`, html })
+        .catch(error => console.error('[orbModel] Incident email failed:', error)),
+    ),
+    ...admins.map(adminUser =>
+      sendPushToUser(adminUser.id, { title: 'Orb AI attention needed', body: incident.summary, tag: 'orb-incident', url: '/settings/tickets' })
+        .catch(error => console.error('[orbModel] Incident push failed:', error)),
+    ),
+  ])
 }
 
 export function classifyProviderFailure(error: any, provider: OrbModelProviderId, role: OrbModelRole) {

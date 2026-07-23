@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const { input, productCode, history, pendingSummary, pendingTodoOperations, actionSets, backlogOverride, mutationApproval, voiceMode, ttsProvider, ttsModel, ttsVoiceId, provider, model, userEmail, evaluationMode, contextPacketId, autoRoute, budgetOverride, evaluationCaseId } = body as {
     input: string
-    productCode?: string
+    productCode?: string | null
     history?: Array<{ role: 'user' | 'assistant'; text: string }>
     pendingSummary?: string
     pendingTodoOperations?: Array<{ tool: string; params: Record<string, unknown> }>
@@ -172,15 +172,16 @@ export async function POST(request: NextRequest) {
 
   // Resolve current project. backlogOverride cases are intentionally frozen
   // fixtures, so their selected project code may not exist in the live DB.
+  const explicitlyNoCurrentProject = productCode === null
   const liveCurrent = productCode
     ? productList.find((p: any) => p.code?.toUpperCase() === productCode.toUpperCase())
-    : productList[0]
+    : explicitlyNoCurrentProject ? null : productList[0]
   const hasFrozenEvalContext = Boolean(backlogOverride || actionSets?.length)
   const current = liveCurrent ?? (productCode && hasFrozenEvalContext
     ? fixtureProjectFromContext(productCode, backlogOverride)
     : null)
 
-  if (!current) {
+  if (!current && !explicitlyNoCurrentProject) {
     return NextResponse.json({ error: `Product ${productCode} not found` }, { status: 404 })
   }
 
@@ -246,7 +247,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
     `USER CONTEXT: You are talking to ${auth.user.email} (Name: ${auth.user.name || 'Unknown'}, Role: ${auth.role}).`,
     buildOrbScopePrompt({
-      currentProjectName: current.name,
+      currentProjectName: current?.name ?? 'No project selected',
       currentUserNameOrEmail: auth.user.name || auth.user.email,
     }),
     ticketStatusRoutingHint,

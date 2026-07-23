@@ -13,12 +13,52 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.224**.
+- **Version:** local/canonical **0.6.228**.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
 
 ## Last Session Completed
+
+**ORB-353 AI usage approaching-limit warning — 2026-07-22 (Claude Code, Sonnet 5) — v0.6.228 — VERIFIED, READY TO COMMIT**
+
+Ticket asked for a broadcast + admin email when AI usage approaches its limit. Research found the ticket's premise wrong — no broadcast fires automatically today; the real precedent was the reactive billing-error pipeline (`lib/orb-model/incidents.ts`, ORB-228). Extensive back-and-forth with Stan (see `docs/orb-353-ai-usage-warning-plan.md` for the full decision trail) landed on: cover **two independent ceilings** — Orb's own internal ledger budget (already existed for operational/strategic; **fixed a live bug** where voice silently folded into operational instead of its own bucket) and **real account-level spend**, pulled live from each provider rather than estimated, for every provider Orb can get real data for.
+
+**Provider research (all empirically verified live, not just from docs):** Anthropic and OpenAI both have Admin-API cost endpoints (`ANTHROPIC_ADMIN_API_KEY`/`OPENAI_ADMIN_API_KEY`, now in local `.env.local` — **not yet in Vercel prod env vars**) returning real org-wide USD spend; neither exposes a configured spend cap, so those stay admin-entered. ElevenLabs' regular API key already returns both real usage *and* the real limit — no cap field needed. Gemini has no key-based usage API at all; Stan enabled BigQuery billing export and a service-account key (`GOOGLE_BILLING_CREDENTIALS_JSON_BASE64`, also **not yet in Vercel prod**) that `lib/orb-model/usage-monitor.ts` queries directly (JWT-signed, hand-rolled — no `googleapis`/`google-auth-library` dependency added). Mistral has an equivalent Admin API but was explicitly deferred — Stan will add `MISTRAL_ADMIN_API_KEY` himself later, not built.
+
+**Trigger design changed mid-session:** original plan (ride `/api/version`'s 60s cache) was rejected after Stan asked about performance impact — it would add real latency to a hot, already-optimized endpoint (works against ORB-326) and only run while someone has the app open. Researched whether providers offer genuine push (webhooks) instead of polling: only Google does (Cloud Billing Budgets + Pub/Sub); Anthropic confirmed no; OpenAI/ElevenLabs inconclusive (docs 403'd repeatedly) but no evidence of one. Landed on a **dedicated Vercel Cron, every 15 minutes** (`vercel.json` → `/api/cron/usage-check`, alongside the existing daily reminders cron), decoupled from all user traffic. Gemini folds into the same cron (already pull-based via BigQuery) rather than a separate Pub/Sub webhook.
+
+**On a fresh threshold crossing** (deduped per scope per billing month via new `orb_usage_warnings` table): pushes every admin's devices (extended `lib/orb-model/incidents.ts`'s `notifyOrbIncident` to also push via the existing `sendPushToUser`, benefiting the pre-existing billing-incident pipeline too, not just this feature), emails admins, and auto-writes the broadcast banner (`system_settings.broadcast_message`, tagged `source: 'auto-usage-warning'` so it never clobbers a manually-typed admin announcement — and only ever clears its own entry). Real provider spend also now auto-upserts into the existing `orb_cost_reconciliations` table (was manual-entry only) — directly replaces the "remember to update provider bills" workflow Stan described wanting to avoid.
+
+**Voice usage instrumentation:** the Realtime session is WebRTC directly between client and OpenAI after the initial SDP handshake, so Orb's server never sees `response.done`'s `usage` object on its own. Added a fire-and-forget client→server report (`useRealtimeVoiceSpike.ts` → new `POST /api/orb-realtime/usage` → `recordOrbModelRequest`) — new `voice_realtime` invocation source, `route_role='voice'` now allowed by the DB CHECK (previously only `operational`/`strategic`, meaning voice literally could not have been logged even if attempted). **Stan still needs to add a `gpt-realtime-2.1` rate card row himself** (declined to guess at OpenAI Realtime pricing) — until then voice usage logs with a null estimated cost, same fallback behavior as every other unrated model.
+
+**UI (`SettingsAI.tsx`):** fixed the stale "Strategic + Voice" labels (voice hasn't routed through the strategic text model since the ORB-325 Realtime rewrite gave it native reasoning) into a genuinely separate Voice budget reserve, and added a new "Usage Monitoring" card (warning threshold %, per-provider spend caps). Kept deliberately minimal — Stan noted this page will likely be rewritten soon.
+
+Migration `scripts/migrations/20260722_orb_353_usage_monitoring.sql` applied live (idempotent, rerun-safe — verified). `npx tsc --noEmit` and focused ESLint clean across every touched file; also found and fixed a duplicate policy-row-mapping function in `lib/orb-model/runtime-policy.ts` (now imports the same `mapPolicy` instead of a second stale copy) while wiring the new fields through. Not an Orb-conversation tool/param/policy change, so no eval case — confirmed against the suite's own stated boundary. Object capability matrix gained two rows.
+
+**Not yet done — needs Stan:** (1) add `ANTHROPIC_ADMIN_API_KEY`, `OPENAI_ADMIN_API_KEY`, `GOOGLE_BILLING_CREDENTIALS_JSON_BASE64` to Vercel's production env vars (only in local `.env.local` today); (2) confirm the Vercel plan tier supports a 15-minute cron interval (Hobby tier historically restricts cron frequency — not verified from here); (3) add the `gpt-realtime-2.1` rate card row; (4) live-verify on the running dev server — nothing in this session was tested against a real browser/dev server, per the standing "AI tools don't touch the dev server" rule.
+
+Also flagged, not investigated further: a large batch of Codex's work (ORB-356, todo category UI deferral, a routing determinism fix, v0.6.227 bookkeeping) was sitting uncommitted in the working tree at session start, matching a >22h-stale `ACTIVE_WORK/codex.md` claim. Stan confirmed he's aware and will reconcile it — not touched or discarded this session.
+
+**Tier 1 routing repair — 2026-07-21 (Codex, GPT-5) — v0.6.227 — VERIFIED**
+
+Stan's complete Tier 1 run finished **72/75**. The new ORB-356 case, `voice-create-first-project-without-selection`, passed. The three failures were existing routing boundaries: exact-title Knowledge correction searched redundantly, a vague "that entry" correction updated without a grounded title, and an explicit relay to Codex queried todos instead of using the developer channel. Replaced the competing Knowledge prose with a literal three-case decision rule shared by production and eval, and made explicit developer relay the highest-priority route in both the shared prompt and tool description. The first focused rerun passed vague-reference search and developer relay (**2/3**) but still searched before an exact-title update; the read-versus-update exclusion was therefore moved into the canonical `docs/api-spec.yaml` tool descriptions and regenerated into `lib/orb-contract.ts`, where tool selection weighs it directly. The final focused rerun passed the remaining exact-title case (**1/1**), accounting for all **75/75** Tier 1 cases across the complete run plus focused repairs. Updated the three existing regression-case descriptions to mirror those boundaries.
+
+TypeScript, focused lint, and `git diff --check` pass. No UI, database query/schema, Realtime subscription, new server action, or user-facing loading path changed, so no database health run, UI catalog change, capability-matrix change, or performance instrumentation was required. Per project policy, Codex did not run evals; Stan should run the three focused cases listed in Next Priorities.
+
+**Todo category UI deferral — 2026-07-21 (Codex, GPT-5) — v0.6.226 — BUILT, AWAITING STAN VERIFICATION**
+
+Category is now hidden from both new and edit TodoEditor modals until the complete per-project category experience is planned. Existing `category_id` assignments remain in the database and are preserved by unrelated edits; new manual todos continue to write `null`. Removed the now-unused dashboard category initialization query and its telemetry span. No schema migration, category rewrite, todo rewrite, new database query, Realtime subscription, or new write path was introduced.
+
+Updated the UI catalog and capability/performance matrix. The existing Knowledge Repository category entry was updated to supersede the ORB-349/355 category-field conclusions while preserving their remaining facts. Created **ORB-357 — Plan per-project category CRUD** and verified its status is **Deferred**. TypeScript, focused lint (0 errors; pre-existing warnings only), `git diff --check`, and localhost new/edit modal verification pass on the cataloged TodoEditor/EditorModal model. No Orb-conversation behavior changed, so no additional eval case is required beyond the ORB-356 case already pending in this worktree.
+
+**Previous completed session:**
+
+**ORB-356 zero-project Orb conversation — 2026-07-21 (Codex, GPT-5) — v0.6.225 — CLOSED**
+
+Orb text conversation already accepted a nullable selected project, but Realtime voice silently returned when no project was selected and hid the “Talk to Orb” command. Removed both UI gates, preserving the existing `voice_start` performance measurement and the server-side prerequisites on project-dependent mutations. The eval harness can now represent an explicit no-current-project state, with a Tier 1 case proving voice can create the user’s first project without a selection.
+
+Used the cataloged Unified Dashboard and OrbConversation patterns; no new UI component, class, or visual treatment was introduced. No database query pattern, schema, Realtime subscription, or write path changed, so no database health run or object-capability-matrix update was required. Stan verified the Orb interaction with no project on localhost, and the new Tier 1 case passed in the complete run. ORB-356 was closed with full resolution notes; Knowledge Repository entry `d3b35cfe-ab47-4667-bff2-7ce0d654f81b` records the final state and supersedes only the old zero-project Orb-click behavior in entry `60e61502-4685-4014-821b-aaaba5b38a03`.
 
 **ORB-355 Category dropdown regression — 2026-07-21 (Codex, GPT-5) — v0.6.224 — CLOSED**
 
@@ -27,8 +67,6 @@ The Todo editor's Category field now uses the same native `pf-select` dropdown a
 Verified locally against ORB-355: the modal exposed all ten Orb categories plus None; selecting Bug changed the form and enabled Save; the test change was discarded without persisting. `npx tsc --noEmit`, focused ESLint (0 errors; two pre-existing warnings in `TodoEditor.tsx`), and UI catalog verification pass. No Orb-conversation behavior, database query/schema, Realtime subscription, or async path changed, so no eval case, database health run, capability-matrix update, or new performance span was required; the existing todo-save span continues to measure persistence.
 
 Used the cataloged `TodoEditor`/`EditorModal` form family and the existing `pf-select` model from Status and Priority. The Knowledge Repository was searched before closure; entry `aae91929-af63-415b-9563-5731fc055b2b` links this fix to the ORB-349 unification entry rather than superseding it, because ORB-349's remaining facts are still valid.
-
-**Previous completed session:**
 
 **ORB-349 Unifying TodoForm and TodoPanel — 2026-07-19 (Mistral Vibe) — v0.6.221 — CLOSED**
 
@@ -114,21 +152,32 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ## Current Uncommitted Changes
 
-None — ORB-355 v0.6.224 is committed locally.
+- `components/UnifiedDashboard.tsx` — allows Realtime voice without a selected project and removes the unused TodoEditor category initialization query.
+- `components/TodoEditor.tsx` — hides Category in both new and edit modes while preserving stored values.
+- `app/api/orb-eval/route.ts` — represents an explicit no-current-project state in the eval harness.
+- `scripts/eval-cases.ts` — adds the Tier 1 zero-project voice/project-creation regression case and aligns the three existing routing-case descriptions with their deterministic boundaries.
+- `lib/orb-prompt.ts` — makes exact versus vague Knowledge corrections and explicit developer relays deterministic in the shared production/eval prompt.
+- `docs/api-spec.yaml`, `lib/orb-contract.ts` — make Knowledge read/update mutually exclusive for exact-title corrections in the canonical and generated tool descriptions.
+- `docs/ui-catalog.md`, `docs/object-capability-matrix.md` — record the category UI deferral and removed initialization fetch.
+- `package.json`, `lib/version.ts`, `lib/changelog.ts` — v0.6.228 release bookkeeping, stacked on top of Codex's uncommitted v0.6.227 entry (see below).
+- `HANDOFF.md` — this session record.
+- **ORB-353 (this session, Claude Code):** `scripts/migrations/20260722_orb_353_usage_monitoring.sql` (new, applied live), `lib/orb-model/policy.ts`, `lib/orb-model/ai-settings-core.ts`, `lib/orb-model/runtime-policy.ts` (deduped a stale copy of `mapPolicy`), `lib/orb-model/budget.ts` (voice bucketing fix), `lib/orb-model/usage-monitor.ts` (new), `lib/orb-model/incidents.ts` (added push to `notifyOrbIncident`), `lib/orb-model/types.ts` (`voice_realtime` source), `app/actions/orb-ai-settings.ts`, `app/api/cron/usage-check/route.ts` (new), `app/api/orb-realtime/usage/route.ts` (new), `lib/hooks/useRealtimeVoiceSpike.ts`, `components/settings/SettingsAI.tsx`, `vercel.json` (Cron entry added then removed after the daily-only plan limit was found), `.github/workflows/usage-check.yml` (new — the actual 15-min trigger), `docs/object-capability-matrix.md`, `docs/orb-353-ai-usage-warning-plan.md` (now tracked — full design/decision trail).
 
 Standing exceptions (never committed with feature work):
 - `.claude/settings.local.json` — intentional local tool-settings. The unsafe explicit push allow entry was removed; its generic `"ask": ["Bash(git push *)"]` approval gate remains and must not be removed.
 - `docs/orb-327-architecture-audit-plan.md` — unrelated untracked architecture-audit plan; preserve.
 
-Other-agent/unrelated local state to preserve:
-- `ACTIVE_WORK/claude-code.md` — modified Claude Code ledger.
+Other-agent state, not reconciled this session (Stan is aware, will catch up separately — see Active Risks):
+- `ACTIVE_WORK/claude-code.md` — Claude Code ledger, currently back at `*(none)*`.
 - `ACTIVE_WORK/mistral-vibe.md` — untracked Mistral Vibe ledger.
-- `docs/orb-353-ai-usage-warning-plan.md` — untracked ORB-353 plan.
+- Codex's ORB-356 / todo-category-deferral / routing-fix / v0.6.227 work — see Active Risks below.
 
 ---
 
 ## Active Risks / Unresolved Work
 
+- **ORB-353 production activation status (updated 2026-07-22):** provider admin credentials added to Vercel prod env vars (done), `gpt-realtime-2.1` rate card added (done). Vercel's plan only permits daily cron — the 15-minute trigger moved to a **GitHub Actions scheduled workflow** (`.github/workflows/usage-check.yml`) instead; the Vercel Cron entry was removed from `vercel.json`. `CRON_SECRET` is now set as both a Vercel production env var and a GitHub repository secret (done, 2026-07-22) — this also closes a real gap: both cron endpoints (`reminders` and `usage-check`) were previously unauthenticated in production since `CRON_SECRET` had never been set at all. Takes effect on next deploy, not the currently-running one. **Stan completed dev-server verification 2026-07-22** — Settings UI, forced threshold crossing (push/email/broadcast/dedup), and voice usage logging all confirmed working. Ready to commit; not yet pushed.
+- **Codex left a substantial batch of uncommitted work in the tree** (ORB-356 zero-project conversation, todo category UI deferral, a routing determinism fix, v0.6.227 release bookkeeping) matching a >22-hour-stale claim in `ACTIVE_WORK/codex.md`. Stan confirmed awareness (2026-07-22) and will reconcile it himself; this session built ORB-353 on top of it without touching or discarding any of it.
 - **ORB-342 (serial/Realtime convergence) is filed but not attempted.** Three separate pending-mutation mechanisms still exist (serial todo-batch: client-held; serial project/knowledge: DB-backed; Realtime: DB-backed, most robust). `propose_todo_batch` is meant as the start of a shared canonical pattern, not the convergence itself.
 - **`onMutation` in `components/UnifiedDashboard.tsx` only refetches todos, never projects**, after any mutation — flagged to Stan, not yet fixed. `switch_project` can silently no-op against a stale local project list while the server still speaks a false success confirmation.
 - **ORB-337 migration + v0.6.217 release cycle is complete** — production maintenance confirmed ended by Stan 2026-07-18. The emergency rollback script remains emergency-only; do not run it outside a genuine incident.
@@ -139,10 +188,12 @@ Other-agent/unrelated local state to preserve:
 
 ## Next Priorities
 
-1. **ORB-342** — the fuller serial/Realtime pending-mutation convergence (three mechanisms → one shared pattern), once `propose_todo_batch` has some real-world use.
-2. **The `onMutation` project-list-refresh gap** in `UnifiedDashboard.tsx` — decide whether it's its own fix or folds into ORB-342.
-3. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
-4. Continued live use of Realtime voice (now production-default, ORB-325 closed) — watch for anything `propose_todo_batch`, the multilingual confirmation fallback, or the confabulation-honesty fix miss in practice.
+1. **ORB-353 is fully built and verified** — commit when Stan asks (not yet committed or pushed), then push is Stan's call as always.
+2. **ORB-357** — plan complete per-project category CRUD and lifecycle before restoring Category to todo editors (currently Deferred).
+3. **ORB-342** — the fuller serial/Realtime pending-mutation convergence (three mechanisms → one shared pattern), once `propose_todo_batch` has some real-world use.
+4. **The `onMutation` project-list-refresh gap** in `UnifiedDashboard.tsx` — decide whether it's its own fix or folds into ORB-342.
+5. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
+6. Continued live use of Realtime voice (now production-default, ORB-325 closed) — watch for anything `propose_todo_batch`, the multilingual confirmation fallback, or the confabulation-honesty fix miss in practice.
 
 ---
 
@@ -154,7 +205,9 @@ Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation beh
 - **No allowlist (built 2026-07-18).** `getRealtimeVoiceAccess`/`ORB_REALTIME_VOICE_ENABLED`/`ORB_REALTIME_VOICE_ALLOWLIST`/the capability probe route are deleted — Realtime is available to every authenticated user, no staged per-email rollout (small user base makes this the right call). An unsupported browser (Firefox, or anything unrecognized) is **warned, never blocked** — Realtime still runs, with a banner (reuse the amber alert-banner catalog pattern) saying results may be unpredictable; **persistent every session, dismissible once per session** (banner UI itself still to be built — the decision is settled, the warning banner component is not yet wired in).
 - **The voice control box (`oc-voice-box`) has no manual "Stop" button (decided 2026-07-18).** After the crash-fix work removed every `response.cancel` call, there is no safe way to interrupt just one utterance — only a full session stop exists. Wiring "Stop" to that would silently duplicate "End" with a misleading label, so it was removed rather than built with a misleading affordance. Barge-in (talking over Orb) already covers manual interruption. Revisit only as a separate, carefully-reviewed piece of work if Stan wants a dedicated interrupt primitive.
 - **Voice panel visual states reuse existing orb code, no new colors (decided by Stan, 2026-07-17).** Idle/listening/speaking keep production's exact colors/animations. Connecting and Thinking both reuse the existing neutral `.ud-voice-progress` sweep-bar motif (rendered inside the orb sphere, today's "gathering data" indicator) — explicitly not the new accent color a first prototype proposed. The new `error` status (no prior orb precedent) reuses the existing danger/red treatment. `oc-voice-box` needs no changes.
-- **Provider incidents (billing/rate-limit/outage) always go through `lib/orb-model/incidents.ts`** (`classifyProviderFailure` + `notifyOrbIncident` — ticket + admin email, deduplicated), never a one-off log line. Realtime voice was wired to this in v0.6.214 after an OpenAI quota failure was found surfacing only in the server terminal.
+- **Provider incidents (billing/rate-limit/outage) always go through `lib/orb-model/incidents.ts`** (`classifyProviderFailure` + `notifyOrbIncident` — ticket + admin email + admin push as of ORB-353, deduplicated), never a one-off log line. Realtime voice was wired to this in v0.6.214 after an OpenAI quota failure was found surfacing only in the server terminal.
+- **Two independent AI-usage ceilings, checked separately (ORB-353, 2026-07-22).** Orb's own internal ledger budget (`orb_model_requests`, admin-configured in `orb_ai_policy`) is one; each provider's real account-level spend is the other — they are not the same number and must not be conflated. Real spend is pulled live from each provider's own API/export (Anthropic Cost API, OpenAI Costs API, Gemini via BigQuery billing export, ElevenLabs subscription endpoint) rather than estimated from Orb's own request log, specifically because Stan wants the source of truth to come from the provider, not from remembering to update a manual figure. None of Anthropic/OpenAI/Gemini expose a configured spend cap programmatically — those three caps are admin-entered in Orb; ElevenLabs is the exception and needs no cap field.
+- **Usage/threshold checks run from a dedicated 15-minute scheduled trigger, never from a user-facing request path.** Piggybacking on `/api/version`'s cache was considered and rejected — it would add real external-API latency to a hot, frequently-polled, already-optimized endpoint (ORB-326), and would only run while someone has the app open, defeating a proactive warning's purpose. Do not move provider-spend checks back onto a client-triggered path. **The scheduler itself is GitHub Actions** (`.github/workflows/usage-check.yml`), not Vercel Cron — Stan's Vercel plan only permits daily cron, discovered after the first build used `vercel.json`. Both call the same `/api/cron/usage-check` route.
 - **Name-first identifiers.** Project **NAME** is the identifier everywhere users/model interact. Project **code** is internal-only, auto-generated, immutable, prefixes todo codes only. References resolve name → exact code → fuzzy name.
 - **Todo identity model** (ORB-337): `id` (uuid) permanent identity; `code` (project code + `todo_number`) the current address, changes on move, **never recycled**; `title` a non-unique human search key (resolver fails closed on ambiguity). Move renumbers.
 - **Structural mutation gate** (not prompt-only). CRUD tools held server-side: the model calls the tool, the server persists a proposal, shared server predicates evaluate the actual current utterance. Upfront permission executes without a duplicate ask; otherwise a bare affirmation / explicit approval, **or (2026-07-19) a semantic classifier fallback accepting a clear "yes" in any language**, confirms. The DB is the commit boundary with transactional confirm RPCs + durable receipts.
@@ -168,7 +221,7 @@ Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation beh
 
 ## AI Tool Used Last Session
 
-`2026-07-21 — Codex (GPT-5)`
+`2026-07-22 — Claude Code (Sonnet 5)`
 
 ---
 
