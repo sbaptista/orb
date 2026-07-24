@@ -13,14 +13,14 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.233**.
+- **Version:** local/canonical **0.6.234**.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
 
 ## Last Session Completed
 
-**ORB-358 Dictate rebuilt on server-side transcription — 2026-07-23 (Claude Code, Sonnet 5) — v0.6.232→v0.6.233 — BUILT, NOT YET COMMITTED**
+**ORB-358 Dictate rebuilt on server-side transcription — 2026-07-23 (Claude Code, Sonnet 5) — v0.6.232→v0.6.234 — BUILT, NOT YET COMMITTED**
 
 Ticket: an invitee (account since deleted) couldn't get Dictate (inline speech-to-text in `OrbConversation.tsx`, distinct from full Realtime voice) working on Safari/Mac. `performance_events` had zero telemetry for that browser/platform combo — Dictate isn't instrumented, dead end. Root cause found by reading the code: Dictate was built directly on the browser-native `SpeechRecognition`/`webkitSpeechRecognition` Web Speech API, whose `onerror` discarded the actual failure reason (`() => setIsListening(false)`, no feedback at all).
 
@@ -28,9 +28,13 @@ Ticket: an invitee (account since deleted) couldn't get Dictate (inline speech-t
 
 **v0.6.233 (the real fix):** discovered the old, now-unreachable serial voice engine already had a **complete, production-proven server-side transcription pipeline** sitting unused — `/api/orb-transcribe` (authenticated, rate-limited 10/min/user, validates audio, calls OpenAI's transcription REST endpoint, already logs to the cost ledger with `source: 'voice_stt'`) and `lib/orb-model/stt.ts`. Rebuilt Dictate's recording on `MediaRecorder`/`getUserMedia` (modeled on `useVoiceMode.ts`'s existing pattern) instead of `SpeechRecognition`, uploading to that same existing route — **zero new backend code**. Kept Dictate's manual click-to-start/click-to-stop toggle rather than porting full voice mode's auto-silence-detection (drafting text shouldn't auto-cut-off mid-thought). Added an `isTranscribing` button state for the upload/transcribe round-trip. `npx tsc --noEmit` and focused lint clean (7 pre-existing unrelated warnings in this file, confirmed via `git stash` diff). Not an Orb-conversation change, no eval case needed.
 
+**v0.6.234 (UX follow-up, same session):** Stan tested v0.6.233 on dev and found a real regression — text only appeared once, after clicking Stop, instead of trickling in on pauses the way the old browser-native implementation did (that used to fire multiple "final result" events mid-session). Fixed by segmenting the recording: reused the exact silence-detection tuning already proven in `useVoiceMode.ts` (`SERVER_SILENCE_MS`/`SERVER_MAX_RECORDING_MS`/`SERVER_VOICE_THRESHOLD` → `DICTATE_*` constants, same values) via a `MediaRecorder`+`AnalyserNode` RMS monitor. Each segment auto-stops on a ~1.6s pause (or a 30s cap), transcribes independently, and — if the session is still active — a new segment starts immediately on the same stream, so listening never actually stops between segments. Transcriptions are chained through a promise queue (`transcriptionChainRef`) so segments always append to the text field in recording order even if a later upload happens to finish first. Caught and fixed a real bug during this pass: the button's `disabled`/opacity logic still treated `isTranscribing` as mutually exclusive with `isListening` (true under the old single-shot design), which would have made Stop unclickable while a background segment was mid-transcription — `isTranscribing` now only disables the button when nothing is actively listening (i.e. the final segment after an explicit Stop). `npx tsc --noEmit` and focused lint clean, same 7 pre-existing warnings only.
+
+**Flagged, not resolved:** `/api/orb-transcribe`'s existing rate limit (10 requests/min/user) was sized for one-request-per-full-turn full voice mode. Segmented Dictate can now generate several requests per minute during bursty dictation (e.g. a list with pauses between items), making that limit easier to hit than before. Not changed — Stan hasn't said whether to raise it.
+
 **Needs from Stan:** a rate card for `gpt-4o-mini-transcribe` (none exists yet — declined to guess pricing); until added, Dictate transcription cost logs with a null estimate, same fallback as any unrated model elsewhere. **Possible bonus, unconfirmed:** Firefox previously showed Dictate disabled (no `SpeechRecognition` support); `MediaRecorder`/`getUserMedia` has much broader support, so Firefox may now work too — worth testing, not promised.
 
-**Not yet committed or pushed** — version bumped to v0.6.233 and changelog entries added as part of this handoff update, but no commit yet. Todo not yet closed.
+**Not yet committed or pushed** — version bumped to v0.6.234 and changelog entries added as part of this handoff update, but no commit yet. Todo not yet closed.
 
 **ORB-354 invited-user passkey recovery — 2026-07-23 (Codex, GPT-5) — v0.6.231 — RELEASED, TODO OPEN PENDING PRODUCTION-DOMAIN VERIFICATION**
 

@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.234',
+    date: '2026-07-23',
+    changes: [
+      'Dictate now trickles text in as you pause, instead of only appearing once after you click Stop — it auto-detects pauses and transcribes each spoken segment as it finishes, closer to how it felt before the server-side rebuild (ORB-358).',
+    ],
+  },
+  {
     version: 'v0.6.233',
     date: '2026-07-23',
     changes: [
