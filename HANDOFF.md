@@ -20,7 +20,7 @@
 
 ## Last Session Completed
 
-**ORB-358 Dictate rebuilt on server-side transcription — 2026-07-23 (Claude Code, Sonnet 5) — v0.6.232→v0.6.236 — BUILT, NOT YET COMMITTED**
+**ORB-358 Dictate rebuilt on server-side transcription — 2026-07-23 (Claude Code, Sonnet 5) — v0.6.232→v0.6.236 — COMMITTED LOCALLY (`842f80a`..`f39ea59`), NOT PUSHED**
 
 Ticket: an invitee (account since deleted) couldn't get Dictate (inline speech-to-text in `OrbConversation.tsx`, distinct from full Realtime voice) working on Safari/Mac. `performance_events` had zero telemetry for that browser/platform combo — Dictate isn't instrumented, dead end. Root cause found by reading the code: Dictate was built directly on the browser-native `SpeechRecognition`/`webkitSpeechRecognition` Web Speech API, whose `onerror` discarded the actual failure reason (`() => setIsListening(false)`, no feedback at all).
 
@@ -38,7 +38,31 @@ Ticket: an invitee (account since deleted) couldn't get Dictate (inline speech-t
 
 **Needs from Stan:** a rate card for `gpt-4o-mini-transcribe` (none exists yet — declined to guess pricing); until added, Dictate transcription cost logs with a null estimate, same fallback as any unrated model elsewhere. **Possible bonus, unconfirmed:** Firefox previously showed Dictate disabled (no `SpeechRecognition` support); `MediaRecorder`/`getUserMedia` has much broader support, so Firefox may now work too — worth testing, not promised.
 
-**Not yet committed or pushed** — version bumped to v0.6.236 and changelog entries added as part of this handoff update, but no commit yet. Todo not yet closed.
+**Committed locally, not pushed** (`842f80a`..`f39ea59`, 5 commits). Todo not yet closed — Stan wants to test v0.6.236 on dev (particularly the telemetry) before deciding push/close, and see below: a further rebuild is already planned on top of this, so closing ORB-358 may wait for that instead of happening now.
+
+---
+
+**ORB-358 Phase 2 — live-streaming Dictate: SCOPED, NOT STARTED (2026-07-23 session, same day)**
+
+After testing v0.6.235/236 live, Stan pushed back on the batch-on-stop model itself, not just its latency: *"Imagine that I was typing but couldn't see any of it until I stopped typing. That would be wrong. Dictation should be typing with my voice."* He initially considered removing Dictate rather than converging it with Talk to Orb's live-streaming tech, then reframed: Dictate's actual differentiator (dictate a lot, then edit before sending — no auto-execute, no AI response) survives regardless of whether text appears live or batched, so building live-streaming doesn't have to erase what makes it distinct from Talk to Orb, as long as Dictate still only ever fills the text field and never itself sends anything.
+
+**Decision: build it — "a version of 3"** (of three options offered: keep as-is / remove / build live-streaming). Exact spec Stan gave, confirmed word-for-word:
+- Click Dictate → recording starts, live text streams into the field continuously as he speaks (not batched, not segmented-on-pause — genuinely live)
+- Click Stop → recording stops, whatever's transcribed sits in the field, waiting
+- Text is freely editable at that point (punctuation, line breaks, corrections — voice can't do these; typing after stopping is how they get added)
+- **Return / a send button is disabled while actively dictating** — re-enabled only once dictation is stopped. No stop+send shortcut via Return anymore (this replaces v0.6.235's "Return while dictating stops and sends in one motion" — that behavior is superseded, not additive, once this ships)
+- Once stopped, Return/send behaves exactly like normal typing — nothing dictation-specific about submission at that point
+
+**Technical grounding done, confirmed live against OpenAI's current docs (not guessed):** OpenAI's Realtime API has a dedicated `"type": "transcription"` session mode, distinct from the full conversational session Talk to Orb uses — `session.update` → `{"session": {"type": "transcription", "audio": {"input": {"transcription": {"model": "gpt-realtime-whisper", ...}}}}}`. Delivers `conversation.item.input_audio_transcription.delta` events (partial text, streamed continuously) and `.completed` events (final text per committed segment). `gpt-realtime-whisper` is described as "natively streaming and designed for realtime sessions," distinct from `gpt-4o-mini-transcribe`/`gpt-4o-transcribe` (today's batch model, explicitly called out as "alternatives for non-streaming workflows"). For this model, turn detection is manual (`input_audio_buffer.commit` sent by the client), not server VAD — fits the design naturally: stream deltas continuously while the button is on, send one manual commit when Stan clicks Stop.
+
+**Not yet done, next session:**
+1. New dedicated lightweight hook (not a reuse of `useRealtimeVoiceSpike.ts` — that's coupled to full conversational tool-calling; this needs the same WebRTC/SDP connection mechanics only, no tool calls, no AI response, no conversation state).
+2. Decide: new dedicated session route for transcription-only sessions, or extend the existing `/api/orb-realtime/session/route.ts` with a mode switch — leaning toward a new route to avoid coupling Dictate to the full conversational tool list, not yet decided.
+3. **Cost model changes** — flagged explicitly to Stan, not yet resolved: Realtime transcription sessions bill by audio-duration-connected (same category as Talk to Orb's existing cost), not per-request like today's batch endpoint. Needs a rate card for `gpt-realtime-whisper` (same "don't guess pricing" rule as everywhere else this session) before this can get real cost estimates or feed into ORB-353's usage monitoring.
+4. Rewire the button/Return-disabling UI logic in `OrbConversation.tsx` — straightforward once the streaming hook exists, not attempted yet.
+5. Decide whether the existing telemetry (`flow: 'dictate'`, v0.6.236) gets extended to cover the new streaming path, or needs new marks specific to connection-open/first-delta/stop/commit timing.
+
+No code written for Phase 2 — this section exists so the next session (any AI tool) can start directly from an agreed spec instead of re-deriving it.
 
 **ORB-354 invited-user passkey recovery — 2026-07-23 (Codex, GPT-5) — v0.6.231 — RELEASED, TODO OPEN PENDING PRODUCTION-DOMAIN VERIFICATION**
 
@@ -202,12 +226,14 @@ Standing exceptions (never committed with feature work):
 
 ## Next Priorities
 
-1. **ORB-354** — verify successful registration, a simulated/reproducible failure, committed-credential reconciliation, and Continue-to-Orb recovery on the production domain before closing.
-2. **ORB-357** — plan complete per-project category CRUD and lifecycle before restoring Category to todo editors (currently Deferred).
-3. **ORB-342** — the fuller serial/Realtime pending-mutation convergence (three mechanisms → one shared pattern), once `propose_todo_batch` has some real-world use.
-4. **The `onMutation` project-list-refresh gap** in `UnifiedDashboard.tsx` — decide whether it's its own fix or folds into ORB-342.
-5. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
-6. Continued live use of Realtime voice (now production-default, ORB-325 closed) — watch for anything `propose_todo_batch`, the multilingual confirmation fallback, or the confabulation-honesty fix miss in practice.
+1. **ORB-358 Phase 2** — build live-streaming Dictate per the agreed spec above (new lightweight Realtime-transcription hook, session route decision, `gpt-realtime-whisper` rate card, button/Return UI rewire). Scoped, not started. v0.6.236 (batch model) is the safe fallback already committed if this doesn't ship soon.
+2. **ORB-358 v0.6.232-236** — test on dev (especially the new telemetry, per HANDOFF above), then push and close, independent of whether Phase 2 happens right away.
+3. **ORB-354** — verify successful registration, a simulated/reproducible failure, committed-credential reconciliation, and Continue-to-Orb recovery on the production domain before closing.
+4. **ORB-357** — plan complete per-project category CRUD and lifecycle before restoring Category to todo editors (currently Deferred).
+5. **ORB-342** — the fuller serial/Realtime pending-mutation convergence (three mechanisms → one shared pattern), once `propose_todo_batch` has some real-world use.
+6. **The `onMutation` project-list-refresh gap** in `UnifiedDashboard.tsx` — decide whether it's its own fix or folds into ORB-342.
+7. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
+8. Continued live use of Realtime voice (now production-default, ORB-325 closed) — watch for anything `propose_todo_batch`, the multilingual confirmation fallback, or the confabulation-honesty fix miss in practice.
 
 ---
 
@@ -235,7 +261,7 @@ Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation beh
 
 ## AI Tool Used Last Session
 
-`2026-07-22 — Claude Code (Sonnet 5)`
+`2026-07-23 — Claude Code (Sonnet 5)`
 
 ---
 
