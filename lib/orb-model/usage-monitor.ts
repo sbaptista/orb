@@ -284,24 +284,49 @@ async function pushAndEmailAdmins(admin: ReturnType<typeof createAdminClient>, s
   ])
 }
 
-async function writeAutoBroadcast(admin: ReturnType<typeof createAdminClient>, warnedScopes: Array<{ scope: ScopeResult; percent: number }>) {
+// Bug fixed 2026-07-24 (Stan: "it never goes away even if I attempt to
+// manually clear the broadcast"): this used to run unconditionally every
+// 15-minute cron cycle and re-upsert the banner for as long as ANY scope
+// stayed over threshold — undoing a manual "Clear Broadcast" click within
+// one cycle, since the row it deleted just got recreated. Push/email were
+// already correctly deduped per (scope, billing period) via
+// orb_usage_warnings; the banner write now follows the same rule — it only
+// WRITES on a fresh crossing (freshlyWarned), never on a repeat cycle where
+// nothing new crossed. Clearing (when nothing remains over threshold) is
+// unchanged. This means a manual clear now actually sticks until either the
+// scope resolves or a genuinely new crossing occurs.
+async function writeAutoBroadcast(
+  admin: ReturnType<typeof createAdminClient>,
+  overThreshold: Array<{ scope: ScopeResult; percent: number }>,
+  freshlyWarned: Array<{ scope: ScopeResult; percent: number }>,
+) {
   const { data: existing } = await admin.from('system_settings').select('value').eq('key', 'broadcast_message').maybeSingle()
   const currentlyAutoSet = existing?.value && typeof existing.value === 'object' && (existing.value as any).source === 'auto-usage-warning'
   const currentlyAdminSet = existing?.value && typeof existing.value === 'object' && !(existing.value as any).source
 
-  if (warnedScopes.length === 0) {
-    // Nothing over threshold. Clear only if we're the one who set it —
+  if (overThreshold.length === 0) {
+    // Nothing over threshold anymore. Clear only if we're the one who set it —
     // never touch an admin-typed broadcast.
     if (currentlyAutoSet) await admin.from('system_settings').delete().eq('key', 'broadcast_message')
     return
   }
 
-  // Never clobber a manually-typed announcement — push/email still fired above.
+  // Never clobber a manually-typed announcement.
   if (currentlyAdminSet) return
 
-  const message = warnedScopes.length === 1
-    ? `${scopeDisplayLabel(warnedScopes[0].scope)} is at ${warnedScopes[0].percent.toFixed(0)}% of its limit.`
-    : `${warnedScopes.length} AI usage scopes are approaching their limits: ${warnedScopes.map(w => `${scopeDisplayLabel(w.scope)} (${w.percent.toFixed(0)}%)`).join(', ')}.`
+  // Nothing crossed fresh this cycle — leave whatever's there alone,
+  // including "nothing" if it was manually cleared. The notification for
+  // every currently-over-threshold scope already fired when it first
+  // crossed; the banner is a dismissible ambient reminder, not something
+  // that should fight a manual clear every 15 minutes.
+  if (freshlyWarned.length === 0) return
+
+  // Compose from every currently-over-threshold scope (not just the fresh
+  // one), so if scope B crosses while scope A is already showing, the
+  // banner correctly describes both.
+  const message = overThreshold.length === 1
+    ? `${scopeDisplayLabel(overThreshold[0].scope)} is at ${overThreshold[0].percent.toFixed(0)}% of its limit.`
+    : `${overThreshold.length} AI usage scopes are approaching their limits: ${overThreshold.map(w => `${scopeDisplayLabel(w.scope)} (${w.percent.toFixed(0)}%)`).join(', ')}.`
 
   await admin.from('system_settings').upsert({
     key: 'broadcast_message',
@@ -321,6 +346,7 @@ export async function checkAllUsageThresholds(): Promise<{ checked: number; warn
     .filter(({ percent }) => percent >= warningThresholdPct)
 
   const warned: string[] = []
+  const freshlyWarned: Array<{ scope: ScopeResult; percent: number }> = []
   for (const { scope, percent } of overThreshold) {
     const { data: existingWarning } = await admin
       .from('orb_usage_warnings')
@@ -337,9 +363,10 @@ export async function checkAllUsageThresholds(): Promise<{ checked: number; warn
       detail: { usedUsd: scope.usedUsd, limitUsd: scope.limitUsd, percent },
     })
     warned.push(scope.key)
+    freshlyWarned.push({ scope, percent })
   }
 
-  await writeAutoBroadcast(admin, overThreshold)
+  await writeAutoBroadcast(admin, overThreshold, freshlyWarned)
 
   return { checked: scopes.length, warned }
 }

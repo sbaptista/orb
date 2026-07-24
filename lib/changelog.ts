@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.238',
+    date: '2026-07-24',
+    changes: [
+      'Fixed a bug where an AI-usage-warning broadcast banner would keep coming back within 15 minutes no matter how many times an admin cleared it, or a user dismissed it — the background check was recreating the banner on every cycle instead of only when a genuinely new usage threshold was crossed (ORB-353).',
+    ],
+  },
+  {
     version: 'v0.6.237',
     date: '2026-07-24',
     changes: [

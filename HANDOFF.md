@@ -13,14 +13,20 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.237**.
+- **Version:** local/canonical **0.6.238**.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
 
 ## Last Session Completed
 
-**ORB-358 removed from UI, status ON HOLD — 2026-07-24 (Claude Code, Sonnet 5) — v0.6.237 — NOT YET COMMITTED**
+**ORB-353 broadcast-never-clears bug fixed — 2026-07-24 (Claude Code, Sonnet 5) — v0.6.238 — NOT YET COMMITTED**
+
+Stan reported the AI-usage-warning broadcast banner ("Orb operational budget (Anthropic) is at 89% of its limit.") never went away no matter how many times he cleared it. Root cause in `lib/orb-model/usage-monitor.ts`'s `writeAutoBroadcast`: it ran unconditionally on **every** 15-minute cron cycle and re-upserted the banner (with a **new** `id` each time) for as long as any scope stayed over threshold — undoing a manual "Clear Broadcast" click within one cycle, and separately breaking `BroadcastBanner.tsx`'s existing per-user `localStorage` dismiss-by-`id` mechanism the same way (a fresh id every cycle meant a dismissed id never matched the next one). Push/email notifications were already correctly deduped per (scope, billing period) via `orb_usage_warnings` — the banner write just was never wired to that same rule.
+
+Fixed by tracking `freshlyWarned` (scopes crossing threshold for the first time this period) separately from `overThreshold` (all currently-over-threshold scopes) in `checkAllUsageThresholds()`. The banner now only WRITES on a fresh crossing — a repeat cycle where nothing new crossed leaves the row alone, whether that means "still showing the same banner" or "still cleared, because a human cleared it." Clearing when everything drops back under threshold is unchanged. This one fix resolves both the admin-clear and the user-dismiss cases Stan described (*"If a user clicks the broadcast, it should go away for that user. If an admin clears the broadcast, it should go away permanently."*) since both already existed correctly at the UI layer — they were just fighting a server bug that kept regenerating the underlying row. **This bug has been live in production since the original ORB-353 push** — the cron has been overwriting Stan's manual clears the whole time. `npx tsc --noEmit` and focused lint clean, zero new warnings.
+
+**ORB-358 removed from UI, status ON HOLD — 2026-07-24 (Claude Code, Sonnet 5) — v0.6.237 — COMMITTED LOCALLY (`63d8a44`), NOT PUSHED**
 
 Change of direction from Stan after the Phase 2 scoping below: rather than build the live-streaming rebuild next, **remove Dictate from the UI now, keep all the code, set the todo on hold.** Implemented as a single `DICTATE_ENABLED = false` flag in `OrbConversation.tsx` wrapping the button's JSX (not deleting any of the v0.6.232-236 logic) — same pattern already used to retire the old serial voice engine without deleting it. Also removed/updated the now-stale references that would otherwise describe a button that isn't there: `OrbHelp.tsx`'s "Dictate toolbar button" paragraph (removed), `docs/ui-catalog.md`'s toolbar description (updated to note it's hidden pending Phase 2, points here). Todo ORB-358 (`7b222968-9e6a-4c1f-ab63-08f9ecefff76`) set to **status `on hold`** via the REST API (verified) — deliberately not `closed` (nothing resolved) and not `open` (not actively being worked). `npx tsc --noEmit` and focused lint clean, zero new warnings (the flag approach keeps every Dictate function/state referenced, so nothing went unused).
 
