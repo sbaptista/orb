@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.233',
+    date: '2026-07-23',
+    changes: [
+      'Rebuilt Dictate (the inline speech-to-text toolbar button) on server-side transcription instead of the browser\'s native speech API — that free API only reliably worked in Chrome, and consistently failed on Edge and Safari (two of Orb\'s three officially supported browsers) with no fix possible on our side. Dictate now records audio and sends it to the same transcription service Realtime voice already uses, so it works the same way in every browser (ORB-358).',
+    ],
+  },
+  {
     version: 'v0.6.232',
     date: '2026-07-23',
     changes: [

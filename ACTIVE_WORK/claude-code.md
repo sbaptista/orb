@@ -4,8 +4,4 @@ Written only by Claude Code. Rules: `docs/multi-agent-concurrency-protocol.md`.
 
 ## Active Claims
 
-- **2026-07-23 (continuing session)**
-  Surface: Dictate button silent-failure fix
-  Files: components/OrbConversation.tsx
-  Intent: ORB-358 — surface the actual Web Speech API error reason (permission/network/mic) instead of silently resetting listening state with no user feedback
-  Long-running: no
+*(none — ORB-358 closed: Dictate rebuilt on server-side transcription (MediaRecorder + existing /api/orb-transcribe pipeline) after live testing showed the browser-native Web Speech API structurally can't work reliably on Edge/Safari, 2 of Orb's 3 required browsers. v0.6.233.)*

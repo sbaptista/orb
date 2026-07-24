@@ -13,20 +13,24 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.232**.
+- **Version:** local/canonical **0.6.233**.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
 
 ## Last Session Completed
 
-**ORB-358 Dictate silent-failure fix — 2026-07-23 (Claude Code, Sonnet 5) — v0.6.232 — BUILT, NOT YET COMMITTED**
+**ORB-358 Dictate rebuilt on server-side transcription — 2026-07-23 (Claude Code, Sonnet 5) — v0.6.232→v0.6.233 — BUILT, NOT YET COMMITTED**
 
-Ticket: an invitee (account since deleted) couldn't get the Dictate toolbar button (inline speech-to-text in `OrbConversation.tsx`, distinct from full Realtime voice — built directly on the browser's native `SpeechRecognition`/`webkitSpeechRecognition` Web Speech API) to work on Safari/Mac. DB investigation (`performance_events`) found **zero telemetry at all** for that browser/platform/environment combination — Dictate isn't instrumented, so logs were a dead end. Root cause found by reading the code instead: `recognition.onerror = () => setIsListening(false)` discarded the actual error reason entirely, so any failure was indistinguishable from nothing happening. Stan reproduced a live symptom on Edge (different network, away from home) — button flickered on then immediately off, consistent with the same silent-swallow pattern, plausibly a `network` error given the Web Speech API sends audio to a cloud recognition service the current network may be filtering.
+Ticket: an invitee (account since deleted) couldn't get Dictate (inline speech-to-text in `OrbConversation.tsx`, distinct from full Realtime voice) working on Safari/Mac. `performance_events` had zero telemetry for that browser/platform combo — Dictate isn't instrumented, dead end. Root cause found by reading the code: Dictate was built directly on the browser-native `SpeechRecognition`/`webkitSpeechRecognition` Web Speech API, whose `onerror` discarded the actual failure reason (`() => setIsListening(false)`, no feedback at all).
 
-Fixed in `components/OrbConversation.tsx`: captures `event.error` from the Web Speech API and shows a specific `toast.error(...)` message (permission denied / no microphone / can't reach recognition service / no speech detected), instead of silently resetting state. Also toasts on the try/catch construction-failure path, previously only `console.error`'d. Reuses the existing `useToast` pattern already used elsewhere (e.g. `SettingsAI.tsx`) rather than inventing new UI. `npx tsc --noEmit` and focused lint clean (7 pre-existing unrelated warnings in this file, confirmed via `git stash` diff, not introduced by this change). Not an Orb-conversation change, no eval case needed.
+**v0.6.232 (first pass):** surfaced the real error via toast instead of silence. This is what actually cracked the case — Stan then reproduced it live and iterated through the full browser matrix: **Comet and Chrome work; Edge and Safari both produce a `network` error, on both his machine and his wife's Mac, both away from home and back on his home network** (ruling out a network-filtering theory). Root cause: the Web Speech API's free cloud backend requires a Google-internal API key that only Google's own Chrome ships with — Edge and Safari (2 of Orb's 3 officially-required browsers per `docs/browser-support-policy.md`) structurally can never use it reliably, code fix or not.
 
-**Not yet committed or pushed** — version bumped to v0.6.232 and changelog entry added as part of this handoff update, but the commit itself hasn't happened. Todo not yet closed.
+**v0.6.233 (the real fix):** discovered the old, now-unreachable serial voice engine already had a **complete, production-proven server-side transcription pipeline** sitting unused — `/api/orb-transcribe` (authenticated, rate-limited 10/min/user, validates audio, calls OpenAI's transcription REST endpoint, already logs to the cost ledger with `source: 'voice_stt'`) and `lib/orb-model/stt.ts`. Rebuilt Dictate's recording on `MediaRecorder`/`getUserMedia` (modeled on `useVoiceMode.ts`'s existing pattern) instead of `SpeechRecognition`, uploading to that same existing route — **zero new backend code**. Kept Dictate's manual click-to-start/click-to-stop toggle rather than porting full voice mode's auto-silence-detection (drafting text shouldn't auto-cut-off mid-thought). Added an `isTranscribing` button state for the upload/transcribe round-trip. `npx tsc --noEmit` and focused lint clean (7 pre-existing unrelated warnings in this file, confirmed via `git stash` diff). Not an Orb-conversation change, no eval case needed.
+
+**Needs from Stan:** a rate card for `gpt-4o-mini-transcribe` (none exists yet — declined to guess pricing); until added, Dictate transcription cost logs with a null estimate, same fallback as any unrated model elsewhere. **Possible bonus, unconfirmed:** Firefox previously showed Dictate disabled (no `SpeechRecognition` support); `MediaRecorder`/`getUserMedia` has much broader support, so Firefox may now work too — worth testing, not promised.
+
+**Not yet committed or pushed** — version bumped to v0.6.233 and changelog entries added as part of this handoff update, but no commit yet. Todo not yet closed.
 
 **ORB-354 invited-user passkey recovery — 2026-07-23 (Codex, GPT-5) — v0.6.231 — RELEASED, TODO OPEN PENDING PRODUCTION-DOMAIN VERIFICATION**
 
