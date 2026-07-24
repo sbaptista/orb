@@ -5,12 +5,14 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useToast } from '@/components/ui/Toast'
 
-// ORB-358: same silence-detection tuning already proven by the serial voice
-// engine (lib/hooks/useVoiceMode.ts) — reused rather than re-guessed so
-// Dictate's auto-flush-on-pause behaves consistently with the rest of the app.
-const DICTATE_SILENCE_MS = 1600
-const DICTATE_MAX_SEGMENT_MS = 30_000
-const DICTATE_VOICE_THRESHOLD = 0.018
+// ORB-358: pause-based auto-segmentation was tried and reverted (Stan,
+// 2026-07-23) — it introduced its own problems (queued transcriptions could
+// visibly land out of sync, and very short/near-silent segments could make
+// the transcription model hallucinate by echoing the STT prompt text back
+// as if it had been spoken). A dictation machine is simpler and more
+// predictable: one continuous recording for the whole session, transcribed
+// once when the user explicitly stops it.
+const DICTATE_MIN_MS = 400 // below this, treat as an accidental tap — skip the API call entirely
 
 export type ConversationMessage = {
     id: string
@@ -195,11 +197,7 @@ export default function OrbConversation({
     const [moreMenuOpen, setMoreMenuOpen] = useState(false)
     const mediaRecorderRef = useRef<MediaRecorder | null>(null)
     const mediaStreamRef = useRef<MediaStream | null>(null)
-    const sessionActiveRef = useRef(false)
-    const monitorFrameRef = useRef<number | null>(null)
-    const monitorAudioCtxRef = useRef<AudioContext | null>(null)
-    const transcriptionChainRef = useRef<Promise<void>>(Promise.resolve())
-    const pendingTranscriptionCountRef = useRef(0)
+    const recordingStartedAtRef = useRef(0)
     const processing = submitting || messages.some(msg => msg.isStreaming)
     const toast = useToast()
 
@@ -217,132 +215,80 @@ export default function OrbConversation({
 
     useEffect(() => {
         return () => {
-            sessionActiveRef.current = false
             try { mediaRecorderRef.current?.stop() } catch {}
             mediaStreamRef.current?.getTracks().forEach(track => track.stop())
-            if (monitorFrameRef.current !== null) cancelAnimationFrame(monitorFrameRef.current)
-            monitorAudioCtxRef.current?.close().catch(() => {})
         }
     }, [])
 
-    // Transcribes one segment and appends it to the text field. Chained onto
-    // transcriptionChainRef so segments always append in recording order even
-    // if a later segment's upload happens to finish before an earlier one's.
-    function transcribeSegment(chunks: Blob[], mimeType: string) {
-        const audio = new Blob(chunks, { type: mimeType || 'audio/webm' })
-        if (audio.size === 0) return
-        pendingTranscriptionCountRef.current += 1
-        setIsTranscribing(true)
-        transcriptionChainRef.current = transcriptionChainRef.current.then(async () => {
-            try {
-                const form = new FormData()
-                form.append('audio', audio, mimeType?.includes('ogg') ? 'orb-dictate.ogg' : 'orb-dictate.webm')
-                const response = await fetch('/api/orb-transcribe', { method: 'POST', body: form })
-                const result = await response.json() as { text?: string; error?: string }
-                if (!response.ok || !result.text) throw new Error(result.error || 'Speech transcription failed')
-                const text = result.text.trim()
-                if (text && textareaRef.current) {
-                    const current = textareaRef.current.value
-                    const joiner = current && !/\s$/.test(current) ? ' ' : ''
-                    onInputChange(current + joiner + text)
-                }
-            } catch (err) {
-                toast.error(err instanceof Error ? err.message : 'Could not transcribe speech. Try again.')
-            } finally {
-                pendingTranscriptionCountRef.current -= 1
-                if (pendingTranscriptionCountRef.current <= 0) setIsTranscribing(false)
-            }
-        })
-    }
-
-    // One recording segment: records until a pause (or the max segment
-    // duration) is detected, transcribes what it captured, and — if the
-    // Dictate session is still active — immediately starts the next segment
-    // on the same stream. This is what makes text trickle in on pauses the
-    // way the old browser-native implementation did, instead of only
-    // appearing once at the very end.
-    function startSegment(stream: MediaStream) {
-        const preferredTypes = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/webm']
-        const mimeType = preferredTypes.find(type => MediaRecorder.isTypeSupported(type))
-        const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
-        mediaRecorderRef.current = recorder
-        const chunks: Blob[] = []
-        recorder.ondataavailable = event => { if (event.data.size > 0) chunks.push(event.data) }
-
-        const stopMonitor = () => {
-            if (monitorFrameRef.current !== null) cancelAnimationFrame(monitorFrameRef.current)
-            monitorFrameRef.current = null
-            monitorAudioCtxRef.current?.close().catch(() => {})
-            monitorAudioCtxRef.current = null
-        }
-
-        recorder.onerror = () => {
-            sessionActiveRef.current = false
-            stopMonitor()
-            stream.getTracks().forEach(track => track.stop())
-            mediaStreamRef.current = null
-            mediaRecorderRef.current = null
-            setIsListening(false)
-            toast.error('Microphone recording failed. Try again.')
-        }
-
-        recorder.onstop = () => {
-            stopMonitor()
-            transcribeSegment(chunks, recorder.mimeType)
-            if (sessionActiveRef.current) {
-                startSegment(stream)
-            } else {
-                stream.getTracks().forEach(track => track.stop())
-                mediaStreamRef.current = null
-                mediaRecorderRef.current = null
-                setIsListening(false)
-            }
-        }
-
-        recorder.start()
-
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
-        monitorAudioCtxRef.current = ctx
-        const analyser = ctx.createAnalyser()
-        analyser.fftSize = 512
-        ctx.createMediaStreamSource(stream).connect(analyser)
-        const samples = new Uint8Array(analyser.fftSize)
-        const startedAt = performance.now()
-        let heardSpeech = false
-        let lastVoiceAt = startedAt
-        const monitor = () => {
-            if (recorder.state !== 'recording') return
-            analyser.getByteTimeDomainData(samples)
-            let sum = 0
-            for (const value of samples) {
-                const normalized = (value - 128) / 128
-                sum += normalized * normalized
-            }
-            const rms = Math.sqrt(sum / samples.length)
-            const now = performance.now()
-            if (rms >= DICTATE_VOICE_THRESHOLD) {
-                heardSpeech = true
-                lastVoiceAt = now
-            }
-            if ((heardSpeech && now - lastVoiceAt >= DICTATE_SILENCE_MS) || now - startedAt >= DICTATE_MAX_SEGMENT_MS) {
-                recorder.stop()
-                return
-            }
-            monitorFrameRef.current = requestAnimationFrame(monitor)
-        }
-        monitorFrameRef.current = requestAnimationFrame(monitor)
-    }
+    // Return while dictating means "stop and send" (matches what Return
+    // already means in this field when not dictating); clicking the button
+    // means "stop, but let me review before sending" — deliberately
+    // different actions, not two spellings of the same one (Stan, 2026-07-23).
+    const submitAfterStopRef = useRef(false)
 
     async function startListening() {
         if (!supportsVoice || submitting) return
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
             mediaStreamRef.current = stream
-            sessionActiveRef.current = true
+
+            const preferredTypes = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/webm']
+            const mimeType = preferredTypes.find(type => MediaRecorder.isTypeSupported(type))
+            const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+            mediaRecorderRef.current = recorder
+            const chunks: Blob[] = []
+            recorder.ondataavailable = event => { if (event.data.size > 0) chunks.push(event.data) }
+
+            recorder.onerror = () => {
+                stream.getTracks().forEach(track => track.stop())
+                mediaStreamRef.current = null
+                mediaRecorderRef.current = null
+                setIsListening(false)
+                submitAfterStopRef.current = false
+                toast.error('Microphone recording failed. Try again.')
+            }
+
+            recorder.onstop = async () => {
+                stream.getTracks().forEach(track => track.stop())
+                mediaStreamRef.current = null
+                mediaRecorderRef.current = null
+                setIsListening(false)
+                const wantsSubmit = submitAfterStopRef.current
+                submitAfterStopRef.current = false
+
+                const tooShort = Date.now() - recordingStartedAtRef.current < DICTATE_MIN_MS
+                const audio = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' })
+                if (audio.size === 0 || tooShort) {
+                    if (wantsSubmit) handleFormSubmit()
+                    return
+                }
+
+                setIsTranscribing(true)
+                try {
+                    const form = new FormData()
+                    form.append('audio', audio, recorder.mimeType?.includes('ogg') ? 'orb-dictate.ogg' : 'orb-dictate.webm')
+                    const response = await fetch('/api/orb-transcribe', { method: 'POST', body: form })
+                    const result = await response.json() as { text?: string; error?: string }
+                    if (!response.ok || !result.text) throw new Error(result.error || 'Speech transcription failed')
+                    const text = result.text.trim()
+                    const current = textareaRef.current?.value ?? input
+                    const joiner = current && !/\s$/.test(current) ? ' ' : ''
+                    const finalValue = text ? current + joiner + text : current
+                    if (text) onInputChange(finalValue)
+                    if (wantsSubmit) handleFormSubmit(undefined, finalValue)
+                } catch (err) {
+                    toast.error(err instanceof Error ? err.message : 'Could not transcribe speech. Try again.')
+                } finally {
+                    setIsTranscribing(false)
+                }
+            }
+
+            recordingStartedAtRef.current = Date.now()
+            recorder.start()
             setIsListening(true)
-            startSegment(stream)
         } catch (err: any) {
             setIsListening(false)
+            submitAfterStopRef.current = false
             const message = err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError'
                 ? 'Microphone access was denied. Check your browser\'s site permissions and try again.'
                 : err?.name === 'NotFoundError'
@@ -352,8 +298,8 @@ export default function OrbConversation({
         }
     }
 
-    function stopListening() {
-        sessionActiveRef.current = false
+    function stopListening(submitAfter = false) {
+        submitAfterStopRef.current = submitAfter
         try { mediaRecorderRef.current?.stop() } catch {}
     }
 
@@ -681,7 +627,9 @@ export default function OrbConversation({
                                     onKeyDown={e => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault()
-                                            if (showSlashMenu && activeSlashCommands[slashIndex]) {
+                                            if (isListening) {
+                                                stopListening(true)
+                                            } else if (showSlashMenu && activeSlashCommands[slashIndex]) {
                                                 fillCommand(activeSlashCommands[slashIndex].cmd)
                                             } else if (input.trim() !== '/') {
                                                 handleFormSubmit()
@@ -735,22 +683,23 @@ export default function OrbConversation({
                                         <span className="oc-tool-btn-label">Cmds</span>
                                     </button>
 
-                                    {/* Dictate — always visible. isTranscribing runs in the background
-                                        while listening continues (segments auto-flush on pauses), so it
-                                        must never block Stop — only disable the button when nothing is
-                                        listening and a final segment is still finishing up. */}
+                                    {/* Dictate — always visible. A dictation-machine model: records
+                                        continuously until the user explicitly stops it (button click,
+                                        or Return — which also submits). Transcription only starts
+                                        after recording stops, so isListening and isTranscribing never
+                                        overlap. */}
                                     <button
                                         type="button"
                                         className="oc-tool-btn"
                                         onClick={() => isListening ? stopListening() : startListening()}
                                         onMouseDown={(e) => e.preventDefault()}
-                                        disabled={!supportsVoice || processing || (isTranscribing && !isListening)}
+                                        disabled={!supportsVoice || processing || isTranscribing}
                                         data-tooltip={isListening ? 'Stop dictation' : isTranscribing ? 'Transcribing…' : 'Dictate into the text field'}
                                         aria-label={isListening ? 'Stop dictation' : isTranscribing ? 'Transcribing' : 'Dictate into the text field'}
                                         style={{
                                             color: isListening ? '#c00' : undefined,
                                             background: isListening ? 'rgba(200,0,0,0.06)' : undefined,
-                                            opacity: !supportsVoice || processing || (isTranscribing && !isListening) ? 'var(--opacity-disabled)' : 1,
+                                            opacity: !supportsVoice || processing || isTranscribing ? 'var(--opacity-disabled)' : 1,
                                         }}
                                     >
                                         <span className="oc-tool-btn-icon">
@@ -761,7 +710,7 @@ export default function OrbConversation({
                                                 <line x1="8" y1="23" x2="16" y2="23"/>
                                             </svg>
                                         </span>
-                                        <span className="oc-tool-btn-label">{isListening ? 'Dictate' : isTranscribing ? 'Transcribing' : 'Dictate'}</span>
+                                        <span className="oc-tool-btn-label">{isTranscribing ? 'Transcribing' : 'Dictate'}</span>
                                     </button>
 
                                     {/* Prev/Next — inline on desktop/iPad, hidden on iPhone (in More menu instead) */}

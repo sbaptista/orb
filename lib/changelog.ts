@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.235',
+    date: '2026-07-23',
+    changes: [
+      'Simplified Dictate to a straightforward dictation-machine model: records continuously until you explicitly stop it, then transcribes once — no more pause-based auto-segmentation, which had its own reliability problems (occasional mis-ordered text, and short pauses sometimes triggering a transcription error). Clicking the button off stops dictation and leaves the text for you to review; pressing Return while dictating stops and sends in one motion, matching what Return already does when not dictating (ORB-358).',
+    ],
+  },
+  {
     version: 'v0.6.234',
     date: '2026-07-23',
     changes: [
