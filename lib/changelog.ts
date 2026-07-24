@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.232',
+    date: '2026-07-23',
+    changes: [
+      'The Dictate toolbar button (inline speech-to-text) now tells you when it fails instead of silently doing nothing — a denied microphone permission, an unreachable speech service, or no working microphone now show a specific message rather than the button just quietly turning itself back off (ORB-358).',
+    ],
+  },
+  {
     version: 'v0.6.231',
     date: '2026-07-23',
     changes: [

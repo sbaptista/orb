@@ -3,6 +3,25 @@
 import { useEffect, useRef, useState, type ComponentPropsWithoutRef } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useToast } from '@/components/ui/Toast'
+
+// ORB-358: dictation errors were silently swallowed (isListening just reset
+// to false with zero user feedback), so a failure looked identical to
+// nothing happening at all. Map the Web Speech API's actual error reason to
+// something a user can act on instead of discovering nothing.
+const DICTATE_ERROR_MESSAGES: Record<string, string> = {
+    'not-allowed': 'Microphone access was denied. Check your browser\'s site permissions and try again.',
+    'permission-denied': 'Microphone access was denied. Check your browser\'s site permissions and try again.',
+    'audio-capture': 'No working microphone was found.',
+    'network': 'Couldn\'t reach the speech recognition service — check your network connection.',
+    'no-speech': 'No speech was detected. Try again.',
+    'service-not-allowed': 'The speech recognition service is not available in this browser.',
+}
+
+function dictateErrorMessage(code: string | undefined): string | null {
+    if (!code || code === 'aborted') return null // deliberate stop, not a failure
+    return DICTATE_ERROR_MESSAGES[code] ?? `Dictation stopped (${code}).`
+}
 export type ConversationMessage = {
     id: string
     type: 'user' | 'orb' | 'dev'
@@ -185,6 +204,7 @@ export default function OrbConversation({
     const [moreMenuOpen, setMoreMenuOpen] = useState(false)
     const recognitionRef = useRef<any>(null)
     const processing = submitting || messages.some(msg => msg.isStreaming)
+    const toast = useToast()
 
     useEffect(() => {
         const api = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -214,7 +234,11 @@ export default function OrbConversation({
                 }
             }
 
-            recognition.onerror = () => setIsListening(false)
+            recognition.onerror = (event: any) => {
+                setIsListening(false)
+                const message = dictateErrorMessage(event?.error)
+                if (message) toast.error(message)
+            }
             recognition.onend = () => setIsListening(false)
 
             recognitionRef.current = recognition
@@ -223,6 +247,7 @@ export default function OrbConversation({
         } catch (err) {
             console.error('[voice]', err)
             setIsListening(false)
+            toast.error('Couldn\'t start dictation in this browser.')
         }
     }
 
