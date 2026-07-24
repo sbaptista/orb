@@ -13,24 +13,24 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.238**.
+- **Version:** local/canonical **0.6.238** — pushed and live in production (verified 2026-07-24 against the remote `main` ref and `/api/version`). Nothing is currently awaiting a push.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
 
 ## Last Session Completed
 
-**ORB-353 broadcast-never-clears bug fixed — 2026-07-24 (Claude Code, Sonnet 5) — v0.6.238 — NOT YET COMMITTED**
+**ORB-353 broadcast-never-clears bug fixed — 2026-07-24 (Claude Code, Sonnet 5) — v0.6.238 — RELEASED (`c909db3`, live in production)**
 
 Stan reported the AI-usage-warning broadcast banner ("Orb operational budget (Anthropic) is at 89% of its limit.") never went away no matter how many times he cleared it. Root cause in `lib/orb-model/usage-monitor.ts`'s `writeAutoBroadcast`: it ran unconditionally on **every** 15-minute cron cycle and re-upserted the banner (with a **new** `id` each time) for as long as any scope stayed over threshold — undoing a manual "Clear Broadcast" click within one cycle, and separately breaking `BroadcastBanner.tsx`'s existing per-user `localStorage` dismiss-by-`id` mechanism the same way (a fresh id every cycle meant a dismissed id never matched the next one). Push/email notifications were already correctly deduped per (scope, billing period) via `orb_usage_warnings` — the banner write just was never wired to that same rule.
 
 Fixed by tracking `freshlyWarned` (scopes crossing threshold for the first time this period) separately from `overThreshold` (all currently-over-threshold scopes) in `checkAllUsageThresholds()`. The banner now only WRITES on a fresh crossing — a repeat cycle where nothing new crossed leaves the row alone, whether that means "still showing the same banner" or "still cleared, because a human cleared it." Clearing when everything drops back under threshold is unchanged. This one fix resolves both the admin-clear and the user-dismiss cases Stan described (*"If a user clicks the broadcast, it should go away for that user. If an admin clears the broadcast, it should go away permanently."*) since both already existed correctly at the UI layer — they were just fighting a server bug that kept regenerating the underlying row. **This bug has been live in production since the original ORB-353 push** — the cron has been overwriting Stan's manual clears the whole time. `npx tsc --noEmit` and focused lint clean, zero new warnings.
 
-**ORB-358 removed from UI, status ON HOLD — 2026-07-24 (Claude Code, Sonnet 5) — v0.6.237 — COMMITTED LOCALLY (`63d8a44`), NOT PUSHED**
+**ORB-358 removed from UI, status ON HOLD — 2026-07-24 (Claude Code, Sonnet 5) — v0.6.237 — RELEASED (`63d8a44`, live in production)**
 
 Change of direction from Stan after the Phase 2 scoping below: rather than build the live-streaming rebuild next, **remove Dictate from the UI now, keep all the code, set the todo on hold.** Implemented as a single `DICTATE_ENABLED = false` flag in `OrbConversation.tsx` wrapping the button's JSX (not deleting any of the v0.6.232-236 logic) — same pattern already used to retire the old serial voice engine without deleting it. Also removed/updated the now-stale references that would otherwise describe a button that isn't there: `OrbHelp.tsx`'s "Dictate toolbar button" paragraph (removed), `docs/ui-catalog.md`'s toolbar description (updated to note it's hidden pending Phase 2, points here). Todo ORB-358 (`7b222968-9e6a-4c1f-ab63-08f9ecefff76`) set to **status `on hold`** via the REST API (verified) — deliberately not `closed` (nothing resolved) and not `open` (not actively being worked). `npx tsc --noEmit` and focused lint clean, zero new warnings (the flag approach keeps every Dictate function/state referenced, so nothing went unused).
 
-**ORB-358 Dictate rebuilt on server-side transcription — 2026-07-23 (Claude Code, Sonnet 5) — v0.6.232→v0.6.236 — COMMITTED LOCALLY (`842f80a`..`f39ea59`), NOT PUSHED**
+**ORB-358 Dictate rebuilt on server-side transcription — 2026-07-23 (Claude Code, Sonnet 5) — v0.6.232→v0.6.236 — RELEASED (`842f80a`..`f39ea59`, live in production but unreachable from the UI since v0.6.237)**
 
 Ticket: an invitee (account since deleted) couldn't get Dictate (inline speech-to-text in `OrbConversation.tsx`, distinct from full Realtime voice) working on Safari/Mac. `performance_events` had zero telemetry for that browser/platform combo — Dictate isn't instrumented, dead end. Root cause found by reading the code: Dictate was built directly on the browser-native `SpeechRecognition`/`webkitSpeechRecognition` Web Speech API, whose `onerror` discarded the actual failure reason (`() => setIsListening(false)`, no feedback at all).
 
@@ -48,7 +48,7 @@ Ticket: an invitee (account since deleted) couldn't get Dictate (inline speech-t
 
 **Needs from Stan:** a rate card for `gpt-4o-mini-transcribe` (none exists yet — declined to guess pricing); until added, Dictate transcription cost logs with a null estimate, same fallback as any unrated model elsewhere. **Possible bonus, unconfirmed:** Firefox previously showed Dictate disabled (no `SpeechRecognition` support); `MediaRecorder`/`getUserMedia` has much broader support, so Firefox may now work too — worth testing, not promised.
 
-**Committed locally, not pushed** (`842f80a`..`f39ea59`, 5 commits). Todo not yet closed — Stan wants to test v0.6.236 on dev (particularly the telemetry) before deciding push/close, and see below: a further rebuild is already planned on top of this, so closing ORB-358 may wait for that instead of happening now.
+**Released** (`842f80a`..`f39ea59`, 5 commits, live in production). ORB-358 is **not closed** — the todo was subsequently set to `on hold` and the button hidden behind `DICTATE_ENABLED = false` in v0.6.237, so all of this code ships but no UI path reaches it. The Phase 2 spec below is what closing it would require.
 
 ---
 
@@ -237,13 +237,12 @@ Standing exceptions (never committed with feature work):
 ## Next Priorities
 
 1. **ORB-358 is on hold** — Dictate hidden from the UI (`DICTATE_ENABLED = false`), code intact. The Phase 2 spec (live-streaming rebuild, still below) stays captured for whenever Stan resumes this — not an active priority until he says so.
-2. **Push the accumulated local commits** (`842f80a`..whatever this session ends at) once Stan is ready — nothing has been pushed since the ORB-353 work.
-3. **ORB-354** — verify successful registration, a simulated/reproducible failure, committed-credential reconciliation, and Continue-to-Orb recovery on the production domain before closing.
-4. **ORB-357** — plan complete per-project category CRUD and lifecycle before restoring Category to todo editors (currently Deferred).
-5. **ORB-342** — the fuller serial/Realtime pending-mutation convergence (three mechanisms → one shared pattern), once `propose_todo_batch` has some real-world use.
-6. **The `onMutation` project-list-refresh gap** in `UnifiedDashboard.tsx` — decide whether it's its own fix or folds into ORB-342.
-7. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
-8. Continued live use of Realtime voice (now production-default, ORB-325 closed) — watch for anything `propose_todo_batch`, the multilingual confirmation fallback, or the confabulation-honesty fix miss in practice.
+2. **ORB-354** — verify successful registration, a simulated/reproducible failure, committed-credential reconciliation, and Continue-to-Orb recovery on the production domain before closing.
+3. **ORB-357** — plan complete per-project category CRUD and lifecycle before restoring Category to todo editors (currently Deferred).
+4. **ORB-342** — the fuller serial/Realtime pending-mutation convergence (three mechanisms → one shared pattern), once `propose_todo_batch` has some real-world use.
+5. **The `onMutation` project-list-refresh gap** in `UnifiedDashboard.tsx` — decide whether it's its own fix or folds into ORB-342.
+6. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
+7. Continued live use of Realtime voice (now production-default, ORB-325 closed) — watch for anything `propose_todo_batch`, the multilingual confirmation fallback, or the confabulation-honesty fix miss in practice.
 
 ---
 
@@ -271,7 +270,7 @@ Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation beh
 
 ## AI Tool Used Last Session
 
-`2026-07-23 — Claude Code (Sonnet 5)`
+`2026-07-24 — Claude Code (Sonnet 5)`
 
 ---
 
