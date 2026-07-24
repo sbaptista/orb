@@ -13,12 +13,16 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.236**.
+- **Version:** local/canonical **0.6.237**.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
 
 ## Last Session Completed
+
+**ORB-358 removed from UI, status ON HOLD — 2026-07-24 (Claude Code, Sonnet 5) — v0.6.237 — NOT YET COMMITTED**
+
+Change of direction from Stan after the Phase 2 scoping below: rather than build the live-streaming rebuild next, **remove Dictate from the UI now, keep all the code, set the todo on hold.** Implemented as a single `DICTATE_ENABLED = false` flag in `OrbConversation.tsx` wrapping the button's JSX (not deleting any of the v0.6.232-236 logic) — same pattern already used to retire the old serial voice engine without deleting it. Also removed/updated the now-stale references that would otherwise describe a button that isn't there: `OrbHelp.tsx`'s "Dictate toolbar button" paragraph (removed), `docs/ui-catalog.md`'s toolbar description (updated to note it's hidden pending Phase 2, points here). Todo ORB-358 (`7b222968-9e6a-4c1f-ab63-08f9ecefff76`) set to **status `on hold`** via the REST API (verified) — deliberately not `closed` (nothing resolved) and not `open` (not actively being worked). `npx tsc --noEmit` and focused lint clean, zero new warnings (the flag approach keeps every Dictate function/state referenced, so nothing went unused).
 
 **ORB-358 Dictate rebuilt on server-side transcription — 2026-07-23 (Claude Code, Sonnet 5) — v0.6.232→v0.6.236 — COMMITTED LOCALLY (`842f80a`..`f39ea59`), NOT PUSHED**
 
@@ -226,8 +230,8 @@ Standing exceptions (never committed with feature work):
 
 ## Next Priorities
 
-1. **ORB-358 Phase 2** — build live-streaming Dictate per the agreed spec above (new lightweight Realtime-transcription hook, session route decision, `gpt-realtime-whisper` rate card, button/Return UI rewire). Scoped, not started. v0.6.236 (batch model) is the safe fallback already committed if this doesn't ship soon.
-2. **ORB-358 v0.6.232-236** — test on dev (especially the new telemetry, per HANDOFF above), then push and close, independent of whether Phase 2 happens right away.
+1. **ORB-358 is on hold** — Dictate hidden from the UI (`DICTATE_ENABLED = false`), code intact. The Phase 2 spec (live-streaming rebuild, still below) stays captured for whenever Stan resumes this — not an active priority until he says so.
+2. **Push the accumulated local commits** (`842f80a`..whatever this session ends at) once Stan is ready — nothing has been pushed since the ORB-353 work.
 3. **ORB-354** — verify successful registration, a simulated/reproducible failure, committed-credential reconciliation, and Continue-to-Orb recovery on the production domain before closing.
 4. **ORB-357** — plan complete per-project category CRUD and lifecycle before restoring Category to todo editors (currently Deferred).
 5. **ORB-342** — the fuller serial/Realtime pending-mutation convergence (three mechanisms → one shared pattern), once `propose_todo_batch` has some real-world use.

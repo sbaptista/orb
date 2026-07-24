@@ -15,6 +15,12 @@ import { startInteraction } from '@/lib/performance/telemetry'
 // once when the user explicitly stops it.
 const DICTATE_MIN_MS = 400 // below this, treat as an accidental tap — skip the API call entirely
 
+// ORB-358: removed from the UI (Stan, 2026-07-23) pending the live-streaming
+// rebuild (see HANDOFF.md "ORB-358 Phase 2"). Code kept intact and reachable
+// again by flipping this flag — same pattern already used to retire the old
+// serial voice engine without deleting it.
+const DICTATE_ENABLED = false
+
 export type ConversationMessage = {
     id: string
     type: 'user' | 'orb' | 'dev'
@@ -713,35 +719,38 @@ export default function OrbConversation({
                                         <span className="oc-tool-btn-label">Cmds</span>
                                     </button>
 
-                                    {/* Dictate — always visible. A dictation-machine model: records
-                                        continuously until the user explicitly stops it (button click,
-                                        or Return — which also submits). Transcription only starts
-                                        after recording stops, so isListening and isTranscribing never
-                                        overlap. */}
-                                    <button
-                                        type="button"
-                                        className="oc-tool-btn"
-                                        onClick={() => isListening ? stopListening() : startListening()}
-                                        onMouseDown={(e) => e.preventDefault()}
-                                        disabled={!supportsVoice || processing || isTranscribing}
-                                        data-tooltip={isListening ? 'Stop dictation' : isTranscribing ? 'Transcribing…' : 'Dictate into the text field'}
-                                        aria-label={isListening ? 'Stop dictation' : isTranscribing ? 'Transcribing' : 'Dictate into the text field'}
-                                        style={{
-                                            color: isListening ? '#c00' : undefined,
-                                            background: isListening ? 'rgba(200,0,0,0.06)' : undefined,
-                                            opacity: !supportsVoice || processing || isTranscribing ? 'var(--opacity-disabled)' : 1,
-                                        }}
-                                    >
-                                        <span className="oc-tool-btn-icon">
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={isListening || isTranscribing ? { animation: 'voice-pulse 1s ease-in-out infinite' } : undefined}>
-                                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                                                <line x1="12" y1="19" x2="12" y2="23"/>
-                                                <line x1="8" y1="23" x2="16" y2="23"/>
-                                            </svg>
-                                        </span>
-                                        <span className="oc-tool-btn-label">{isTranscribing ? 'Transcribing' : 'Dictate'}</span>
-                                    </button>
+                                    {/* Dictate — removed from the UI (Stan, 2026-07-23) pending the
+                                        live-streaming rebuild; DICTATE_ENABLED flips it back on. A
+                                        dictation-machine model: records continuously until the user
+                                        explicitly stops it (button click, or Return — which also
+                                        submits). Transcription only starts after recording stops, so
+                                        isListening and isTranscribing never overlap. */}
+                                    {DICTATE_ENABLED && (
+                                        <button
+                                            type="button"
+                                            className="oc-tool-btn"
+                                            onClick={() => isListening ? stopListening() : startListening()}
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            disabled={!supportsVoice || processing || isTranscribing}
+                                            data-tooltip={isListening ? 'Stop dictation' : isTranscribing ? 'Transcribing…' : 'Dictate into the text field'}
+                                            aria-label={isListening ? 'Stop dictation' : isTranscribing ? 'Transcribing' : 'Dictate into the text field'}
+                                            style={{
+                                                color: isListening ? '#c00' : undefined,
+                                                background: isListening ? 'rgba(200,0,0,0.06)' : undefined,
+                                                opacity: !supportsVoice || processing || isTranscribing ? 'var(--opacity-disabled)' : 1,
+                                            }}
+                                        >
+                                            <span className="oc-tool-btn-icon">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={isListening || isTranscribing ? { animation: 'voice-pulse 1s ease-in-out infinite' } : undefined}>
+                                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                                    <line x1="12" y1="19" x2="12" y2="23"/>
+                                                    <line x1="8" y1="23" x2="16" y2="23"/>
+                                                </svg>
+                                            </span>
+                                            <span className="oc-tool-btn-label">{isTranscribing ? 'Transcribing' : 'Dictate'}</span>
+                                        </button>
+                                    )}
 
                                     {/* Prev/Next — inline on desktop/iPad, hidden on iPhone (in More menu instead) */}
                                     <button

@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.237',
+    date: '2026-07-24',
+    changes: [
+      'Temporarily removed the Dictate button from the Orb conversation toolbar while a proper live-streaming rebuild is planned (ORB-358) — Talk to Orb remains available for voice.',
+    ],
+  },
+  {
     version: 'v0.6.236',
     date: '2026-07-23',
     changes: [
