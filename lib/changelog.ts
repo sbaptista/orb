@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.236',
+    date: '2026-07-23',
+    changes: [
+      'Added performance instrumentation to Dictate (mic permission, recording duration, upload and transcription round-trip) so a slow or failed dictation can be diagnosed from real measurements in Settings → Performance instead of a description after the fact (ORB-358).',
+    ],
+  },
+  {
     version: 'v0.6.235',
     date: '2026-07-23',
     changes: [

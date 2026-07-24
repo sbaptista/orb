@@ -13,14 +13,14 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.235**.
+- **Version:** local/canonical **0.6.236**.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
 
 ## Last Session Completed
 
-**ORB-358 Dictate rebuilt on server-side transcription — 2026-07-23 (Claude Code, Sonnet 5) — v0.6.232→v0.6.235 — BUILT, NOT YET COMMITTED**
+**ORB-358 Dictate rebuilt on server-side transcription — 2026-07-23 (Claude Code, Sonnet 5) — v0.6.232→v0.6.236 — BUILT, NOT YET COMMITTED**
 
 Ticket: an invitee (account since deleted) couldn't get Dictate (inline speech-to-text in `OrbConversation.tsx`, distinct from full Realtime voice) working on Safari/Mac. `performance_events` had zero telemetry for that browser/platform combo — Dictate isn't instrumented, dead end. Root cause found by reading the code: Dictate was built directly on the browser-native `SpeechRecognition`/`webkitSpeechRecognition` Web Speech API, whose `onerror` discarded the actual failure reason (`() => setIsListening(false)`, no feedback at all).
 
@@ -32,11 +32,13 @@ Ticket: an invitee (account since deleted) couldn't get Dictate (inline speech-t
 
 **v0.6.235 (final, this session): reverted segmentation entirely.** Back to one continuous recording for the whole session, transcribed once on stop — "treat it like a dictation machine" (Stan). This also eliminates the queueing/hallucination-on-short-clips problems structurally, not just by re-tuning thresholds. Added a genuine UX distinction Stan specified: **clicking the Dictate button stops recording and leaves the transcribed text for review** (no submit); **pressing Return while dictating stops recording, transcribes, and submits immediately** — matching what Return already means in this field when not dictating. `handleFormSubmit`'s existing `overrideValue` parameter is used to submit the exact final text (existing + newly transcribed) without waiting on React state propagation. A `DICTATE_MIN_MS` (400ms) guard skips the transcription API call entirely for trivially-short recordings (an accidental tap) rather than risk another hallucinated-echo call.
 
-`npx tsc --noEmit` and focused lint clean throughout all four sub-versions (7 pre-existing unrelated warnings in this file, confirmed via `git stash` diff, not introduced by this work). Not an Orb-conversation change, no eval case needed.
+**v0.6.236 (telemetry, same session):** Stan reported unpredictable latency ("sometimes seconds, sometimes nothing at all") with no way to pin down where the time was actually going from a verbal description — and directly asked for real measurement instead of continuing to iterate on guesses. Instrumented `startListening`/`onstop` with `lib/performance/telemetry.ts`'s existing `startInteraction` pattern (`focus: 'voice'`, `flow: 'dictate'`, `interaction: 'record_to_text'`, same taxonomy already used by full voice mode) — marks for `permission_requested`/`permission_granted`/`recording_started`/`recording_stopped`/`upload_started`/`response_received`, and `end()` with a specific `failureCode` per outcome (`permission_denied`, `no_microphone`, `recorder_error`, `skipped_too_short`, `transcription_failed`) plus metadata (recording duration, audio bytes, transcript length). Reuses `SettingsPerformance.tsx`'s existing focus-area toggle and browsing table — no new UI. **`voice` focus is not in the default-enabled set**, so Stan needs to turn it on: Settings → Performance → Focus Areas → check "Voice" before testing, then filter the events table by `flow: dictate` to see real per-stage timings on a slow or failed run. Removed a dead `dictateMeasurementRef` during cleanup — the closure-scoped `measurement` variable already covered every call site, the ref was write-only and never read.
+
+`npx tsc --noEmit` and focused lint clean throughout all five sub-versions (7 pre-existing unrelated warnings in this file, confirmed via `git stash` diff, not introduced by this work). Not an Orb-conversation change, no eval case needed.
 
 **Needs from Stan:** a rate card for `gpt-4o-mini-transcribe` (none exists yet — declined to guess pricing); until added, Dictate transcription cost logs with a null estimate, same fallback as any unrated model elsewhere. **Possible bonus, unconfirmed:** Firefox previously showed Dictate disabled (no `SpeechRecognition` support); `MediaRecorder`/`getUserMedia` has much broader support, so Firefox may now work too — worth testing, not promised.
 
-**Not yet committed or pushed** — version bumped to v0.6.235 and changelog entries added as part of this handoff update, but no commit yet. Todo not yet closed.
+**Not yet committed or pushed** — version bumped to v0.6.236 and changelog entries added as part of this handoff update, but no commit yet. Todo not yet closed.
 
 **ORB-354 invited-user passkey recovery — 2026-07-23 (Codex, GPT-5) — v0.6.231 — RELEASED, TODO OPEN PENDING PRODUCTION-DOMAIN VERIFICATION**
 

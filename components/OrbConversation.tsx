@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ComponentPropsWithoutRef } from 'reac
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useToast } from '@/components/ui/Toast'
+import { startInteraction } from '@/lib/performance/telemetry'
 
 // ORB-358: pause-based auto-segmentation was tried and reverted (Stan,
 // 2026-07-23) — it introduced its own problems (queued transcriptions could
@@ -226,11 +227,26 @@ export default function OrbConversation({
     // different actions, not two spellings of the same one (Stan, 2026-07-23).
     const submitAfterStopRef = useRef(false)
 
+    // ORB-358: Stan reported unpredictable delay ("sometimes seconds,
+    // sometimes nothing at all") with no way to tell where time was actually
+    // going from a verbal description alone. Measures every real stage —
+    // mic permission, recording duration, upload+transcription round-trip —
+    // so a slow or failed run can be diagnosed from data, not memory. Same
+    // focus/pattern already used for full voice mode (useVoiceMode.ts);
+    // enable via DEV panel → Performance → focus areas → voice to capture.
     async function startListening() {
         if (!supportsVoice || submitting) return
+        const measurement = startInteraction({
+            focus: 'voice',
+            flow: 'dictate',
+            interaction: 'record_to_text',
+            surface: 'dashboard',
+        })
+        measurement.mark('permission_requested')
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
             mediaStreamRef.current = stream
+            measurement.mark('permission_granted')
 
             const preferredTypes = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/webm']
             const mimeType = preferredTypes.find(type => MediaRecorder.isTypeSupported(type))
@@ -245,6 +261,7 @@ export default function OrbConversation({
                 mediaRecorderRef.current = null
                 setIsListening(false)
                 submitAfterStopRef.current = false
+                measurement.end(false, 'recorder_error')
                 toast.error('Microphone recording failed. Try again.')
             }
 
@@ -255,19 +272,24 @@ export default function OrbConversation({
                 setIsListening(false)
                 const wantsSubmit = submitAfterStopRef.current
                 submitAfterStopRef.current = false
+                measurement.mark('recording_stopped')
+                const recordingDurationMs = Date.now() - recordingStartedAtRef.current
 
-                const tooShort = Date.now() - recordingStartedAtRef.current < DICTATE_MIN_MS
+                const tooShort = recordingDurationMs < DICTATE_MIN_MS
                 const audio = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' })
                 if (audio.size === 0 || tooShort) {
-                    if (wantsSubmit) handleFormSubmit()
+                    measurement.end(true, 'skipped_too_short', { recordingDurationMs, audioBytes: audio.size, submitted: wantsSubmit })
+                        if (wantsSubmit) handleFormSubmit()
                     return
                 }
 
                 setIsTranscribing(true)
                 try {
+                    measurement.mark('upload_started')
                     const form = new FormData()
                     form.append('audio', audio, recorder.mimeType?.includes('ogg') ? 'orb-dictate.ogg' : 'orb-dictate.webm')
                     const response = await fetch('/api/orb-transcribe', { method: 'POST', body: form })
+                    measurement.mark('response_received')
                     const result = await response.json() as { text?: string; error?: string }
                     if (!response.ok || !result.text) throw new Error(result.error || 'Speech transcription failed')
                     const text = result.text.trim()
@@ -276,22 +298,30 @@ export default function OrbConversation({
                     const finalValue = text ? current + joiner + text : current
                     if (text) onInputChange(finalValue)
                     if (wantsSubmit) handleFormSubmit(undefined, finalValue)
+                    measurement.end(true, null, { recordingDurationMs, audioBytes: audio.size, transcriptLength: text.length, submitted: wantsSubmit })
                 } catch (err) {
-                    toast.error(err instanceof Error ? err.message : 'Could not transcribe speech. Try again.')
+                    const message = err instanceof Error ? err.message : 'Could not transcribe speech. Try again.'
+                    measurement.end(false, 'transcription_failed', { recordingDurationMs, audioBytes: audio.size, error: message })
+                    toast.error(message)
                 } finally {
                     setIsTranscribing(false)
-                }
+                    }
             }
 
+            measurement.mark('recording_started')
             recordingStartedAtRef.current = Date.now()
             recorder.start()
             setIsListening(true)
         } catch (err: any) {
             setIsListening(false)
             submitAfterStopRef.current = false
-            const message = err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError'
+            const failureCode = err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError'
+                ? 'permission_denied'
+                : err?.name === 'NotFoundError' ? 'no_microphone' : 'start_failed'
+            measurement.end(false, failureCode, { errorName: err?.name })
+            const message = failureCode === 'permission_denied'
                 ? 'Microphone access was denied. Check your browser\'s site permissions and try again.'
-                : err?.name === 'NotFoundError'
+                : failureCode === 'no_microphone'
                     ? 'No working microphone was found.'
                     : 'Couldn\'t start dictation in this browser.'
             toast.error(message)
