@@ -13,12 +13,22 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.238** — pushed and live in production (verified 2026-07-24 against the remote `main` ref and `/api/version`). Nothing is currently awaiting a push.
+- **Version:** local/canonical **0.6.239** — pushed to production 2026-07-26 with the ORB-360 release.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
 
 ## Last Session Completed
+
+**ORB-360 timezone canonicalization — 2026-07-26 (Claude Code, Opus 5) — v0.6.239 — CLOSED & PUSHED (`9243ba2`)**
+
+Ticket: "Unclear which time zone Orb uses for urgency threshold reports" (filed with no description). Investigation found **four duplicate `due_at` parsers supplying four different zones**: browser (dashboard orb + task-card badges), server/UTC (`/api/orb-state`, push, the Orb's reports), `users.timezone` (reminder emails — the only correct one), plus `project-health.ts` hardcoding a **0-hour threshold** that silently ignored the configured early-warning setting — likely the actual symptom behind the ticket. With Stan on HST and Vercel on UTC, surfaces could disagree about the same todo 10 hours a day. Also verified **nothing has ever written `users.timezone`** (no UI, migration, trigger, or audit entry).
+
+Fix: new `lib/due-time.ts` (`dueAtToInstant` promoted from reminders.ts, `isDueWithinWarning`, `isDueToday`) with **required, non-defaulted `timeZone`** so tsc enumerated every call site; all four parsers deleted; `computeUrgency`/`computeOrbState`/`buildProjectHealthPacket` require the zone; project-health honors the real threshold; badges + reminder-email dates render in the canonical zone (`users.timezone`, browser zone only as pre-profile-load guess). No migration, no new query pattern. `npx tsc --noEmit` clean, focused lint 0 errors. **No eval case, documented deviation:** the harness's `backlogOverride` blanks the server-computed health packet so this surface can't be seeded; behavioral case moves to ORB-361 Phase 2/3 (recorded in `docs/orb-360-urgency-timezone-plan.md`). Verified by Stan on dev (due date set on ORB-360 itself). Closed with resolution notes; KB entry `7b8602d3-c480-43b7-9a83-812fcbe7a650`; the 2026-05-19 KB entry "Timezone-Agnostic Due Dates…" banner-superseded in part (its claimed browser-zone auto-maintenance was never built).
+
+**This is Phase 0 of ORB-361** — "Per-todo due time, timezone, and reminders" (`2edec224`, P3), the full redesign designed with Stan this session: `due_at` → `timestamptz` + per-todo `due_timezone` (captured wherever the user is, origin-zone display), per-todo opt-in reminders (value+unit incl. Custom 1–99 hours/days/weeks/months) that **never** affect orb mood, urgency derived from priority-based runway windows (owner-and-admin per-project overrides via a dashboard toolbar button), Settings → Urgency Threshold page deleted, Help overhaul with orb-state icons, "ask Orb why the mood shifted" capability, no-reminder nudge with per-todo dismissal. Every design question settled — full spec in `docs/per-todo-due-time-and-reminders-plan.md`, phased 0–4, each phase independently shippable. **Phase 1 not started.**
+
+**Previous sessions:**
 
 **ORB-353 broadcast-never-clears bug fixed — 2026-07-24 (Claude Code, Sonnet 5) — v0.6.238 — RELEASED (`c909db3`, live in production)**
 
@@ -236,13 +246,14 @@ Standing exceptions (never committed with feature work):
 
 ## Next Priorities
 
-1. **ORB-358 is on hold** — Dictate hidden from the UI (`DICTATE_ENABLED = false`), code intact. The Phase 2 spec (live-streaming rebuild, still below) stays captured for whenever Stan resumes this — not an active priority until he says so.
-2. **ORB-354** — verify successful registration, a simulated/reproducible failure, committed-credential reconciliation, and Continue-to-Orb recovery on the production domain before closing.
-3. **ORB-357** — plan complete per-project category CRUD and lifecycle before restoring Category to todo editors (currently Deferred).
-4. **ORB-342** — the fuller serial/Realtime pending-mutation convergence (three mechanisms → one shared pattern), once `propose_todo_batch` has some real-world use.
-5. **The `onMutation` project-list-refresh gap** in `UnifiedDashboard.tsx` — decide whether it's its own fix or folds into ORB-342.
-6. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
-7. Continued live use of Realtime voice (now production-default, ORB-325 closed) — watch for anything `propose_todo_batch`, the multilingual confirmation fallback, or the confabulation-honesty fix miss in practice.
+1. **ORB-361 Phase 1** — the per-todo due time/timezone/reminder data model (`due_at` → `timestamptz`, `due_timezone`, `reminder_lead_value`/`unit`, TodoEditor city picker + reminder select, contract chain, Tier 1 evals). Full spec settled in `docs/per-todo-due-time-and-reminders-plan.md`; start when Stan approves the build. Only 9 dated todos exist (all closed except ORB-360, now also closed), so the migration is near-free.
+2. **ORB-358 is on hold** — Dictate hidden from the UI (`DICTATE_ENABLED = false`), code intact. The Phase 2 spec (live-streaming rebuild, still below) stays captured for whenever Stan resumes this — not an active priority until he says so.
+3. **ORB-354** — verify successful registration, a simulated/reproducible failure, committed-credential reconciliation, and Continue-to-Orb recovery on the production domain before closing.
+4. **ORB-357** — plan complete per-project category CRUD and lifecycle before restoring Category to todo editors (currently Deferred).
+5. **ORB-342** — the fuller serial/Realtime pending-mutation convergence (three mechanisms → one shared pattern), once `propose_todo_batch` has some real-world use.
+6. **The `onMutation` project-list-refresh gap** in `UnifiedDashboard.tsx` — decide whether it's its own fix or folds into ORB-342.
+7. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
+8. Continued live use of Realtime voice (now production-default, ORB-325 closed) — watch for anything `propose_todo_batch`, the multilingual confirmation fallback, or the confabulation-honesty fix miss in practice.
 
 ---
 
@@ -270,7 +281,7 @@ Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation beh
 
 ## AI Tool Used Last Session
 
-`2026-07-24 — Claude Code (Sonnet 5)`
+`2026-07-26 — Claude Code (Opus 5)`
 
 ---
 
