@@ -13,12 +13,26 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.239** — pushed to production 2026-07-26 with the ORB-360 release.
+- **Version:** local/canonical **0.6.242** — pushed to production 2026-07-26 with the ORB-361 Phase 1 release.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
 
 ## Last Session Completed
+
+**ORB-361 Phase 1 — per-todo due timezone + opt-in reminders — 2026-07-26 (Claude Code, Opus 5) — v0.6.240→v0.6.242 — RELEASED, TODO STILL IN PROGRESS**
+
+Built on branch `claude/orb-361-phase-1` (required by concurrency protocol §4 — DB migrations), fast-forwarded into `main`. Full spec and phasing: `docs/per-todo-due-time-and-reminders-plan.md`.
+
+**Data model (two migrations, both applied and verified live):** `20260726_orb_361_per_todo_due_timezone.sql` converts `due_at` to **timestamptz** (10 dated rows interpreted as Pacific/Honolulu, round-trip verified; `todos` vacuumed after the rewrite, 22.6%→0% dead) and adds `due_timezone` + CHECK-enforced `reminder_lead_value`/`reminder_lead_unit`. `20260727_orb_361_due_city.sql` adds `due_city`. Both extend `restore_todos_from_archive` so Backup & Recovery round-trips the new columns. **Deliberately no "zone required when due_at set" CHECK** — the one-release-behind production writer must not error during a deploy window; NULL zone falls back to the user's.
+
+**Behavior:** each dated todo carries its own IANA zone, captured from wherever the user is at creation (live browser zone rides every Orb conversation request via `clientTimeZone`; `users.timezone` — now **auto-maintained by the dashboard**, its first writer ever — covers headless REST/cron). Origin-zone display everywhere, with the **place** named on every dated item ("Jul 27, 9:00 AM, Tokyo") — not the zone abbreviation, and not conditionally. Reminders are **per-todo and opt-in**: presets plus Custom (1–99 × hours/days/weeks/months), calendar-month arithmetic with day clamping, and **a reminder never affects the orb's mood**. No lead pair → no email. Timezone picker is a city typeahead over a vendored 33k-city GeoNames database (`scripts/generate-city-zones.mjs` → `lib/data/city-zones.json`, dynamic-imported on first focus, ~400 KB gzipped, IANA list as fallback).
+
+**Contract:** `create_todo`/`update_todo` gained `due_timezone`, `due_city`, `reminder_lead_value`, `reminder_lead_unit` via `docs/api-spec.yaml` → regenerated `lib/orb-contract.ts`; `db-schema.ts`, `orb-prompt.ts`, and both REST routes updated. **Stan ran Tier 1: 78/78 green.**
+
+**Two eval lessons worth keeping.** (a) A test asserted `due_city: "Boston"` and the model sent `"Boston, MA"` — the model was right; the assertion now matches both the tool description's example and what the picker stores. (b) `realtime-send-developer-intent-analogue` regressed for a reason unrelated to the feature: **it read live DB state** while 28 other cases freeze theirs with `backlogOverride`. Closing ORB-360 and flipping ORB-361 to in-progress was enough to make real todos look like plausible referents, and the model began asking which task was meant. Now frozen; assertion unchanged. **Any eval case without `backlogOverride` is coupled to live data and can flip from unrelated work — a sweep of the other unfrozen routing cases is worth doing.**
+
+**Phases 2–4 not started** (urgency derivation from priority-based runway windows + Settings→Urgency deletion; per-project windows, Help overhaul, "ask Orb why the mood shifted", no-reminder nudge; then dropping `users.urgency_threshold_hours`). ORB-361 remains **in progress** deliberately.
 
 **ORB-360 timezone canonicalization — 2026-07-26 (Claude Code, Opus 5) — v0.6.239 — CLOSED & PUSHED (`9243ba2`)**
 
@@ -246,7 +260,7 @@ Standing exceptions (never committed with feature work):
 
 ## Next Priorities
 
-1. **ORB-361 Phase 1** — the per-todo due time/timezone/reminder data model (`due_at` → `timestamptz`, `due_timezone`, `reminder_lead_value`/`unit`, TodoEditor city picker + reminder select, contract chain, Tier 1 evals). Full spec settled in `docs/per-todo-due-time-and-reminders-plan.md`; start when Stan approves the build. Only 9 dated todos exist (all closed except ORB-360, now also closed), so the migration is near-free.
+1. **ORB-361 Phase 2** — urgency derivation from priority-based runway windows, and deleting Settings → Urgency Threshold (**repoint `app/settings/page.tsx`, which currently redirects the whole Settings index to `/settings/urgency`** — deleting that page without repointing breaks the Settings entry point). Phase 1 is released; spec in `docs/per-todo-due-time-and-reminders-plan.md` §9.
 2. **ORB-358 is on hold** — Dictate hidden from the UI (`DICTATE_ENABLED = false`), code intact. The Phase 2 spec (live-streaming rebuild, still below) stays captured for whenever Stan resumes this — not an active priority until he says so.
 3. **ORB-354** — verify successful registration, a simulated/reproducible failure, committed-credential reconciliation, and Continue-to-Orb recovery on the production domain before closing.
 4. **ORB-357** — plan complete per-project category CRUD and lifecycle before restoring Category to todo editors (currently Deferred).
