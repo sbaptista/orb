@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.241',
+    date: '2026-07-26',
+    changes: [
+      'The timezone picker now knows real cities, not just timezone names — over 33,000 of them worldwide, down to towns of 15,000 people. Type "Boston", "Seattle", or "Kailua" and get the right timezone, with state and province shown when two cities share a name ("Vancouver, BC" vs "Vancouver, WA"). The city database loads only when you open the picker (ORB-361).',
+    ],
+  },
+  {
     version: 'v0.6.240',
     date: '2026-07-26',
     changes: [

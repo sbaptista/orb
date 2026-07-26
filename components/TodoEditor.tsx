@@ -11,7 +11,8 @@ import type { Todo, Product, Priority, StatusDef } from '@/lib/todo-types'
 import { useDirtyForm } from '@/lib/hooks/useDirtyForm'
 import EditorModal from '@/components/ui/EditorModal'
 import { startInteraction } from '@/lib/performance/telemetry'
-import { dueAtToInstant, instantToWallClock, listCityZones, validateReminderLead, type ReminderLeadUnit } from '@/lib/due-time'
+import { dueAtToInstant, instantToWallClock, listCityZones, zoneDisplayLabel, validateReminderLead, type ReminderLeadUnit } from '@/lib/due-time'
+import { ensureCityZones, cityZonesReady, searchCities } from '@/lib/city-zones'
 
 // ORB-361: inside the editor, form.due_at is always a WALL-CLOCK string in
 // form.due_timezone (what datetime-local speaks); the database stores the
@@ -158,18 +159,26 @@ export default function TodoEditor({
   // ORB-361: timezone city picker + reminder state
   const [zoneQuery, setZoneQuery] = useState('')
   const [zoneOpen, setZoneOpen] = useState(false)
+  const [cityDbReady, setCityDbReady] = useState(() => cityZonesReady())
   const [reminderCustom, setReminderCustom] = useState(
     () => reminderPresetKey(initialTodo.reminder_lead_value, initialTodo.reminder_lead_unit) === 'custom'
   )
   const zoneMatches = useMemo(() => {
     const q = zoneQuery.trim().toLowerCase()
     if (!q) return []
+    // Full GeoNames city database once loaded (Boston, Seattle, Kailua…);
+    // bare IANA city list as the never-dead fallback while it fetches.
+    if (cityDbReady) {
+      return searchCities(q, 8).map(c => ({ zone: c.zone, city: c.detail ? `${c.city}, ${c.detail}` : c.city, label: c.label }))
+    }
     return listCityZones().filter(c => c.city.toLowerCase().includes(q)).slice(0, 8)
-  }, [zoneQuery])
+  }, [zoneQuery, cityDbReady])
   const currentZoneInfo = useMemo(() => {
     if (!form.due_timezone) return null
-    return listCityZones().find(c => c.zone === form.due_timezone)
-      ?? { zone: form.due_timezone, city: form.due_timezone.split('/').pop()!.replace(/_/g, ' '), label: '' }
+    return {
+      city: form.due_timezone.split('/').pop()!.replace(/_/g, ' '),
+      label: zoneDisplayLabel(form.due_timezone),
+    }
   }, [form.due_timezone])
 
   // Per-field validation errors - initialize with title error if empty (create mode)
@@ -565,7 +574,7 @@ export default function TodoEditor({
                   placeholder={currentZoneInfo ? currentZoneInfo.city : 'Type a city name'}
                   value={zoneQuery}
                   onChange={e => { setZoneQuery(e.target.value); setZoneOpen(true) }}
-                  onFocus={() => setZoneOpen(true)}
+                  onFocus={() => { setZoneOpen(true); ensureCityZones().then(ok => { if (ok) setCityDbReady(true) }) }}
                   onBlur={() => setTimeout(() => setZoneOpen(false), 150)}
                   autoComplete="off"
                 />
@@ -587,7 +596,7 @@ export default function TodoEditor({
                 )}
                 {zoneOpen && zoneQuery.trim() && zoneMatches.length === 0 && (
                   <div className="admin-search-dropdown">
-                    <div className="admin-search-empty">No matching city — only IANA timezone cities are available</div>
+                    <div className="admin-search-empty">No matching city</div>
                   </div>
                 )}
               </div>

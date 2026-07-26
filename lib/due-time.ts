@@ -178,22 +178,33 @@ export function zoneAbbreviation(instant: Date, timeZone: string): string {
 export type CityZone = { zone: string; city: string; label: string }
 
 let cityZoneCache: CityZone[] | null = null
+const zoneLabelCache = new Map<string, string>()
+
+/** "Pacific Time (PDT)"-style label for a zone, memoized per zone. */
+export function zoneDisplayLabel(zone: string): string {
+  let label = zoneLabelCache.get(zone)
+  if (label !== undefined) return label
+  const now = new Date()
+  let generic = ''
+  try {
+    generic = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'longGeneric' })
+      .formatToParts(now).find(p => p.type === 'timeZoneName')?.value ?? ''
+  } catch { /* zone unsupported by this engine — skip label detail */ }
+  const abbrev = zoneAbbreviation(now, zone)
+  label = generic ? `${generic} (${abbrev})` : abbrev
+  zoneLabelCache.set(zone, label)
+  return label
+}
 
 export function listCityZones(): CityZone[] {
   if (cityZoneCache) return cityZoneCache
-  const now = new Date()
   cityZoneCache = Intl.supportedValuesOf('timeZone')
     .filter(zone => zone.includes('/') && !zone.startsWith('Etc/'))
-    .map(zone => {
-      const city = zone.split('/').pop()!.replace(/_/g, ' ')
-      let generic = ''
-      try {
-        generic = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'longGeneric' })
-          .formatToParts(now).find(p => p.type === 'timeZoneName')?.value ?? ''
-      } catch { /* zone unsupported by this engine — skip label detail */ }
-      const abbrev = zoneAbbreviation(now, zone)
-      return { zone, city, label: generic ? `${generic} (${abbrev})` : abbrev }
-    })
+    .map(zone => ({
+      zone,
+      city: zone.split('/').pop()!.replace(/_/g, ' '),
+      label: zoneDisplayLabel(zone),
+    }))
     .sort((a, b) => a.city.localeCompare(b.city))
   return cityZoneCache
 }
