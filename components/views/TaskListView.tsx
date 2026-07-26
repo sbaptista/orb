@@ -1,7 +1,7 @@
 'use client'
 
 import type { ViewProps, ViewTodo } from './types'
-import { dueAtToInstant, isDueToday, zoneAbbreviation } from '@/lib/due-time'
+import { dueAtToInstant, duePlaceLabel, isDueToday } from '@/lib/due-time'
 import EmptyState from '@/components/ui/EmptyState'
 
 function ActionButtons({
@@ -86,7 +86,12 @@ export default function TaskListView({
                           const dueInstant = dueAtToInstant(todo.due_at, dueZone)
                           const isOverdue = !isDone && dueInstant < new Date()
                           const isDueTodayBadge = !isDone && isDueToday(todo.due_at, dueZone)
-                          const zoneTag = dueZone !== timeZone ? ` ${zoneAbbreviation(dueInstant, dueZone)}` : ''
+                          // Stan, 2026-07-27: show the place on every dated
+                          // item, not conditionally — the earlier "only when it
+                          // differs from the viewer" rule made two todos with
+                          // the same field look inconsistent. Place, not zone
+                          // abbreviation: the timezone is the least important part.
+                          const placeTag = `, ${duePlaceLabel(todo.due_city, dueZone)}`
                           return (
                             <div style={{
                               display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: 'var(--fs-version)', padding: '1px 6px', borderRadius: '4px',
@@ -102,7 +107,7 @@ export default function TaskListView({
                                 {dueInstant.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: dueZone })}
                                 {' at '}
                                 {dueInstant.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: dueZone })}
-                                {zoneTag}
+                                {placeTag}
                               </span>
                             </div>
                           )

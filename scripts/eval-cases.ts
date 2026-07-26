@@ -88,6 +88,18 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
+    id: 'create-with-city-that-is-not-an-iana-zone',
+    description: 'ORB-361: a city that is not itself an IANA zone resolves to the right zone AND keeps the spoken place in due_city (Boston → America/New_York, not "New York")',
+    productCode: 'ORB',
+    input: 'Create a task: [EVAL] meet the Boston team — due next Tuesday at 2pm Boston time',
+    tier: 1,
+    expectTool: {
+      name: 'create_todo',
+      params: { product_code: 'ORB', due_timezone: 'America/New_York', due_city: 'Boston' },
+    },
+  },
+
+  {
     id: 'create-with-custom-month-reminder-lead',
     description: 'ORB-361: a long custom reminder lead ("three months before") becomes the 3/months pair — the Helm-financials early-milestone case',
     productCode: 'ORB',

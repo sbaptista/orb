@@ -37,7 +37,7 @@ export async function PATCH(
 
   const { id } = await params
   const body = await request.json()
-  const { title, description, status, priority_value, resolution_notes, urls, product_code, due_at, due_timezone, reminder_lead_value, reminder_lead_unit } = body
+  const { title, description, status, priority_value, resolution_notes, urls, product_code, due_at, due_timezone, due_city, reminder_lead_value, reminder_lead_unit } = body
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
@@ -58,6 +58,7 @@ export async function PATCH(
   if (due_at === null) {
     updates.due_at = null
     updates.due_timezone = null
+    updates.due_city = null
     updates.reminder_lead_value = null
     updates.reminder_lead_unit = null
     updates.reminded_at = null
@@ -111,11 +112,15 @@ export async function PATCH(
     }
     updates.due_at = dueAtToInstant(due_at, zone).toISOString()
     updates.due_timezone = zone
+    if (due_city !== undefined) updates.due_city = due_city ?? null
     updates.reminded_at = null
   } else if (due_timezone !== undefined && due_at === undefined) {
     // Zone changed on an existing due date: reinterpret nothing (the stored
-    // instant is absolute); just record the new display/edit zone.
+    // instant is absolute); just record the new display/edit zone and place.
     updates.due_timezone = due_timezone
+    updates.due_city = due_city ?? null
+  } else if (due_city !== undefined && due_at === undefined) {
+    updates.due_city = due_city ?? null
   }
 
   const { data: todo, error } = await supabase
@@ -123,7 +128,7 @@ export async function PATCH(
     .update(updates)
     .eq('id', id)
     .is('deleted_at', null)
-    .select('id, todo_number, title, description, status, priority_value, resolution_notes, urls, created_at, updated_at, closed_at, due_at, due_timezone, reminder_lead_value, reminder_lead_unit')
+    .select('id, todo_number, title, description, status, priority_value, resolution_notes, urls, created_at, updated_at, closed_at, due_at, due_timezone, due_city, reminder_lead_value, reminder_lead_unit')
     .single()
 
   if (error) {

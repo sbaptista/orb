@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import type { ViewProps, ViewTodo } from './types'
-import { dueAtToInstant, isDueToday, zoneAbbreviation } from '@/lib/due-time'
+import { dueAtToInstant, duePlaceLabel, isDueToday } from '@/lib/due-time'
 
 /** Status columns in workflow order: active pipeline first, then parked statuses. */
 const COLUMN_ORDER = ['open', 'in progress', 'closed', 'deferred', 'on hold']
@@ -81,7 +81,8 @@ function KanbanCard({
         const dueInstant = dueAtToInstant(todo.due_at, dueZone)
         const isOverdue = dueInstant < new Date()
         const isDueTodayBadge = isDueToday(todo.due_at, dueZone)
-        const zoneTag = dueZone !== timeZone ? ` ${zoneAbbreviation(dueInstant, dueZone)}` : ''
+        // Stan, 2026-07-27: place shown on every dated item, unconditionally.
+        const placeTag = `, ${duePlaceLabel(todo.due_city, dueZone)}`
         return (
           <div className="tv-kanban-card-due" style={{
             color: isOverdue ? 'var(--error)' : isDueTodayBadge ? '#d97706' : 'var(--muted)',
@@ -91,7 +92,7 @@ function KanbanCard({
             </svg>
             <span>
               {dueInstant.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: dueZone })}
-              {zoneTag}
+              {placeTag}
             </span>
           </div>
         )

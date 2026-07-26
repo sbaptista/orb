@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
   const { data: todos, error } = await supabase
     .from('todos')
-    .select('id, todo_number, title, description, status, priority_value, resolution_notes, urls, created_at, updated_at, closed_at, due_at, due_timezone, reminder_lead_value, reminder_lead_unit')
+    .select('id, todo_number, title, description, status, priority_value, resolution_notes, urls, created_at, updated_at, closed_at, due_at, due_timezone, due_city, reminder_lead_value, reminder_lead_unit')
     .eq('product_id', product.id)
     .is('deleted_at', null)
     .order('todo_number', { ascending: true })
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
-  const { product_code, title, description, priority_value, due_at, due_timezone, reminder_lead_value, reminder_lead_unit } = body
+  const { product_code, title, description, priority_value, due_at, due_timezone, due_city, reminder_lead_value, reminder_lead_unit } = body
 
   if (!product_code || !title) {
     return NextResponse.json({ error: 'Missing required fields: product_code, title' }, { status: 400 })
@@ -120,6 +120,7 @@ export async function POST(request: NextRequest) {
       status: openStatus?.name ?? 'open',
       due_at: dueAtInstant,
       due_timezone: dueZone,
+      due_city: due_at ? (due_city ?? null) : null,
       reminder_lead_value: due_at != null && reminder_lead_value != null ? reminder_lead_value : null,
       reminder_lead_unit: due_at != null && reminder_lead_value != null ? reminder_lead_unit : null,
       sort_order: 0,
@@ -130,7 +131,7 @@ export async function POST(request: NextRequest) {
       closed_at: null,
       deleted_at: null,
     })
-    .select('id, todo_number, title, description, status, priority_value, resolution_notes, urls, created_at, updated_at, closed_at, due_at, due_timezone, reminder_lead_value, reminder_lead_unit')
+    .select('id, todo_number, title, description, status, priority_value, resolution_notes, urls, created_at, updated_at, closed_at, due_at, due_timezone, due_city, reminder_lead_value, reminder_lead_unit')
     .single()
 
   if (error) {

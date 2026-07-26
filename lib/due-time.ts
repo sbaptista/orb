@@ -164,6 +164,16 @@ export function reminderTriggerInstant(dueAtStr: string, value: number, unit: Re
   return dueAtToInstant(targetWall, timeZone)
 }
 
+/**
+ * Place label for a due badge: the stored picked city ("Boston, MA") when
+ * present, else the zone's own city name ("Tokyo"). Stan's list-view rule
+ * (2026-07-27): show the place, drop the zone abbreviation — the timezone is
+ * the least important part of the information.
+ */
+export function duePlaceLabel(dueCity: string | null | undefined, timeZone: string): string {
+  return dueCity || timeZone.split('/').pop()!.replace(/_/g, ' ')
+}
+
 /** Short zone label for display, e.g. "PDT", "HST" — at the moment of `instant`. */
 export function zoneAbbreviation(instant: Date, timeZone: string): string {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'short' }).formatToParts(instant)

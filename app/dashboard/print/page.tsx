@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { visibleProjectsQuery } from '@/lib/projects'
 import { isActive, isParked } from '@/lib/status-groups'
+import { duePlaceLabel } from '@/lib/due-time'
 import PrintStyles from '@/components/print/PrintStyles'
 
 type Project = { id: string; name: string; code: string | null; description: string | null }
@@ -14,6 +15,7 @@ type Todo = {
   priority_value: number | null
   due_at: string | null
   due_timezone: string | null
+  due_city: string | null
   created_at: string
   closed_at: string | null
   resolution_notes: string | null
@@ -48,12 +50,14 @@ function formatDate(iso: string | null): string {
 }
 
 // ORB-361: due dates render in the todo's origin zone (server-rendered page,
-// so an unpinned toLocaleDateString would silently use the server's zone).
-function formatDueDate(iso: string | null, dueTimezone: string | null): string {
+// so an unpinned toLocaleDateString would silently use the server's zone), and
+// name the place — same rule as the list/kanban badges.
+function formatDueDate(iso: string | null, dueTimezone: string | null, dueCity: string | null): string {
   if (!iso) return ''
   const zone = dueTimezone || 'UTC'
   const d = new Date(iso)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: zone })
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: zone })
+  return dueTimezone ? `${date}, ${duePlaceLabel(dueCity, zone)}` : date
 }
 
 function formatDateTime(iso: string | null): string {
@@ -99,7 +103,7 @@ export default async function PrintPage({
   // Fetch all non-deleted todos for these projects
   const { data: todosRaw } = await supabase
     .from('todos')
-    .select('id, todo_number, title, description, status, priority_value, due_at, due_timezone, created_at, closed_at, resolution_notes, product_id')
+    .select('id, todo_number, title, description, status, priority_value, due_at, due_timezone, due_city, created_at, closed_at, resolution_notes, product_id')
     .in('product_id', projectIds)
     .is('deleted_at', null)
     .order('priority_value', { ascending: true })
@@ -223,7 +227,7 @@ export default async function PrintPage({
                           </span>
                         )}
                         {todo.due_at && (
-                          <span className="print-badge">Due {formatDueDate(todo.due_at, todo.due_timezone)}</span>
+                          <span className="print-badge">Due {formatDueDate(todo.due_at, todo.due_timezone, todo.due_city)}</span>
                         )}
                       </div>
                     </div>

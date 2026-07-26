@@ -61,7 +61,7 @@ type Todo = {
   description: string | null; resolution_notes: string | null; status: string
   urls: string[]; sort_order: number; created_at: string; closed_at: string | null
   ticket_id: string | null; groups: { name: string } | null; categories: { name: string } | null
-  due_at: string | null; due_timezone: string | null
+  due_at: string | null; due_timezone: string | null; due_city: string | null
   reminder_lead_value: number | null; reminder_lead_unit: string | null
   reminded_at: string | null
 }
@@ -982,7 +982,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     try {
       const { data } = await supabase
         .from('todos')
-        .select('id, title, status, priority_value, due_at, due_timezone, product_id')
+        .select('id, title, status, priority_value, due_at, due_timezone, due_city, product_id')
         .eq('product_id', selectedId)
         .is('deleted_at', null)
       setOrbTodos((data ?? []) as typeof orbTodos)
@@ -1012,7 +1012,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       }
       const { data } = await supabase
         .from('todos')
-        .select('status, priority_value, due_at, due_timezone, product_id')
+        .select('status, priority_value, due_at, due_timezone, due_city, product_id')
         .in('product_id', productIds)
         .is('deleted_at', null)
       allTodosRef.current = (data ?? []) as typeof allTodosRef.current

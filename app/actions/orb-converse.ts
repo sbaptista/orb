@@ -221,15 +221,23 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
 // explicit tool param → live client zone → user's stored zone. A wall-clock
 // due_at string becomes the true instant; reminder pair passes through only
 // when due_at exists and the pair is set.
+type DueFields = {
+  due_at: string | null
+  due_timezone: string | null
+  due_city: string | null
+  reminder_lead_value: number | null
+  reminder_lead_unit: string | null
+}
+
 function resolveDueFields(
   input: any,
-  existing: { due_at: string | null; due_timezone: string | null; reminder_lead_value: number | null; reminder_lead_unit: string | null } | null,
+  existing: (DueFields & Record<string, any>) | null,
   requestZone: string,
-): { due_at: string | null; due_timezone: string | null; reminder_lead_value: number | null; reminder_lead_unit: string | null } {
+): DueFields {
   const dueProvided = input.due_at !== undefined
   const rawDue = dueProvided ? input.due_at : (existing?.due_at ?? null)
   if (!rawDue) {
-    return { due_at: null, due_timezone: null, reminder_lead_value: null, reminder_lead_unit: null }
+    return { due_at: null, due_timezone: null, due_city: null, reminder_lead_value: null, reminder_lead_unit: null }
   }
   const zone = input.due_timezone || (dueProvided ? requestZone : (existing?.due_timezone || requestZone))
   const dueAtIso = dueProvided ? dueAtToInstant(String(rawDue), zone).toISOString() : rawDue
@@ -239,6 +247,9 @@ function resolveDueFields(
   return {
     due_at: dueAtIso,
     due_timezone: zone,
+    // The spoken place ("Boston") — the zone alone can't reproduce it
+    // (America/New_York → "New York"), and it's what the list views show.
+    due_city: input.due_city ?? (input.due_timezone ? null : (existing?.due_city ?? null)),
     reminder_lead_value: pairValid ? value : null,
     reminder_lead_unit: pairValid ? unit : null,
   }

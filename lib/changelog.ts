@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.242',
+    date: '2026-07-27',
+    changes: [
+      'Task lists, boards, and printouts now name the place a due date belongs to — "Jul 27, 9:00 AM, Tokyo" or "Boston, MA" — instead of a timezone abbreviation, and they show it on every dated task rather than only some of them. The city you picked is remembered, so a task set to Boston reads as Boston rather than New York (ORB-361).',
+    ],
+  },
+  {
     version: 'v0.6.241',
     date: '2026-07-26',
     changes: [

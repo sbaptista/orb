@@ -69,6 +69,7 @@ function InlineTodoEditor({
         urls,
         due_at: form.due_at ? dueAtToInstant(form.due_at, dueZone).toISOString() : null,
         due_timezone: form.due_at ? dueZone : null,
+        due_city: form.due_at ? todo.due_city : null,
         ...(form.due_at ? {} : { reminder_lead_value: null, reminder_lead_unit: null }),
         reminded_at: form.due_at !== (todo.due_at ? instantToWallClock(todo.due_at, dueZone) : null) ? null : todo.reminded_at,
         closed_at: isDone ? (todo.closed_at ?? new Date().toISOString()) : null,

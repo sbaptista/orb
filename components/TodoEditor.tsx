@@ -11,7 +11,7 @@ import type { Todo, Product, Priority, StatusDef } from '@/lib/todo-types'
 import { useDirtyForm } from '@/lib/hooks/useDirtyForm'
 import EditorModal from '@/components/ui/EditorModal'
 import { startInteraction } from '@/lib/performance/telemetry'
-import { dueAtToInstant, instantToWallClock, listCityZones, zoneDisplayLabel, validateReminderLead, type ReminderLeadUnit } from '@/lib/due-time'
+import { dueAtToInstant, duePlaceLabel, instantToWallClock, listCityZones, zoneDisplayLabel, validateReminderLead, type ReminderLeadUnit } from '@/lib/due-time'
 import { ensureCityZones, cityZonesReady, searchCities } from '@/lib/city-zones'
 
 // ORB-361: inside the editor, form.due_at is always a WALL-CLOCK string in
@@ -73,7 +73,8 @@ function normalizeTodoEditor(value: TodoEditorState) {
     category_id: todo.category_id,
     due_at: todo.due_at || null,
     due_timezone: todo.due_at ? todo.due_timezone : null,
-    reminder_lead_value: todo.reminder_lead_value,
+    due_city: todo.due_at ? todo.due_city : null,
+    reminder_lead_value: todo.due_at ? todo.reminder_lead_value : null,
     reminder_lead_unit: todo.reminder_lead_unit,
     urls: normalizedUrls(urlInput),
   }
@@ -113,6 +114,7 @@ export default function TodoEditor({
           ? instantToWallClock(todo.due_at, todo.due_timezone || browserZone())
           : null,
         due_timezone: todo.due_at ? (todo.due_timezone || browserZone()) : null,
+        due_city: todo.due_at ? todo.due_city : null,
       }
     : {
         id: '',
@@ -134,6 +136,7 @@ export default function TodoEditor({
         categories: null,
         due_at: null,
         due_timezone: null,
+        due_city: null,
         reminder_lead_value: null,
         reminder_lead_unit: null,
         reminded_at: null,
@@ -176,10 +179,10 @@ export default function TodoEditor({
   const currentZoneInfo = useMemo(() => {
     if (!form.due_timezone) return null
     return {
-      city: form.due_timezone.split('/').pop()!.replace(/_/g, ' '),
+      city: duePlaceLabel(form.due_city, form.due_timezone),
       label: zoneDisplayLabel(form.due_timezone),
     }
-  }, [form.due_timezone])
+  }, [form.due_timezone, form.due_city])
 
   // Per-field validation errors - initialize with title error if empty (create mode)
   const [errors, setErrors] = useState<FieldErrors>(() => {
@@ -252,6 +255,7 @@ export default function TodoEditor({
     // ORB-361: convert the form's wall-clock reading (in the todo's zone) to
     // the true instant the database stores. No due date → no zone, no reminder.
     const saveZone = form.due_at ? (form.due_timezone || browserZone()) : null
+    const saveCity = form.due_at ? (form.due_city || null) : null
     const saveDueAt = form.due_at ? dueAtToInstant(form.due_at, saveZone!).toISOString() : null
     const saveReminderValue = form.due_at ? form.reminder_lead_value : null
     const saveReminderUnit = form.due_at && form.reminder_lead_value != null ? form.reminder_lead_unit : null
@@ -276,6 +280,7 @@ export default function TodoEditor({
           urls,
           due_at: saveDueAt,
           due_timezone: saveZone,
+          due_city: saveCity,
           reminder_lead_value: saveReminderValue,
           reminder_lead_unit: saveReminderUnit,
           reminded_at: dueChanged ? null : todo!.reminded_at,
@@ -337,6 +342,7 @@ export default function TodoEditor({
         priority_value: form.priority_value,
         due_at: saveDueAt,
         due_timezone: saveZone,
+        due_city: saveCity,
         reminder_lead_value: saveReminderValue,
         reminder_lead_unit: saveReminderUnit,
         product_id: form.product_id,
@@ -533,7 +539,7 @@ export default function TodoEditor({
               {form.due_at && (
                 <button
                   type="button"
-                  onClick={() => { setForm(f => ({ ...f, due_at: null, due_timezone: null, reminder_lead_value: null, reminder_lead_unit: null })); setReminderCustom(false); setZoneQuery(''); setZoneOpen(false) }}
+                  onClick={() => { setForm(f => ({ ...f, due_at: null, due_timezone: null, due_city: null, reminder_lead_value: null, reminder_lead_unit: null })); setReminderCustom(false); setZoneQuery(''); setZoneOpen(false) }}
                   className="text-btn"
                   style={{ fontSize: 'var(--fs-version)', color: 'var(--error)', padding: 0 }}
                 >
@@ -554,6 +560,7 @@ export default function TodoEditor({
                   ...f,
                   due_at: v,
                   due_timezone: v ? (f.due_timezone || browserZone()) : null,
+                  due_city: v ? f.due_city : null,
                   reminder_lead_value: v ? f.reminder_lead_value : null,
                   reminder_lead_unit: v ? f.reminder_lead_unit : null,
                 }))
@@ -586,7 +593,7 @@ export default function TodoEditor({
                         type="button"
                         className="admin-search-result"
                         onMouseDown={e => e.preventDefault()}
-                        onClick={() => { setForm(f => ({ ...f, due_timezone: c.zone })); setZoneQuery(''); setZoneOpen(false) }}
+                        onClick={() => { setForm(f => ({ ...f, due_timezone: c.zone, due_city: c.city })); setZoneQuery(''); setZoneOpen(false) }}
                       >
                         <span className="admin-search-result-name">{c.city}</span>
                         <span className="admin-search-result-owner">{c.label}</span>

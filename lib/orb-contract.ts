@@ -36,6 +36,10 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
           "type": "string",
           "description": "IANA timezone the due time is expressed in (e.g. Asia/Tokyo, America/Vancouver). When the user names a city or zone, resolve it to the IANA identifier. Omit to use the user's current timezone."
         },
+        "due_city": {
+          "type": "string",
+          "description": "The place the user actually named, e.g. \"Boston, MA\" or \"Tokyo\" — this is what the task list displays. Always send it alongside due_timezone, because the zone alone cannot reproduce the city (America/New_York would read as \"New York\", not \"Boston\")."
+        },
         "reminder_lead_value": {
           "type": "integer",
           "minimum": 0,
@@ -119,6 +123,10 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         "due_timezone": {
           "type": "string",
           "description": "IANA timezone for the due time (e.g. Asia/Tokyo). Resolve a spoken city or zone name to its IANA identifier; omit to keep the todo's stored zone."
+        },
+        "due_city": {
+          "type": "string",
+          "description": "The place the user named, e.g. \"Boston, MA\" — displayed with the due date. Send it whenever you send due_timezone."
         },
         "reminder_lead_value": {
           "type": "integer",

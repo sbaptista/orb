@@ -116,7 +116,7 @@ export async function processDevMessage(id: string): Promise<string | null> {
 
   const { data: todos } = await supabase
     .from('todos')
-    .select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, due_at, due_timezone, reminder_lead_value, reminder_lead_unit, urls')
+    .select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, due_at, due_timezone, due_city, reminder_lead_value, reminder_lead_unit, urls')
     .is('deleted_at', null)
 
   const todoList = todos ?? []
