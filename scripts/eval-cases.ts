@@ -94,8 +94,12 @@ export const EVAL_CASES: EvalCase[] = [
     input: 'Create a task: [EVAL] meet the Boston team — due next Tuesday at 2pm Boston time',
     tier: 1,
     expectTool: {
+      // "Boston, MA" not "Boston": matches both the tool description's example
+      // and what the city picker stores (searchCities merges the region in), so
+      // spoken and picked todos label identically. The first draft of this case
+      // asserted "Boston" and the model was right to disagree.
       name: 'create_todo',
-      params: { product_code: 'ORB', due_timezone: 'America/New_York', due_city: 'Boston' },
+      params: { product_code: 'ORB', due_timezone: 'America/New_York', due_city: 'Boston, MA' },
     },
   },
 
@@ -1194,6 +1198,14 @@ Helm [code: HELM]:
     id: 'realtime-send-developer-intent-analogue',
     description: 'An explicit recipient plus relay message routes immediately to the developer channel without a task lookup',
     productCode: 'ORB',
+    // Frozen 2026-07-26: this case asserts the relay fires WITHOUT a task
+    // lookup, but it was reading the live backlog, so whether it passed
+    // depended on whether real todos happened to look like plausible referents
+    // for the relayed message. It regressed the moment ORB-361/362 landed and
+    // ORB-360 closed — the model started citing real codes back ("ORB-293,
+    // ORB-325") and asking which task was meant. Freezing the backlog removes
+    // the variable the case never meant to test; the assertion is unchanged.
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
     input: 'Send this to Codex: verify the Realtime voice parity work.',
     tier: 1,
     expectTool: { name: 'send_to_developer', params: { target_tool: 'Codex' } },

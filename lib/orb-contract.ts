@@ -30,21 +30,21 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         },
         "due_at": {
           "type": "string",
-          "description": "Optional due date/time as a wall-clock string, format YYYY-MM-DDTHH:mm — a reading in due_timezone. When the user names a time in a specific place (\"9am Tokyo time\"), pass that wall-clock here and the place's IANA zone in due_timezone."
+          "description": "Due date/time as a wall-clock string, YYYY-MM-DDTHH:mm, read in due_timezone."
         },
         "due_timezone": {
           "type": "string",
-          "description": "IANA timezone the due time is expressed in (e.g. Asia/Tokyo, America/Vancouver). When the user names a city or zone, resolve it to the IANA identifier. Omit to use the user's current timezone."
+          "description": "IANA zone for due_at (e.g. Asia/Tokyo). Resolve a named city to its IANA id."
         },
         "due_city": {
           "type": "string",
-          "description": "The place the user actually named, e.g. \"Boston, MA\" or \"Tokyo\" — this is what the task list displays. Always send it alongside due_timezone, because the zone alone cannot reproduce the city (America/New_York would read as \"New York\", not \"Boston\")."
+          "description": "The place named, e.g. \"Boston, MA\". Send with due_timezone."
         },
         "reminder_lead_value": {
           "type": "integer",
           "minimum": 0,
           "maximum": 99,
-          "description": "Reminder lead amount, 0-99, set together with reminder_lead_unit. Only when the user asks to be reminded (\"remind me a week before\" → 1 + weeks). Omit both otherwise — reminders are opt-in and never affect the orb's mood. 0 = at due time."
+          "description": "Reminder lead 0-99, with reminder_lead_unit. Only if the user asks to be reminded."
         },
         "reminder_lead_unit": {
           "type": "string",
@@ -55,7 +55,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
             "weeks",
             "months"
           ],
-          "description": "One of minutes, hours, days, weeks, months."
+          "description": "minutes, hours, days, weeks, or months."
         }
       },
       "required": [
@@ -118,21 +118,21 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         },
         "due_at": {
           "type": "string",
-          "description": "Optional due date/time as a wall-clock string (YYYY-MM-DDTHH:mm) read in due_timezone, or null to clear (clearing also clears the timezone and reminder)."
+          "description": "Due date/time as a wall-clock string (YYYY-MM-DDTHH:mm) read in due_timezone, or null to clear."
         },
         "due_timezone": {
           "type": "string",
-          "description": "IANA timezone for the due time (e.g. Asia/Tokyo). Resolve a spoken city or zone name to its IANA identifier; omit to keep the todo's stored zone."
+          "description": "IANA zone for due_at (e.g. Asia/Tokyo). Resolve a named city to its IANA id."
         },
         "due_city": {
           "type": "string",
-          "description": "The place the user named, e.g. \"Boston, MA\" — displayed with the due date. Send it whenever you send due_timezone."
+          "description": "The place named, e.g. \"Boston, MA\". Send with due_timezone."
         },
         "reminder_lead_value": {
           "type": "integer",
           "minimum": 0,
           "maximum": 99,
-          "description": "Reminder lead amount, 0-99, set together with reminder_lead_unit; null for both removes the reminder. Only when the user asks — reminders are opt-in and never affect the orb's mood."
+          "description": "Reminder lead 0-99, with reminder_lead_unit; both null removes the reminder."
         },
         "reminder_lead_unit": {
           "type": "string",
@@ -143,7 +143,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
             "weeks",
             "months"
           ],
-          "description": "One of minutes, hours, days, weeks, months."
+          "description": "minutes, hours, days, weeks, or months."
         }
       },
       "required": [
