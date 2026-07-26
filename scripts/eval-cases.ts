@@ -76,6 +76,30 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
+    id: 'create-with-named-timezone-and-reminder',
+    description: 'ORB-361: a due time named in a specific place resolves to its IANA due_timezone, and "remind me a week before" becomes the 1/weeks lead pair',
+    productCode: 'ORB',
+    input: 'Create a task: [EVAL] call the Tokyo office — due tomorrow at 9am Tokyo time, and remind me a week before it\'s due',
+    tier: 1,
+    expectTool: {
+      name: 'create_todo',
+      params: { product_code: 'ORB', due_timezone: 'Asia/Tokyo', reminder_lead_value: 1, reminder_lead_unit: 'weeks' },
+    },
+  },
+
+  {
+    id: 'create-with-custom-month-reminder-lead',
+    description: 'ORB-361: a long custom reminder lead ("three months before") becomes the 3/months pair — the Helm-financials early-milestone case',
+    productCode: 'ORB',
+    input: 'Create a task: [EVAL] renew travel insurance — due December 15 at noon, remind me three months ahead of the due date',
+    tier: 1,
+    expectTool: {
+      name: 'create_todo',
+      params: { product_code: 'ORB', reminder_lead_value: 3, reminder_lead_unit: 'months' },
+    },
+  },
+
+  {
     id: 'batch-create-three-todos',
     description: 'A request for three todos emits three create_todo operations for the shared action transaction',
     productCode: 'ORB',

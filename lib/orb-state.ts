@@ -22,6 +22,7 @@ type MinimalTodo = {
   status: string
   priority_value: number | null
   due_at: string | null
+  due_timezone?: string | null
   product_id: string
 }
 
@@ -33,7 +34,9 @@ export function computeUrgency(
 ): Urgency {
   const active = todos.filter(t => isActive(t.status))
   const hasUrgentPriority = active.some(t => t.priority_value !== null && urgentValues.has(t.priority_value))
-  const hasUrgentDueDate = active.some(t => t.due_at && isDueWithinWarning(t.due_at, urgencyThresholdHours, timeZone))
+  // ORB-361: the todo's own zone wins; the caller's zone is the fallback for
+  // rows written before due_timezone existed (or by writers that omit it).
+  const hasUrgentDueDate = active.some(t => t.due_at && isDueWithinWarning(t.due_at, urgencyThresholdHours, t.due_timezone || timeZone))
 
   if (hasUrgentPriority || hasUrgentDueDate) return 'urgent'
   if (active.length > 5) return 'busy'

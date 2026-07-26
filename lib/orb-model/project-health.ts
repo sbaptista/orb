@@ -110,7 +110,8 @@ export function buildProjectHealthPacket(input: BuildProjectHealthPacketInput): 
       (todo.priority_value != null && urgentPriorityValues.has(todo.priority_value)) ||
       // ORB-360: honor the user's configured early-warning threshold — this was
       // hardcoded to 0 (already-overdue only), silently ignoring the setting.
-      (todo.due_at != null && isDueWithinWarning(todo.due_at, input.urgencyThresholdHours, input.timeZone))
+      // ORB-361: the todo's own zone wins; input.timeZone is the fallback.
+      (todo.due_at != null && isDueWithinWarning(todo.due_at, input.urgencyThresholdHours, todo.due_timezone || input.timeZone))
     ).length
     const inProgressCount = activeTodos.filter((todo: any) => todo.status === 'in progress').length
     const staleActiveCount = activeTodos.filter((todo: any) => {

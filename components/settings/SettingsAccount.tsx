@@ -19,6 +19,9 @@ export default function SettingsAccount() {
 
   const [userId, setUserId] = useState('')
   const [email, setEmail] = useState('')
+  // ORB-361: display-only — the browser's detected zone, which the dashboard
+  // auto-writes to users.timezone whenever it changes.
+  const [detectedTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [loading, setLoading] = useState(true)
@@ -132,6 +135,20 @@ export default function SettingsAccount() {
           <button type="button" className="btn-primary" onClick={() => setShowEmailModal(true)}>
             Change email
           </button>
+        </div>
+      </div>
+
+      {/* ORB-361: read-only transparency for the auto-maintained zone — not a
+          setting; corrections happen on the todo itself. */}
+      <div className="s-card mb-md">
+        <div className="account-profile-row">
+          <div className="account-profile-copy">
+            <p className="account-profile-label">Detected timezone</p>
+            <p className="account-profile-value">{detectedTimezone.replace(/_/g, ' ')}</p>
+            <p className="text-xs text-muted" style={{ margin: '4px 0 0' }}>
+              Updates automatically as you travel. New dated todos assume this timezone; each todo&rsquo;s timezone can be changed when editing it.
+            </p>
+          </div>
         </div>
       </div>
 

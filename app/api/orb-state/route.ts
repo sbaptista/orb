@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
   const { data: todos } = projectIds.length > 0
     ? await supabase
       .from('todos')
-      .select('status, priority_value, due_at, product_id')
+      .select('status, priority_value, due_at, due_timezone, product_id')
       .in('product_id', projectIds)
       .is('deleted_at', null)
     : { data: [] }

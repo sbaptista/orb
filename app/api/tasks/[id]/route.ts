@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAuditEvent } from '@/lib/audit'
+import { dueAtToInstant, validateReminderLead } from '@/lib/due-time'
 
 const STAN_ID = '3c8f183a-1350-4ce2-9b60-7d51ccd55b60'
 
@@ -36,7 +37,7 @@ export async function PATCH(
 
   const { id } = await params
   const body = await request.json()
-  const { title, description, status, priority_value, resolution_notes, urls, product_code, due_at } = body
+  const { title, description, status, priority_value, resolution_notes, urls, product_code, due_at, due_timezone, reminder_lead_value, reminder_lead_unit } = body
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
@@ -44,7 +45,23 @@ export async function PATCH(
   if (description !== undefined) updates.description = description
   if (priority_value !== undefined) updates.priority_value = priority_value
   if (resolution_notes !== undefined) updates.resolution_notes = resolution_notes
-  if (due_at !== undefined) updates.due_at = due_at
+  // ORB-361: due_at carries a zone. A naive string is a wall-clock reading in
+  // the provided (or stored/fallback) zone; clearing due_at clears the zone
+  // and reminder with it. Any due-time change re-arms the reminder.
+  if (reminder_lead_value !== undefined || reminder_lead_unit !== undefined) {
+    const reminderError = validateReminderLead(reminder_lead_value ?? null, reminder_lead_unit ?? null)
+    if (reminderError) return NextResponse.json({ error: reminderError }, { status: 400 })
+    updates.reminder_lead_value = reminder_lead_value ?? null
+    updates.reminder_lead_unit = reminder_lead_unit ?? null
+    updates.reminded_at = null
+  }
+  if (due_at === null) {
+    updates.due_at = null
+    updates.due_timezone = null
+    updates.reminder_lead_value = null
+    updates.reminder_lead_unit = null
+    updates.reminded_at = null
+  }
   if (urls !== undefined) {
     updates.urls = typeof urls === 'string'
       ? urls.split('\n').map((u: string) => u.trim()).filter(Boolean)
@@ -82,12 +99,31 @@ export async function PATCH(
     updates.closed_at = statusDef?.is_closed ? new Date().toISOString() : null
   }
 
+  if (due_at !== undefined && due_at !== null) {
+    let zone = due_timezone || null
+    if (!zone) {
+      const { data: existing } = await supabase.from('todos').select('due_timezone').eq('id', id).maybeSingle()
+      zone = existing?.due_timezone || null
+    }
+    if (!zone) {
+      const { data: owner } = await supabase.from('users').select('timezone').eq('id', targetUserId).maybeSingle()
+      zone = owner?.timezone || 'America/Los_Angeles'
+    }
+    updates.due_at = dueAtToInstant(due_at, zone).toISOString()
+    updates.due_timezone = zone
+    updates.reminded_at = null
+  } else if (due_timezone !== undefined && due_at === undefined) {
+    // Zone changed on an existing due date: reinterpret nothing (the stored
+    // instant is absolute); just record the new display/edit zone.
+    updates.due_timezone = due_timezone
+  }
+
   const { data: todo, error } = await supabase
     .from('todos')
     .update(updates)
     .eq('id', id)
     .is('deleted_at', null)
-    .select('id, todo_number, title, description, status, priority_value, resolution_notes, urls, created_at, updated_at, closed_at, due_at')
+    .select('id, todo_number, title, description, status, priority_value, resolution_notes, urls, created_at, updated_at, closed_at, due_at, due_timezone, reminder_lead_value, reminder_lead_unit')
     .single()
 
   if (error) {

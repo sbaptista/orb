@@ -13,6 +13,7 @@ type Todo = {
   status: string
   priority_value: number | null
   due_at: string | null
+  due_timezone: string | null
   created_at: string
   closed_at: string | null
   resolution_notes: string | null
@@ -44,6 +45,15 @@ function formatDate(iso: string | null): string {
   if (!iso) return ''
   const d = new Date(iso)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// ORB-361: due dates render in the todo's origin zone (server-rendered page,
+// so an unpinned toLocaleDateString would silently use the server's zone).
+function formatDueDate(iso: string | null, dueTimezone: string | null): string {
+  if (!iso) return ''
+  const zone = dueTimezone || 'UTC'
+  const d = new Date(iso)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: zone })
 }
 
 function formatDateTime(iso: string | null): string {
@@ -89,7 +99,7 @@ export default async function PrintPage({
   // Fetch all non-deleted todos for these projects
   const { data: todosRaw } = await supabase
     .from('todos')
-    .select('id, todo_number, title, description, status, priority_value, due_at, created_at, closed_at, resolution_notes, product_id')
+    .select('id, todo_number, title, description, status, priority_value, due_at, due_timezone, created_at, closed_at, resolution_notes, product_id')
     .in('product_id', projectIds)
     .is('deleted_at', null)
     .order('priority_value', { ascending: true })
@@ -213,7 +223,7 @@ export default async function PrintPage({
                           </span>
                         )}
                         {todo.due_at && (
-                          <span className="print-badge">Due {formatDate(todo.due_at)}</span>
+                          <span className="print-badge">Due {formatDueDate(todo.due_at, todo.due_timezone)}</span>
                         )}
                       </div>
                     </div>

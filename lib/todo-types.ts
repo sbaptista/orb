@@ -19,6 +19,9 @@ export type Todo = {
   groups: { name: string } | null
   categories: { name: string } | null
   due_at: string | null
+  due_timezone: string | null
+  reminder_lead_value: number | null
+  reminder_lead_unit: string | null
   reminded_at: string | null
 }
 

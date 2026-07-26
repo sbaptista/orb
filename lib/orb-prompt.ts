@@ -80,7 +80,9 @@ export function buildUrgencyRules(thresholdHours: number): string {
 - BUSY triggers if there are more than 5 active tasks (and none are urgent).
 - CALM is the default when neither condition is met.
 - Both conditions (priority AND due date) are checked independently. Changing one does not clear the other.
-- When diagnosing orb color issues, always check BOTH urgent priorities AND overdue/near-due dates before filing a ticket.`
+- When diagnosing orb color issues, always check BOTH urgent priorities AND overdue/near-due dates before filing a ticket.
+- Due times carry a per-todo IANA timezone (due_timezone). When the user names a time in a specific place ("9am Tokyo time"), pass the wall-clock in due_at and the place's IANA zone in due_timezone. When reporting a due time, state it in the todo's own zone.
+- Reminders are per-todo and OPT-IN (reminder_lead_value + reminder_lead_unit, e.g. "remind me a week before" = 1 + weeks). Set them only when the user asks to be reminded. A reminder never changes the orb's color — it only sends a notification.`
 }
 
 export const ORB_QUERY_ROUTING = `QUERY ROUTING:

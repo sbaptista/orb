@@ -1,7 +1,7 @@
 'use client'
 
 import type { ViewProps, ViewTodo } from './types'
-import { dueAtToInstant, isDueToday } from '@/lib/due-time'
+import { dueAtToInstant, isDueToday, zoneAbbreviation } from '@/lib/due-time'
 import EmptyState from '@/components/ui/EmptyState'
 
 function ActionButtons({
@@ -80,9 +80,13 @@ export default function TaskListView({
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
                         {todoRef && <span className="text-xs text-muted">{todoRef}</span>}
                         {todo.due_at && (() => {
-                          const dueInstant = dueAtToInstant(todo.due_at, timeZone)
+                          // ORB-361: render in the todo's origin zone; flag it
+                          // only when it differs from the viewer's zone.
+                          const dueZone = todo.due_timezone || timeZone
+                          const dueInstant = dueAtToInstant(todo.due_at, dueZone)
                           const isOverdue = !isDone && dueInstant < new Date()
-                          const isDueTodayBadge = !isDone && isDueToday(todo.due_at, timeZone)
+                          const isDueTodayBadge = !isDone && isDueToday(todo.due_at, dueZone)
+                          const zoneTag = dueZone !== timeZone ? ` ${zoneAbbreviation(dueInstant, dueZone)}` : ''
                           return (
                             <div style={{
                               display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: 'var(--fs-version)', padding: '1px 6px', borderRadius: '4px',
@@ -95,9 +99,10 @@ export default function TaskListView({
                                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                               </svg>
                               <span>
-                                {dueInstant.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone })}
+                                {dueInstant.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: dueZone })}
                                 {' at '}
-                                {dueInstant.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone })}
+                                {dueInstant.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: dueZone })}
+                                {zoneTag}
                               </span>
                             </div>
                           )

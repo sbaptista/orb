@@ -39,7 +39,9 @@ todos
   id (uuid), todo_number (int), title (text), description (text), status (text),
   priority_value (int), product_id (uuid → projects.id), created_at (timestamptz),
   updated_at (timestamptz), closed_at (timestamptz), resolution_notes (text),
-  due_at (timestamptz), urls (text[]), group_id (uuid → groups.id),
+  due_at (timestamptz), due_timezone (text, IANA zone the due time is expressed in),
+  reminder_lead_value (smallint 0-99, null = no reminder), reminder_lead_unit (text: minutes|hours|days|weeks|months),
+  urls (text[]), group_id (uuid → groups.id),
   category_id (uuid → categories.id), deleted_at (timestamptz, soft-delete — auto-filtered)
   Joins: projects(code, name), groups(name), categories(name)
 

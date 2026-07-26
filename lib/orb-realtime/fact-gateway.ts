@@ -101,7 +101,7 @@ export async function getTodoDetailsPacket(
   if (!options.todoId && !match) throw new Error('Name one todo or use its code, such as ORB-330.')
   let query = auth.admin
     .from('todos')
-    .select('id, todo_number, title, status, priority_value, due_at, projects!inner(id, name, code, created_by)')
+    .select('id, todo_number, title, status, priority_value, due_at, due_timezone,projects!inner(id, name, code, created_by)')
     .eq('projects.is_dormant', false)
     .is('projects.deleted_at', null)
     .is('deleted_at', null)
@@ -154,7 +154,7 @@ export async function getTodoListPacket(
   const maxResults = Math.min(Math.max(options.maxResults ?? 5, 1), 10)
   let query = auth.admin
     .from('todos')
-    .select('id, todo_number, title, status, priority_value, due_at, created_at, projects!inner(id, name, code, created_by)', { count: 'exact' })
+    .select('id, todo_number, title, status, priority_value, due_at, due_timezone,created_at, projects!inner(id, name, code, created_by)', { count: 'exact' })
     .eq('projects.is_dormant', false)
     .is('projects.deleted_at', null)
     .is('deleted_at', null)

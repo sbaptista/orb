@@ -61,7 +61,9 @@ type Todo = {
   description: string | null; resolution_notes: string | null; status: string
   urls: string[]; sort_order: number; created_at: string; closed_at: string | null
   ticket_id: string | null; groups: { name: string } | null; categories: { name: string } | null
-  due_at: string | null; reminded_at: string | null
+  due_at: string | null; due_timezone: string | null
+  reminder_lead_value: number | null; reminder_lead_unit: string | null
+  reminded_at: string | null
 }
 
 type Priority   = { value: number; label: string; color?: string; is_urgent?: boolean }
@@ -215,7 +217,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   // ── Orb / conversation state ──
   const [priorities, setPriorities]             = useState<Priority[]>([])
-  const [orbTodos, setOrbTodos]                 = useState<{ id: string; title: string; status: string; priority_value: number | null; due_at: string | null; product_id: string }[]>([])
+  const [orbTodos, setOrbTodos]                 = useState<{ id: string; title: string; status: string; priority_value: number | null; due_at: string | null; due_timezone: string | null; product_id: string }[]>([])
   const [input, setInput]                       = useState('')
   const [submitting, setSubmitting]             = useState(false)
   const [messages, setMessages]                 = useState<ConversationMessage[]>([])
@@ -835,6 +837,17 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             setUserFullName(full)
             setUrgencyThreshold(profile.urgency_threshold_hours ?? 0)
             if (profile.timezone) setUserTimeZone(profile.timezone)
+            // ORB-361: users.timezone is auto-maintained — track where the
+            // user actually is so headless creates (REST, cron) stamp the
+            // right zone. Fire-and-forget; writes only on an actual change.
+            const detectedZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+            if (detectedZone && profile.timezone !== detectedZone) {
+              setUserTimeZone(detectedZone)
+              supabase.from('users').update({ timezone: detectedZone }).eq('id', authUser.id)
+                .then(({ error: tzErr }: { error: { message: string } | null }) => {
+                  if (tzErr) console.warn('[dashboard] timezone auto-update failed:', tzErr.message)
+                })
+            }
             setReleaseStage(profile.release_stage ?? 'pre-alpha')
             if (profile.created_at) {
               const created = new Date(profile.created_at)
@@ -969,7 +982,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     try {
       const { data } = await supabase
         .from('todos')
-        .select('id, title, status, priority_value, due_at, product_id')
+        .select('id, title, status, priority_value, due_at, due_timezone, product_id')
         .eq('product_id', selectedId)
         .is('deleted_at', null)
       setOrbTodos((data ?? []) as typeof orbTodos)
@@ -987,7 +1000,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   }, [selectedId, fetchOrbTodos])
 
   // All-project todos for overall urgency (fetched once, refreshed on tab focus)
-  const allTodosRef = useRef<{ status: string; priority_value: number | null; due_at: string | null; product_id: string }[]>([])
+  const allTodosRef = useRef<{ status: string; priority_value: number | null; due_at: string | null; due_timezone: string | null; product_id: string }[]>([])
   const fetchAllTodos = useCallback(async () => {
     const perf = startInteraction({ focus: 'dashboard-init', flow: 'dashboard', interaction: 'all_todos_load', surface: 'dashboard' })
     try {
@@ -999,7 +1012,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       }
       const { data } = await supabase
         .from('todos')
-        .select('status, priority_value, due_at, product_id')
+        .select('status, priority_value, due_at, due_timezone, product_id')
         .in('product_id', productIds)
         .is('deleted_at', null)
       allTodosRef.current = (data ?? []) as typeof allTodosRef.current
@@ -1348,7 +1361,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       const outgoingMutation = pendingMutationRef.current
       pendingMutationRef.current = null
       submitMeasurement.mark('server_action_start')
-      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError, systemInfo: systemInfoRef.current, pendingMutation: outgoingMutation ?? undefined, actionSets: actionSetsRef.current, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive, voiceMode: voice.voiceActive, availableVoices: voice.voiceActive ? voice.availableVoices.map(v => v.name) : undefined, currentVoice: voice.voiceActive ? voice.selectedVoiceName || undefined : undefined, ttsProvider: voice.voiceActive ? ttsConfig?.provider : undefined, ttsModel: voice.voiceActive ? ttsConfig?.model : undefined, ttsVoiceId: voice.voiceActive ? ttsConfig?.voiceId : undefined } })
+      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError, systemInfo: systemInfoRef.current, clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, pendingMutation: outgoingMutation ?? undefined, actionSets: actionSetsRef.current, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive, voiceMode: voice.voiceActive, availableVoices: voice.voiceActive ? voice.availableVoices.map(v => v.name) : undefined, currentVoice: voice.voiceActive ? voice.selectedVoiceName || undefined : undefined, ttsProvider: voice.voiceActive ? ttsConfig?.provider : undefined, ttsModel: voice.voiceActive ? ttsConfig?.model : undefined, ttsVoiceId: voice.voiceActive ? ttsConfig?.voiceId : undefined } })
       submitMeasurement.mark('server_action_stream_opened')
       let firstChunkSeen = false
       for await (const chunk of readStreamableValue(stream)) {

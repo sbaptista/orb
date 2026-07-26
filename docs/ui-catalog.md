@@ -574,6 +574,8 @@ Selected state: `aria-selected="true"` → bg3 background, medium font weight. M
 **File:** `components/TodoEditor.tsx`
 Unified component handling both create and edit modes. Uses the `EditorModal` pattern with `modal-lg`, `modal-header`, `modal-body`, and `modal-footer`. The body uses `pf-field` labels, a larger title input, a responsive two-column metadata grid for Status and Priority, and the native `pf-select` pattern for Status, Priority, and Project. Status field is always visible. Category and URLs are hidden from the editor UI but retained in the database; existing category assignments are preserved when other fields are edited, and new todos default to no category. Do not reintroduce standalone `.tf-*` modal shells.
 
+**Due date fields (ORB-361):** when a due date is set, two further `pf-field` blocks appear — **Timezone**, a city-name typeahead reusing the cataloged `admin-search-*` family (`admin-search-wrap`/`-input`/`-dropdown`/`-result`/`-empty`) inline rather than in a nested modal, listing IANA city zones Apple-Reminders style ("Vancouver — Pacific Time (PDT)"); and **Reminder**, a `pf-select` of preset leads plus **Custom…**, which reveals a number input (1–99) and unit `pf-select` (hours/days/weeks/months). The form holds the due time as a wall-clock string in the todo's zone; conversion to/from the stored instant happens only at load/save boundaries in `lib/due-time.ts`. Clearing the due date clears the zone and reminder with it. No new CSS classes were introduced.
+
 ### Slide Panel (`slide-panel`)
 **Status:** Being phased out in favor of `modal-center`  
 Right-anchored slide-in panel. Still used in some places but `modal-center` is the preferred pattern.

@@ -46,7 +46,17 @@ function zoneFormatter(timeZone: string): Intl.DateTimeFormat {
  * a UTC guess back into the target zone, measure the offset the formatter
  * reveals, and correct the guess by it.
  */
+/** True when the string carries an explicit UTC offset (timestamptz ISO form). */
+function hasExplicitOffset(dueAtStr: string): boolean {
+  return /(?:Z|[+-]\d{2}:?\d{2})$/.test(dueAtStr)
+}
+
 export function dueAtToInstant(dueAtStr: string, timeZone: string): Date {
+  // ORB-361: due_at is now timestamptz — PostgREST returns an absolute instant
+  // with an explicit offset, which needs no zone interpretation at all. The
+  // wall-clock branch below remains for any naive string still in flight
+  // (form drafts, the deploy window, older exports).
+  if (hasExplicitOffset(dueAtStr)) return new Date(dueAtStr)
   const [datePart, timePart] = dueAtStr.split('T')
   const [year, month, day] = datePart.split('-').map(Number)
   const [hours = 0, minutes = 0] = (timePart ?? '00:00').split(':').map(Number)
@@ -78,14 +88,112 @@ export function isDueWithinWarning(dueAtStr: string, warningHours: number, timeZ
   return due.getTime() - Date.now() <= thresholdMs
 }
 
-/** True when the due date falls on today's calendar date in `timeZone`. */
-export function isDueToday(dueAtStr: string, timeZone: string): boolean {
-  const [dueDatePart] = dueAtStr.split('T')
-  const parts = zoneFormatter(timeZone).formatToParts(new Date())
+function calendarDayInZone(instant: Date, timeZone: string): string {
+  const parts = zoneFormatter(timeZone).formatToParts(instant)
   const partMap: Record<string, string> = {}
   for (const part of parts) {
     partMap[part.type] = part.value
   }
-  const todayPart = `${partMap.year}-${String(partMap.month).padStart(2, '0')}-${String(partMap.day).padStart(2, '0')}`
-  return dueDatePart === todayPart
+  return `${partMap.year}-${String(partMap.month).padStart(2, '0')}-${String(partMap.day).padStart(2, '0')}`
+}
+
+/** True when the due date falls on today's calendar date in `timeZone`. */
+export function isDueToday(dueAtStr: string, timeZone: string): boolean {
+  return calendarDayInZone(dueAtToInstant(dueAtStr, timeZone), timeZone)
+    === calendarDayInZone(new Date(), timeZone)
+}
+
+/**
+ * The wall-clock reading of an instant in `timeZone`, shaped for a
+ * datetime-local input (YYYY-MM-DDTHH:mm). Inverse of dueAtToInstant.
+ */
+export function instantToWallClock(dueAtStr: string, timeZone: string): string {
+  const parts = zoneFormatter(timeZone).formatToParts(dueAtToInstant(dueAtStr, timeZone))
+  const partMap: Record<string, string> = {}
+  for (const part of parts) {
+    partMap[part.type] = part.value
+  }
+  const hour = Number(partMap.hour) === 24 ? 0 : Number(partMap.hour)
+  return `${partMap.year}-${String(partMap.month).padStart(2, '0')}-${String(partMap.day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(partMap.minute).padStart(2, '0')}`
+}
+
+// ── Reminders (ORB-361) ────────────────────────────────────────────────────
+
+export const REMINDER_LEAD_UNITS = ['minutes', 'hours', 'days', 'weeks', 'months'] as const
+export type ReminderLeadUnit = (typeof REMINDER_LEAD_UNITS)[number]
+
+/** Returns an error message, or null when the pair is valid (both absent is valid = no reminder). */
+export function validateReminderLead(value: unknown, unit: unknown): string | null {
+  if (value == null && unit == null) return null
+  if (value == null || unit == null) return 'reminder_lead_value and reminder_lead_unit must be set together'
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 99) {
+    return 'reminder_lead_value must be an integer between 0 and 99'
+  }
+  if (!REMINDER_LEAD_UNITS.includes(unit as ReminderLeadUnit)) {
+    return `reminder_lead_unit must be one of: ${REMINDER_LEAD_UNITS.join(', ')}`
+  }
+  return null
+}
+
+const UNIT_MS: Record<Exclude<ReminderLeadUnit, 'months'>, number> = {
+  minutes: 60_000,
+  hours: 3_600_000,
+  days: 86_400_000,
+  weeks: 604_800_000,
+}
+
+/**
+ * When the reminder fires: due minus lead. Months use calendar subtraction in
+ * the todo's zone with the day clamped (due July 31, 1 month before → June 30)
+ * — the rule pinned in docs/per-todo-due-time-and-reminders-plan.md §5. All
+ * other units are exact arithmetic on the instant.
+ */
+export function reminderTriggerInstant(dueAtStr: string, value: number, unit: ReminderLeadUnit, timeZone: string): Date {
+  const due = dueAtToInstant(dueAtStr, timeZone)
+  if (unit !== 'months') return new Date(due.getTime() - value * UNIT_MS[unit])
+
+  const wall = instantToWallClock(dueAtStr, timeZone) // YYYY-MM-DDTHH:mm in zone
+  const [datePart, timePart] = wall.split('T')
+  const [year, month, day] = datePart.split('-').map(Number)
+  const totalMonths = year * 12 + (month - 1) - value
+  const targetYear = Math.floor(totalMonths / 12)
+  const targetMonth = ((totalMonths % 12) + 12) % 12 // 0-based
+  const daysInTarget = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate()
+  const targetDay = Math.min(day, daysInTarget)
+  const targetWall = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}T${timePart}`
+  return dueAtToInstant(targetWall, timeZone)
+}
+
+/** Short zone label for display, e.g. "PDT", "HST" — at the moment of `instant`. */
+export function zoneAbbreviation(instant: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'short' }).formatToParts(instant)
+  return parts.find(p => p.type === 'timeZoneName')?.value ?? timeZone
+}
+
+/**
+ * IANA zones presented Apple-Reminders style: "Vancouver — Pacific Time (PDT)".
+ * Only real IANA city zones exist (Vancouver yes, Seattle no) — accepted v1
+ * limitation per docs/per-todo-due-time-and-reminders-plan.md §4.3.
+ */
+export type CityZone = { zone: string; city: string; label: string }
+
+let cityZoneCache: CityZone[] | null = null
+
+export function listCityZones(): CityZone[] {
+  if (cityZoneCache) return cityZoneCache
+  const now = new Date()
+  cityZoneCache = Intl.supportedValuesOf('timeZone')
+    .filter(zone => zone.includes('/') && !zone.startsWith('Etc/'))
+    .map(zone => {
+      const city = zone.split('/').pop()!.replace(/_/g, ' ')
+      let generic = ''
+      try {
+        generic = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'longGeneric' })
+          .formatToParts(now).find(p => p.type === 'timeZoneName')?.value ?? ''
+      } catch { /* zone unsupported by this engine — skip label detail */ }
+      const abbrev = zoneAbbreviation(now, zone)
+      return { zone, city, label: generic ? `${generic} (${abbrev})` : abbrev }
+    })
+    .sort((a, b) => a.city.localeCompare(b.city))
+  return cityZoneCache
 }

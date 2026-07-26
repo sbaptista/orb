@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAuditEvent } from '@/lib/audit'
+import { dueAtToInstant, validateReminderLead } from '@/lib/due-time'
 
 const STAN_ID = '3c8f183a-1350-4ce2-9b60-7d51ccd55b60'
 
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
 
   const { data: todos, error } = await supabase
     .from('todos')
-    .select('id, todo_number, title, description, status, priority_value, resolution_notes, urls, created_at, updated_at, closed_at, due_at')
+    .select('id, todo_number, title, description, status, priority_value, resolution_notes, urls, created_at, updated_at, closed_at, due_at, due_timezone, reminder_lead_value, reminder_lead_unit')
     .eq('product_id', product.id)
     .is('deleted_at', null)
     .order('todo_number', { ascending: true })
@@ -69,11 +70,13 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
-  const { product_code, title, description, priority_value, due_at } = body
+  const { product_code, title, description, priority_value, due_at, due_timezone, reminder_lead_value, reminder_lead_unit } = body
 
   if (!product_code || !title) {
     return NextResponse.json({ error: 'Missing required fields: product_code, title' }, { status: 400 })
   }
+  const reminderError = validateReminderLead(reminder_lead_value, reminder_lead_unit)
+  if (reminderError) return NextResponse.json({ error: reminderError }, { status: 400 })
 
   const supabase = createServiceClient()
   const targetUserId = await resolveTargetUserId(request, supabase)
@@ -92,6 +95,21 @@ export async function POST(request: NextRequest) {
   const { data: openStatus } = await supabase
     .from('statuses').select('name').eq('is_open', true).limit(1).single()
 
+  // ORB-361: a dated todo carries its own zone. This is a genuinely headless
+  // path (external agents), so a missing zone falls back to the project
+  // owner's stored users.timezone. A naive due_at string is interpreted as a
+  // wall-clock reading in that zone and stored as a true instant.
+  let dueAtInstant: string | null = null
+  let dueZone: string | null = null
+  if (due_at) {
+    dueZone = due_timezone || null
+    if (!dueZone) {
+      const { data: owner } = await supabase.from('users').select('timezone').eq('id', targetUserId).maybeSingle()
+      dueZone = owner?.timezone || 'America/Los_Angeles'
+    }
+    dueAtInstant = dueAtToInstant(due_at, dueZone!).toISOString()
+  }
+
   const { data: todo, error } = await supabase
     .from('todos')
     .insert({
@@ -100,7 +118,10 @@ export async function POST(request: NextRequest) {
       description: description ?? null,
       priority_value: priority_value ?? null,
       status: openStatus?.name ?? 'open',
-      due_at: due_at ?? null,
+      due_at: dueAtInstant,
+      due_timezone: dueZone,
+      reminder_lead_value: due_at != null && reminder_lead_value != null ? reminder_lead_value : null,
+      reminder_lead_unit: due_at != null && reminder_lead_value != null ? reminder_lead_unit : null,
       sort_order: 0,
       group_id: null,
       category_id: null,
@@ -109,7 +130,7 @@ export async function POST(request: NextRequest) {
       closed_at: null,
       deleted_at: null,
     })
-    .select('id, todo_number, title, description, status, priority_value, resolution_notes, urls, created_at, updated_at, closed_at, due_at')
+    .select('id, todo_number, title, description, status, priority_value, resolution_notes, urls, created_at, updated_at, closed_at, due_at, due_timezone, reminder_lead_value, reminder_lead_unit')
     .single()
 
   if (error) {

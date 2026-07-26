@@ -1,7 +1,7 @@
 import { createServiceClient } from './supabase/service'
 import { Resend } from 'resend'
 import { FROM_EMAIL } from './email'
-import { dueAtToInstant } from './due-time'
+import { dueAtToInstant, reminderTriggerInstant, type ReminderLeadUnit } from './due-time'
 
 type DBTodo = {
   id: string
@@ -10,6 +10,9 @@ type DBTodo = {
   description: string | null
   status: string
   due_at: string
+  due_timezone: string | null
+  reminder_lead_value: number | null
+  reminder_lead_unit: string | null
   product_id: string
   projects: {
     id: string
@@ -61,6 +64,9 @@ export async function processReminders(): Promise<{ notifiedCount: number; messa
       description,
       status,
       due_at,
+      due_timezone,
+      reminder_lead_value,
+      reminder_lead_unit,
       product_id,
       projects (
         id,
@@ -72,6 +78,8 @@ export async function processReminders(): Promise<{ notifiedCount: number; messa
     .is('deleted_at', null)
     .is('reminded_at', null)
     .not('due_at', 'is', null)
+    // ORB-361: reminders are opt-in per todo — no lead pair means no email.
+    .not('reminder_lead_value', 'is', null)
     .in('status', openStatusNames)
 
   if (todosError) {
@@ -92,7 +100,7 @@ export async function processReminders(): Promise<{ notifiedCount: number; messa
 
   const { data: usersData } = await supabase
     .from('users')
-    .select('id, email, timezone, first_name, urgency_threshold_hours')
+    .select('id, email, timezone, first_name')
     .in('id', creatorIds)
 
   const userMap = new Map(usersData?.map(u => [u.id, u]) ?? [])
@@ -107,18 +115,21 @@ export async function processReminders(): Promise<{ notifiedCount: number; messa
     const user = userMap.get(creatorId)
     if (!user || !user.email) continue
 
-    const userTz = user.timezone || 'America/Los_Angeles'
-    const dueUTC = dueAtToInstant(todo.due_at, userTz)
-
-    // Calculate when the warning/trigger window opens based on urgency_threshold_hours
-    const thresholdHours = user.urgency_threshold_hours || 0
-    const warningMs = thresholdHours * 60 * 60 * 1000
-    const triggerTime = new Date(dueUTC.getTime() - warningMs)
+    // ORB-361: the todo's own zone and its own opt-in lead drive the trigger —
+    // the global urgency threshold no longer sends email.
+    if (todo.reminder_lead_value == null || todo.reminder_lead_unit == null) continue
+    const zone = todo.due_timezone || user.timezone || 'America/Los_Angeles'
+    const triggerTime = reminderTriggerInstant(
+      todo.due_at,
+      todo.reminder_lead_value,
+      todo.reminder_lead_unit as ReminderLeadUnit,
+      zone,
+    )
 
     // Send email if the current time is at or past the trigger threshold
     if (now >= triggerTime) {
       const projectCode = todo.projects?.code ?? 'TODO'
-      const formattedDate = formatLocalDateString(todo.due_at, userTz)
+      const formattedDate = formatLocalDateString(todo.due_at, zone)
 
       try {
         await resend.emails.send({

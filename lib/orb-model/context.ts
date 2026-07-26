@@ -175,7 +175,7 @@ export async function buildOrbContext(
   ] = await Promise.all([
     visibleProjectsQuery(supabase, 'id, name, code, description, created_by'),
     auth.isAdmin ? supabase.from('projects').select('id, name, code, created_by').eq('is_dormant', true).order('sort_order') : Promise.resolve({ data: [] }),
-    supabase.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes, due_at, urls, group_id, category_id, ticket_id, groups(name), categories(name), tickets!ticket_id(ticket_number)').is('deleted_at', null),
+    supabase.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes, due_at, due_timezone, reminder_lead_value, reminder_lead_unit, urls, group_id, category_id, ticket_id, groups(name), categories(name), tickets!ticket_id(ticket_number)').is('deleted_at', null),
     supabase.from('statuses').select('*').order('sort_order'),
     supabase.from('priorities').select('*').order('value'),
     supabase.from('knowledge_repo').select('*, projects(code, name)').order('created_at', { ascending: false }).limit(25),
@@ -385,6 +385,7 @@ export async function buildOrbContext(
     currentUser,
     userMap,
     urgencyThresholdHours,
+    userTimeZone,
     preferenceList,
     guidanceLevel,
     observations,

@@ -13,6 +13,7 @@ import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_FOUNDATIONAL_DEFINITIONS, ORB_
 import { resolveProjectByReference } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { computeUrgency, type Urgency } from '@/lib/orb-state'
+import { dueAtToInstant, validateReminderLead } from '@/lib/due-time'
 import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
 import { createTicket, getTickets } from '@/app/actions/ticket-actions'
 import { sendAdaptationEmail } from '@/lib/email'
@@ -208,9 +209,40 @@ export type OrbRequest = {
   systemInfo?: { browser: string; os: string; os_version: string; viewport: string } | null
   pendingMutation?: PendingMutation
   actionSets?: ActionSet[]
+  // ORB-361: the browser's live IANA zone rides with every conversation
+  // request — the Orb path is not headless, so a todo dated "tomorrow 9am"
+  // lands in the zone the user is actually in right now, not a stored guess.
+  clientTimeZone?: string | null
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
+
+// ORB-361: resolve the fields a dated tool call writes. Zone precedence:
+// explicit tool param → live client zone → user's stored zone. A wall-clock
+// due_at string becomes the true instant; reminder pair passes through only
+// when due_at exists and the pair is set.
+function resolveDueFields(
+  input: any,
+  existing: { due_at: string | null; due_timezone: string | null; reminder_lead_value: number | null; reminder_lead_unit: string | null } | null,
+  requestZone: string,
+): { due_at: string | null; due_timezone: string | null; reminder_lead_value: number | null; reminder_lead_unit: string | null } {
+  const dueProvided = input.due_at !== undefined
+  const rawDue = dueProvided ? input.due_at : (existing?.due_at ?? null)
+  if (!rawDue) {
+    return { due_at: null, due_timezone: null, reminder_lead_value: null, reminder_lead_unit: null }
+  }
+  const zone = input.due_timezone || (dueProvided ? requestZone : (existing?.due_timezone || requestZone))
+  const dueAtIso = dueProvided ? dueAtToInstant(String(rawDue), zone).toISOString() : rawDue
+  const value = input.reminder_lead_value !== undefined ? input.reminder_lead_value : (existing?.reminder_lead_value ?? null)
+  const unit = input.reminder_lead_unit !== undefined ? input.reminder_lead_unit : (existing?.reminder_lead_unit ?? null)
+  const pairValid = validateReminderLead(value, unit) === null && value != null
+  return {
+    due_at: dueAtIso,
+    due_timezone: zone,
+    reminder_lead_value: pairValid ? value : null,
+    reminder_lead_unit: pairValid ? unit : null,
+  }
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // Tool Context & Helpers
@@ -352,6 +384,8 @@ export async function orbConverse(req: OrbRequest) {
       const supabase = auth.supabase
       const ctx = await buildOrbContext(supabase, auth, { currentProductId: req.productId })
       const aiPolicy = await getRuntimeOrbAiPolicy()
+      // ORB-361: zone for dated tool calls — live client zone first (§4.2).
+      const requestZone = req.clientTimeZone || ctx.userTimeZone
 
       let uiCatalog = ''
       try {
@@ -475,13 +509,14 @@ export async function orbConverse(req: OrbRequest) {
           if (!product) return { ok: false, summary: 'Create failed', error: 'project not found' }
           const { data: openStatus } = await supabase
             .from('statuses').select('name').eq('is_open', true).limit(1).single()
+          const dueFields = resolveDueFields(input, null, requestZone)
           const { data, error } = await supabase.from('todos').insert({
             product_id: product.id,
             title: input.title,
             description: input.description ?? null,
             status: openStatus?.name ?? 'open',
             priority_value: input.priority_value ?? null,
-            due_at: input.due_at ?? null,
+            ...dueFields,
           }).select('id, todo_number').single()
           if (error) return { ok: false, summary: `Create "${input.title}" failed`, error: error.message }
           const code = `${product.code}-${data.todo_number}`
@@ -518,6 +553,10 @@ export async function orbConverse(req: OrbRequest) {
           const closingStatus = !!(input.new_status &&
             ctx.statusList.find((s: any) => s.name === input.new_status)?.is_closed
           )
+          const dueFields = resolveDueFields(input, todo, requestZone)
+          const dueChanged = dueFields.due_at !== todo.due_at
+            || dueFields.reminder_lead_value !== todo.reminder_lead_value
+            || dueFields.reminder_lead_unit !== todo.reminder_lead_unit
           const { data, error } = await supabase.from('todos').update({
             title: input.new_title ?? todo.title,
             status: input.new_status ?? todo.status,
@@ -525,7 +564,8 @@ export async function orbConverse(req: OrbRequest) {
             description: input.description ?? todo.description,
             resolution_notes: input.resolution_notes ?? todo.resolution_notes,
             closed_at: closingStatus ? new Date().toISOString() : todo.closed_at,
-            due_at: input.due_at !== undefined ? input.due_at : todo.due_at,
+            ...dueFields,
+            reminded_at: dueChanged ? null : todo.reminded_at,
           }).eq('id', todo.id).select('*').single()
           if (error) return { ok: false, summary: `Update ${input.code} failed`, error: error.message }
           await logAuditEvent({
@@ -1237,13 +1277,14 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             else {
               const { data: openStatus } = await supabase
                 .from('statuses').select('name').eq('is_open', true).limit(1).single()
+              const dueFields = resolveDueFields(input, null, requestZone)
               const { data, error } = await supabase.from('todos').insert({
                 product_id: product.id,
                 title: input.title,
                 description: input.description ?? null,
                 status: openStatus?.name ?? 'open',
                 priority_value: input.priority_value ?? null,
-                due_at: input.due_at ?? null,
+                ...dueFields,
               }).select('id, todo_number').single()
               if (error) output = { error: error.message }
               else {
@@ -1456,6 +1497,10 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
                 ctx.statusList.find((s: any) => s.name === input.new_status)?.is_closed
               )
 
+              const dueFields = resolveDueFields(input, todo, requestZone)
+              const dueChanged = dueFields.due_at !== todo.due_at
+                || dueFields.reminder_lead_value !== todo.reminder_lead_value
+                || dueFields.reminder_lead_unit !== todo.reminder_lead_unit
               const { data, error } = await supabase.from('todos').update({
                 title: input.new_title ?? todo.title,
                 status: input.new_status ?? todo.status,
@@ -1463,7 +1508,8 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
                 description: input.description ?? todo.description,
                 resolution_notes: input.resolution_notes ?? todo.resolution_notes,
                 closed_at: closingStatus ? new Date().toISOString() : todo.closed_at,
-                due_at: input.due_at !== undefined ? input.due_at : todo.due_at,
+                ...dueFields,
+                reminded_at: dueChanged ? null : todo.reminded_at,
               }).eq('id', todo.id).select('*').single()
 
               if (error) output = { error: error.message }

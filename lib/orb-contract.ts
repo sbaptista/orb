@@ -30,7 +30,28 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         },
         "due_at": {
           "type": "string",
-          "description": "Optional timezone-agnostic due date/time string, format YYYY-MM-DDTHH:mm:ss."
+          "description": "Optional due date/time as a wall-clock string, format YYYY-MM-DDTHH:mm — a reading in due_timezone. When the user names a time in a specific place (\"9am Tokyo time\"), pass that wall-clock here and the place's IANA zone in due_timezone."
+        },
+        "due_timezone": {
+          "type": "string",
+          "description": "IANA timezone the due time is expressed in (e.g. Asia/Tokyo, America/Vancouver). When the user names a city or zone, resolve it to the IANA identifier. Omit to use the user's current timezone."
+        },
+        "reminder_lead_value": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99,
+          "description": "Reminder lead amount, 0-99, set together with reminder_lead_unit. Only when the user asks to be reminded (\"remind me a week before\" → 1 + weeks). Omit both otherwise — reminders are opt-in and never affect the orb's mood. 0 = at due time."
+        },
+        "reminder_lead_unit": {
+          "type": "string",
+          "enum": [
+            "minutes",
+            "hours",
+            "days",
+            "weeks",
+            "months"
+          ],
+          "description": "One of minutes, hours, days, weeks, months."
         }
       },
       "required": [
@@ -93,7 +114,28 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         },
         "due_at": {
           "type": "string",
-          "description": "Optional timezone-agnostic due date/time string, format YYYY-MM-DDTHH:mm:ss, or null to clear."
+          "description": "Optional due date/time as a wall-clock string (YYYY-MM-DDTHH:mm) read in due_timezone, or null to clear (clearing also clears the timezone and reminder)."
+        },
+        "due_timezone": {
+          "type": "string",
+          "description": "IANA timezone for the due time (e.g. Asia/Tokyo). Resolve a spoken city or zone name to its IANA identifier; omit to keep the todo's stored zone."
+        },
+        "reminder_lead_value": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99,
+          "description": "Reminder lead amount, 0-99, set together with reminder_lead_unit; null for both removes the reminder. Only when the user asks — reminders are opt-in and never affect the orb's mood."
+        },
+        "reminder_lead_unit": {
+          "type": "string",
+          "enum": [
+            "minutes",
+            "hours",
+            "days",
+            "weeks",
+            "months"
+          ],
+          "description": "One of minutes, hours, days, weeks, months."
         }
       },
       "required": [

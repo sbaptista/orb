@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.240',
+    date: '2026-07-26',
+    changes: [
+      'Due dates now belong to a place, not just a time. Every dated task carries its own timezone, captured from wherever you are when you set it — create a task on a trip to Vancouver and it stays a Vancouver task, shown in Vancouver time (with the zone label, like PDT, whenever it differs from your own). You can change a task\'s timezone in the editor with a simple city-name picker (ORB-361).',
+      'Reminders are now set per task, and only when you want one. Setting a due date no longer automatically emails you — choose a reminder on the task itself, from "at time due" up to a week before, or Custom for anything up to 99 months ahead. A reminder is a nudge, not an alarm: it never changes the orb\'s mood (ORB-361).',
+      'You can ask the Orb for all of this in one breath — "due tomorrow 9am Tokyo time, remind me a week before" lands with the right timezone and reminder attached (ORB-361).',
+      'Your account page now shows the timezone Orb has detected for you; it updates automatically as you travel (ORB-361).',
+    ],
+  },
+  {
     version: 'v0.6.239',
     date: '2026-07-26',
     changes: [

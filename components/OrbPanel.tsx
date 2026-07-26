@@ -68,6 +68,7 @@ export default function OrbPanel({ productId, productCode, todoCount, onMutation
         history,
         dryRun: false,
         systemInfo: systemInfoRef.current,
+        clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       })
 
       let didMutate = false
