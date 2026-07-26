@@ -7,6 +7,7 @@ import { logAudit } from '@/app/actions/log-audit'
 import { collectSystemInfo } from '@/lib/system-info'
 import EmptyState from '@/components/ui/EmptyState'
 import type { Todo, Product, Priority, StatusDef } from '@/lib/todo-types'
+import { dueAtToInstant, instantToWallClock } from '@/lib/due-time'
 
 type ResultItem = { id: string; code: string; title: string; status: string; priority_value: number | null }
 
@@ -40,7 +41,13 @@ function InlineTodoEditor({
   const urlsId = useId()
   const deleteDescriptionId = useId()
   const supabase = useMemo(() => createClient(), [])
-  const [form, setForm] = useState({ ...todo })
+  // ORB-361: the stored due_at is an instant; the datetime-local input speaks
+  // wall-clock in the todo's zone. Convert at the boundaries, like TodoEditor.
+  const dueZone = todo.due_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+  const [form, setForm] = useState({
+    ...todo,
+    due_at: todo.due_at ? instantToWallClock(todo.due_at, dueZone) : null,
+  })
   const [urlInput, setUrlInput] = useState((todo.urls ?? []).join('\\n'))
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -60,8 +67,10 @@ function InlineTodoEditor({
         description: form.description || null,
         resolution_notes: form.resolution_notes || null,
         urls,
-        due_at: form.due_at || null,
-        reminded_at: form.due_at !== todo.due_at ? null : todo.reminded_at,
+        due_at: form.due_at ? dueAtToInstant(form.due_at, dueZone).toISOString() : null,
+        due_timezone: form.due_at ? dueZone : null,
+        ...(form.due_at ? {} : { reminder_lead_value: null, reminder_lead_unit: null }),
+        reminded_at: form.due_at !== (todo.due_at ? instantToWallClock(todo.due_at, dueZone) : null) ? null : todo.reminded_at,
         closed_at: isDone ? (todo.closed_at ?? new Date().toISOString()) : null,
       })
       .eq('id', todo.id)
