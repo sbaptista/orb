@@ -44,12 +44,6 @@ export type ViewProps = {
   onToggleAll: () => void
   hoveredId: string | null
   onHover: (id: string | null) => void
-}
-
-/** Parse a timezone-agnostic datetime string as local time */
-export function parseLocalDatetime(str: string): Date {
-  const [datePart, timePart] = str.split('T')
-  const [year, month, day] = datePart.split('-').map(Number)
-  const [hours, minutes] = (timePart ?? '00:00').split(':').map(Number)
-  return new Date(year, month - 1, day, hours, minutes)
+  /** ORB-360: the user's canonical IANA timezone — all due-date badges and dates render in it. */
+  timeZone: string
 }

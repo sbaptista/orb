@@ -1,6 +1,8 @@
 # ORB-360 — One canonical timezone for urgency thresholds
 
-**Status:** Plan drafted 2026-07-24. **NOT approved for build.** No code written.
+**Status:** **BUILT 2026-07-26 as ORB-361 Phase 0** (v0.6.239, Claude Code, Opus 5) — approved by Stan. The §4 Settings timezone picker was NOT built: superseded by `docs/per-todo-due-time-and-reminders-plan.md` (no timezone setting exists in that design; the zone becomes per-todo). Scope as built: `lib/due-time.ts`, four duplicate parsers deleted, user timezone canonical across all surfaces, project-health hardcoded-0 fix, reminder-email date rendered in the trigger's zone.
+
+**Eval-case deviation (found at build time):** the promised Tier 2 case is not writable today — the eval harness's `backlogOverride` blanks the server-computed project-health packet (`app/api/orb-eval/route.ts:200`), so a due-dated todo cannot be seeded into the surface this change affects. Phase 0 changes no tool, param, routing rule, or defined speech policy (data plumbing only), which is within the suite's stated boundary for "no case required." The behavioral case moves to ORB-361 Phase 2/3, where urgency derivation genuinely changes conversational behavior and the harness will need a seeding mechanism anyway.
 **Todo:** ORB-360 (`bdcade62-29ca-4917-90cd-a88761469a49`) — "Unclear which time zone Orb uses for urgency threshold reports", open, P3, no description.
 **Decision from Stan (2026-07-24):** the **user's timezone is canonical everywhere**. The `project-health` hardcoded-threshold bug is folded into this ticket rather than filed separately.
 

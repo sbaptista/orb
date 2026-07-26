@@ -327,6 +327,9 @@ export async function buildOrbContext(
   const extraContext = categoriesSection + groupsSection + rolesSection + platformsSection + frictionSection + invitationsSection + usersSection
 
   const urgencyThresholdHours = userProfile?.urgency_threshold_hours ?? 0
+  // ORB-360: the user's stored timezone is canonical for due-date math.
+  // Fetched here since v0.6.229 but never used until now.
+  const userTimeZone = userProfile?.timezone || 'America/Los_Angeles'
   const preferenceList = (orbPreferences ?? []) as Array<{ key: string; value: string }>
   const guidanceLevel = preferenceList.find(p => p.key === 'guidance_level')?.value ?? 'gentle'
   const myProducts = productList.filter((p: any) => p.created_by === auth.user.id)
@@ -342,6 +345,8 @@ export async function buildOrbContext(
     auditEvents: auditList,
     userMap,
     currentUserId: auth.user.id,
+    urgencyThresholdHours,
+    timeZone: userTimeZone,
   })
   const projectHealthContext = renderProjectHealthPacket(projectHealthPacket)
   const nextStepContext = renderNextStepPacket(buildNextStepPacket({

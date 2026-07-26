@@ -1,6 +1,7 @@
 import { createServiceClient } from './supabase/service'
 import { Resend } from 'resend'
 import { FROM_EMAIL } from './email'
+import { dueAtToInstant } from './due-time'
 
 type DBTodo = {
   id: string
@@ -18,53 +19,18 @@ type DBTodo = {
   } | null
 }
 
-function getUTCFromLocalTime(dueAtStr: string, timezone: string): Date {
-  const [datePart, timePart] = dueAtStr.split('T')
-  const [year, month, day] = datePart.split('-').map(Number)
-  const [hours, minutes] = timePart.split(':').map(Number)
+// ORB-360: the zone conversion that used to live here as getUTCFromLocalTime
+// was promoted to lib/due-time.ts (dueAtToInstant) as the shared single source
+// of truth for all due-date math.
 
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric',
-    hour12: false
-  })
-
-  const utcGuess = new Date(Date.UTC(year, month - 1, day, hours, minutes))
-  const parts = formatter.formatToParts(utcGuess)
-  const partMap: Record<string, string> = {}
-  for (const part of parts) {
-    partMap[part.type] = part.value
-  }
-
-  const fYear = Number(partMap.year)
-  const fMonth = Number(partMap.month)
-  const fDay = Number(partMap.day)
-  const fHour = Number(partMap.hour) === 24 ? 0 : Number(partMap.hour)
-  const fMinute = Number(partMap.minute)
-
-  const targetTime = Date.UTC(year, month - 1, day, hours, minutes)
-  const formattedTime = Date.UTC(fYear, fMonth - 1, fDay, fHour, fMinute)
-
-  const offsetMs = formattedTime - targetTime
-  return new Date(utcGuess.getTime() - offsetMs)
-}
-
-function formatLocalDateString(dueAtStr: string): string {
-  const [datePart, timePart] = dueAtStr.split('T')
-  const [year, month, day] = datePart.split('-').map(Number)
-  const [hours, minutes] = timePart.split(':').map(Number)
-  const date = new Date(year, month - 1, day, hours, minutes)
-  return date.toLocaleDateString('en-US', {
+function formatLocalDateString(dueAtStr: string, timeZone: string): string {
+  return dueAtToInstant(dueAtStr, timeZone).toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    timeZone,
   })
 }
 
@@ -142,7 +108,7 @@ export async function processReminders(): Promise<{ notifiedCount: number; messa
     if (!user || !user.email) continue
 
     const userTz = user.timezone || 'America/Los_Angeles'
-    const dueUTC = getUTCFromLocalTime(todo.due_at, userTz)
+    const dueUTC = dueAtToInstant(todo.due_at, userTz)
 
     // Calculate when the warning/trigger window opens based on urgency_threshold_hours
     const thresholdHours = user.urgency_threshold_hours || 0
@@ -152,7 +118,7 @@ export async function processReminders(): Promise<{ notifiedCount: number; messa
     // Send email if the current time is at or past the trigger threshold
     if (now >= triggerTime) {
       const projectCode = todo.projects?.code ?? 'TODO'
-      const formattedDate = formatLocalDateString(todo.due_at)
+      const formattedDate = formatLocalDateString(todo.due_at, userTz)
 
       try {
         await resend.emails.send({

@@ -1,7 +1,7 @@
 import webpush from 'web-push'
 import { createServiceClient } from '@/lib/supabase/service'
 import { visibleProjectsQuery } from '@/lib/projects'
-import { computeOrbState, computeUrgency, type Urgency } from '@/lib/orb-state'
+import { computeUrgency, type Urgency } from '@/lib/orb-state'
 import { isActive } from '@/lib/status-groups'
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
@@ -86,7 +86,7 @@ export async function snapshotUrgency(supabase: any, userId: string): Promise<Ur
   ] = await Promise.all([
     visibleProjectsQuery(supabase, 'id, name, code'),
     supabase.from('priorities').select('value, is_urgent'),
-    supabase.from('users').select('urgency_threshold_hours').eq('id', userId).maybeSingle(),
+    supabase.from('users').select('urgency_threshold_hours, timezone').eq('id', userId).maybeSingle(),
   ])
 
   const projectList = projects ?? []
@@ -103,8 +103,11 @@ export async function snapshotUrgency(supabase: any, userId: string): Promise<Ur
     (priorities ?? []).filter((p: any) => p.is_urgent).map((p: any) => p.value as number)
   )
   const thresholdHours = userSettings?.urgency_threshold_hours ?? 24
+  // ORB-360: the user's stored timezone is canonical for due-date math —
+  // previously this implicitly used the server's zone (UTC on Vercel).
+  const timeZone = userSettings?.timezone || 'America/Los_Angeles'
 
-  return computeUrgency(todoList, urgentValues, thresholdHours)
+  return computeUrgency(todoList, urgentValues, thresholdHours, timeZone)
 }
 
 /**

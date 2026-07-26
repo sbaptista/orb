@@ -28,7 +28,8 @@ import SkeletonRows from './ui/SkeletonRows'
 import FilterKebab from './ui/FilterKebab'
 // HScrollNav removed — project strip eliminated
 import { isActive, ACTIVE_STATUSES, PARKED_STATUSES } from '@/lib/status-groups'
-import { computeUrgency, isDueWithinWarning, type Urgency } from '@/lib/orb-state'
+import { computeUrgency, type Urgency } from '@/lib/orb-state'
+import { isDueWithinWarning } from '@/lib/due-time'
 // PrintModal moved to AppNav
 import TodoEditor from './TodoEditor'
 import { logAudit } from '@/app/actions/log-audit'
@@ -157,13 +158,6 @@ function toVoiceSpokenText(text: string) {
   return hasMore ? `${lead} I put the details on screen.` : lead
 }
 
-function parseLocalDatetime(str: string): Date {
-  const [datePart, timePart] = str.split('T')
-  const [year, month, day] = datePart.split('-').map(Number)
-  const [hours, minutes] = timePart.split(':').map(Number)
-  return new Date(year, month - 1, day, hours, minutes)
-}
-
 const ORB_SPEED: Record<Urgency, string> = { calm: '5.5s', busy: '3.5s', urgent: '3.5s' }
 
 const ORB_GLOW: Record<Urgency, { inset: string; blur: string }> = {
@@ -237,6 +231,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [userFullName, setUserFullName]         = useState<string>('')
   const [isNewUser, setIsNewUser]               = useState(false)
   const [urgencyThreshold, setUrgencyThreshold] = useState<number>(0)
+  // ORB-360: the user's stored timezone is canonical for due-date math.
+  // Browser zone is only the pre-profile-load initial guess.
+  const [userTimeZone, setUserTimeZone] = useState<string>(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
   const [releaseStage, setReleaseStage]         = useState<string>('alpha')
   const [orbFading, setOrbFading]               = useState(false)
   const [pulse, setPulse]                       = useState(false)
@@ -398,7 +395,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const selected     = products.find(p => p.id === selectedId)
   const noProject    = !selectedId
   const urgentValues = useMemo(() => new Set(priorities.filter(p => p.is_urgent).map(p => p.value)), [priorities])
-  const urgency      = moodOverride ?? computeUrgency(orbTodos, urgentValues, urgencyThreshold)
+  const urgency      = moodOverride ?? computeUrgency(orbTodos, urgentValues, urgencyThreshold, userTimeZone)
   // Realtime voice status: 'off'|'connecting'|'listening'|'thinking'|'speaking'|'error'.
   const voiceEngaged   = realtimeSpike.status !== 'off'
   const realtimeListening = realtimeSpike.status === 'listening'
@@ -827,7 +824,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
           const { data: profile } = await supabase
             .from('users')
-            .select('first_name, last_name, onboarded_at, urgency_threshold_hours, release_stage, created_at')
+            .select('first_name, last_name, onboarded_at, urgency_threshold_hours, timezone, release_stage, created_at')
             .eq('id', authUser.id)
             .single()
           perf.mark('profile_loaded')
@@ -837,6 +834,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             setUserName(full || (authUser.email ?? ''))
             setUserFullName(full)
             setUrgencyThreshold(profile.urgency_threshold_hours ?? 0)
+            if (profile.timezone) setUserTimeZone(profile.timezone)
             setReleaseStage(profile.release_stage ?? 'pre-alpha')
             if (profile.created_at) {
               const created = new Date(profile.created_at)
@@ -1103,16 +1101,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // Sync overall urgency from local data when orbTodos change
   useEffect(() => {
     if (allTodosRef.current.length > 0) {
-      prevOverallUrgencyRef.current = computeUrgency(allTodosRef.current, urgentValues, urgencyThreshold)
+      prevOverallUrgencyRef.current = computeUrgency(allTodosRef.current, urgentValues, urgencyThreshold, userTimeZone)
     }
-  }, [orbTodos, urgentValues, urgencyThreshold])
+  }, [orbTodos, urgentValues, urgencyThreshold, userTimeZone])
 
   // Periodic urgency re-evaluation — client-side only, no DB calls
   useEffect(() => {
     const interval = setInterval(async () => {
       setTick(t => t + 1)
       if (allTodosRef.current.length === 0) return
-      const currentOverall = computeUrgency(allTodosRef.current, urgentValues, urgencyThreshold)
+      const currentOverall = computeUrgency(allTodosRef.current, urgentValues, urgencyThreshold, userTimeZone)
       if (prevOverallUrgencyRef.current) {
         const SEVERITY: Record<Urgency, number> = { calm: 0, busy: 1, urgent: 2 }
         if (SEVERITY[currentOverall] > SEVERITY[prevOverallUrgencyRef.current]) {
@@ -1122,7 +1120,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       prevOverallUrgencyRef.current = currentOverall
     }, 60000)
     return () => clearInterval(interval)
-  }, [urgentValues, urgencyThreshold])
+  }, [urgentValues, urgencyThreshold, userTimeZone])
 
   // Project switch summary
   useEffect(() => {
@@ -1133,7 +1131,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     const active = activeTodos
     const urgentCount = active.filter(t =>
       (t.priority_value !== null && urgentValues.has(t.priority_value)) ||
-      (t.due_at !== null && isDueWithinWarning(t.due_at, urgencyThreshold))
+      (t.due_at !== null && isDueWithinWarning(t.due_at, urgencyThreshold, userTimeZone))
     ).length
     const inProgressCount = active.filter(t => t.status === 'in progress').length
     const parts: string[] = []
@@ -1160,7 +1158,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     lastUrgencyMsgRef.current = now
     const urgentCount = activeTodos.filter(t =>
       (t.priority_value !== null && urgentValues.has(t.priority_value)) ||
-      (t.due_at !== null && isDueWithinWarning(t.due_at, urgencyThreshold))
+      (t.due_at !== null && isDueWithinWarning(t.due_at, urgencyThreshold, userTimeZone))
     ).length
     let explanation = ''
     if (prev === 'calm' && urgency === 'busy') explanation = `Orb shifted busy — ${activeTodos.length} active tasks now.`
@@ -2237,6 +2235,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                   onToggleAll={toggleSelectAll}
                   hoveredId={hoveredId}
                   onHover={setHoveredId}
+                  timeZone={userTimeZone}
                 />
               ) : viewMode === 'kanban' ? (
                 <TaskKanbanView
@@ -2254,6 +2253,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                   onToggleAll={toggleSelectAll}
                   hoveredId={hoveredId}
                   onHover={setHoveredId}
+                  timeZone={userTimeZone}
                 />
               ) : (
                 <TaskListView
@@ -2270,6 +2270,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                   onToggleAll={toggleSelectAll}
                   hoveredId={hoveredId}
                   onHover={setHoveredId}
+                  timeZone={userTimeZone}
                 />
               )}
 

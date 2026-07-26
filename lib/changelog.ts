@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.239',
+    date: '2026-07-26',
+    changes: [
+      'Due dates now mean the same thing everywhere. Previously the dashboard orb, the task-card overdue/due-today badges, push notifications, and the Orb’s own reports each interpreted a due date in a different timezone (your browser’s, the server’s, or none), so they could disagree about whether the same task was urgent. All of them now use your account’s timezone (ORB-360).',
+      'The Orb’s project reports now honor your urgency early-warning setting — a task due within your configured warning window counts as urgent in its summaries, instead of only after it was already overdue (ORB-360).',
+    ],
+  },
+  {
     version: 'v0.6.238',
     date: '2026-07-24',
     changes: [

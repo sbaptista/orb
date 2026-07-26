@@ -1,4 +1,5 @@
 import { isActive, isParked } from '@/lib/status-groups'
+import { isDueWithinWarning } from '@/lib/due-time'
 
 export type ProjectActivityMomentum = 'none' | 'quiet' | 'active' | 'high'
 
@@ -46,19 +47,14 @@ type BuildProjectHealthPacketInput = {
   currentUserId?: string
   generatedAt?: Date
   windowDays?: number
+  urgencyThresholdHours: number
+  timeZone: string
 }
 
 const DAY_MS = 86_400_000
 
 function isClosedStatus(statuses: any[], status: string): boolean {
   return Boolean(statuses.find((s: any) => s.name === status)?.is_closed)
-}
-
-function isDueWithinWarning(dueAt: string | null, now: Date, warningHours: number): boolean {
-  if (!dueAt) return false
-  const due = new Date(dueAt).getTime()
-  if (Number.isNaN(due)) return false
-  return due <= now.getTime() + warningHours * 60 * 60 * 1000
 }
 
 function actionChangedToStatus(event: any, status: string): boolean {
@@ -112,7 +108,9 @@ export function buildProjectHealthPacket(input: BuildProjectHealthPacketInput): 
     const momentum = momentumFor(changeCount)
     const urgentCount = activeTodos.filter((todo: any) =>
       (todo.priority_value != null && urgentPriorityValues.has(todo.priority_value)) ||
-      isDueWithinWarning(todo.due_at ?? null, generatedAt, 0)
+      // ORB-360: honor the user's configured early-warning threshold — this was
+      // hardcoded to 0 (already-overdue only), silently ignoring the setting.
+      (todo.due_at != null && isDueWithinWarning(todo.due_at, input.urgencyThresholdHours, input.timeZone))
     ).length
     const inProgressCount = activeTodos.filter((todo: any) => todo.status === 'in progress').length
     const staleActiveCount = activeTodos.filter((todo: any) => {
