@@ -18,6 +18,22 @@
 
 ---
 
+## ⏸ DEVELOPMENT PAUSED — 2026-07-26 (Stan)
+
+Stan paused development to weigh whether the AI spend is worth it at this point. **Nothing is half-finished in a dangerous way** — read this section before resuming.
+
+**Safe state:** production runs **v0.6.242** (ORB-361 Phase 1), verified live. `main` == `origin/main` == v0.6.242. Both Phase 1 migrations are applied and match deployed code. No maintenance mode, no partial migration, no unpushed work on `main`.
+
+**Parked, not lost:** ORB-361 **Phase 2 is fully built and committed** on branch `claude/orb-361-phase-2` (1 commit, `4818968`, v0.6.243) — urgency derived from priority runway windows, Settings → Urgency Threshold deleted. `tsc` and lint clean; the §3 boundary table was verified deterministically (13 cases via `tsx`). **It has NOT had an eval run** — the suite ran out of purchased Anthropic credits mid-run. Do not push Phase 2 until Tier 1 is green. The branch is deliberately un-merged.
+
+**Why the spend question came up (ORB-363, P2, filed 2026-07-26):** Settings → AI Metrics reports provider spend of $5,040.53, with Anthropic alone at $4,463 for July. **Stan's actual July Anthropic spend is ~$55.** Orb's own token-based ledger says $48.59 — within ~12% of reality. The provider figure is ~80× wrong and Orb's own estimate is the accurate one, which **falsifies ORB-353's founding premise** that provider numbers should be trusted over Orb's estimate. Orb's parsing and pagination were both verified correct against the live API, so this is not an Orb bug at source — but Orb displays it, enforces caps on it, emails about it, and auto-writes it into `orb_cost_reconciliations`. Draft report for Anthropic Support: `docs/anthropic-cost-report-discrepancy.md` (not yet sent). **The same doubt applies to OpenAI, Gemini and ElevenLabs figures — only Anthropic was verified.**
+
+**Cost facts worth having before deciding:** the **eval suite is the dominant real AI cost** — roughly **$1.26 per full Tier 1 run** (78 cases), and Tier 2 triples per case on top. July saw 1,541 eval calls (~$40.89 estimated) against 701 real conversation calls (~$14.31). Orb's own budget gate deliberately excludes eval traffic (`lib/orb-model/budget.ts:46-47`), so evals spend real money without ever tripping it. **Also: `voice_budget_usd` is $0 while voice spent $17.16** — the three role budgets sum to exactly the $40 monthly total with nothing allocated to voice, so voice silently consumes the other roles' headroom.
+
+**On resuming:** re-read `docs/per-todo-due-time-and-reminders-plan.md` §9 for Phases 2–4, check out `claude/orb-361-phase-2`, run `npm run eval:t1` plus `--id distant-reminder-does-not-make-orb-urgent`, then merge. ORB-361 remains **in progress**.
+
+---
+
 ## Last Session Completed
 
 **ORB-361 Phase 1 — per-todo due timezone + opt-in reminders — 2026-07-26 (Claude Code, Opus 5) — v0.6.240→v0.6.242 — RELEASED, TODO STILL IN PROGRESS**
