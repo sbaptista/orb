@@ -1,8 +1,22 @@
 # Anthropic Cost API report — draft for Anthropic Support
 
-**Status:** Draft, ready to paste into an Anthropic support request. Not yet sent.
+> ## ⚠️ RESOLVED — the bug was ours. This report was wrong.
+>
+> **Anthropic reports cost in the lowest unit of the currency — cents — not dollars.** The `"currency": "USD"` field names the *currency*, not the *unit*. Orb's `getAnthropicOrgSpend` read the value as dollars, inflating every figure exactly 100×.
+>
+> Verified 2026-07-26 after Anthropic Support identified it: the full paginated July total is **4,769.30 → $47.69**, against Orb's own token-based ledger of **$48.59**. A **1.9% divergence** — the two sources agree.
+>
+> **The claim below that "unit misreading" had been ruled out was false**, and it sent Anthropic Support chasing a phantom. If this thread is still open, close it — their diagnosis was correct and there is nothing on their side to investigate.
+>
+> **Do not reuse this as a template.** Fixed in v0.6.243; tracked in ORB-363. Retained only as a record of the error, and of one thing that remains true: Orb's own cost estimation is accurate to within 2% of the provider's figures.
+>
+> **Provider-specific, do not generalise:** OpenAI's costs endpoint returns `amount.value` in **dollars** — verified against live data the same day. Each provider's unit must be checked against its own documentation.
+
+---
+
+**Status:** Superseded. Sent to Anthropic Support 2026-07-26; the premise was wrong (see banner).
 **Prepared:** 2026-07-26 by Claude Code (Opus 5) at Stan's request.
-**Related:** ORB-363 (Orb's defensive fix), ORB-353 (the work that introduced provider-spend fetching).
+**Related:** ORB-363 (the real fix), ORB-353 (the work that introduced provider-spend fetching).
 
 ---
 

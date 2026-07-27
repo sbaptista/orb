@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.243',
+    date: '2026-07-26',
+    changes: [
+      'Fixed Anthropic spend being reported 100x too high. Anthropic reports cost in cents, and Orb was reading it as dollars — so July showed roughly $4,769 against about $48 of real usage. That figure drives the AI Metrics totals, the spend caps, the warning emails and the cost reconciliation records, so all of them were wrong. The inflated reconciliation entry has been corrected in place (ORB-363).',
+    ],
+  },
+  {
     version: 'v0.6.242',
     date: '2026-07-27',
     changes: [

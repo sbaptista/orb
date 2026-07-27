@@ -60,7 +60,17 @@ async function getAnthropicOrgSpend(): Promise<number | null> {
       if (!res.ok) { console.error('[usage-monitor] Anthropic cost_report failed', res.status); return null }
       const body = await res.json()
       for (const bucket of body.data ?? []) {
-        for (const result of bucket.results ?? []) total += Number(result.amount) || 0
+        // Anthropic reports cost in the LOWEST UNIT of the currency — i.e. cents,
+        // not dollars — despite the sibling field reading `"currency": "USD"`.
+        // That label names the currency, not the unit. Reading it as dollars
+        // inflated every reported figure 100x (July 2026 showed $4,769 against
+        // ~$48 of real usage), which drove the spend caps, the threshold
+        // warnings, the admin emails, and the auto-written reconciliation rows.
+        // Confirmed with Anthropic Support 2026-07-26; see ORB-363.
+        // NOTE: this is provider-specific. OpenAI's costs endpoint returns
+        // `amount.value` in DOLLARS — verified against live data — so do not
+        // "fix" that one to match. Check each provider's documented unit.
+        for (const result of bucket.results ?? []) total += (Number(result.amount) || 0) / 100
       }
       page = body.has_more ? body.next_page : null
     } while (page)
