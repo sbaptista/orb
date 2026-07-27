@@ -13,7 +13,7 @@
 - **Branch:** `main` (the `codex/orb-325-production-hardening` branch was fast-forwarded into `main` with the v0.6.217 release commit)
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.242** — pushed to production 2026-07-26 with the ORB-361 Phase 1 release.
+- **Version:** local/canonical **0.6.243** — pushed 2026-07-26 (`7fb48be`). `main` == `origin/main`; nothing awaiting a push.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
@@ -22,7 +22,9 @@
 
 Stan paused development to weigh whether the AI spend is worth it at this point. **Nothing is half-finished in a dangerous way** — read this section before resuming.
 
-**Safe state:** production runs **v0.6.242** (ORB-361 Phase 1), verified live. `main` == `origin/main` == v0.6.242. Both Phase 1 migrations are applied and match deployed code. No maintenance mode, no partial migration, no unpushed work on `main`.
+**Safe state:** `main` == `origin/main` == **v0.6.243**, pushed 2026-07-26. Nothing awaiting a push; working tree holds only the two standing exceptions. All migrations (ORB-361 Phase 1 ×2, ORB-363 none) are applied and match deployed code. No maintenance mode, no partial migration.
+
+**⚠ DO NOT SET A PROVIDER SPEND CAP UNTIL v0.6.243 IS CONFIRMED LIVE.** All three provider caps are currently `$0`, and [`usage-monitor.ts:217`](../lib/orb-model/usage-monitor.ts) skips a provider scope entirely when its cap is 0 — which is the only reason the 100× bug has been dormant rather than firing warnings and rewriting reconciliation rows. Setting a cap while production still runs v0.6.242 trips it instantly against the inflated figure. Verify `/api/version` reports v0.6.243 first.
 
 **⚠ VERSION COLLISION TO RESOLVE ON RESUME:** `main` is now v0.6.243 (the cost fix). The unmerged Phase 2 branch *also* claims v0.6.243. **Re-version Phase 2 to v0.6.244** (`package.json`, `lib/version.ts`, its changelog entry) when merging.
 
@@ -30,9 +32,15 @@ Stan paused development to weigh whether the AI spend is worth it at this point.
 
 **Provider spend was reported 100× too high — FIXED in v0.6.243 (ORB-363).** Anthropic's cost report returns **cents**, not dollars; the `"currency": "USD"` field names the currency, not the unit. Orb read it as dollars, so July showed ~$4,769 against ~$48 of real usage, and that figure drove the caps, warnings, emails, and auto-written reconciliation rows. Corrected total **$47.69 vs Orb's own ledger $48.59 — 1.9% divergence**, so **Orb's own cost estimation is accurate and ORB-353's approach is sound**; only the parser was wrong. OpenAI returns dollars and was correct as written — the unit is provider-specific, do not generalise the fix. Data cleaned: the one inflated reconciliation row corrected in place, the bogus `anthropic-org` warning row deleted. `docs/anthropic-cost-report-discrepancy.md` is the support report that was sent to Anthropic on the wrong premise; it now carries a correction banner and is kept only as a record. **Gemini and ElevenLabs figures remain unverified.**
 
-**Cost facts worth having before deciding:** the **eval suite is the dominant real AI cost** — roughly **$1.26 per full Tier 1 run** (78 cases), and Tier 2 triples per case on top. July saw 1,541 eval calls (~$40.89 estimated) against 701 real conversation calls (~$14.31). Orb's own budget gate deliberately excludes eval traffic (`lib/orb-model/budget.ts:46-47`), so evals spend real money without ever tripping it. **Also: `voice_budget_usd` is $0 while voice spent $17.16** — the three role budgets sum to exactly the $40 monthly total with nothing allocated to voice, so voice silently consumes the other roles' headroom.
+**Cost facts behind the pause (Jun 30 → Jul 26, from `orb_model_requests`).** Total AI spend **$80.84**: evals **$46.30 (57%)**, real product usage **$34.54**. By provider — Anthropic $55.87 ($40.53 eval), OpenAI $17.38 (all real, voice), Google $6.38 ($5.77 eval), ElevenLabs $1.22. Within real usage, **voice ($17.38) is the largest single line**, more than all text conversation ($15.33). The suite makes ~4× the API calls the product does (1,720 vs 1,001) and costs ~$1.26 per full Tier 1 run; Tier 2 triples per case. Orb's budget gate **deliberately excludes eval traffic** ([`budget.ts:46-47`](../lib/orb-model/budget.ts)), which is why purchased credits ran dry mid-run with no warning. **`voice_budget_usd` is $0** while voice spent $17.38 — the three role budgets sum to exactly the $40 monthly total with nothing allocated to voice, so voice silently consumes the other roles' headroom.
 
-**On resuming:** re-read `docs/per-todo-due-time-and-reminders-plan.md` §9 for Phases 2–4, check out `claude/orb-361-phase-2`, run `npm run eval:t1` plus `--id distant-reminder-does-not-make-orb-urgent`, then merge. ORB-361 remains **in progress**.
+**Eval cost has a large, safe fix — ORB-364 (P3).** Both eval and production use `cache_control: {type: 'ephemeral'}`, the **5-minute** TTL, but a full Tier 1 run takes **13.5 minutes** serially — so the prompt cache expires ~twice mid-run and every case after an expiry re-sends the ~35k-token stable prefix at full price. Measured 2026-07-26: identical prompt shapes cost **$0.014/run on a cache hit vs $0.056 on a miss**, a 4× difference. Fix is `ttl: '1h'` at [`orb-eval/route.ts:429`](../app/api/orb-eval/route.ts) **only** — est. 35–40% off Anthropic eval cost, zero coverage lost. **Do not make the same change in `orb-converse.ts`:** the 1-hour cache costs 2× to write instead of 1.25× and needs ≥3 reads to break even, which a single user turn often won't get. Explicitly rejected in the ticket: cutting Tier 2 from three runs to two — the 2-of-3 threshold becomes incoherent.
+
+**Two knock-on findings, neither acted on.** The **`orb_usage_warnings` dedupe is per (scope, billing period)**, so `orb-operational` warned once at 84.8% on 2026-07-23 and stayed silent as the (then-inflated) figure climbed — a warning that never escalates is easy to lose (tracked in ORB-363). And **Orb has no code tests at all** — no test files, no framework in `package.json`, no `test` script. The eval suite is the only automated behavioural guard and it covers only the AI conversation layer; due-date math, urgency derivation, reminder arithmetic, REST routes, migrations, auth and RLS have none. Two deterministic suites written during ORB-360/361 (the due-time month-clamp/DST/round-trip checks, and the 13-case urgency boundary table) ran in ~1s for $0 and were thrown away. `verify-ui-catalog.js` and `verify-gemini-schema.ts` are existing precedent for free deterministic verifiers. Not filed — Stan has the two questions separated (cheaper AI-behaviour regression vs. adding the missing deterministic layer) and took the first.
+
+**On resuming:** **ORB-364 is the active ticket** (Stan set it in progress 2026-07-26) — land the cache-TTL fix first, since it makes every subsequent eval run ~35–40% cheaper and Phase 2 needs a full run anyway. Then ORB-361 Phase 2: re-read `docs/per-todo-due-time-and-reminders-plan.md` §9 for Phases 2–4, check out `claude/orb-361-phase-2`, **re-version it to v0.6.244** (collision note above), run `npm run eval:t1` plus `--id distant-reminder-does-not-make-orb-urgent`, then merge. ORB-361 remains **in progress** — Phase 1 live, Phases 2–4 outstanding.
+
+**Tickets from this session:** **ORB-363** (P3, open) — cross-check provider spend against Orb's own ledger; also carries the unverified Gemini/ElevenLabs figures, the $0 voice budget, and warning escalation. **ORB-364** (P3, **in progress** — set by Stan 2026-07-26) — eval cost / cache TTL, full evidence in the description; this is the next thing being worked, ahead of ORB-361 Phase 2.
 
 ---
 
@@ -313,7 +321,7 @@ Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation beh
 
 ## AI Tool Used Last Session
 
-`2026-07-26 — Claude Code (Opus 5)`
+`2026-07-26 — Claude Code (Opus 5, with Sonnet 5 earlier in the session)`
 
 ---
 
