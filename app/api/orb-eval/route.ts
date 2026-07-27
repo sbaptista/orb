@@ -426,7 +426,21 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         system: isStrategicEvaluation
           ? evalSystemPrompt
           : [
-              { type: 'text' as const, text: stableSystemPrompt, cache_control: { type: 'ephemeral' as const } },
+              // ORB-364: 1-HOUR cache TTL, not the 5-minute default — and this
+              // is deliberately the eval route only.
+              //
+              // A full Tier 1 run is 78 cases executed serially over ~13.5
+              // minutes. On the default 5-minute TTL the cache expires roughly
+              // twice mid-run, and every case landing after an expiry re-sends
+              // this whole ~35k-token stable prefix at full price instead of
+              // the cached tenth. Measured 2026-07-26: identical prompt shapes
+              // cost $0.014/run on a cache hit vs $0.056 on a miss.
+              //
+              // Do NOT copy this to app/actions/orb-converse.ts. The 1-hour
+              // cache costs 2x to write instead of 1.25x and needs at least
+              // three reads to break even; a real user turn often doesn't get
+              // them, so 5 minutes is the correct setting there.
+              { type: 'text' as const, text: stableSystemPrompt, cache_control: { type: 'ephemeral' as const, ttl: '1h' as const } },
               { type: 'text' as const, text: dynamicSystemPrompt },
             ],
         messages,

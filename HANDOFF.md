@@ -26,7 +26,7 @@ Stan paused development to weigh whether the AI spend is worth it at this point.
 
 **⚠ DO NOT SET A PROVIDER SPEND CAP UNTIL v0.6.243 IS CONFIRMED LIVE.** All three provider caps are currently `$0`, and [`usage-monitor.ts:217`](../lib/orb-model/usage-monitor.ts) skips a provider scope entirely when its cap is 0 — which is the only reason the 100× bug has been dormant rather than firing warnings and rewriting reconciliation rows. Setting a cap while production still runs v0.6.242 trips it instantly against the inflated figure. Verify `/api/version` reports v0.6.243 first.
 
-**⚠ VERSION COLLISION TO RESOLVE ON RESUME:** `main` is now v0.6.243 (the cost fix). The unmerged Phase 2 branch *also* claims v0.6.243. **Re-version Phase 2 to v0.6.244** (`package.json`, `lib/version.ts`, its changelog entry) when merging.
+**⚠ VERSION COLLISION TO RESOLVE ON RESUME:** `main` is now **v0.6.244** (ORB-363 cost fix → v0.6.243, ORB-364 eval cache TTL → v0.6.244). The unmerged Phase 2 branch still claims v0.6.243. **Re-version Phase 2 to v0.6.245** (`package.json`, `lib/version.ts`, its changelog entry) when merging.
 
 **Parked, not lost:** ORB-361 **Phase 2 is fully built and committed** on branch `claude/orb-361-phase-2` (1 commit, `4818968`, v0.6.243 — see collision note above) — urgency derived from priority runway windows, Settings → Urgency Threshold deleted. `tsc` and lint clean; the §3 boundary table was verified deterministically (13 cases via `tsx`). **It has NOT had an eval run** — the suite ran out of purchased Anthropic credits mid-run. Do not push Phase 2 until Tier 1 is green. The branch is deliberately un-merged.
 
