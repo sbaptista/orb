@@ -925,7 +925,7 @@ export async function orbConverse(req: OrbRequest) {
           `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,
           STATUS_VOCABULARY,
           `The BACKLOG below gives a SUMMARY line for each project and then separates ACTIVE from PARKED. When answering counts or project-health questions, copy the SUMMARY counts exactly; do not recalculate by counting visible lines. When the user asks "how many tasks" or "my tasks" without specifying, report the active_count. If parked_count is above zero, mention it separately. If you list tasks, make sure the number you claim matches the number of listed items, or say "including" instead of implying a complete list.`,
-          buildUrgencyRules(ctx.urgencyThresholdHours),
+          buildUrgencyRules(),
           ORB_QUERY_ROUTING,
           repositoryAccessPrompt,
           ticketToolAccessPrompt,

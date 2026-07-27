@@ -217,7 +217,7 @@ export async function POST(request: NextRequest) {
     `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,
     STATUS_VOCABULARY,
     `The BACKLOG below gives a SUMMARY line for each project and then separates ACTIVE from PARKED. When answering counts or project-health questions, copy the SUMMARY counts exactly; do not recalculate by counting visible lines. When the user asks "how many tasks" or "my tasks" without specifying, report the active_count. If parked_count is above zero, mention it separately. If you list tasks, make sure the number you claim matches the number of listed items, or say "including" instead of implying a complete list.`,
-    buildUrgencyRules(24),
+    buildUrgencyRules(),
     ORB_QUERY_ROUTING,
     `REPOSITORY ACCESS: You may inspect the local working tree with query_repository source="local", or the current Vercel deployment with source="production".`,
     `DATABASE SCHEMA (for query_db):\n${DB_SCHEMA}`,

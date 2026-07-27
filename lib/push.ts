@@ -86,7 +86,7 @@ export async function snapshotUrgency(supabase: any, userId: string): Promise<Ur
   ] = await Promise.all([
     visibleProjectsQuery(supabase, 'id, name, code'),
     supabase.from('priorities').select('value, is_urgent'),
-    supabase.from('users').select('urgency_threshold_hours, timezone').eq('id', userId).maybeSingle(),
+    supabase.from('users').select('timezone').eq('id', userId).maybeSingle(),
   ])
 
   const projectList = projects ?? []
@@ -102,12 +102,12 @@ export async function snapshotUrgency(supabase: any, userId: string): Promise<Ur
   const urgentValues = new Set<number>(
     (priorities ?? []).filter((p: any) => p.is_urgent).map((p: any) => p.value as number)
   )
-  const thresholdHours = userSettings?.urgency_threshold_hours ?? 24
   // ORB-360: the user's stored timezone is canonical for due-date math —
   // previously this implicitly used the server's zone (UTC on Vercel).
+  // ORB-361 Phase 2: urgency windows come from priority, not a global threshold.
   const timeZone = userSettings?.timezone || 'America/Los_Angeles'
 
-  return computeUrgency(todoList, urgentValues, thresholdHours, timeZone)
+  return computeUrgency(todoList, urgentValues, timeZone)
 }
 
 /**

@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
       .select('value, is_urgent'),
     supabase
       .from('users')
-      .select('urgency_threshold_hours, timezone')
+      .select('timezone')
       .eq('id', userId)
       .maybeSingle(),
   ])
@@ -68,12 +68,12 @@ export async function GET(request: NextRequest) {
   const urgentValues = new Set<number>(
     (priorities ?? []).filter((p: any) => p.is_urgent).map((p: any) => p.value as number)
   )
-  const thresholdHours = userSettings?.urgency_threshold_hours ?? 24
   // ORB-360: the user's stored timezone is canonical for due-date math —
   // previously this implicitly used the server's zone (UTC on Vercel).
+  // ORB-361 Phase 2: urgency windows come from priority, not a global threshold.
   const timeZone = userSettings?.timezone || 'America/Los_Angeles'
 
-  const state: OrbState = computeOrbState(todoList, projectList, urgentValues, thresholdHours, timeZone)
+  const state: OrbState = computeOrbState(todoList, projectList, urgentValues, timeZone)
 
   return NextResponse.json(state, {
     headers: { 'Cache-Control': 'private, max-age=30' },

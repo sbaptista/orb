@@ -1,5 +1,6 @@
 import { isActive, isParked } from '@/lib/status-groups'
 import { isDueWithinWarning } from '@/lib/due-time'
+import { windowsForPriority } from '@/lib/orb-state'
 
 export type ProjectActivityMomentum = 'none' | 'quiet' | 'active' | 'high'
 
@@ -47,7 +48,6 @@ type BuildProjectHealthPacketInput = {
   currentUserId?: string
   generatedAt?: Date
   windowDays?: number
-  urgencyThresholdHours: number
   timeZone: string
 }
 
@@ -106,12 +106,18 @@ export function buildProjectHealthPacket(input: BuildProjectHealthPacketInput): 
     }, null)
     const changeCount = createdCount + closedActivityCount + updatedCount
     const momentum = momentumFor(changeCount)
+    // ORB-361 Phase 2: "urgent" here means what the orb means by it — urgent
+    // priority, past due, or inside the todo's own priority-derived imminent
+    // window. Previously a hardcoded 0 (already-overdue only), then a global
+    // threshold; now the same derivation the mood uses, so the Orb's spoken
+    // reports and the orb's colour can no longer disagree.
     const urgentCount = activeTodos.filter((todo: any) =>
       (todo.priority_value != null && urgentPriorityValues.has(todo.priority_value)) ||
-      // ORB-360: honor the user's configured early-warning threshold — this was
-      // hardcoded to 0 (already-overdue only), silently ignoring the setting.
-      // ORB-361: the todo's own zone wins; input.timeZone is the fallback.
-      (todo.due_at != null && isDueWithinWarning(todo.due_at, input.urgencyThresholdHours, todo.due_timezone || input.timeZone))
+      (todo.due_at != null && isDueWithinWarning(
+        todo.due_at,
+        windowsForPriority(todo.priority_value ?? null).imminentHours,
+        todo.due_timezone || input.timeZone,
+      ))
     ).length
     const inProgressCount = activeTodos.filter((todo: any) => todo.status === 'in progress').length
     const staleActiveCount = activeTodos.filter((todo: any) => {

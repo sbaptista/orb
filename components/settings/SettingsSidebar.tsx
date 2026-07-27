@@ -4,7 +4,6 @@ import { usePathname } from 'next/navigation'
 import CollapsibleSidebar, { type SidebarItem } from '@/components/CollapsibleSidebar'
 
 const NAV: SidebarItem[] = [
-  { id: 'urgency',    href: '/settings/urgency',    label: 'Urgency Threshold', icon: '⚡', active: false },
   { id: 'notifications', href: '/settings/notifications', label: 'Notifications', icon: '🔔', active: false },
   { id: 'voice',         href: '/settings/voice',         label: 'Voice',         icon: '🔊', active: false },
   { id: 'memory',     href: '/settings/memory',     label: 'AI Memory', icon: '🧠', active: false },

@@ -28,7 +28,7 @@ import SkeletonRows from './ui/SkeletonRows'
 import FilterKebab from './ui/FilterKebab'
 // HScrollNav removed — project strip eliminated
 import { isActive, ACTIVE_STATUSES, PARKED_STATUSES } from '@/lib/status-groups'
-import { computeUrgency, type Urgency } from '@/lib/orb-state'
+import { computeUrgency, windowsForPriority, type Urgency } from '@/lib/orb-state'
 import { isDueWithinWarning } from '@/lib/due-time'
 // PrintModal moved to AppNav
 import TodoEditor from './TodoEditor'
@@ -232,7 +232,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [userName, setUserName]                 = useState<string>('')
   const [userFullName, setUserFullName]         = useState<string>('')
   const [isNewUser, setIsNewUser]               = useState(false)
-  const [urgencyThreshold, setUrgencyThreshold] = useState<number>(0)
   // ORB-360: the user's stored timezone is canonical for due-date math.
   // Browser zone is only the pre-profile-load initial guess.
   const [userTimeZone, setUserTimeZone] = useState<string>(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
@@ -397,7 +396,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const selected     = products.find(p => p.id === selectedId)
   const noProject    = !selectedId
   const urgentValues = useMemo(() => new Set(priorities.filter(p => p.is_urgent).map(p => p.value)), [priorities])
-  const urgency      = moodOverride ?? computeUrgency(orbTodos, urgentValues, urgencyThreshold, userTimeZone)
+  const urgency      = moodOverride ?? computeUrgency(orbTodos, urgentValues, userTimeZone)
   // Realtime voice status: 'off'|'connecting'|'listening'|'thinking'|'speaking'|'error'.
   const voiceEngaged   = realtimeSpike.status !== 'off'
   const realtimeListening = realtimeSpike.status === 'listening'
@@ -826,7 +825,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
           const { data: profile } = await supabase
             .from('users')
-            .select('first_name, last_name, onboarded_at, urgency_threshold_hours, timezone, release_stage, created_at')
+            .select('first_name, last_name, onboarded_at, timezone, release_stage, created_at')
             .eq('id', authUser.id)
             .single()
           perf.mark('profile_loaded')
@@ -835,7 +834,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             const full = [profile.first_name, profile.last_name].filter(Boolean).join(' ')
             setUserName(full || (authUser.email ?? ''))
             setUserFullName(full)
-            setUrgencyThreshold(profile.urgency_threshold_hours ?? 0)
             if (profile.timezone) setUserTimeZone(profile.timezone)
             // ORB-361: users.timezone is auto-maintained — track where the
             // user actually is so headless creates (REST, cron) stamp the
@@ -1114,16 +1112,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // Sync overall urgency from local data when orbTodos change
   useEffect(() => {
     if (allTodosRef.current.length > 0) {
-      prevOverallUrgencyRef.current = computeUrgency(allTodosRef.current, urgentValues, urgencyThreshold, userTimeZone)
+      prevOverallUrgencyRef.current = computeUrgency(allTodosRef.current, urgentValues, userTimeZone)
     }
-  }, [orbTodos, urgentValues, urgencyThreshold, userTimeZone])
+  }, [orbTodos, urgentValues, userTimeZone])
 
   // Periodic urgency re-evaluation — client-side only, no DB calls
   useEffect(() => {
     const interval = setInterval(async () => {
       setTick(t => t + 1)
       if (allTodosRef.current.length === 0) return
-      const currentOverall = computeUrgency(allTodosRef.current, urgentValues, urgencyThreshold, userTimeZone)
+      const currentOverall = computeUrgency(allTodosRef.current, urgentValues, userTimeZone)
       if (prevOverallUrgencyRef.current) {
         const SEVERITY: Record<Urgency, number> = { calm: 0, busy: 1, urgent: 2 }
         if (SEVERITY[currentOverall] > SEVERITY[prevOverallUrgencyRef.current]) {
@@ -1133,7 +1131,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       prevOverallUrgencyRef.current = currentOverall
     }, 60000)
     return () => clearInterval(interval)
-  }, [urgentValues, urgencyThreshold, userTimeZone])
+  }, [urgentValues, userTimeZone])
 
   // Project switch summary
   useEffect(() => {
@@ -1144,7 +1142,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     const active = activeTodos
     const urgentCount = active.filter(t =>
       (t.priority_value !== null && urgentValues.has(t.priority_value)) ||
-      (t.due_at !== null && isDueWithinWarning(t.due_at, urgencyThreshold, userTimeZone))
+      (t.due_at !== null && isDueWithinWarning(t.due_at, windowsForPriority(t.priority_value).imminentHours, t.due_timezone || userTimeZone))
     ).length
     const inProgressCount = active.filter(t => t.status === 'in progress').length
     const parts: string[] = []
@@ -1171,7 +1169,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     lastUrgencyMsgRef.current = now
     const urgentCount = activeTodos.filter(t =>
       (t.priority_value !== null && urgentValues.has(t.priority_value)) ||
-      (t.due_at !== null && isDueWithinWarning(t.due_at, urgencyThreshold, userTimeZone))
+      (t.due_at !== null && isDueWithinWarning(t.due_at, windowsForPriority(t.priority_value).imminentHours, t.due_timezone || userTimeZone))
     ).length
     let explanation = ''
     if (prev === 'calm' && urgency === 'busy') explanation = `Orb shifted busy — ${activeTodos.length} active tasks now.`

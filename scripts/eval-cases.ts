@@ -760,6 +760,20 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
+    id: 'distant-reminder-does-not-make-orb-urgent',
+    description: 'ORB-361 Phase 2: a reminder set far ahead is an anti-urgency device — the Orb must say it does not colour the orb, and must not point at a deleted global threshold setting',
+    productCode: 'ORB',
+    // Frozen: this asserts a policy statement, not a read of real data.
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
+    input: 'If I set a reminder three months before a task is due, does the orb stay urgent for those whole three months?',
+    tier: 2,
+    // >3 entries = any-of: any clear negation counts.
+    speechContains: ['does not affect', "doesn't affect", 'never affects', 'no effect', 'will not', "won't", 'stays calm', 'no impact'],
+    // The threshold setting was deleted in Phase 2 — never send the user there.
+    speechNotContains: ['urgency threshold', 'settings → urgency', '/settings/urgency'],
+  },
+
+  {
     id: 'project-health-count-status-definitions',
     description: 'Project health answers include canonical status definitions beside active and parked counts',
     productCode: 'ORB',

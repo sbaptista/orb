@@ -180,7 +180,7 @@ export async function buildOrbContext(
     supabase.from('priorities').select('*').order('value'),
     supabase.from('knowledge_repo').select('*, projects(code, name)').order('created_at', { ascending: false }).limit(25),
     supabase.from('audit_log').select('action, record_id, created_at, before, after, actor', { count: 'exact' }).gte('created_at', fourteenDaysAgo).order('created_at', { ascending: false }).limit(200),
-    supabase.from('users').select('urgency_threshold_hours, timezone, first_name, last_name').eq('id', auth.user.id).maybeSingle(),
+    supabase.from('users').select('timezone, first_name, last_name').eq('id', auth.user.id).maybeSingle(),
     supabase.from('categories').select('id, name, product_id').is('deleted_at', null).order('sort_order'),
     supabase.from('groups').select('id, name, product_id').is('deleted_at', null).order('sort_order'),
     supabase.from('roles').select('id, name').order('id'),
@@ -326,7 +326,6 @@ export async function buildOrbContext(
 
   const extraContext = categoriesSection + groupsSection + rolesSection + platformsSection + frictionSection + invitationsSection + usersSection
 
-  const urgencyThresholdHours = userProfile?.urgency_threshold_hours ?? 0
   // ORB-360: the user's stored timezone is canonical for due-date math.
   // Fetched here since v0.6.229 but never used until now.
   const userTimeZone = userProfile?.timezone || 'America/Los_Angeles'
@@ -345,7 +344,6 @@ export async function buildOrbContext(
     auditEvents: auditList,
     userMap,
     currentUserId: auth.user.id,
-    urgencyThresholdHours,
     timeZone: userTimeZone,
   })
   const projectHealthContext = renderProjectHealthPacket(projectHealthPacket)
@@ -384,7 +382,6 @@ export async function buildOrbContext(
     current,
     currentUser,
     userMap,
-    urgencyThresholdHours,
     userTimeZone,
     preferenceList,
     guidanceLevel,

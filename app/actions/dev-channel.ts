@@ -157,7 +157,7 @@ export async function processDevMessage(id: string): Promise<string | null> {
     ORB_PRINCIPLES,
     `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,
     STATUS_VOCABULARY,
-    buildUrgencyRules(0),
+    buildUrgencyRules(),
     `BACKLOG:\n${byProduct}`,
     `KNOWLEDGE BASE (Recent):\n${knowledgeList.slice(0, 5).map((k: any) => `- [${k.projects?.code}] ${k.title}: ${k.content.slice(0, 100)}...`).join('\n')}`,
     ORB_QUERY_ROUTING,
