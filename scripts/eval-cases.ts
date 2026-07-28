@@ -821,6 +821,38 @@ export const EVAL_CASES: EvalCase[] = [
   },
 
   {
+    id: 'reminder-nudge-decline-dismisses',
+    description: 'ORB-361 Phase 3.4: told a dated task does not need a reminder, the Orb calls update_todo with dismiss_reminder_nudge — it does not set a reminder, and does not merely agree in prose',
+    productCode: 'ORB',
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
+    history: [
+      { role: 'assistant', text: 'ORB-118 ("Take the cake out of the oven") has a due date but no reminder. Want me to set one?' },
+    ],
+    input: 'No, that one never needs a reminder.',
+    tier: 1,
+    expectTool: {
+      name: 'update_todo',
+      params: { code: 'ORB-118', dismiss_reminder_nudge: true },
+    },
+  },
+
+  {
+    id: 'reminder-nudge-decline-does-not-set-a-reminder',
+    description: 'ORB-361 Phase 3.4: declining the nudge must not be read as a request to set a reminder — the dismissal and the reminder fields are opposites, and confusing them would do exactly what the user refused',
+    productCode: 'ORB',
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
+    history: [
+      { role: 'assistant', text: 'ORB-118 ("Take the cake out of the oven") has a due date but no reminder. Want me to set one?' },
+    ],
+    input: 'No, that one never needs a reminder.',
+    tier: 2,
+    // >3 entries = any-of: any acknowledgement that it will stop asking counts.
+    speechContains: ['won\'t', 'will not', 'noted', 'understood', 'leave it', 'not mention', 'no reminder'],
+    // Must not claim to have done the opposite of what was asked.
+    speechNotContains: ['reminder set', "i've set a reminder", 'i have set a reminder', 'reminder is set'],
+  },
+
+  {
     id: 'orb-mood-names-the-driving-task',
     description: 'ORB-361 Phase 3.3: asked why the orb is urgent, the Orb names the actual task and rule from orb_state_because — it does not describe the mood in general terms or guess a plausible cause',
     productCode: 'ORB',

@@ -532,6 +532,7 @@ export const ORB_ADAPTATION_TOOL: Anthropic.Tool = {
 }
 
 type TodoForObservation = {
+  id?: string
   title: string
   status: string
   priority_value: number | null
@@ -541,6 +542,10 @@ type TodoForObservation = {
   closed_at: string | null
   product_id: string
   todo_number: number
+  // ORB-361 Phase 3.4 — the no-reminder nudge reads these three.
+  reminder_lead_value?: number | null
+  reminder_lead_unit?: string | null
+  reminder_nudge_dismissed_at?: string | null
 }
 
 type ProductForObservation = {
@@ -554,10 +559,21 @@ type ProductForObservation = {
  * Returns a prompt section the Orb can use at greeting time.
  * Only called when guidance_level is gentle or active.
  */
+export type ObservationResult = {
+  observations: string[]
+  /**
+   * The todo whose no-reminder nudge was surfaced this turn, if any. The caller
+   * stamps it so the nudge cannot fire twice — see the Phase 3.4 migration.
+   * At most one per turn, deliberately: a list of them would be nagging with
+   * extra steps.
+   */
+  nudgedTodoId: string | null
+}
+
 export function computeObservations(
   todos: TodoForObservation[],
   products: ProductForObservation[],
-): string[] {
+): ObservationResult {
   const now = Date.now()
   const observations: string[] = []
   const productName = (pid: string) => {
@@ -671,7 +687,36 @@ export function computeObservations(
     }
   }
 
-  return observations
+  // 9. ORB-361 Phase 3.4 — a dated task with no reminder.
+  //
+  // This is the exposed case: it slides from quiet to overdue with nothing in
+  // between. But it is only *sometimes* a gap — a cake due out of the oven
+  // needs no reminder; a financial milestone virtually requires one. So the
+  // rule is point it out once, and stand down when told.
+  //
+  // Deliberately at most ONE per turn, and the caller stamps it so it cannot
+  // fire again for that todo. The mechanism must not be capable of nagging;
+  // "mention every dated reminder-less task, every turn, until acted on" is
+  // exactly what that would be.
+  //
+  // Past-due tasks are excluded — observation 1 already covers those, and
+  // suggesting a reminder for a deadline that has passed is useless advice.
+  let nudgedTodoId: string | null = null
+  const nudgeCandidate = active.find(t =>
+    t.due_at
+    && new Date(t.due_at).getTime() > now
+    && t.reminder_lead_value == null
+    && t.reminder_lead_unit == null
+    && !t.reminder_nudge_dismissed_at
+  )
+  if (nudgeCandidate) {
+    observations.push(
+      `${todoCode(nudgeCandidate)} ("${nudgeCandidate.title}") has a due date but no reminder — offer to set one, and if the user says it does not need one, call update_todo with dismiss_reminder_nudge=true so it is never raised again.`
+    )
+    nudgedTodoId = nudgeCandidate.id ?? null
+  }
+
+  return { observations, nudgedTodoId }
 }
 
 export function buildObservationsPrompt(observations: string[], guidanceLevel: string): string {

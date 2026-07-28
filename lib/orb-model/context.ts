@@ -175,7 +175,7 @@ export async function buildOrbContext(
   ] = await Promise.all([
     visibleProjectsQuery(supabase, 'id, name, code, description, created_by, urgency_windows'),
     auth.isAdmin ? supabase.from('projects').select('id, name, code, created_by, urgency_windows').eq('is_dormant', true).order('sort_order') : Promise.resolve({ data: [] }),
-    supabase.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes, due_at, due_timezone, due_city, reminder_lead_value, reminder_lead_unit, urls, group_id, category_id, ticket_id, groups(name), categories(name), tickets!ticket_id(ticket_number)').is('deleted_at', null),
+    supabase.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes, due_at, due_timezone, due_city, reminder_lead_value, reminder_lead_unit, reminder_nudge_dismissed_at, urls, group_id, category_id, ticket_id, groups(name), categories(name), tickets!ticket_id(ticket_number)').is('deleted_at', null),
     supabase.from('statuses').select('*').order('sort_order'),
     supabase.from('priorities').select('*').order('value'),
     supabase.from('knowledge_repo').select('*, projects(code, name)').order('created_at', { ascending: false }).limit(25),
@@ -334,7 +334,15 @@ export async function buildOrbContext(
   const myProducts = productList.filter((p: any) => p.created_by === auth.user.id)
   const myProductIds = new Set(myProducts.map((p: any) => p.id))
   const myTodos = todoList.filter((t: any) => myProductIds.has(t.product_id))
-  const observations = guidanceLevel !== 'quiet' ? computeObservations(myTodos, myProducts) : []
+  const observationResult = guidanceLevel !== 'quiet'
+    ? computeObservations(myTodos, myProducts)
+    : { observations: [] as string[], nudgedTodoId: null }
+  const observations = observationResult.observations
+  // ORB-361 Phase 3.4: the todo whose no-reminder nudge was surfaced this turn.
+  // Deliberately NOT stamped here — buildOrbContext also serves the eval route,
+  // and an eval run must not write to the user's real todos. The production
+  // conversation path stamps it; see orb-converse.ts.
+  const nudgedTodoId = observationResult.nudgedTodoId
   const projectHealthPacket = buildProjectHealthPacket({
     projects: productList,
     dormantProjects: dormantList,
@@ -386,6 +394,7 @@ export async function buildOrbContext(
     preferenceList,
     guidanceLevel,
     observations,
+    nudgedTodoId,
     projectHealthPacket,
     projectHealthContext,
     nextStepContext,

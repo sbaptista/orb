@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.251',
+    date: '2026-07-28',
+    changes: [
+      'A task with a due date but no reminder is the one that can slide from quiet straight to overdue. The Orb will now point that out — once — and offer to set a reminder. Tell it the task does not need one and it stops raising it, permanently, for that task (ORB-361).',
+      'It genuinely cannot nag: the nudge is spent the moment it is raised, so it fires at most once per task even if you never answer, and only one task is ever raised at a time. Declining is remembered as a fact about the task, so it survives you changing the due date later.',
+    ],
+  },
+  {
     version: 'v0.6.250',
     date: '2026-07-28',
     changes: [

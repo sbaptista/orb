@@ -394,6 +394,26 @@ export async function orbConverse(req: OrbRequest) {
 
       const supabase = auth.supabase
       const ctx = await buildOrbContext(supabase, auth, { currentProductId: req.productId })
+
+      // ORB-361 Phase 3.4: spend the no-reminder nudge the moment it is offered
+      // to the model, so it can never fire twice for the same todo. Stamping on
+      // *offer* rather than on the user actually hearing it is deliberate: an
+      // observation is offered, not forced into speech, so this can occasionally
+      // spend a nudge the Orb chose not to voice. That is the safe direction to
+      // err — the plan's rule is that the mechanism must not be capable of
+      // nagging, and under-mentioning once is a smaller failure than repeating.
+      // Fire-and-forget: a failed stamp must never break the conversation.
+      if (ctx.nudgedTodoId) {
+        void auth.admin
+          .from('todos')
+          .update({ reminder_nudge_dismissed_at: new Date().toISOString() })
+          .eq('id', ctx.nudgedTodoId)
+          .is('reminder_nudge_dismissed_at', null)
+          .then(({ error }: { error: unknown }) => {
+            if (error) console.error('[orb] reminder nudge stamp failed:', error)
+          })
+      }
+
       const aiPolicy = await getRuntimeOrbAiPolicy()
       // ORB-361: zone for dated tool calls — live client zone first (§4.2).
       const requestZone = req.clientTimeZone || ctx.userTimeZone
@@ -1521,6 +1541,12 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
                 closed_at: closingStatus ? new Date().toISOString() : todo.closed_at,
                 ...dueFields,
                 reminded_at: dueChanged ? null : todo.reminded_at,
+                // ORB-361 Phase 3.4: "this one doesn't need a reminder." Never
+                // un-set — a dismissal is about the todo's nature, not its
+                // current date, so it survives later due-date edits.
+                reminder_nudge_dismissed_at: input.dismiss_reminder_nudge
+                  ? (todo.reminder_nudge_dismissed_at ?? new Date().toISOString())
+                  : todo.reminder_nudge_dismissed_at,
               }).eq('id', todo.id).select('*').single()
 
               if (error) output = { error: error.message }

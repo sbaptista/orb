@@ -78,6 +78,10 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
           "type": "string",
           "description": "Alternative: find task by partial title match."
         },
+        "dismiss_reminder_nudge": {
+          "type": "boolean",
+          "description": "Set true when the user says a dated task does not need a reminder. Stops the Orb ever raising it again for that task. Use only for a decline — actually setting a reminder needs reminder_lead_value/unit instead."
+        },
         "new_title": {
           "type": "string",
           "description": "New title."
