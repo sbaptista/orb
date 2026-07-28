@@ -269,8 +269,9 @@ The previous Realtime design was a **client-side manual turn/response state mach
 *(none)*
 
 Standing exceptions (never committed with feature work):
-- `.claude/settings.local.json` — intentional local tool-settings. The unsafe explicit push allow entry was removed; its generic `"ask": ["Bash(git push *)"]` approval gate remains and must not be removed.
 - `docs/orb-327-architecture-audit-plan.md` — unrelated untracked architecture-audit plan; preserve.
+
+**`.claude/` is no longer tracked (2026-07-28).** It was already in `.gitignore` (line 51), but 103 files predated that rule and stayed tracked, so every session had to remember to exclude `settings.local.json` by hand — and one slipped into a feature commit before being caught. `git rm -r --cached .claude` untracked all of it; the files remain on disk and are now genuinely ignored. **~100 of those were a full snapshot of the app frozen at 2026-05-12** in `.claude/worktrees/gallant-johnson-9bc5d3/` — stale `TodoView.tsx`, `package-lock.json`, migrations and session logs that any repo-wide grep would hit and could easily be read as current code. That directory still exists on disk and can be deleted whenever Stan wants; nothing references it. The push approval gate is unaffected — it lives in the on-disk settings file and is enforced by the tool, not by git.
 
 ---
 
