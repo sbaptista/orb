@@ -7,7 +7,7 @@ export interface Release {
 export const CHANGELOG: Release[] = [
   {
     version: 'v0.6.245',
-    date: '2026-07-26',
+    date: '2026-07-27',
     changes: [
       'The orb now judges urgency by how much runway a task has left, using its priority to decide how early a deadline should start pressing. A High-priority task leans the orb to busy three days out and turns it urgent within a day; Medium is a day and four hours; Low waits until the deadline itself. Anything past due is urgent no matter what (ORB-361).',
       'Reminders never colour the orb. Setting a reminder months ahead is how you avoid a last-minute scramble, so it would be backwards for that to make the orb look alarmed the whole time — a reminder now only sends its notification (ORB-361).',
