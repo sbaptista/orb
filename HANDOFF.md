@@ -268,10 +268,10 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 *(none)*
 
-Standing exceptions (never committed with feature work):
-- `docs/orb-327-architecture-audit-plan.md` — unrelated untracked architecture-audit plan; preserve.
+**There are no standing exceptions any more (cleared 2026-07-28).** `git status` should be clean; if something is sitting in it, deal with it rather than adding it to a list of things to step around. Both long-standing entries turned out to be mistakes wearing a policy label, in opposite directions:
 
-**`.claude/` is no longer tracked (2026-07-28).** It was already in `.gitignore` (line 51), but 103 files predated that rule and stayed tracked, so every session had to remember to exclude `settings.local.json` by hand — and one slipped into a feature commit before being caught. `git rm -r --cached .claude` untracked all of it; the files remain on disk and are now genuinely ignored. **~100 of those were a full snapshot of the app frozen at 2026-05-12** in `.claude/worktrees/gallant-johnson-9bc5d3/` — stale `TodoView.tsx`, `package-lock.json`, migrations and session logs that any repo-wide grep would hit and could easily be read as current code. That directory still exists on disk and can be deleted whenever Stan wants; nothing references it. The push approval gate is unaffected — it lives in the on-disk settings file and is enforced by the tool, not by git.
+- **`.claude/` — tool config that should never have been tracked.** It was already in `.gitignore` (line 51), but 103 files predated that rule, so the ignore never applied and every session had to remember to exclude `settings.local.json` by hand. One slipped into a feature commit (v0.6.248) before being caught. `git rm -r --cached .claude` untracked all of it. **~100 of those files were a full snapshot of the app frozen at 2026-05-12** — stale `TodoView.tsx`, `package-lock.json`, migrations, session logs; 25,097 lines that any repo-wide grep would hit and could be read as current code. Its `.git` was an orphaned pointer to `/Users/stanleybaptista/Projects/todos/.git`, dead since the todos→orb rename, so the directory was deleted from disk too. The push approval gate is unaffected — it lives in the on-disk settings file and is enforced by the tool, not by git.
+- **`docs/orb-327-architecture-audit-plan.md` — project content that should have been tracked all along.** A 141-line plan for an open ticket, untracked since 2026-07-14 while all 26 sibling plan docs in `docs/` were tracked. Now committed. Nothing about it was ever exceptional; it was simply never `git add`ed, and the oversight got written into the handoff as a rule to preserve.
 
 ---
 
