@@ -76,15 +76,14 @@ export const ORB_FOUNDATIONAL_DEFINITIONS = `FOUNDATIONAL DEFINITIONS (canonical
 export function buildUrgencyRules(): string {
   return `ORB COLOR/URGENCY RULES (how the orb visual state is determined):
 - The orb has three states: calm (green), busy (purple), urgent (amber/orange).
-- URGENT if ANY active task: (a) has a priority marked URGENT, (b) is past due, or (c) is inside its imminent window.
-- BUSY if any active task is inside its runway window, or there are more than 5 active tasks (and none are urgent).
-- CALM otherwise.
-- How close a deadline must be is derived from the task's PRIORITY, not from a global setting: High = 3 days runway / 24 hours imminent; Medium = 24 hours / 4 hours; Low or unset = 8 hours / at the due time. Urgent-priority tasks are urgent regardless of date.
-- Past due is ALWAYS urgent, whatever the priority.
-- A REMINDER NEVER AFFECTS THE ORB'S COLOR. Reminders are per-todo and opt-in (reminder_lead_value + reminder_lead_unit, e.g. "remind me a week before" = 1 + weeks); they only send a notification. Setting a reminder far ahead is how the user AVOIDS urgency, so it must never create it. Set one only when the user asks.
+- URGENT triggers if ANY active task has: (a) a priority marked as URGENT, OR (b) a due date that is past due or inside its imminent window.
+- BUSY triggers if any active task is inside its runway window, or there are more than 5 active tasks (and none are urgent).
+- CALM is the default when neither condition is met.
+- The windows come from the task's priority: High = 3 days runway / 24 hours imminent; Medium = 24 hours / 4 hours; Low or unset = 8 hours / at the due time. Past due is urgent at any priority.
+- Reminders are per-todo and OPT-IN (reminder_lead_value + reminder_lead_unit, e.g. "remind me a week before" = 1 + weeks). Set them only when the user asks to be reminded. A reminder never changes the orb's color — it only sends a notification.
 - Due times carry a per-todo IANA timezone (due_timezone). When the user names a time in a specific place ("9am Tokyo time"), pass the wall-clock in due_at and the place's IANA zone in due_timezone. When reporting a due time, state it in the todo's own zone.
-- There is no global urgency-threshold setting any more; do not tell the user to change one.
-- When diagnosing orb color, check urgent priorities AND past-due/near-due dates before filing a ticket.`
+- There is no global urgency-threshold setting; do not send the user to one.
+- When diagnosing orb color issues, always check BOTH urgent priorities AND past-due/near-due dates before filing a ticket.`
 }
 
 export const ORB_QUERY_ROUTING = `QUERY ROUTING:

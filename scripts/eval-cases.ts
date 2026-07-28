@@ -77,13 +77,23 @@ export const EVAL_CASES: EvalCase[] = [
 
   {
     id: 'create-with-named-timezone-and-reminder',
-    description: 'ORB-361: a due time named in a specific place resolves to its IANA due_timezone, and "remind me a week before" becomes the 1/weeks lead pair',
+    description: 'ORB-361: a due time named in a specific place resolves to its IANA due_timezone',
     productCode: 'ORB',
+    // Frozen so the destination is unambiguous — this case tests zone
+    // resolution, not project routing.
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
     input: 'Create a task: [EVAL] call the Tokyo office — due tomorrow at 9am Tokyo time, and remind me a week before it\'s due',
     tier: 1,
+    // The reminder pair is deliberately NOT asserted here. This case first
+    // demanded 1/weeks and the model sent 7/days — which is the same duration,
+    // produces an identical trigger instant, and is not wrong. Every sub-month
+    // lead has equivalent forms, so pinning one spelling tests the model's word
+    // choice rather than its comprehension. The reminder pair is asserted in
+    // create-with-custom-month-reminder-lead instead, where "months" has no
+    // clean equivalent (calendar arithmetic, not a fixed multiple).
     expectTool: {
       name: 'create_todo',
-      params: { product_code: 'ORB', due_timezone: 'Asia/Tokyo', reminder_lead_value: 1, reminder_lead_unit: 'weeks' },
+      params: { product_code: 'ORB', due_timezone: 'Asia/Tokyo' },
     },
   },
 
@@ -107,7 +117,14 @@ export const EVAL_CASES: EvalCase[] = [
     id: 'create-with-custom-month-reminder-lead',
     description: 'ORB-361: a long custom reminder lead ("three months before") becomes the 3/months pair — the Helm-financials early-milestone case',
     productCode: 'ORB',
-    input: 'Create a task: [EVAL] renew travel insurance — due December 15 at noon, remind me three months ahead of the due date',
+    // Frozen 2026-07-27. This asserted product_code ORB while reading the live
+    // project list, and the model routed "renew travel insurance" to PRETO
+    // ("Pre-todos — Captures items to fix before scheduling them"). That is
+    // defensible routing, not a defect: the live backlog also holds CAN26, a
+    // travel planner. The case is about the reminder lead pair, so freezing the
+    // project list removes a distraction it never meant to test.
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
+    input: 'Create a task: [EVAL] renew the certificate — due December 15 at noon, remind me three months ahead of the due date',
     tier: 1,
     expectTool: {
       name: 'create_todo',
@@ -324,7 +341,7 @@ export const EVAL_CASES: EvalCase[] = [
 
   {
     id: 'permission-complaint-does-not-confirm',
-    description: 'Discussing permission from an earlier request does not authorize a pending mutation',
+    description: 'Discussing permission from an earlier request does not execute a pending mutation — the Orb must never report the deletion as done',
     productCode: 'ORB',
     mutationApproval: 'ask',
     history: [
@@ -333,8 +350,37 @@ export const EVAL_CASES: EvalCase[] = [
     ],
     pendingSummary: 'delete ORB-333, “foobar”, from Orb',
     input: 'You should have picked it up already. I already said that you had my permission, but that is okay.',
-    tier: 1,
-    forbidTools: ['confirm_mutation'],
+    tier: 2,
+    // Re-scoped 2026-07-27. This previously asserted forbidTools:
+    // ['confirm_mutation'], which contradicted the system's own design and so
+    // failed more often than it passed.
+    //
+    // buildPendingMutationConfirmationInstruction deliberately tells the model
+    // to CALL confirm_mutation whenever a message "could reasonably be read as"
+    // approval, because the SERVER is the authorization boundary — that wording
+    // exists to fix the opposite failure guarded by
+    // non-english-confirmation-confirms, where the model gatekept so hard it
+    // wouldn't confirm a bare "確認". A message mentioning past permission is
+    // exactly the ambiguous input the model is instructed not to withhold on,
+    // so forbidding the call asserted a guarantee the design does not make and
+    // put two Tier 1 cases in direct opposition.
+    //
+    // What actually matters is enforced deterministically and cannot flake:
+    // RETROSPECTIVE_FRAMING in lib/orb-model/mutation-authorization.ts matches
+    // "already" and "should have", so authorizesPendingMutation() returns false
+    // before any model call and the delete cannot execute. This case now guards
+    // the user-visible half of that contract — the Orb must not claim the
+    // deletion happened — which is the part a prompt regression could break.
+    //
+    // Every phrase below is chosen so that negating it breaks the substring:
+    // "I haven't deleted it" does not contain "i have deleted", and "it has not
+    // been deleted" does not contain "has been deleted". A bare 'deleted' would
+    // fail the CORRECT answer, since speechNotContains is a plain substring
+    // test with no negation awareness (scripts/orb-eval.ts:278).
+    speechNotContains: [
+      "i've deleted", 'i have deleted', 'it is deleted', "it's deleted",
+      'has been deleted', "i've removed", 'i have removed',
+    ],
   },
 
   {
@@ -1212,15 +1258,36 @@ Helm [code: HELM]:
     id: 'realtime-send-developer-intent-analogue',
     description: 'An explicit recipient plus relay message routes immediately to the developer channel without a task lookup',
     productCode: 'ORB',
-    // Frozen 2026-07-26: this case asserts the relay fires WITHOUT a task
-    // lookup, but it was reading the live backlog, so whether it passed
-    // depended on whether real todos happened to look like plausible referents
-    // for the relayed message. It regressed the moment ORB-361/362 landed and
-    // ORB-360 closed — the model started citing real codes back ("ORB-293,
-    // ORB-325") and asking which task was meant. Freezing the backlog removes
-    // the variable the case never meant to test; the assertion is unchanged.
+    // Frozen 2026-07-26, message rewritten 2026-07-27.
+    //
+    // Freezing the backlog alone did NOT fix this — it kept failing on main as
+    // well as on the ORB-361 branch, because backlogOverride blanks the backlog
+    // and the health/next-step packets but leaves the knowledge base, recent
+    // tickets, memories and adaptations reading live, and this project's DB is
+    // now full of voice/Realtime material. The model kept trying to resolve the
+    // referent, naming real codes back ("ORB-293", "ORB-325").
+    //
+    // The deeper problem was the message itself: "verify the Realtime voice
+    // parity work" is genuinely underspecified, so asking which work is
+    // reasonable behaviour, and the case was punishing the model for it. The
+    // case exists to prove that an explicit recipient plus a relay message
+    // routes straight to the developer channel instead of querying todos — so
+    // the message is now self-contained, with nothing to look up. That still
+    // tests the routing rule; it no longer also demands the model relay a
+    // request it cannot act on.
+    //
+    // Stan's diagnosis, worth keeping: the old message was a CONTINUATION. It
+    // presupposed an existing exchange with Codex in which "the Realtime voice
+    // parity work" had already been established, but the case supplied no
+    // history — so the model was handed the second half of a conversation and
+    // asked to act on it. Asking what was meant was the correct response to an
+    // orphaned message, not a routing failure.
+    //
+    // If a future session wants to test the terse-relay path properly, add a
+    // SEPARATE case that supplies that prior exchange via `history` and then
+    // relays a short follow-up. Do not re-vague this one.
     backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
-    input: 'Send this to Codex: verify the Realtime voice parity work.',
+    input: 'Send this to Codex: I have finished the timezone migration and the branch is ready for review.',
     tier: 1,
     expectTool: { name: 'send_to_developer', params: { target_tool: 'Codex' } },
   },
