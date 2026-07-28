@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.247',
+    date: '2026-07-28',
+    changes: [
+      'Each project can now set its own urgency windows — how early a deadline starts pressing, per priority. A client deadline and a hobby project rarely deserve the same warning, and until now every project shared one set of numbers. The new Urgency button sits in the list toolbar beside Sort, Filter and Views, next to the orb whose colour it governs (ORB-361).',
+      'Projects use the shared defaults until you change them, and "Reset to defaults" puts a project back to tracking them rather than freezing a copy — so if the defaults ever improve, every untouched project gets the improvement. The project owner sets this for their own projects; admins can set it for any.',
+      'The Orb no longer states urgency windows as fixed facts. It knows the defaults, and it knows a project may override them, so it will not confidently quote hours for a project whose windows it has not been given (ORB-361).',
+    ],
+  },
+  {
     version: 'v0.6.245',
     date: '2026-07-27',
     changes: [

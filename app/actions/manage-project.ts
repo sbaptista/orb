@@ -3,6 +3,11 @@
 import { getAuthContext, requireAdmin } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import { checkCodeConflict, generateUniqueCode } from '@/lib/project-codes'
+import {
+  parseUrgencyWindows,
+  serializeUrgencyWindows,
+  type UrgencyWindowsMap,
+} from '@/lib/orb-state'
 
 export async function createProject(data: {
   name: string
@@ -153,6 +158,68 @@ export async function updateProject(id: string, data: {
 
   if (error) return { error: error.message }
   await logAuditEvent({ action: 'project_update', table_name: 'projects', record_id: id, after: data, actor: 'web-ui', user_id: ctx.user.id })
+  return { project }
+}
+
+/**
+ * ORB-361 Phase 3 — set (or clear) a project's urgency windows.
+ *
+ * Permission is deliberately **owner-or-admin**, not admin-only: the Settings →
+ * Urgency Threshold page this replaces was available to every user, so an
+ * admin-only control would mean non-admins lost a setting in the redesign.
+ *
+ * Pass `null` for "reset to defaults" — that writes NULL, never a copy of the
+ * current default numbers, so a project that never customised keeps tracking
+ * the defaults if they ever change.
+ */
+export async function updateUrgencyWindows(
+  projectId: string,
+  windows: UrgencyWindowsMap | null,
+) {
+  const ctx = await getAuthContext()
+
+  // Validate before touching the database. parseUrgencyWindows is the same
+  // function every reader uses, so nothing can be stored that a reader would
+  // then reject and silently fall back on.
+  const validated = windows === null ? null : parseUrgencyWindows(windows)
+  if (windows !== null && validated === null) {
+    return { error: 'Those urgency windows are not valid. Hours must be whole numbers, and the urgent window cannot be wider than the busy window.' }
+  }
+
+  // Ownership is checked explicitly rather than left to RLS, because admins are
+  // served by ctx.admin, which bypasses RLS entirely.
+  const { data: existing, error: lookupError } = await ctx.admin
+    .from('projects')
+    .select('created_by, urgency_windows')
+    .eq('id', projectId)
+    .maybeSingle()
+
+  if (lookupError) return { error: 'Failed to look up project' }
+  if (!existing) return { error: 'Project not found' }
+  if (!ctx.isAdmin && existing.created_by !== ctx.user.id) {
+    return { error: 'Only the project owner or an admin can change urgency windows' }
+  }
+
+  const payload = serializeUrgencyWindows(validated)
+  const { data: project, error } = await ctx.admin
+    .from('projects')
+    .update({ urgency_windows: payload })
+    .eq('id', projectId)
+    .select('id, name, code, urgency_windows')
+    .single()
+
+  if (error) return { error: error.message }
+
+  await logAuditEvent({
+    action: 'project_urgency_windows',
+    table_name: 'projects',
+    record_id: projectId,
+    before: { urgency_windows: existing.urgency_windows },
+    after: { urgency_windows: payload },
+    actor: 'web-ui',
+    user_id: ctx.user.id,
+  })
+
   return { project }
 }
 

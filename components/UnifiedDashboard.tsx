@@ -28,7 +28,15 @@ import SkeletonRows from './ui/SkeletonRows'
 import FilterKebab from './ui/FilterKebab'
 // HScrollNav removed — project strip eliminated
 import { isActive, ACTIVE_STATUSES, PARKED_STATUSES } from '@/lib/status-groups'
-import { computeUrgency, windowsForPriority, type Urgency } from '@/lib/orb-state'
+import {
+  computeUrgency,
+  windowsForPriority,
+  parseUrgencyWindows,
+  serializeUrgencyWindows,
+  type Urgency,
+  type UrgencyWindowsByProject,
+} from '@/lib/orb-state'
+import UrgencyWindowsModal from '@/components/UrgencyWindowsModal'
 import { isDueWithinWarning } from '@/lib/due-time'
 // PrintModal moved to AppNav
 import TodoEditor from './TodoEditor'
@@ -53,6 +61,8 @@ const TTS_CONFIG_CHANGED_EVENT = 'orb:tts-config-changed'
 type Product = {
   id: string; name: string; code: string | null; description?: string | null
   created_by?: string; color?: string | null; icon?: string | null; view_mode?: ViewMode
+  /** Raw `projects.urgency_windows` jsonb — parsed via parseUrgencyWindows, never read directly. */
+  urgency_windows?: unknown
 }
 
 type Todo = {
@@ -252,6 +262,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [sortAsc, setSortAsc]           = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [showListViews, setShowListViews] = useState(false)
+  const [showUrgencyWindows, setShowUrgencyWindows] = useState(false)
   const [page, setPage]                 = useState(0)
   const [hasMore, setHasMore]           = useState(false)
   const [listLoading, setListLoading]   = useState(true)
@@ -396,7 +407,19 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const selected     = products.find(p => p.id === selectedId)
   const noProject    = !selectedId
   const urgentValues = useMemo(() => new Set(priorities.filter(p => p.is_urgent).map(p => p.value)), [priorities])
-  const urgency      = moodOverride ?? computeUrgency(orbTodos, urgentValues, userTimeZone)
+  // ORB-361 Phase 3: each project may override how early a deadline presses.
+  // Parsed once here and threaded through every urgency read below, so the
+  // orb, the escalation watcher, and the per-todo badges cannot disagree.
+  const windowsByProject = useMemo<UrgencyWindowsByProject>(() => {
+    const map: UrgencyWindowsByProject = {}
+    for (const p of products) map[p.id] = parseUrgencyWindows(p.urgency_windows)
+    return map
+  }, [products])
+  const urgency      = moodOverride ?? computeUrgency(orbTodos, urgentValues, userTimeZone, windowsByProject)
+  // Owner-or-admin, mirroring the server action's own check. This only hides a
+  // control the user cannot use — the authorization that matters is server-side
+  // in updateUrgencyWindows(), never this flag.
+  const canEditUrgencyWindows = !!selected && (isAdmin || !selected.created_by || selected.created_by === user?.id)
   // Realtime voice status: 'off'|'connecting'|'listening'|'thinking'|'speaking'|'error'.
   const voiceEngaged   = realtimeSpike.status !== 'off'
   const realtimeListening = realtimeSpike.status === 'listening'
@@ -462,7 +485,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   async function refreshProjects() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
-    const dq = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode')
+    const dq = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode, urgency_windows')
     const { data: freshProducts } = (authUser && !isAdmin) ? await dq.eq('created_by', authUser.id) : await dq
     const list = (freshProducts ?? []) as Product[]
     setProducts(list)
@@ -871,7 +894,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           return
         }
 
-        const q = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode')
+        const q = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode, urgency_windows')
         const { data } = (authUser && !isAdmin) ? await q.eq('created_by', authUser.id) : await q
         perf.mark('projects_loaded')
         const list = (data ?? []) as Product[]
@@ -1112,16 +1135,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // Sync overall urgency from local data when orbTodos change
   useEffect(() => {
     if (allTodosRef.current.length > 0) {
-      prevOverallUrgencyRef.current = computeUrgency(allTodosRef.current, urgentValues, userTimeZone)
+      prevOverallUrgencyRef.current = computeUrgency(allTodosRef.current, urgentValues, userTimeZone, windowsByProject)
     }
-  }, [orbTodos, urgentValues, userTimeZone])
+  }, [orbTodos, urgentValues, userTimeZone, windowsByProject])
 
   // Periodic urgency re-evaluation — client-side only, no DB calls
   useEffect(() => {
     const interval = setInterval(async () => {
       setTick(t => t + 1)
       if (allTodosRef.current.length === 0) return
-      const currentOverall = computeUrgency(allTodosRef.current, urgentValues, userTimeZone)
+      const currentOverall = computeUrgency(allTodosRef.current, urgentValues, userTimeZone, windowsByProject)
       if (prevOverallUrgencyRef.current) {
         const SEVERITY: Record<Urgency, number> = { calm: 0, busy: 1, urgent: 2 }
         if (SEVERITY[currentOverall] > SEVERITY[prevOverallUrgencyRef.current]) {
@@ -1131,7 +1154,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       prevOverallUrgencyRef.current = currentOverall
     }, 60000)
     return () => clearInterval(interval)
-  }, [urgentValues, userTimeZone])
+  }, [urgentValues, userTimeZone, windowsByProject])
 
   // Project switch summary
   useEffect(() => {
@@ -1142,7 +1165,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     const active = activeTodos
     const urgentCount = active.filter(t =>
       (t.priority_value !== null && urgentValues.has(t.priority_value)) ||
-      (t.due_at !== null && isDueWithinWarning(t.due_at, windowsForPriority(t.priority_value).imminentHours, t.due_timezone || userTimeZone))
+      (t.due_at !== null && isDueWithinWarning(t.due_at, windowsForPriority(t.priority_value, windowsByProject[t.product_id]).imminentHours, t.due_timezone || userTimeZone))
     ).length
     const inProgressCount = active.filter(t => t.status === 'in progress').length
     const parts: string[] = []
@@ -1169,7 +1192,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     lastUrgencyMsgRef.current = now
     const urgentCount = activeTodos.filter(t =>
       (t.priority_value !== null && urgentValues.has(t.priority_value)) ||
-      (t.due_at !== null && isDueWithinWarning(t.due_at, windowsForPriority(t.priority_value).imminentHours, t.due_timezone || userTimeZone))
+      (t.due_at !== null && isDueWithinWarning(t.due_at, windowsForPriority(t.priority_value, windowsByProject[t.product_id]).imminentHours, t.due_timezone || userTimeZone))
     ).length
     let explanation = ''
     if (prev === 'calm' && urgency === 'busy') explanation = `Orb shifted busy — ${activeTodos.length} active tasks now.`
@@ -2154,6 +2177,17 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                 }} data-tooltip="List views">
                   Views
                 </button>
+                {canEditUrgencyWindows && (
+                  <button className="tv-toolbar-btn" onClick={() => {
+                    const measurement = startDashboardInteraction('urgency_windows_open')
+                    setShowUrgencyWindows(true)
+                    setShowFilters(false)
+                    setShowListViews(false)
+                    measurement.end(true)
+                  }} data-tooltip="When deadlines start pressing on this project">
+                    Urgency
+                  </button>
+                )}
                 <button
                   className="tv-toolbar-primary"
                   onClick={handleOpenNewTodo}
@@ -2366,6 +2400,24 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           onClose={() => setProjectSearchOpen(false)}
           emptyMessage="No matching projects"
           errorMessage={projectsLoadError ? 'Projects failed to load.' : undefined}
+        />
+      )}
+
+      {showUrgencyWindows && selected && (
+        <UrgencyWindowsModal
+          projectId={selected.id}
+          projectName={selected.name}
+          priorities={priorities}
+          storedWindows={selected.urgency_windows}
+          onClose={() => setShowUrgencyWindows(false)}
+          onSaved={(projectId, windows) => {
+            // Write the saved value back into local state so the orb re-derives
+            // immediately — the mood is the whole point of this control, and
+            // waiting for a refetch to see it would read as the save failing.
+            setProducts(prev => prev.map(p => p.id === projectId
+              ? { ...p, urgency_windows: serializeUrgencyWindows(windows) }
+              : p))
+          }}
         />
       )}
 

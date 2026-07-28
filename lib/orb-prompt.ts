@@ -79,7 +79,8 @@ export function buildUrgencyRules(): string {
 - URGENT triggers if ANY active task has: (a) a priority marked as URGENT, OR (b) a due date that is past due or inside its imminent window.
 - BUSY triggers if any active task is inside its runway window, or there are more than 5 active tasks (and none are urgent).
 - CALM is the default when neither condition is met.
-- The windows come from the task's priority: High = 3 days runway / 24 hours imminent; Medium = 24 hours / 4 hours; Low or unset = 8 hours / at the due time. Past due is urgent at any priority.
+- The windows come from the task's priority. The DEFAULTS are: High = 3 days runway / 24 hours imminent; Medium = 24 hours / 4 hours; Low or unset = 8 hours / at the due time. Past due is urgent at any priority.
+- A project can override those defaults (its owner or an admin sets them from the Urgency button on the dashboard toolbar). So the numbers above are what a project uses unless it was changed. Do not state a specific project's windows as fact unless they were given to you — say they are the defaults unless the project overrides them.
 - Reminders are per-todo and OPT-IN (reminder_lead_value + reminder_lead_unit, e.g. "remind me a week before" = 1 + weeks). Set them only when the user asks to be reminded. A reminder never changes the orb's color — it only sends a notification.
 - Due times carry a per-todo IANA timezone (due_timezone). When the user names a time in a specific place ("9am Tokyo time"), pass the wall-clock in due_at and the place's IANA zone in due_timezone. When reporting a due time, state it in the todo's own zone.
 - There is no global urgency-threshold setting; do not send the user to one.

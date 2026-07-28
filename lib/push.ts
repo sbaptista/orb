@@ -1,7 +1,7 @@
 import webpush from 'web-push'
 import { createServiceClient } from '@/lib/supabase/service'
 import { visibleProjectsQuery } from '@/lib/projects'
-import { computeUrgency, type Urgency } from '@/lib/orb-state'
+import { computeUrgency, parseUrgencyWindows, type Urgency, type UrgencyWindowsByProject } from '@/lib/orb-state'
 import { isActive } from '@/lib/status-groups'
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
@@ -84,7 +84,7 @@ export async function snapshotUrgency(supabase: any, userId: string): Promise<Ur
     { data: priorities },
     { data: userSettings },
   ] = await Promise.all([
-    visibleProjectsQuery(supabase, 'id, name, code'),
+    visibleProjectsQuery(supabase, 'id, name, code, urgency_windows'),
     supabase.from('priorities').select('value, is_urgent'),
     supabase.from('users').select('timezone').eq('id', userId).maybeSingle(),
   ])
@@ -105,9 +105,12 @@ export async function snapshotUrgency(supabase: any, userId: string): Promise<Ur
   // ORB-360: the user's stored timezone is canonical for due-date math —
   // previously this implicitly used the server's zone (UTC on Vercel).
   // ORB-361 Phase 2: urgency windows come from priority, not a global threshold.
+  // Phase 3: each project may override those windows.
   const timeZone = userSettings?.timezone || 'America/Los_Angeles'
+  const windowsByProject: UrgencyWindowsByProject = {}
+  for (const p of projectList) windowsByProject[(p as any).id] = parseUrgencyWindows((p as any).urgency_windows)
 
-  return computeUrgency(todoList, urgentValues, timeZone)
+  return computeUrgency(todoList, urgentValues, timeZone, windowsByProject)
 }
 
 /**

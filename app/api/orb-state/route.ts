@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     { data: priorities },
     { data: userSettings },
   ] = await Promise.all([
-    visibleProjectsQuery(supabase, 'id, name, code'),
+    visibleProjectsQuery(supabase, 'id, name, code, urgency_windows'),
     supabase
       .from('priorities')
       .select('value, is_urgent'),

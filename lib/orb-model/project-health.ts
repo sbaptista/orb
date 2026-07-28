@@ -1,6 +1,6 @@
 import { isActive, isParked } from '@/lib/status-groups'
 import { isDueWithinWarning } from '@/lib/due-time'
-import { windowsForPriority } from '@/lib/orb-state'
+import { windowsForPriority, parseUrgencyWindows } from '@/lib/orb-state'
 
 export type ProjectActivityMomentum = 'none' | 'quiet' | 'active' | 'high'
 
@@ -83,6 +83,8 @@ export function buildProjectHealthPacket(input: BuildProjectHealthPacketInput): 
   ]
 
   const projects = projectRows.map((project: any): ProjectHealthItem => {
+    // ORB-361 Phase 3: this project's own windows, if it overrides the defaults.
+    const projectWindows = parseUrgencyWindows(project.urgency_windows)
     const projectTodos = (input.todos ?? []).filter((todo: any) => todo.product_id === project.id)
     const nonClosedTodos = projectTodos.filter((todo: any) => !isClosedStatus(input.statuses, todo.status))
     const activeTodos = nonClosedTodos.filter((todo: any) => isActive(todo.status))
@@ -115,7 +117,7 @@ export function buildProjectHealthPacket(input: BuildProjectHealthPacketInput): 
       (todo.priority_value != null && urgentPriorityValues.has(todo.priority_value)) ||
       (todo.due_at != null && isDueWithinWarning(
         todo.due_at,
-        windowsForPriority(todo.priority_value ?? null).imminentHours,
+        windowsForPriority(todo.priority_value ?? null, projectWindows).imminentHours,
         todo.due_timezone || input.timeZone,
       ))
     ).length

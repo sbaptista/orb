@@ -576,6 +576,15 @@ Unified component handling both create and edit modes. Uses the `EditorModal` pa
 
 **Due date fields (ORB-361):** when a due date is set, two further `pf-field` blocks appear — **Timezone**, a city-name typeahead reusing the cataloged `admin-search-*` family (`admin-search-wrap`/`-input`/`-dropdown`/`-result`/`-empty`) inline rather than in a nested modal, searching a vendored 33k-city GeoNames database (`lib/city-zones.ts`, dynamic-imported on first focus; IANA city list as fallback while loading) with Apple-Reminders-style results ("Boston, MA — Eastern Time (EDT)"); and **Reminder**, a `pf-select` of preset leads plus **Custom…**, which reveals a number input (1–99) and unit `pf-select` (hours/days/weeks/months). The form holds the due time as a wall-clock string in the todo's zone; conversion to/from the stored instant happens only at load/save boundaries in `lib/due-time.ts`. Clearing the due date clears the zone and reminder with it. No new CSS classes were introduced.
 
+### Urgency Windows Modal
+**File:** `components/UrgencyWindowsModal.tsx`
+**Status:** Active — ORB-361 Phase 3
+Per-project urgency windows: how early a deadline starts pressing, by priority. Opened from the **Urgency** `tv-toolbar-btn` in the dashboard list toolbar (beside Sort / Filter / Views / + New), deliberately close to the orb whose colour these windows govern.
+
+Composes the existing `EditorModal` shell with `modal-lg` — no new modal family, no new CSS classes. Body uses `pf-field` / `pf-label` / `pf-input`, the `s-error` validation convention, and `pill pill-active` for the "Using shared defaults" state. `footerStart` carries **Reset to defaults**, following the same footer-domain-control allowance TodoEditor's Delete uses.
+
+Priorities flagged `is_urgent` are omitted — such a task is urgent regardless of its due date, so a window control for it would do nothing. Reset writes NULL rather than a copy of the default numbers, so an untouched project keeps tracking the defaults if they change.
+
 ### Slide Panel (`slide-panel`)
 **Status:** Being phased out in favor of `modal-center`  
 Right-anchored slide-in panel. Still used in some places but `modal-center` is the preferred pattern.

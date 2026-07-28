@@ -4,10 +4,30 @@ import { requireAdmin } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { logAuditEvent } from '@/lib/audit'
 
+/**
+ * Real jsonb **object** columns, which must survive a restore.
+ *
+ * The strip below removes nested objects because Supabase returns joined
+ * relationships that way (`select('*, projects(code, name)')`) and they are not
+ * writable columns. A genuine jsonb object column is indistinguishable from a
+ * relationship by shape alone, so it has to be named here or the restore
+ * silently drops it — the row comes back, the column comes back empty.
+ *
+ * Array-valued JSON columns (todos.urls, knowledge_repo.tags) need no entry;
+ * the strip already spares arrays.
+ *
+ * **Add to this set whenever a jsonb object column is added to an archived
+ * table**, in the same change as the migration.
+ */
+const JSONB_OBJECT_COLUMNS = new Set([
+  'urgency_windows', // projects — ORB-361 Phase 3
+])
+
 function cleanForUpsert(data: any[]) {
   return data.map((row: any) => {
     const clean = { ...row }
     Object.keys(clean).forEach(key => {
+      if (JSONB_OBJECT_COLUMNS.has(key)) return
       // Supabase relationship objects are not writable columns, but JSON array
       // columns (todos.urls, knowledge_repo.tags) are part of the archive.
       if (clean[key] && typeof clean[key] === 'object' && !Array.isArray(clean[key])) {
