@@ -1,6 +1,10 @@
 import { isActive, isParked } from '@/lib/status-groups'
 import { isDueWithinLead } from '@/lib/due-time'
-import { windowsForPriority, parseUrgencyWindows, explainUrgency, type Urgency, type UrgencyDriver } from '@/lib/orb-state'
+import {
+  windowsForPriority, parseUrgencyWindows, explainUrgency, describeWindowLead,
+  approximateLeadHours, DEFAULT_URGENCY_WINDOWS, FALLBACK_URGENCY_WINDOWS,
+  type Urgency, type UrgencyDriver, type UrgencyWindowsMap,
+} from '@/lib/orb-state'
 
 export type ProjectActivityMomentum = 'none' | 'quiet' | 'active' | 'high'
 
@@ -36,6 +40,13 @@ export type ProjectHealthItem = {
   urgencyDrivers: UrgencyDriver[]
   /** Drivers omitted beyond the cap, so the Orb can say "and N more". */
   urgencyDriversTruncated: number
+  /**
+   * Human-readable windows for this project, but ONLY where they differ from
+   * the global defaults. Empty means "this project uses the defaults", which
+   * the Orb already knows from its prompt — so an unmodified project costs
+   * nothing here.
+   */
+  urgencyWindowOverrides: string[]
 }
 
 export type ProjectHealthPacket = {
@@ -73,6 +84,42 @@ function momentumFor(changeCount: number): ProjectActivityMomentum {
   if (changeCount <= 2) return 'quiet'
   if (changeCount <= 8) return 'active'
   return 'high'
+}
+
+/**
+ * ORB-361 Phase 3.4a — describe only the windows a project actually CHANGED.
+ *
+ * Phase 3.3 told the Orb which task drove a mood but not the threshold behind
+ * it, so when asked "what is its urgent window?" the Orb had nothing but the
+ * defaults and stated them as fact for a project that overrides them. Found in
+ * live use (2026-07-28): chech check sets Low to 8 days / 3 days, and the Orb
+ * confidently answered "8 hours / at the due time".
+ *
+ * Only differences are emitted. Most projects override nothing, and a project
+ * that matches the defaults adds no tokens — the defaults are already in the
+ * prompt. Compared by approximate hours so "1 day" and "24 hours" are not
+ * reported as a change.
+ */
+function describeWindowOverrides(
+  windows: UrgencyWindowsMap | null,
+  priorities: any[],
+): string[] {
+  if (!windows) return []
+  const out: string[] = []
+  for (const [key, w] of Object.entries(windows)) {
+    const value = Number(key)
+    const priority = (priorities ?? []).find((p: any) => p.value === value)
+    // A priority flagged is_urgent never consults a window, so reporting one
+    // would describe a control that does nothing.
+    if (priority?.is_urgent) continue
+    const base = DEFAULT_URGENCY_WINDOWS[value] ?? FALLBACK_URGENCY_WINDOWS
+    const same = approximateLeadHours(w.runway) === approximateLeadHours(base.runway)
+      && approximateLeadHours(w.imminent) === approximateLeadHours(base.imminent)
+    if (same) continue
+    const label = priority?.label ?? `priority ${value}`
+    out.push(`${label}: busy ${describeWindowLead(w.runway)}, urgent ${describeWindowLead(w.imminent)}`)
+  }
+  return out
 }
 
 export function buildProjectHealthPacket(input: BuildProjectHealthPacketInput): ProjectHealthPacket {
@@ -170,6 +217,7 @@ export function buildProjectHealthPacket(input: BuildProjectHealthPacketInput): 
       urgency: explained.urgency,
       urgencyDrivers: explained.drivers,
       urgencyDriversTruncated: explained.truncated,
+      urgencyWindowOverrides: describeWindowOverrides(projectWindows, input.priorities),
       recentActivity: {
         windowDays,
         createdCount,
@@ -218,12 +266,17 @@ export function renderProjectHealthPacket(packet: ProjectHealthPacket): string {
     const lastActivity = project.recentActivity.lastActivityAt ?? 'none'
     // Only non-calm projects spend tokens on an explanation — a calm project's
     // reason is "nothing is pressing", which needs no evidence.
+    // Emitted whenever the project overrides a default, even when calm — the
+    // user can ask "what is the window for X?" without the orb having shifted.
+    const windows = project.urgencyWindowOverrides.length > 0
+      ? `; orb_windows=[${project.urgencyWindowOverrides.join('; ')}]`
+      : ''
     const why = project.urgency === 'calm' || project.urgencyDrivers.length === 0
       ? ''
       : `; orb_state=${project.urgency}; orb_state_because=[${
         project.urgencyDrivers.map(d => renderDriver(project.code, d)).join('; ')
       }${project.urgencyDriversTruncated > 0 ? `; and ${project.urgencyDriversTruncated} more` : ''}]`
-    return `- ${project.name}: ${owner}; owned_by_current_user=${project.ownedByCurrentUser}; dormant=${project.dormant}; active=${project.activeCount}; parked=${project.parkedCount}; closed=${project.closedCount}; urgent=${project.urgentCount}; in_progress=${project.inProgressCount}; stale_active=${project.staleActiveCount}${why}; recent_${packet.windowDays}d={momentum:${project.recentActivity.momentum}, created:${project.recentActivity.createdCount}, closed:${project.recentActivity.closedCount}, updated:${project.recentActivity.updatedCount}, moved_to_in_progress:${project.recentActivity.movedToInProgressCount}, parked:${project.recentActivity.parkedCount}, last:${lastActivity}, signals:[${signals}]}${description}`
+    return `- ${project.name}: ${owner}; owned_by_current_user=${project.ownedByCurrentUser}; dormant=${project.dormant}; active=${project.activeCount}; parked=${project.parkedCount}; closed=${project.closedCount}; urgent=${project.urgentCount}; in_progress=${project.inProgressCount}; stale_active=${project.staleActiveCount}${windows}${why}; recent_${packet.windowDays}d={momentum:${project.recentActivity.momentum}, created:${project.recentActivity.createdCount}, closed:${project.recentActivity.closedCount}, updated:${project.recentActivity.updatedCount}, moved_to_in_progress:${project.recentActivity.movedToInProgressCount}, parked:${project.recentActivity.parkedCount}, last:${lastActivity}, signals:[${signals}]}${description}`
   })
 
   return `PROJECT HEALTH PACKET (generated ${packet.generatedAt}; ${packet.windowDays}-day activity window):

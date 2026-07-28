@@ -873,6 +873,25 @@ Use this as the neutral project-health data surface for broad project summaries.
   },
 
   {
+    id: 'orb-window-uses-project-override-not-default',
+    description: 'ORB-361 Phase 3.4a: asked for a project\'s urgent window, the Orb reads orb_windows and quotes the project\'s own numbers — it must not answer from the global defaults for a project that overrides them',
+    productCode: 'ORB',
+    backlogOverride: evalBacklog([{ name: 'Chech Check', code: 'CHECHCHECK' }]),
+    // Reproduces the live failure of 2026-07-28: the packet named the driving
+    // task but not the threshold, so the Orb confidently answered with the Low
+    // default (8 hours / at the due time) for a project set to 8 days / 3 days.
+    projectHealthOverride: `PROJECT HEALTH PACKET (generated 2026-07-28T22:09:00.000Z; 14-day activity window):
+Use this as the neutral project-health data surface for broad project summaries. Signals are evidence cues, not verdicts; turn them into careful judgment only when supported.
+- Chech Check: owner="Stan Baptista"; owned_by_current_user=true; dormant=false; active=1; parked=0; closed=0; urgent=1; in_progress=0; stale_active=0; orb_windows=[Low: busy 8 days before, urgent 3 days before]; orb_state=urgent; orb_state_because=[CHECHCHECK-1 "low priority" is inside its urgent window (due 2026-07-30T16:17:00+00:00)]; recent_14d={momentum:quiet, created:1, closed:0, updated:0, moved_to_in_progress:0, parked:0, last:2026-07-28T20:15:00.000Z, signals:[urgent_work_present]}`,
+    input: 'What is the urgent window for low priority tasks in chech check?',
+    tier: 2,
+    speechContains: ['3 days'],
+    // The Low default is 8 hours runway / at the due time. Quoting either for
+    // this project is the exact confabulation this case exists to catch.
+    speechNotContains: ['8 hours', 'at the due time', 'at the deadline'],
+  },
+
+  {
     id: 'orb-mood-calm-project-has-no-invented-cause',
     description: 'ORB-361 Phase 3.3: a calm project carries no orb_state_because, and the Orb must say nothing is pressing rather than inventing a driver from the backlog',
     productCode: 'ORB',

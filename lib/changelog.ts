@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.252',
+    date: '2026-07-28',
+    changes: [
+      'Ask the Orb about a project\'s urgency windows and it now answers with that project\'s own settings rather than the shared defaults. Found in live use: chech check had Low set to 8 days / 3 days, and the Orb — which could see that the task was urgent but not why the threshold was what it was — confidently quoted the default 8 hours instead (ORB-361).',
+      'Only the windows a project has actually changed are carried, so a project running on the defaults costs nothing, and "1 day" is not reported as different from "24 hours".',
+    ],
+  },
+  {
     version: 'v0.6.251',
     date: '2026-07-28',
     changes: [
