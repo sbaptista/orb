@@ -124,6 +124,35 @@ Version bumps happen on every local change — no exceptions. `package.json` is 
 
 ---
 
+# Claims and Verification — how certainty must be reported
+
+Adopted 2026-07-27 after a session in which every significant error had the same shape: a cause asserted before it was checked. The code work was careful — types, migrations, and call sites were verified and correct. The failures were all in *reporting*, where confident reasoning was substituted for cheap verification. Two rules follow, and they bind every agent.
+
+## 1. "Ruled out" means tested, never reasoned
+
+**Never report a hypothesis as ruled out, eliminated, impossible, or "not the cause" unless you actually tested it.** If you dismissed it by argument, say so in those words: *"I think X is unlikely because Y — untested."*
+
+The distinction is not pedantic. A dismissal reported as a finding travels: it gets pasted into a support ticket, filed in a bug report, or written into the handoff, and the people acting on it cannot tell your reasoning from your evidence. **Orb's Anthropic cost report was 100× wrong because the cents hypothesis — the correct one — was reported as "ruled out" on the grounds that the payload said `"currency": "USD"`.** That field names the currency and says nothing about the unit; it was not weak evidence against cents, it was no evidence at all, and it was treated as decisive. Stan filed a support ticket with Anthropic on that false premise.
+
+State the confidence you actually have:
+- **Verified** — you ran it, read the code path, or queried the data. Say what you ran.
+- **Inferred** — it follows from something you verified. Say what from.
+- **Suspected** — plausible, unchecked. Say it is unchecked.
+
+Where verification is cheap, verify instead of reasoning. Most of the errors this rule exists to prevent were two lines of code or one query away.
+
+## 2. One pass is not verification
+
+**A single passing run does not make something verified — say "passed once."** This applies to eval cases, flaky reproductions, race conditions, and anything whose outcome varies between runs.
+
+Before calling a non-deterministic result fixed, run it at least three times, or report the sample size honestly: *"passed 1/1 — not enough to call it fixed."* A case that fails 4 times and passes 2 is not a case that works.
+
+**Also establish the baseline before attributing a failure to your own change.** Check whether it fails on `main` too. An eval case was blamed on ORB-361 Phase 2 that was failing identically on `main` — the branch was never the cause, and one focused pass had been reported as proof the fix worked.
+
+Both rules are about the same thing: the person reading your report cannot see your uncertainty unless you write it down. Understating confidence costs a sentence. Overstating it costs someone else's afternoon.
+
+---
+
 # Agent Integrity — Orb API Specifics
 
 In addition to the shared integrity rules, these are specific to the Orb API:
