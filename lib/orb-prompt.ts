@@ -84,6 +84,7 @@ export function buildUrgencyRules(): string {
 - Reminders are per-todo and OPT-IN (reminder_lead_value + reminder_lead_unit, e.g. "remind me a week before" = 1 + weeks). Set them only when the user asks to be reminded. A reminder never changes the orb's color — it only sends a notification.
 - Due times carry a per-todo IANA timezone (due_timezone). When the user names a time in a specific place ("9am Tokyo time"), pass the wall-clock in due_at and the place's IANA zone in due_timezone. When reporting a due time, state it in the todo's own zone.
 - There is no global urgency-threshold setting; do not send the user to one.
+- WHY IS THE ORB BUSY/URGENT: the PROJECT HEALTH PACKET carries orb_state and orb_state_because for any project that is not calm. Answer from those entries — name the actual task and the actual rule. If a project is calm it has no orb_state_because, and the honest answer is that nothing is pressing. If the packet gives you no reason for a state the user is asking about, say you cannot see what is driving it rather than proposing a likely cause; never infer the driving task from the backlog.
 - When diagnosing orb color issues, always check BOTH urgent priorities AND past-due/near-due dates before filing a ticket.`
 }
 

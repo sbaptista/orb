@@ -161,6 +161,7 @@ async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
       pendingTodoOperations: testCase.pendingTodoOperations,
       actionSets: testCase.actionSets,
       backlogOverride: testCase.backlogOverride,
+      projectHealthOverride: testCase.projectHealthOverride,
       mutationApproval: testCase.mutationApproval,
       voiceMode: testCase.voiceMode,
       ttsProvider: testCase.ttsProvider,

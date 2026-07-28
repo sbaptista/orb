@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.250',
+    date: '2026-07-28',
+    changes: [
+      'Ask the Orb why it is busy or urgent and it will name the actual task and the actual reason — "ORB-412 is past due" rather than a general description of what urgent means. It could not do this before: the rules that colour the orb worked out exactly which task was responsible and then threw that away, leaving the Orb to guess. It now keeps the reasons (ORB-361).',
+      'When a project is calm, the Orb says nothing is pressing rather than reaching for a plausible-sounding cause. If it genuinely cannot see what is driving a state, it says so instead of inventing one.',
+    ],
+  },
+  {
     version: 'v0.6.249',
     date: '2026-07-28',
     changes: [

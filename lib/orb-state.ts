@@ -1,5 +1,5 @@
 import { isActive } from '@/lib/status-groups'
-import { isDueWithinLead } from '@/lib/due-time'
+import { isDueWithinLead, dueAtToInstant } from '@/lib/due-time'
 
 export type Urgency = 'calm' | 'busy' | 'urgent'
 
@@ -24,6 +24,9 @@ type MinimalTodo = {
   due_at: string | null
   due_timezone?: string | null
   product_id: string
+  /** Optional — only needed to *name* a driver in explainUrgency (Phase 3.3). */
+  title?: string
+  todo_number?: number | null
 }
 
 /**
@@ -204,17 +207,65 @@ export function serializeUrgencyWindows(
   return out
 }
 
-export function computeUrgency(
+/**
+ * Which rule pushed the orb off calm. Named so the Orb can *say* it rather
+ * than infer it — ORB-361 Phase 3.3.
+ */
+export type UrgencyRule =
+  | 'urgent-priority' // priority flagged is_urgent
+  | 'past-due'        // deadline already passed
+  | 'imminent'        // inside the inner window
+  | 'runway'          // inside the outer window
+  | 'volume'          // more than 5 active tasks
+
+export type UrgencyDriver = {
+  rule: UrgencyRule
+  /** The state this driver pushes the orb to. */
+  contributes: Exclude<Urgency, 'calm'>
+  title?: string
+  todoNumber?: number | null
+  priorityValue?: number | null
+  dueAt?: string | null
+}
+
+const RULE_SEVERITY: Record<UrgencyRule, number> = {
+  'past-due': 4, 'urgent-priority': 3, imminent: 2, runway: 1, volume: 0,
+}
+
+/**
+ * The orb's mood **and why**, from one pass over the same rules.
+ *
+ * `computeUrgency` returns only the mood, which is all most callers need — but
+ * it meant the reasons were computed and then discarded, leaving the Orb to
+ * guess when asked "why is the orb busy?". Guessing there is exactly the
+ * confabulation the ORB-325 honesty rule prohibits, so the reasons are now
+ * returned rather than recomputed by a second, driftable implementation.
+ *
+ * Drivers are sorted most-severe-first. `limit` caps how many are kept: the
+ * packet that carries these into the Orb's context is paid for on every
+ * request, and after the first two or three the marginal explanation is worth
+ * less than the tokens.
+ */
+export function explainUrgency(
   todos: MinimalTodo[],
   urgentValues: Set<number>,
   timeZone: string,
   windowsByProject?: UrgencyWindowsByProject | null,
-): Urgency {
+  limit = 3,
+): { urgency: Urgency; drivers: UrgencyDriver[]; truncated: number } {
   const active = todos.filter(t => isActive(t.status))
-  const hasUrgentPriority = active.some(t => t.priority_value !== null && urgentValues.has(t.priority_value))
+  const drivers: UrgencyDriver[] = []
 
-  let hasImminent = false
-  let hasRunway = false
+  for (const todo of active) {
+    if (todo.priority_value !== null && urgentValues.has(todo.priority_value)) {
+      drivers.push({
+        rule: 'urgent-priority', contributes: 'urgent',
+        title: todo.title, todoNumber: todo.todo_number,
+        priorityValue: todo.priority_value, dueAt: todo.due_at,
+      })
+    }
+  }
+
   for (const todo of active) {
     if (!todo.due_at) continue
     // The todo's own zone wins; the caller's is the fallback for rows written
@@ -224,16 +275,55 @@ export function computeUrgency(
     // list stays correct. Resolution order is project override → global default.
     const overrides = windowsByProject?.[todo.product_id] ?? null
     const { runway, imminent } = windowsForPriority(todo.priority_value, overrides)
+
     // isDueWithinLead is true for anything already past due, so "overdue is
     // always urgent" falls out of the imminent check at any lead >= 0.
     // That is what makes a todo with no reminder safe: nothing can blind the orb.
-    if (isDueWithinLead(todo.due_at, imminent, zone)) hasImminent = true
-    else if (isDueWithinLead(todo.due_at, runway, zone)) hasRunway = true
+    // Past due is split out only for the explanation — it is the same branch.
+    let rule: UrgencyRule | null = null
+    let contributes: Exclude<Urgency, 'calm'> | null = null
+    if (isDueWithinLead(todo.due_at, imminent, zone)) {
+      rule = dueAtToInstant(todo.due_at, zone).getTime() < Date.now() ? 'past-due' : 'imminent'
+      contributes = 'urgent'
+    } else if (isDueWithinLead(todo.due_at, runway, zone)) {
+      rule = 'runway'
+      contributes = 'busy'
+    }
+    if (!rule || !contributes) continue
+
+    drivers.push({
+      rule, contributes,
+      title: todo.title, todoNumber: todo.todo_number,
+      priorityValue: todo.priority_value, dueAt: todo.due_at,
+    })
   }
 
-  if (hasUrgentPriority || hasImminent) return 'urgent'
-  if (hasRunway || active.length > 5) return 'busy'
-  return 'calm'
+  const hasUrgent = drivers.some(d => d.contributes === 'urgent')
+  const hasBusy = drivers.some(d => d.contributes === 'busy')
+
+  if (!hasUrgent && active.length > 5) {
+    drivers.push({ rule: 'volume', contributes: 'busy' })
+  }
+
+  const urgency: Urgency = hasUrgent ? 'urgent' : (hasBusy || active.length > 5) ? 'busy' : 'calm'
+
+  drivers.sort((a, b) => RULE_SEVERITY[b.rule] - RULE_SEVERITY[a.rule])
+  return {
+    urgency,
+    drivers: drivers.slice(0, limit),
+    truncated: Math.max(0, drivers.length - limit),
+  }
+}
+
+export function computeUrgency(
+  todos: MinimalTodo[],
+  urgentValues: Set<number>,
+  timeZone: string,
+  windowsByProject?: UrgencyWindowsByProject | null,
+): Urgency {
+  // Deliberately delegates rather than duplicating the rules — one
+  // implementation, two views of it.
+  return explainUrgency(todos, urgentValues, timeZone, windowsByProject, 0).urgency
 }
 
 /**

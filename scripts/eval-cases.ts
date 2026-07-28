@@ -15,6 +15,7 @@ export type EvalCase = {
   pendingTodoOperations?: Array<{ tool: string; params: Record<string, any> }>
   actionSets?: Array<{ kind: 'todo_set'; tool: string; ordinal: number; codes: string[]; summary: string; createdAt: string }>
   backlogOverride?: string           // freeze the backlog the model sees (decouples project-routing cases from live DB state)
+  projectHealthOverride?: string     // freeze the PROJECT HEALTH PACKET (orb mood + orb_state_because drivers); backlogOverride alone blanks it
   mutationApproval?: 'ask' | 'allow' // eval-only override; defaults to allow for tool-routing cases
   voiceMode?: boolean                // inject voice mode context into the system prompt
   ttsProvider?: string                // eval-only voice output config
@@ -817,6 +818,43 @@ export const EVAL_CASES: EvalCase[] = [
     speechContains: ['does not affect', "doesn't affect", 'never affects', 'no effect', 'will not', "won't", 'stays calm', 'no impact'],
     // The threshold setting was deleted in Phase 2 — never send the user there.
     speechNotContains: ['urgency threshold', 'settings → urgency', '/settings/urgency'],
+  },
+
+  {
+    id: 'orb-mood-names-the-driving-task',
+    description: 'ORB-361 Phase 3.3: asked why the orb is urgent, the Orb names the actual task and rule from orb_state_because — it does not describe the mood in general terms or guess a plausible cause',
+    productCode: 'ORB',
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
+    // The mood is computed server-side and cannot be expressed in a backlog
+    // string, so the health packet is seeded directly. Without this the case
+    // would read live data and flip whenever real todos change — the coupling
+    // that made realtime-send-developer-intent-analogue fail on main.
+    projectHealthOverride: `PROJECT HEALTH PACKET (generated 2026-07-28T00:00:00.000Z; 14-day activity window):
+Use this as the neutral project-health data surface for broad project summaries. Signals are evidence cues, not verdicts; turn them into careful judgment only when supported.
+- Orb: owner="Stan Baptista"; owned_by_current_user=true; dormant=false; active=3; parked=0; closed=0; urgent=1; in_progress=1; stale_active=0; orb_state=urgent; orb_state_because=[ORB-412 "Renew the domain certificate" is past due (2026-07-20T09:00:00+00:00)]; recent_14d={momentum:quiet, created:1, closed:0, updated:1, moved_to_in_progress:0, parked:0, last:2026-07-27T00:00:00.000Z, signals:[urgent_work_present]}`,
+    input: 'Why is the orb urgent right now?',
+    tier: 2,
+    // 3 or fewer = all must match: the specific task, and the actual reason.
+    speechContains: ['ORB-412', 'past due'],
+    // Must not reach for the generic definition instead of the evidence it has.
+    speechNotContains: ['more than 5', 'urgent priority task', 'p1'],
+  },
+
+  {
+    id: 'orb-mood-calm-project-has-no-invented-cause',
+    description: 'ORB-361 Phase 3.3: a calm project carries no orb_state_because, and the Orb must say nothing is pressing rather than inventing a driver from the backlog',
+    productCode: 'ORB',
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
+    // Calm projects deliberately emit no orb_state_because — the absence is the
+    // answer, and the Orb must read it as such rather than as missing data to
+    // fill in. This is the confabulation half of the ORB-325 honesty rule.
+    projectHealthOverride: `PROJECT HEALTH PACKET (generated 2026-07-28T00:00:00.000Z; 14-day activity window):
+Use this as the neutral project-health data surface for broad project summaries. Signals are evidence cues, not verdicts; turn them into careful judgment only when supported.
+- Orb: owner="Stan Baptista"; owned_by_current_user=true; dormant=false; active=2; parked=0; closed=0; urgent=0; in_progress=0; stale_active=0; recent_14d={momentum:quiet, created:0, closed:0, updated:1, moved_to_in_progress:0, parked:0, last:2026-07-27T00:00:00.000Z, signals:[]}`,
+    input: 'Why is the orb urgent right now?',
+    tier: 2,
+    // >3 entries = any-of: any clear statement that it is not urgent counts.
+    speechContains: ['not urgent', 'calm', 'nothing is pressing', "isn't urgent", 'no urgent', 'nothing urgent', 'nothing pressing'],
   },
 
   {

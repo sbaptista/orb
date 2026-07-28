@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
-  const { input, productCode, history, pendingSummary, pendingTodoOperations, actionSets, backlogOverride, mutationApproval, voiceMode, ttsProvider, ttsModel, ttsVoiceId, provider, model, userEmail, evaluationMode, contextPacketId, autoRoute, budgetOverride, evaluationCaseId } = body as {
+  const { input, productCode, history, pendingSummary, pendingTodoOperations, actionSets, backlogOverride, projectHealthOverride, mutationApproval, voiceMode, ttsProvider, ttsModel, ttsVoiceId, provider, model, userEmail, evaluationMode, contextPacketId, autoRoute, budgetOverride, evaluationCaseId } = body as {
     input: string
     productCode?: string | null
     history?: Array<{ role: 'user' | 'assistant'; text: string }>
@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
     pendingTodoOperations?: Array<{ tool: string; params: Record<string, unknown> }>
     actionSets?: EvalActionSet[]
     backlogOverride?: string
+    projectHealthOverride?: string
     mutationApproval?: 'ask' | 'allow'
     voiceMode?: boolean
     ttsProvider?: string
@@ -197,7 +198,11 @@ export async function POST(request: NextRequest) {
     uiCatalog = fs.readFileSync(path.join(process.cwd(), 'docs/ui-catalog.md'), 'utf8')
   } catch { /* ignore */ }
 
-  const projectHealthContext = backlogOverride ? '' : ctx.projectHealthContext
+  // backlogOverride blanks the health packet, since a frozen backlog and a live
+  // health packet would describe different worlds. projectHealthOverride seeds
+  // it deterministically instead — required for any case about the orb's mood,
+  // which is computed server-side and cannot be expressed in a backlog string.
+  const projectHealthContext = projectHealthOverride ?? (backlogOverride ? '' : ctx.projectHealthContext)
   const nextStepContext = backlogOverride ? '' : ctx.nextStepContext
   const ticketStatusRoutingHint = buildTicketStatusRoutingHint(input, history, true)
 

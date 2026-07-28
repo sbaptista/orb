@@ -1,6 +1,6 @@
 import { isActive, isParked } from '@/lib/status-groups'
 import { isDueWithinLead } from '@/lib/due-time'
-import { windowsForPriority, parseUrgencyWindows } from '@/lib/orb-state'
+import { windowsForPriority, parseUrgencyWindows, explainUrgency, type Urgency, type UrgencyDriver } from '@/lib/orb-state'
 
 export type ProjectActivityMomentum = 'none' | 'quiet' | 'active' | 'high'
 
@@ -18,6 +18,8 @@ export type ProjectRecentActivity = {
 
 export type ProjectHealthItem = {
   name: string
+  /** Needed to render task references like "ORB-361" in urgency drivers. */
+  code: string | null
   ownerName: string | null
   ownedByCurrentUser: boolean
   description: string | null
@@ -29,6 +31,11 @@ export type ProjectHealthItem = {
   inProgressCount: number
   staleActiveCount: number
   recentActivity: ProjectRecentActivity
+  /** ORB-361 Phase 3.3 — the orb's mood for this project, and what caused it. */
+  urgency: Urgency
+  urgencyDrivers: UrgencyDriver[]
+  /** Drivers omitted beyond the cap, so the Orb can say "and N more". */
+  urgencyDriversTruncated: number
 }
 
 export type ProjectHealthPacket = {
@@ -120,6 +127,15 @@ export function buildProjectHealthPacket(input: BuildProjectHealthPacketInput): 
         return isDueWithinLead(todo.due_at, imminent, todo.due_timezone || input.timeZone)
       })())
     ).length
+    // ORB-361 Phase 3.3: the same rules that colour the orb, but keeping the
+    // reasons. Without this the Orb had to guess which task caused a mood —
+    // exactly the confabulation the ORB-325 honesty rule prohibits.
+    const explained = explainUrgency(
+      nonClosedTodos,
+      urgentPriorityValues,
+      input.timeZone,
+      { [project.id]: projectWindows },
+    )
     const inProgressCount = activeTodos.filter((todo: any) => todo.status === 'in progress').length
     const staleActiveCount = activeTodos.filter((todo: any) => {
       const createdAt = new Date(todo.created_at).getTime()
@@ -150,6 +166,10 @@ export function buildProjectHealthPacket(input: BuildProjectHealthPacketInput): 
       urgentCount,
       inProgressCount,
       staleActiveCount,
+      code: project.code ?? null,
+      urgency: explained.urgency,
+      urgencyDrivers: explained.drivers,
+      urgencyDriversTruncated: explained.truncated,
       recentActivity: {
         windowDays,
         createdCount,
@@ -171,6 +191,23 @@ export function buildProjectHealthPacket(input: BuildProjectHealthPacketInput): 
   }
 }
 
+/**
+ * One driver as a phrase the Orb can read out — "ORB-361 \"Ship v2\" is past due".
+ * Deliberately compact: this rides in the system prompt on every request.
+ */
+function renderDriver(projectCode: string | null | undefined, driver: UrgencyDriver): string {
+  if (driver.rule === 'volume') return 'more than 5 active tasks'
+  const ref = driver.todoNumber != null && projectCode ? `${projectCode}-${driver.todoNumber}` : null
+  const name = [ref, driver.title ? `"${driver.title}"` : null].filter(Boolean).join(' ')
+  const subject = name || 'a task'
+  switch (driver.rule) {
+    case 'urgent-priority': return `${subject} is set to an urgent priority`
+    case 'past-due':        return `${subject} is past due (${driver.dueAt})`
+    case 'imminent':        return `${subject} is inside its urgent window (due ${driver.dueAt})`
+    case 'runway':          return `${subject} is inside its busy window (due ${driver.dueAt})`
+  }
+}
+
 export function renderProjectHealthPacket(packet: ProjectHealthPacket): string {
   const lines = packet.projects.map(project => {
     const description = project.description ? `; role_hint="${project.description}"` : ''
@@ -179,7 +216,14 @@ export function renderProjectHealthPacket(packet: ProjectHealthPacket): string {
       ? project.recentActivity.signals.join(', ')
       : 'none'
     const lastActivity = project.recentActivity.lastActivityAt ?? 'none'
-    return `- ${project.name}: ${owner}; owned_by_current_user=${project.ownedByCurrentUser}; dormant=${project.dormant}; active=${project.activeCount}; parked=${project.parkedCount}; closed=${project.closedCount}; urgent=${project.urgentCount}; in_progress=${project.inProgressCount}; stale_active=${project.staleActiveCount}; recent_${packet.windowDays}d={momentum:${project.recentActivity.momentum}, created:${project.recentActivity.createdCount}, closed:${project.recentActivity.closedCount}, updated:${project.recentActivity.updatedCount}, moved_to_in_progress:${project.recentActivity.movedToInProgressCount}, parked:${project.recentActivity.parkedCount}, last:${lastActivity}, signals:[${signals}]}${description}`
+    // Only non-calm projects spend tokens on an explanation — a calm project's
+    // reason is "nothing is pressing", which needs no evidence.
+    const why = project.urgency === 'calm' || project.urgencyDrivers.length === 0
+      ? ''
+      : `; orb_state=${project.urgency}; orb_state_because=[${
+        project.urgencyDrivers.map(d => renderDriver(project.code, d)).join('; ')
+      }${project.urgencyDriversTruncated > 0 ? `; and ${project.urgencyDriversTruncated} more` : ''}]`
+    return `- ${project.name}: ${owner}; owned_by_current_user=${project.ownedByCurrentUser}; dormant=${project.dormant}; active=${project.activeCount}; parked=${project.parkedCount}; closed=${project.closedCount}; urgent=${project.urgentCount}; in_progress=${project.inProgressCount}; stale_active=${project.staleActiveCount}${why}; recent_${packet.windowDays}d={momentum:${project.recentActivity.momentum}, created:${project.recentActivity.createdCount}, closed:${project.recentActivity.closedCount}, updated:${project.recentActivity.updatedCount}, moved_to_in_progress:${project.recentActivity.movedToInProgressCount}, parked:${project.recentActivity.parkedCount}, last:${lastActivity}, signals:[${signals}]}${description}`
   })
 
   return `PROJECT HEALTH PACKET (generated ${packet.generatedAt}; ${packet.windowDays}-day activity window):

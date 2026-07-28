@@ -197,6 +197,8 @@ The conversational Orb's behavior is protected by an **eval suite**, not unit te
 
 **Rule — extend the suite as you build (Orb-conversation only):** When you add or change any Orb-conversation capability — a tool, a tool parameter, a routing rule, or a defined speech/policy behavior — you must add or update a matching case in `scripts/eval-cases.ts` in the **same change**. New tool or param → Tier 1 case. New or changed speech/policy behavior → Tier 2 case. Do not defer this to a later session.
 
+**Seeding the orb's mood:** `backlogOverride` freezes the backlog but deliberately **blanks the project-health packet** — a frozen backlog beside a live health packet would describe two different worlds. Any case about the orb's state (`orb_state`, `orb_state_because`) must therefore set **`projectHealthOverride`**, which seeds that packet directly. A case that needs the mood and sets only `backlogOverride` will silently see no mood at all.
+
 **`speechContains` quirk:** if the array has **more than 3 items it is treated as "any-of"** (a synonym list — at least one must match); **3 or fewer items means "all must match."** Size the array to the intent you want.
 
 **Before any production push:** Stan runs the eval suite from the terminal (`npm run eval:t1`). AI tools do not run evals themselves — they consume too many tokens for a task Stan can do in seconds. If evals fail, Stan pastes the output and the AI diagnoses and fixes the failing cases. Record the result (e.g. `Tier 1 N/N, Tier 2 N/N`) in the handoff.
