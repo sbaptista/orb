@@ -581,7 +581,9 @@ Unified component handling both create and edit modes. Uses the `EditorModal` pa
 **Status:** Active — ORB-361 Phase 3
 Per-project urgency windows: how early a deadline starts pressing, by priority. Opened from the **Urgency** `tv-toolbar-btn` in the dashboard list toolbar (beside Sort / Filter / Views / + New), deliberately close to the orb whose colour these windows govern.
 
-Composes the existing `EditorModal` shell with `modal-lg` — no new modal family, no new CSS classes. Body uses `pf-field` / `pf-label` / `pf-input`, the `s-error` validation convention, and `pill pill-active` for the "Using shared defaults" state. `footerStart` carries **Reset to defaults**, following the same footer-domain-control allowance TodoEditor's Delete uses.
+Composes the existing `EditorModal` shell with `modal-lg` — no new modal family, no new CSS classes. Body uses `pf-field` / `pf-label` / `pf-input` / `pf-select`, the `s-error` validation convention, and `pill pill-active` for the "Using shared defaults" state. `footerStart` carries **Reset to defaults**, following the same footer-domain-control allowance TodoEditor's Delete uses.
+
+Each window is a **number input + unit `pf-select`** (hours / days / weeks / months) under one shared label — the same value+unit shape TodoEditor's Custom reminder lead uses, so the two controls read alike. A caption below each pair restates it as a sentence ("3 days before", "at the deadline").
 
 Priorities flagged `is_urgent` are omitted — such a task is urgent regardless of its due date, so a window control for it would do nothing. Reset writes NULL rather than a copy of the default numbers, so an untouched project keeps tracking the defaults if they change.
 

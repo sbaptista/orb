@@ -7,8 +7,13 @@ import { updateUrgencyWindows } from '@/app/actions/manage-project'
 import {
   DEFAULT_URGENCY_WINDOWS,
   FALLBACK_URGENCY_WINDOWS,
+  URGENCY_WINDOW_UNITS,
+  MAX_WINDOW_VALUE,
+  approximateLeadHours,
   parseUrgencyWindows,
   type UrgencyWindowsMap,
+  type UrgencyWindowUnit,
+  type WindowLead,
 } from '@/lib/orb-state'
 import { startInteraction } from '@/lib/performance/telemetry'
 
@@ -25,47 +30,50 @@ type Props = {
   onSaved: (projectId: string, windows: UrgencyWindowsMap | null) => void
 }
 
-/** Per-priority row state. Held as strings — an input mid-edit is not a number. */
-type Row = { runway: string; imminent: string }
+/** Per-priority row state. Values are strings — an input mid-edit is not a number. */
+type Row = {
+  runwayValue: string
+  runwayUnit: UrgencyWindowUnit
+  imminentValue: string
+  imminentUnit: UrgencyWindowUnit
+}
 type FormState = {
   /** True while the project tracks the shared defaults. Saving writes NULL. */
   useDefaults: boolean
   rows: Record<number, Row>
 }
 
-const MAX_WINDOW_HOURS = 8760
-
-/**
- * Turn an hour count into something readable at a glance. The inputs are in
- * hours because that is the unit the derivation uses, but "72" reads as a
- * number while "3 days" reads as a deadline.
- */
-function describeHours(raw: string): string {
-  const hours = Number(raw)
-  if (!Number.isInteger(hours) || hours < 0) return '—'
-  if (hours === 0) return 'at the deadline'
-  if (hours % 168 === 0) {
-    const weeks = hours / 168
-    return weeks === 1 ? '1 week before' : `${weeks} weeks before`
-  }
-  if (hours % 24 === 0) {
-    const days = hours / 24
-    return days === 1 ? '1 day before' : `${days} days before`
-  }
-  return hours === 1 ? '1 hour before' : `${hours} hours before`
+/** "3 days before" / "at the deadline" — the sentence the numbers actually mean. */
+function describeLead(value: string, unit: UrgencyWindowUnit): string {
+  const n = Number(value)
+  if (value.trim() === '' || !Number.isInteger(n) || n < 0) return '—'
+  if (n === 0) return 'at the deadline'
+  const singular = unit.replace(/s$/, '')
+  return `${n} ${n === 1 ? singular : unit} before`
 }
 
 function defaultsFor(priority: number) {
   return DEFAULT_URGENCY_WINDOWS[priority] ?? FALLBACK_URGENCY_WINDOWS
 }
 
+function rowFor(windows: UrgencyWindowsMap | null, priority: number): Row {
+  const w = windows?.[priority] ?? defaultsFor(priority)
+  return {
+    runwayValue: String(w.runway.value),
+    runwayUnit: w.runway.unit,
+    imminentValue: String(w.imminent.value),
+    imminentUnit: w.imminent.unit,
+  }
+}
+
 function buildRows(windows: UrgencyWindowsMap | null, priorities: Priority[]): Record<number, Row> {
   const rows: Record<number, Row> = {}
-  for (const p of priorities) {
-    const w = windows?.[p.value] ?? defaultsFor(p.value)
-    rows[p.value] = { runway: String(w.runwayHours), imminent: String(w.imminentHours) }
-  }
+  for (const p of priorities) rows[p.value] = rowFor(windows, p.value)
   return rows
+}
+
+function leadFrom(value: string, unit: UrgencyWindowUnit): WindowLead {
+  return { value: Number(value), unit }
 }
 
 /**
@@ -109,14 +117,20 @@ export default function UrgencyWindowsModal({
     for (const p of tunable) {
       const row = form.rows[p.value]
       if (!row) continue
-      const runway = Number(row.runway)
-      const imminent = Number(row.imminent)
+      const runway = Number(row.runwayValue)
+      const imminent = Number(row.imminentValue)
 
-      if (row.runway.trim() === '' || !Number.isInteger(runway) || runway < 0 || runway > MAX_WINDOW_HOURS) {
-        out[p.value] = `Busy must be a whole number of hours between 0 and ${MAX_WINDOW_HOURS}.`
-      } else if (row.imminent.trim() === '' || !Number.isInteger(imminent) || imminent < 0 || imminent > MAX_WINDOW_HOURS) {
-        out[p.value] = `Urgent must be a whole number of hours between 0 and ${MAX_WINDOW_HOURS}.`
-      } else if (imminent > runway) {
+      const bad = (n: number, raw: string) =>
+        raw.trim() === '' || !Number.isInteger(n) || n < 0 || n > MAX_WINDOW_VALUE
+
+      if (bad(runway, row.runwayValue)) {
+        out[p.value] = `Busy must be a whole number from 0 to ${MAX_WINDOW_VALUE}.`
+      } else if (bad(imminent, row.imminentValue)) {
+        out[p.value] = `Urgent must be a whole number from 0 to ${MAX_WINDOW_VALUE}.`
+      } else if (
+        approximateLeadHours(leadFrom(row.imminentValue, row.imminentUnit)) >
+        approximateLeadHours(leadFrom(row.runwayValue, row.runwayUnit))
+      ) {
         // Otherwise 'busy' is unreachable for this priority: everything inside
         // the busy window would already have turned urgent.
         out[p.value] = 'Urgent cannot start earlier than busy — it is the inner window.'
@@ -156,7 +170,10 @@ export default function UrgencyWindowsModal({
         ? null
         : tunable.reduce<UrgencyWindowsMap>((acc, p) => {
           const row = form.rows[p.value]
-          acc[p.value] = { runwayHours: Number(row.runway), imminentHours: Number(row.imminent) }
+          acc[p.value] = {
+            runway: leadFrom(row.runwayValue, row.runwayUnit),
+            imminent: leadFrom(row.imminentValue, row.imminentUnit),
+          }
           return acc
         }, {})
 
@@ -180,6 +197,46 @@ export default function UrgencyWindowsModal({
     } finally {
       setSaving(false)
     }
+  }
+
+  /** Number + unit pair. Both controls belong to one idea, so they share a label. */
+  function leadField(
+    priority: number,
+    label: string,
+    valueKey: 'runwayValue' | 'imminentValue',
+    unitKey: 'runwayUnit' | 'imminentUnit',
+  ) {
+    const row = form.rows[priority]
+    const id = `uw-${valueKey}-${priority}`
+    return (
+      <div className="pf-field">
+        <label htmlFor={id} className="pf-label">{label}</label>
+        <div style={{ display: 'flex', gap: 'var(--sp-sm)' }}>
+          <input
+            id={id}
+            className="pf-input"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={MAX_WINDOW_VALUE}
+            value={row[valueKey]}
+            onChange={e => editRow(priority, { [valueKey]: e.target.value } as Partial<Row>)}
+            style={{ maxWidth: '6.5rem' }}
+          />
+          <select
+            className="pf-select"
+            aria-label={`${label} unit`}
+            value={row[unitKey]}
+            onChange={e => editRow(priority, { [unitKey]: e.target.value as UrgencyWindowUnit } as Partial<Row>)}
+          >
+            {URGENCY_WINDOW_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
+        <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--muted)' }}>
+          {describeLead(row[valueKey], row[unitKey])}
+        </span>
+      </div>
+    )
   }
 
   return (
@@ -235,43 +292,12 @@ export default function UrgencyWindowsModal({
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
                   gap: 'var(--sp-md)',
                 }}
               >
-                <div className="pf-field">
-                  <label htmlFor={`uw-runway-${p.value}`} className="pf-label">Busy from (hours)</label>
-                  <input
-                    id={`uw-runway-${p.value}`}
-                    className="pf-input"
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    max={MAX_WINDOW_HOURS}
-                    value={row.runway}
-                    onChange={e => editRow(p.value, { runway: e.target.value })}
-                  />
-                  <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--muted)' }}>
-                    {describeHours(row.runway)}
-                  </span>
-                </div>
-
-                <div className="pf-field">
-                  <label htmlFor={`uw-imminent-${p.value}`} className="pf-label">Urgent from (hours)</label>
-                  <input
-                    id={`uw-imminent-${p.value}`}
-                    className="pf-input"
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    max={MAX_WINDOW_HOURS}
-                    value={row.imminent}
-                    onChange={e => editRow(p.value, { imminent: e.target.value })}
-                  />
-                  <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--muted)' }}>
-                    {describeHours(row.imminent)}
-                  </span>
-                </div>
+                {leadField(p.value, 'Busy from', 'runwayValue', 'runwayUnit')}
+                {leadField(p.value, 'Urgent from', 'imminentValue', 'imminentUnit')}
               </div>
 
               {error && <p className="s-error">{error}</p>}

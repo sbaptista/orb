@@ -37,7 +37,7 @@ import {
   type UrgencyWindowsByProject,
 } from '@/lib/orb-state'
 import UrgencyWindowsModal from '@/components/UrgencyWindowsModal'
-import { isDueWithinWarning } from '@/lib/due-time'
+import { isDueWithinLead } from '@/lib/due-time'
 // PrintModal moved to AppNav
 import TodoEditor from './TodoEditor'
 import { logAudit } from '@/app/actions/log-audit'
@@ -1165,7 +1165,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     const active = activeTodos
     const urgentCount = active.filter(t =>
       (t.priority_value !== null && urgentValues.has(t.priority_value)) ||
-      (t.due_at !== null && isDueWithinWarning(t.due_at, windowsForPriority(t.priority_value, windowsByProject[t.product_id]).imminentHours, t.due_timezone || userTimeZone))
+      (t.due_at !== null && isDueWithinLead(t.due_at, windowsForPriority(t.priority_value, windowsByProject[t.product_id]).imminent, t.due_timezone || userTimeZone))
     ).length
     const inProgressCount = active.filter(t => t.status === 'in progress').length
     const parts: string[] = []
@@ -1192,7 +1192,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     lastUrgencyMsgRef.current = now
     const urgentCount = activeTodos.filter(t =>
       (t.priority_value !== null && urgentValues.has(t.priority_value)) ||
-      (t.due_at !== null && isDueWithinWarning(t.due_at, windowsForPriority(t.priority_value, windowsByProject[t.product_id]).imminentHours, t.due_timezone || userTimeZone))
+      (t.due_at !== null && isDueWithinLead(t.due_at, windowsForPriority(t.priority_value, windowsByProject[t.product_id]).imminent, t.due_timezone || userTimeZone))
     ).length
     let explanation = ''
     if (prev === 'calm' && urgency === 'busy') explanation = `Orb shifted busy — ${activeTodos.length} active tasks now.`

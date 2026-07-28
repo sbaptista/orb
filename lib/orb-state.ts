@@ -1,5 +1,5 @@
 import { isActive } from '@/lib/status-groups'
-import { isDueWithinWarning } from '@/lib/due-time'
+import { isDueWithinLead } from '@/lib/due-time'
 
 export type Urgency = 'calm' | 'busy' | 'urgent'
 
@@ -37,18 +37,48 @@ type MinimalTodo = {
  * How close a deadline must be before it presses is derived from priority:
  * the user already says how much a thing matters, so they need not also say
  * how early it should start mattering. Phase 3 lets a project override these.
+ *
+ * Windows are expressed the same way reminder leads are — a number and a unit —
+ * so "3 days" is stated as three days rather than as 72 hours. Months are
+ * calendar months, not 30-day approximations: `isDueWithinLead` resolves them
+ * with the same clamping rule reminders use (due Jul 31, one month → Jun 30).
  */
-export type UrgencyWindows = { runwayHours: number; imminentHours: number }
+export const URGENCY_WINDOW_UNITS = ['hours', 'days', 'weeks', 'months'] as const
+export type UrgencyWindowUnit = (typeof URGENCY_WINDOW_UNITS)[number]
+export type WindowLead = { value: number; unit: UrgencyWindowUnit }
+export type UrgencyWindows = { runway: WindowLead; imminent: WindowLead }
 
 /** Keyed by `priorities.value`. Priority 1 is flagged `is_urgent`, so it never reaches these. */
 export const DEFAULT_URGENCY_WINDOWS: Record<number, UrgencyWindows> = {
-  2: { runwayHours: 72, imminentHours: 24 }, // High
-  3: { runwayHours: 24, imminentHours: 4 },  // Medium
-  4: { runwayHours: 8, imminentHours: 0 },   // Low
+  // High — leans busy three days out, urgent within a day.
+  2: { runway: { value: 3, unit: 'days' }, imminent: { value: 1, unit: 'days' } },
+  // Medium — a day, then four hours.
+  3: { runway: { value: 1, unit: 'days' }, imminent: { value: 4, unit: 'hours' } },
+  // Low — quiet until the last working day, urgent only at the deadline itself.
+  4: { runway: { value: 8, unit: 'hours' }, imminent: { value: 0, unit: 'hours' } },
 }
 
 /** Used for todos with no priority set — the most conservative windows. */
-export const FALLBACK_URGENCY_WINDOWS: UrgencyWindows = { runwayHours: 8, imminentHours: 0 }
+export const FALLBACK_URGENCY_WINDOWS: UrgencyWindows = {
+  runway: { value: 8, unit: 'hours' },
+  imminent: { value: 0, unit: 'hours' },
+}
+
+/**
+ * Approximate hours for a lead, used **only** to order two leads against each
+ * other during validation ("urgent must not start earlier than busy"). Never
+ * used for the actual due-date comparison — that goes through
+ * `isDueWithinLead`, which resolves months as real calendar months.
+ */
+export function approximateLeadHours(lead: WindowLead): number {
+  const HOURS: Record<UrgencyWindowUnit, number> = {
+    hours: 1,
+    days: 24,
+    weeks: 168,
+    months: 730, // 30.42 days — close enough to compare, never to schedule
+  }
+  return lead.value * HOURS[lead.unit]
+}
 
 /** One project's overrides, keyed by `priorities.value`. */
 export type UrgencyWindowsMap = Record<number, UrgencyWindows>
@@ -77,8 +107,19 @@ export function windowsForPriority(
 // Validation — the single gate between stored JSON and the derivation above
 // ──────────────────────────────────────────────────────────────────────────
 
-/** A year. Past this, "runway" stops meaning anything and the input is junk. */
-const MAX_WINDOW_HOURS = 8760
+/** Matches the reminder control's Custom range, so both read the same way. */
+export const MAX_WINDOW_VALUE = 99
+
+/** Reads one `{ value, unit }` lead, or null if it is not a usable one. */
+function parseLead(raw: unknown): WindowLead | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null
+  const source = raw as Record<string, unknown>
+  const value = Number(source.value)
+  const unit = source.unit
+  if (!Number.isInteger(value) || value < 0 || value > MAX_WINDOW_VALUE) return null
+  if (typeof unit !== 'string' || !URGENCY_WINDOW_UNITS.includes(unit as UrgencyWindowUnit)) return null
+  return { value, unit: unit as UrgencyWindowUnit }
+}
 
 /**
  * Parse `projects.urgency_windows` into the in-memory shape, or `null` for
@@ -89,6 +130,11 @@ const MAX_WINDOW_HOURS = 8760
  * Used on **both** sides — readers parsing what the DB holds, and the write
  * path validating what a client sent — so stored data can never be a shape the
  * writer would have rejected. The DB CHECK only guarantees "object or NULL".
+ *
+ * **Legacy shape accepted:** v0.6.247 stored `{runway_hours, imminent_hours}`
+ * before windows gained units. Rows written by that build read as an
+ * equivalent hours lead and are rewritten in the new shape on their next save,
+ * so nothing has to be migrated and nothing silently loses its setting.
  */
 export function parseUrgencyWindows(raw: unknown): UrgencyWindowsMap | null {
   if (raw === null || raw === undefined) return null
@@ -101,19 +147,30 @@ export function parseUrgencyWindows(raw: unknown): UrgencyWindowsMap | null {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
 
     const source = value as Record<string, unknown>
-    // Accept both spellings so a value that has been through the client and one
-    // read straight from jsonb parse identically.
-    const runway = Number(source.runway_hours ?? (source as any).runwayHours)
-    const imminent = Number(source.imminent_hours ?? (source as any).imminentHours)
+    let runway: WindowLead | null
+    let imminent: WindowLead | null
 
-    if (!Number.isInteger(runway) || runway < 0 || runway > MAX_WINDOW_HOURS) return null
-    if (!Number.isInteger(imminent) || imminent < 0 || imminent > MAX_WINDOW_HOURS) return null
+    if ('runway_hours' in source || 'runwayHours' in source) {
+      const runwayHours = Number(source.runway_hours ?? source.runwayHours)
+      const imminentHours = Number(source.imminent_hours ?? source.imminentHours)
+      if (!Number.isInteger(runwayHours) || runwayHours < 0) return null
+      if (!Number.isInteger(imminentHours) || imminentHours < 0) return null
+      runway = { value: runwayHours, unit: 'hours' }
+      imminent = { value: imminentHours, unit: 'hours' }
+    } else {
+      runway = parseLead(source.runway)
+      imminent = parseLead(source.imminent)
+    }
+
+    if (!runway || !imminent) return null
     // Imminent is the inner window. If it were the wider of the two, everything
     // inside runway would already be urgent and 'busy' would be unreachable for
     // that priority — a silently broken mood rather than a configured one.
-    if (imminent > runway) return null
+    // Ordered approximately, since months have no fixed length; the actual
+    // due-date test uses real calendar arithmetic.
+    if (approximateLeadHours(imminent) > approximateLeadHours(runway)) return null
 
-    out[priority] = { runwayHours: runway, imminentHours: imminent }
+    out[priority] = { runway, imminent }
   }
 
   // An empty object is indistinguishable in effect from "use the defaults", so
@@ -121,14 +178,17 @@ export function parseUrgencyWindows(raw: unknown): UrgencyWindowsMap | null {
   return Object.keys(out).length > 0 ? out : null
 }
 
-/** Inverse of `parseUrgencyWindows` — the snake_case shape stored in jsonb. */
+/** Inverse of `parseUrgencyWindows` — the shape stored in jsonb. */
 export function serializeUrgencyWindows(
   windows: UrgencyWindowsMap | null,
-): Record<string, { runway_hours: number; imminent_hours: number }> | null {
+): Record<string, { runway: WindowLead; imminent: WindowLead }> | null {
   if (!windows || Object.keys(windows).length === 0) return null
-  const out: Record<string, { runway_hours: number; imminent_hours: number }> = {}
+  const out: Record<string, { runway: WindowLead; imminent: WindowLead }> = {}
   for (const [priority, w] of Object.entries(windows)) {
-    out[priority] = { runway_hours: w.runwayHours, imminent_hours: w.imminentHours }
+    out[priority] = {
+      runway: { value: w.runway.value, unit: w.runway.unit },
+      imminent: { value: w.imminent.value, unit: w.imminent.unit },
+    }
   }
   return out
 }
@@ -152,12 +212,12 @@ export function computeUrgency(
     // Each todo resolves against its OWN project's windows, so a mixed-project
     // list stays correct. Resolution order is project override → global default.
     const overrides = windowsByProject?.[todo.product_id] ?? null
-    const { runwayHours, imminentHours } = windowsForPriority(todo.priority_value, overrides)
-    // isDueWithinWarning is true for anything already past due, so "overdue is
-    // always urgent" falls out of the imminent check at any threshold >= 0.
+    const { runway, imminent } = windowsForPriority(todo.priority_value, overrides)
+    // isDueWithinLead is true for anything already past due, so "overdue is
+    // always urgent" falls out of the imminent check at any lead >= 0.
     // That is what makes a todo with no reminder safe: nothing can blind the orb.
-    if (isDueWithinWarning(todo.due_at, imminentHours, zone)) hasImminent = true
-    else if (isDueWithinWarning(todo.due_at, runwayHours, zone)) hasRunway = true
+    if (isDueWithinLead(todo.due_at, imminent, zone)) hasImminent = true
+    else if (isDueWithinLead(todo.due_at, runway, zone)) hasRunway = true
   }
 
   if (hasUrgentPriority || hasImminent) return 'urgent'

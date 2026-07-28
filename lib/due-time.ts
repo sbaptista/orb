@@ -81,13 +81,6 @@ export function dueAtToInstant(dueAtStr: string, timeZone: string): Date {
   return new Date(utcGuess.getTime() - offsetMs)
 }
 
-/** True when the due instant is within `warningHours` of now (or already past). */
-export function isDueWithinWarning(dueAtStr: string, warningHours: number, timeZone: string): boolean {
-  const due = dueAtToInstant(dueAtStr, timeZone)
-  const thresholdMs = warningHours * 60 * 60 * 1000
-  return due.getTime() - Date.now() <= thresholdMs
-}
-
 function calendarDayInZone(instant: Date, timeZone: string): string {
   const parts = zoneFormatter(timeZone).formatToParts(instant)
   const partMap: Record<string, string> = {}
@@ -162,6 +155,31 @@ export function reminderTriggerInstant(dueAtStr: string, value: number, unit: Re
   const targetDay = Math.min(day, daysInTarget)
   const targetWall = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}T${timePart}`
   return dueAtToInstant(targetWall, timeZone)
+}
+
+/**
+ * True when the due instant is inside a lead expressed as value + unit.
+ *
+ * Defined as "now has reached the point where the lead begins", so anything
+ * already past due is inside every lead, including a zero one. That is what
+ * makes ORB-361's "overdue is always urgent" fall out of the rules rather than
+ * needing a special case.
+ *
+ * Months resolve through `reminderTriggerInstant`, so a calendar month is a
+ * real calendar month with the day clamped — the same rule reminders use. A
+ * 30-day approximation here would make the urgency control and the reminder
+ * control disagree about what "1 month" means.
+ *
+ * Replaced `isDueWithinWarning`, which spoke only in hours (ORB-361 Phase 3).
+ * There is deliberately one due-window primitive, not two that can drift —
+ * the same reasoning that collapsed four due-date parsers in ORB-360.
+ */
+export function isDueWithinLead(
+  dueAtStr: string,
+  lead: { value: number; unit: ReminderLeadUnit },
+  timeZone: string,
+): boolean {
+  return Date.now() >= reminderTriggerInstant(dueAtStr, lead.value, lead.unit, timeZone).getTime()
 }
 
 /**

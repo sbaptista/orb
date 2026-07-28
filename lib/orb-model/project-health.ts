@@ -1,5 +1,5 @@
 import { isActive, isParked } from '@/lib/status-groups'
-import { isDueWithinWarning } from '@/lib/due-time'
+import { isDueWithinLead } from '@/lib/due-time'
 import { windowsForPriority, parseUrgencyWindows } from '@/lib/orb-state'
 
 export type ProjectActivityMomentum = 'none' | 'quiet' | 'active' | 'high'
@@ -115,11 +115,10 @@ export function buildProjectHealthPacket(input: BuildProjectHealthPacketInput): 
     // reports and the orb's colour can no longer disagree.
     const urgentCount = activeTodos.filter((todo: any) =>
       (todo.priority_value != null && urgentPriorityValues.has(todo.priority_value)) ||
-      (todo.due_at != null && isDueWithinWarning(
-        todo.due_at,
-        windowsForPriority(todo.priority_value ?? null, projectWindows).imminentHours,
-        todo.due_timezone || input.timeZone,
-      ))
+      (todo.due_at != null && (() => {
+        const { imminent } = windowsForPriority(todo.priority_value ?? null, projectWindows)
+        return isDueWithinLead(todo.due_at, imminent, todo.due_timezone || input.timeZone)
+      })())
     ).length
     const inProgressCount = activeTodos.filter((todo: any) => todo.status === 'in progress').length
     const staleActiveCount = activeTodos.filter((todo: any) => {
