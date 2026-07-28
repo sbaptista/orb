@@ -4,6 +4,13 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import CollapsibleSidebar from '@/components/CollapsibleSidebar'
 import { launchOrbTour } from './OrbTour'
+import OrbStateIcon from '@/components/OrbStateIcon'
+import {
+  DEFAULT_URGENCY_WINDOWS,
+  FALLBACK_URGENCY_WINDOWS,
+  describeWindowLead,
+  type Urgency,
+} from '@/lib/orb-state'
 
 type Topic = {
   id: string
@@ -273,16 +280,89 @@ const TOPICS: Topic[] = [
           <h2 className="help-h2">States</h2>
           <div style={{ borderTop: '1px solid var(--border)' }}>
             {([
-              ['CALM', 'All active items are low priority or the backlog is light'],
-              ['BUSY', 'More than 5 active items (Open + In Progress)'],
-              ['URGENT', 'One or more P1 (urgent priority) items are active'],
-            ] as [string, string][]).map(([state, desc]) => (
-              <div key={state} className="help-key-row">
-                <span className="help-key-cell" style={{ fontFamily: 'var(--font-ui)', letterSpacing: 'var(--ls-caps)' }}>{state}</span>
+              ['calm', 'Nothing is pressing. Deadlines are still far enough away, and the backlog is light.'],
+              ['busy', 'Something has entered its runway — the stretch before a deadline where it starts to matter — or more than 5 tasks are active.'],
+              ['urgent', 'A task is set to Urgent priority, is past due, or has entered its final window before the deadline.'],
+            ] as [Urgency, string][]).map(([state, desc]) => (
+              <div key={state} className="help-key-row" style={{ alignItems: 'center' }}>
+                <span className="help-key-cell" style={{
+                  fontFamily: 'var(--font-ui)', letterSpacing: 'var(--ls-caps)',
+                  display: 'inline-flex', alignItems: 'center', gap: '10px',
+                }}>
+                  <OrbStateIcon state={state} size={22} />
+                  {state.toUpperCase()}
+                </span>
                 <span className="help-desc-cell">{desc}</span>
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="help-section">
+          <h2 className="help-h2">When a deadline starts to press</h2>
+          <p className="help-p">
+            A dated task gets two windows, and which ones it gets depend on its priority — you already say how much
+            something matters, so you should not have to also say how early it should start mattering. The first
+            window leans the orb <strong>busy</strong>; the second, closer in, turns it <strong>urgent</strong>.
+          </p>
+          <div style={{ borderTop: '1px solid var(--border)' }}>
+            {([[2, 'High'], [3, 'Medium'], [4, 'Low']] as [number, string][]).map(([value, label]) => {
+              const w = DEFAULT_URGENCY_WINDOWS[value] ?? FALLBACK_URGENCY_WINDOWS
+              return (
+                <div key={value} className="help-key-row">
+                  <span className="help-key-cell" style={{ fontFamily: 'var(--font-ui)', letterSpacing: 'var(--ls-caps)' }}>{label}</span>
+                  <span className="help-desc-cell">
+                    Busy {describeWindowLead(w.runway)} · Urgent {describeWindowLead(w.imminent)}
+                  </span>
+                </div>
+              )
+            })}
+            <div className="help-key-row">
+              <span className="help-key-cell" style={{ fontFamily: 'var(--font-ui)', letterSpacing: 'var(--ls-caps)' }}>No priority</span>
+              <span className="help-desc-cell">
+                Busy {describeWindowLead(FALLBACK_URGENCY_WINDOWS.runway)} · Urgent {describeWindowLead(FALLBACK_URGENCY_WINDOWS.imminent)}
+              </span>
+            </div>
+          </div>
+          <ul className="help-ul" style={{ marginTop: '12px' }}>
+            <li className="help-li">Anything <strong>past due is urgent</strong>, whatever its priority.</li>
+            <li className="help-li">
+              A <strong>reminder never changes the orb&rsquo;s colour.</strong> Setting one months ahead is how you
+              avoid a last-minute scramble — it would be backwards for that to make the orb look alarmed the whole
+              time. A reminder only sends its notification.
+            </li>
+          </ul>
+        </div>
+
+        <div className="help-section">
+          <h2 className="help-h2">Setting them per project</h2>
+          <p className="help-p">
+            Those are the shared defaults. A client deadline and a weekend project rarely deserve the same warning,
+            so any project can set its own — the <span className="help-mono">Urgency</span> button in the list
+            toolbar, beside Sort, Filter and Views. You set them for projects you own; admins can set them for any.
+          </p>
+          <div style={{ borderTop: '1px solid var(--border)' }}>
+            {([
+              ['Contract work', 'High · Busy 2 weeks before · Urgent 3 days before', 'Long lead times. You want to see it coming while there is still room to act.'],
+              ['Weekend project', 'High · Busy 1 day before · Urgent 2 hours before', 'Nothing here should colour the orb until it genuinely is today.'],
+              ['Renewals', 'Medium · Busy 2 months before · Urgent 1 week before', 'Months of runway, because the work is remembering, not doing.'],
+            ] as [string, string, string][]).map(([name, setting, why]) => (
+              <div key={name} className="help-key-row" style={{ alignItems: 'flex-start' }}>
+                <span className="help-key-cell" style={{ fontFamily: 'var(--font-ui)', letterSpacing: 'var(--ls-caps)' }}>{name}</span>
+                <span className="help-desc-cell">
+                  {setting}
+                  <br />
+                  <span style={{ color: 'var(--muted)' }}>{why}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="help-p" style={{ marginTop: '12px' }}>
+            Most projects never need this. Until you change something, a project simply follows the defaults above —
+            and <span className="help-mono">Reset to defaults</span> puts it back to following them, rather than
+            freezing a copy of today&rsquo;s numbers. If the defaults ever improve, every untouched project gets the
+            improvement.
+          </p>
         </div>
 
         <div className="help-section">

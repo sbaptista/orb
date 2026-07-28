@@ -10,6 +10,7 @@ import {
   URGENCY_WINDOW_UNITS,
   MAX_WINDOW_VALUE,
   approximateLeadHours,
+  describeWindowLead,
   parseUrgencyWindows,
   type UrgencyWindowsMap,
   type UrgencyWindowUnit,
@@ -41,15 +42,6 @@ type FormState = {
   /** True while the project tracks the shared defaults. Saving writes NULL. */
   useDefaults: boolean
   rows: Record<number, Row>
-}
-
-/** "3 days before" / "at the deadline" — the sentence the numbers actually mean. */
-function describeLead(value: string, unit: UrgencyWindowUnit): string {
-  const n = Number(value)
-  if (value.trim() === '' || !Number.isInteger(n) || n < 0) return '—'
-  if (n === 0) return 'at the deadline'
-  const singular = unit.replace(/s$/, '')
-  return `${n} ${n === 1 ? singular : unit} before`
 }
 
 function defaultsFor(priority: number) {
@@ -233,7 +225,7 @@ export default function UrgencyWindowsModal({
           </select>
         </div>
         <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--muted)' }}>
-          {describeLead(row[valueKey], row[unitKey])}
+          {describeWindowLead({ value: Number(row[valueKey]), unit: row[unitKey] })}
         </span>
       </div>
     )

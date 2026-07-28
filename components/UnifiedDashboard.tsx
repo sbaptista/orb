@@ -37,6 +37,7 @@ import {
   type UrgencyWindowsByProject,
 } from '@/lib/orb-state'
 import UrgencyWindowsModal from '@/components/UrgencyWindowsModal'
+import { ORB_STYLE } from '@/lib/orb-visual'
 import { isDueWithinLead } from '@/lib/due-time'
 // PrintModal moved to AppNav
 import TodoEditor from './TodoEditor'
@@ -176,12 +177,6 @@ const ORB_GLOW: Record<Urgency, { inset: string; blur: string }> = {
   calm:   { inset: '-24px', blur: '28px' },
   busy:   { inset: '-38px', blur: '36px' },
   urgent: { inset: '-56px', blur: '46px' },
-}
-
-const ORB_STYLE: Record<Urgency, { orbMid: string; orbLo: string; glow: string; countColor: string; labelColor: string }> = {
-  calm:   { orbMid: '#d4e4d4', orbLo: '#b8d0b8', glow: 'rgba(80,130,80,0.38)', countColor: '#2d5a2d', labelColor: '#7a9e7a' },
-  busy:   { orbMid: '#e4daf4', orbLo: '#d0c4ee', glow: 'rgba(130,90,200,0.45)', countColor: '#5a3090', labelColor: '#9a7ac8' },
-  urgent: { orbMid: '#f8ead8', orbLo: '#f0d4b0', glow: 'rgba(230,130,55,0.6)', countColor: '#a05010', labelColor: '#c88040' },
 }
 
 const ORB_ANIMATION: Record<Urgency, string> = { calm: 'todos-orb-calm', busy: 'todos-orb-busy', urgent: 'todos-orb-urgent' }

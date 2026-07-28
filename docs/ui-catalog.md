@@ -750,6 +750,17 @@ Used to flag when action is required (e.g. a ticket's linked todo is completed/c
 - **Badge:** Labeled "Todo Closed". Small amber pill (`background: #fef3c7`, `color: #d97706`). Enforces HIG tap guidelines, wrapped cleanly inside lists.
 - **Alert Banner:** Prominent warning block at the top of the Edit Modal form. Amber background (`background: #fef3c7`, `color: #d97706`, `border: 1px solid rgba(217, 119, 6, 0.2)`).
 
+### Orb State Icon (`OrbStateIcon`)
+**File:** `components/OrbStateIcon.tsx` · palette: `lib/orb-visual.ts`
+**Status:** Active — ORB-361 Phase 3.2
+**Canonical example:** `components/OrbHelp.tsx` → "The Orb" → States
+
+A small, still portrait of the orb in one state (`calm` / `busy` / `urgent`), for surfaces that *describe* the orb rather than being it. `size` defaults to 28px; Help uses 22px inline with `help-key-cell`.
+
+**No CSS class.** Painted with the same inline radial gradient the live orb uses, from the shared `ORB_STYLE` table in `lib/orb-visual.ts` — the single source of truth for the three-state palette. Only the calm values exist as CSS variables (`--orb-mid`, `--orb-lo`, `--orb-count`); busy and urgent live only in that table, so any new orb renderer must read from it rather than copying hex values.
+
+**Deliberately static.** The live orb breathes; three pulsing copies in a Help legend would compete with the text they label. "Living, not static" applies to the orb the user is watching, not to a legend entry — which also means no `prefers-reduced-motion` handling is required. `aria-hidden`, since the state is always named in adjacent text.
+
 ### Pill (`pill-active`)
 Active state pill with accent background. Used for selected filters/tabs.
 

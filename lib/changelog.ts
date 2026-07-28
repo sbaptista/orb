@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.249',
+    date: '2026-07-28',
+    changes: [
+      'Help now explains what the orb\'s colours actually mean, with a small still orb shown beside each state. The old descriptions had gone stale — they said busy meant "more than 5 active items" and urgent meant "a P1 task", which stopped being the whole truth once deadlines started driving the mood (ORB-361).',
+      'Help also shows the default urgency windows per priority, and three worked examples of setting them per project — contract work with weeks of warning, a weekend project with almost none, renewals measured in months. The default figures are read from the same code the orb uses, so that table cannot drift out of date.',
+    ],
+  },
+  {
     version: 'v0.6.248',
     date: '2026-07-28',
     changes: [

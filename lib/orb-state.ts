@@ -80,6 +80,17 @@ export function approximateLeadHours(lead: WindowLead): number {
   return lead.value * HOURS[lead.unit]
 }
 
+/**
+ * The sentence a window actually means — "3 days before", "at the deadline".
+ * Shared by the editor and Help so the two can never phrase it differently.
+ */
+export function describeWindowLead(lead: WindowLead): string {
+  if (!Number.isInteger(lead.value) || lead.value < 0) return '—'
+  if (lead.value === 0) return 'at the deadline'
+  const unit = lead.value === 1 ? lead.unit.replace(/s$/, '') : lead.unit
+  return `${lead.value} ${unit} before`
+}
+
 /** One project's overrides, keyed by `priorities.value`. */
 export type UrgencyWindowsMap = Record<number, UrgencyWindows>
 
