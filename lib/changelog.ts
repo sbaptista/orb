@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.256',
+    date: '2026-07-29',
+    changes: [
+      'Project controls now live where their effects do: a dedicated right-aligned Projects bar above the dashboard list toolbar contains Change Project and + Project, while the shared topbar is reserved for Settings, Commands, and Account (ORB-366).',
+      'Settings now opens directly from the topbar gear, Menu is renamed Commands with a four-square icon, and the Commands dialog always carries Help, Print, and the current Orb version below a divider. Print offers All Projects and the saved Current Project from Settings, Help, and Account as well as the dashboard. The duplicate version labels were removed from the Settings sidebar.',
+      'Settings pages keep Dashboard at the far left with current Settings and Commands centered. The same balanced navigation model now covers Dashboard, Help, Account, Mac, iPad, and iPhone.',
+      'The new-user tour now introduces the Projects bar and accurately explains the dedicated Settings control and Commands menu across desktop and mobile.',
+      'The current project now belongs to the user rather than the browser: project selection is stored in the database and follows the user across sessions, browsers, and devices. This removes the browser-global last-project key that could reopen another user’s project, and makes All Projects plus Current Project available from Print on every page.',
+    ],
+  },
+  {
     version: 'v0.6.255',
     date: '2026-07-29',
     changes: [

@@ -2158,14 +2158,13 @@ mark.crud-highlight {
 /* ── Global App Nav (`.appnav`) ── */
 
 /* ── Unified Navigation Bar ──
-   Same layout on all screens: [Orb] ··· [Change Project][+Project] [More][Account] ··· [List]
-   On non-dashboard pages: [Back] ··· [More][Account]
+   Dashboard: [Orb] ··· [Settings][Commands][Account] ··· [List]
+   Settings: [Dashboard] ··· [Settings][Commands] ···
 */
 .appnav {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 2px;
   padding: 4px 8px;
   padding-top: calc(var(--sat) + 4px);
   min-height: 44px;
@@ -2179,8 +2178,17 @@ mark.crud-highlight {
   width: 100%;
 }
 
-/* Flexible spacers push groups toward center — min-width keeps balance at narrow desktop */
+/* Flexible spacers are also reused by the separate mobile pane bar. */
 .appnav-spacer { flex: 1; min-width: var(--sp-lg); }
+
+.appnav-side {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.appnav-side--left { justify-content: flex-start; }
+.appnav-side--right { justify-content: flex-end; }
 
 /* Button group — visually pairs related buttons */
 .appnav-group {
@@ -2213,6 +2221,11 @@ mark.crud-highlight {
 .appnav-btn:active { background: color-mix(in srgb, var(--bg3) 80%, var(--text) 6%); }
 .appnav-btn:disabled { opacity: var(--opacity-disabled); pointer-events: none; }
 .appnav-btn[aria-pressed="true"] { color: var(--text); }
+.appnav-current {
+  opacity: var(--opacity-muted);
+  cursor: default;
+  pointer-events: none;
+}
 
 .appnav-btn-icon {
   display: flex;
@@ -2271,7 +2284,6 @@ mark.crud-highlight {
   .appnav {
     padding: 2px 4px;
     padding-top: calc(var(--sat) + 2px);
-    gap: 0;
   }
   .appnav-btn {
     padding: 4px 6px;
@@ -5400,17 +5412,6 @@ mark.crud-highlight {
   flex-shrink: 0;
 }
 
-.cs-version {
-  font-size: var(--fs-version);
-  color: var(--muted);
-  letter-spacing: var(--ls-caps);
-  white-space: nowrap;
-}
-
-.cs-nav-version {
-  display: none;
-}
-
 .cs-mobile-picker {
   display: none;
 }
@@ -5860,14 +5861,6 @@ html[data-settings-modal-open] .sl-main {
     color: var(--muted);
     font-size: var(--fs-sm);
     line-height: var(--lh-none);
-  }
-
-  .cs-mobile-version {
-    align-self: center;
-    color: var(--muted);
-    font-size: var(--fs-version);
-    letter-spacing: var(--ls-wide);
-    white-space: nowrap;
   }
 
   .cs-mobile-menu {
@@ -6762,6 +6755,17 @@ html[data-settings-modal-open] .sl-main {
   flex-direction: column;
 }
 
+.ud-projects-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 2px var(--sp-md);
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.48);
+}
+
 .ud-list-toolbar {
   display: flex;
   align-items: center;
@@ -6923,6 +6927,17 @@ html[data-settings-modal-open] .sl-main {
   opacity: 0.35;
   cursor: default;
   pointer-events: none;
+}
+
+.ud-commands-version {
+  margin: 0 var(--sp-lg);
+  padding: var(--sp-md) 0 var(--sp-lg);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: var(--fs-version);
+  letter-spacing: var(--ls-wide);
+  text-align: center;
 }
 
 /* ── Orb Conversation Spacer ── */

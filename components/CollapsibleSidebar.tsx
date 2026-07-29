@@ -3,7 +3,6 @@
 import NavLink from '@/components/settings/NavLink'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import OrbVersionLabel from '@/components/ui/OrbVersionLabel'
 import HScrollNav from '@/components/ui/HScrollNav'
 import { useUnsavedChanges } from '@/lib/hooks/useUnsavedChanges'
 import { flushPerformanceEvents, markPerformanceNavigation, startInteraction } from '@/lib/performance/telemetry'
@@ -86,7 +85,6 @@ export default function CollapsibleSidebar({ items, defaultOpen = true }: Props)
             <line x1="7" y1="11.5" x2="13" y2="11.5"/>
           </svg>
         </button>
-        {open && <OrbVersionLabel className="cs-version" />}
       </div>
 
       <div className="cs-mobile-picker" ref={mobilePickerRef}>
@@ -101,7 +99,6 @@ export default function CollapsibleSidebar({ items, defaultOpen = true }: Props)
           <span className="cs-mobile-trigger-icon" aria-hidden="true">{activeItem?.icon ?? '⚙'}</span>
           <span className="cs-mobile-trigger-arrow" aria-hidden="true">⌄</span>
         </button>
-        <OrbVersionLabel className="cs-mobile-version" format="version" />
         {mobileMenuOpen && (
           <div className="cs-mobile-menu" role="menu" aria-label="Settings sections">
             <div className="cs-mobile-menu-header">
@@ -154,7 +151,6 @@ export default function CollapsibleSidebar({ items, defaultOpen = true }: Props)
               </button>
             )
           })}
-          <OrbVersionLabel className="cs-nav-version" format="version" />
         </nav>
       </HScrollNav>
     </div>

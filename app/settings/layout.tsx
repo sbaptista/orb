@@ -3,28 +3,26 @@ import { redirect } from 'next/navigation'
 import SettingsSidebar from '@/components/settings/SettingsSidebar'
 import AppNav from '@/components/AppNav'
 import { UnsavedChangesProvider } from '@/lib/hooks/useUnsavedChanges'
+import { getAppNavContext } from '@/lib/app-nav-context'
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const { data: currentUser } = await supabase
-    .from('users')
-    .select('role_id, first_name, email')
-    .eq('id', user.id)
-    .single()
-
-  const isAdmin = currentUser?.role_id === 1 || currentUser?.role_id === 3
-  const userInitial = (currentUser?.first_name || currentUser?.email || '?').charAt(0).toUpperCase()
+  const navContext = await getAppNavContext(supabase, user.id)
 
   return (
     <UnsavedChangesProvider>
       <div className="sl-page">
-        <AppNav userInitial={userInitial} />
+        <AppNav
+          userInitial={navContext.userInitial}
+          userName={navContext.userName}
+          printContext={navContext.printContext}
+        />
 
         <div className="sl-body settings-shell">
-          <SettingsSidebar isAdmin={isAdmin} />
+          <SettingsSidebar isAdmin={navContext.isAdmin} />
           <main className="sl-main">{children}</main>
         </div>
       </div>

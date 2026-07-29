@@ -37,19 +37,21 @@ The main app layout. Two equal-citizen panes (Orb + List) with a draggable divid
 | `ud-split` | Flex container for both panes + divider. `flex-direction: column` on mobile, `row` on desktop |
 | `ud-orb-pane` | Left/top pane — transparent background, houses `OrbConversation` |
 | `ud-list-pane` | Right/bottom pane — frosted glass background, houses list toolbar + table |
+| `ud-projects-bar` | Right-aligned project controls above the list toolbar; reuses `appnav-btn` for Change Project and + Project |
 | `ud-list-toolbar` | Toolbar row inside list pane (sort, filter, view toggle, + New) |
 | `ud-list-title` | Project name heading inside list toolbar |
 | `ud-list-content` | Scrollable content area inside list pane |
 | `ud-divider` / `ud-divider--vertical` / `ud-divider--horizontal` | Drag handle between panes; 40px gutter on coarse pointers |
 | `ud-divider-handle` | The visible pill inside the divider, with hover/drag feedback |
 
-On the dashboard, AppNav renders dashboard-specific controls as children (merged bar):
+On the dashboard, AppNav renders the pane controls and global navigation:
 - **Orb toggle** (left)
-- **Project search** (flex: 0 1 320px) — search-based dropdown for selecting projects
-- **+ Project button** — immediately right of search, opens AddProductModal (hidden on mobile, available via Commands modal)
-- **Spacer** (flex: 1)
-- **List toggle** — before the global nav buttons
-- **Global nav** (Print, Help, Settings, Account) — right side
+- **Global nav** (Settings, Commands, Account) — centered
+- **List toggle** (right)
+
+Project-scoped controls live in `ud-projects-bar`, directly above `ud-list-toolbar` whenever the List pane is visible:
+- **Change Project** — opens the searchable project selector.
+- **+ Project** — opens `AddProductModal`.
 
 Inside the `ud-list-toolbar`, the controls are laid out as follows:
 - **Project Title:** The active project's name is on the left.
@@ -84,8 +86,8 @@ Standard settings layout with centered content card.
 - **AI Settings:** Admin-only policy page for model roles, live routing activation, and monthly limits. The four limit labels are `Monthly total`, `Strategic`, `Operational`, and `Voice`. Model choices come from the production-ready model catalog; one compatible model may serve both roles. Use the standard `s-page`, `s-header`, `s-card`, and `s-form` settings assembly. Numeric policy fields use the standard `.input` treatment (consistent field sizing, without native number spinners); AI Metrics deliberately retains native spinners for accounting entry. Accounting inputs belong to AI Metrics.
 - **AI Metrics Cost Reporting:** The Metrics page owns the token-ledger app-cost summary, date/model filters, provider/model/role/source breakdowns, rate cards, request log, and optional provider bill reconciliation. Rate cards are the primary app-cost assumptions; provider bill entries are secondary calibration or external AI operating cost context. The summary must always show both the requested filter range and the actual row range used, and eval traffic is included as real AI spend while remaining distinguishable in the source breakdown. The legacy `orb_metrics` daily aggregate should not be used as the visible accounting surface.
 - **Performance Settings:** Admin-only telemetry page for ORB-309. Uses the existing Settings shell, `SettingsCrudList`, `TextSearchModal`, `DateSearchModal`, `EditorModal`, `metrics-summary-*` summary cards, server-side pagination/search/sort/filter, `crud-card` mobile cards, `perf-*` responsive telemetry controls/cards, and platform table-width overrides. Do not create separate telemetry table/search/modal shells.
-- **Mobile Settings Picker:** On iPhone and narrow/coarse-pointer iPad, the settings sidebar becomes a compact icon trigger with a down arrow and version label. Tapping it opens a vertical section menu. This preserves unsaved-change confirmation and avoids long horizontal nav menus without duplicating the page title.
-- **Version Badge:** Located in the bottom corner of the Settings page sidebar (e.g. displaying `v0.5.127`). Non-clickable.
+- **Mobile Settings Picker:** On iPhone and narrow/coarse-pointer iPad, the settings sidebar becomes a compact icon trigger with a down arrow. Tapping it opens a vertical section menu. This preserves unsaved-change confirmation and avoids long horizontal nav menus without duplicating the page title.
+- **Version Label:** Removed from the Settings sidebar in ORB-366. The current version now appears below the divider in the shared Commands dialog.
 - **What's New Screen:** Located under Settings. Displays recent release notes and contains:
   - **Check for Update Button:** A button labeled "Check for Update" that allows users to manually fetch and apply newer app versions.
 
@@ -94,7 +96,6 @@ Standard settings layout with centered content card.
 | `cs-mobile-picker` | Mobile-only settings picker trigger/menu container |
 | `cs-mobile-trigger` | Compact icon + down-arrow button that opens the section menu |
 | `cs-mobile-trigger-icon` / `cs-mobile-trigger-arrow` | Current section icon and decorative arrow inside the trigger |
-| `cs-mobile-version` | Compact version label beside the mobile picker |
 | `cs-mobile-menu` | Mobile-only vertical settings section menu |
 | `cs-mobile-menu-header` / `cs-mobile-menu-close` | Menu title and explicit close control so discoverability/dismissal are clear |
 | `cs-mobile-menu-item` | Individual section command inside the mobile menu |
@@ -174,24 +175,25 @@ Centered auth card over the calm `MuralCanvas`, matching the dashboard/account w
 ### Unified Navigation Bar (`appnav`)
 **Location:** Top of every page  
 **Component:** `components/AppNav.tsx`  
-**Pattern:** Single `flex` row bar. On the dashboard, accepts children for dashboard-specific controls (orb toggle, project search, list toggle). On other pages, shows back link + global actions.
+**Pattern:** Balanced three-column grid: left edge, centered global navigation, right edge. On the dashboard, accepts the Orb and List pane toggles. On other pages, the left edge is Dashboard and the right edge is reserved so the center remains optically and mathematically centered.
 
-**Dashboard layout (merged bar):**
+**Dashboard layout:**
 - **Orb toggle** — left edge, collapses/expands Orb pane (desktop) or switches to Orb tab (mobile)
-- **Change Project** — opens a search-based modal for selecting projects
-- **+ Project** — opens AddProductModal (hidden on mobile, available via Commands modal)
-- **Spacer** (flex: 1)
+- **Settings, Commands, Account** — centered global navigation
 - **List toggle** — collapses/expands list pane (desktop) or switches to list tab (mobile)
-- **Print, Help, Settings, Account** — global nav, desktop only (mobile: Commands modal)
+- **Projects bar** — Change Project and + Project are right-aligned in the List pane above its toolbar, on every viewport where the List pane is active
 - **Developer Panel Toggle:** Dev-only toggle button at the bottom-right corner of the viewport (visible in dev mode only).
 
-**Non-dashboard layout:** Back link (left) → spacer → global nav (right).
+**Settings layout:** Dashboard at the far left; current/disabled Settings plus Commands centered; no Account item.
 
-### Mobile Command Menu
-On narrow viewports (iPhone, mobile screens), the individual top nav buttons (Print, Help, Settings, Account) collapse into a single button in the top bar:
-- **Commands Button:** Labeled "Commands" (grid/menu icon).
-- **Behavior:** Tapping it opens a centered modal with links to the full commands: "Print Backlog", "Help & Guidelines", "Settings", and "Account Profile".
-- **Accessibility:** The menu opens as a named modal dialog. Command links remain plain links/buttons inside the dialog.
+**Other non-dashboard layout:** Dashboard at the far left; Settings, Commands, and Account centered. The current destination is disabled.
+
+### Commands Dialog
+The Commands button is labeled “Commands” and uses the four-square grid icon on every viewport.
+- **Behavior:** Opens the established centered modal with Help and Print actions. Print is always present and offers both All Projects and the user’s database-backed Current Project from Dashboard, Settings, Help, and Account. Settings and Account remain first-class topbar destinations rather than commands.
+- **Current project:** `users.current_project_id` is the cross-session/browser/device source of truth. Dashboard initialization validates it against the user’s visible active projects, repairs invalid/null state to the first available project, and persists explicit project switches. Shared non-dashboard navigation resolves the same preference server-side. No Realtime subscription is used.
+- **Version:** A divider below the command list separates the current `Orb v…` version string.
+- **Accessibility:** The dialog is named, modal, and retains plain links/buttons for its actions.
 
 ### Nav Buttons (`nav-btn`)
 **Used in:** Command bar, AmbientDashboard nav
@@ -213,7 +215,7 @@ On narrow viewports (iPhone, mobile screens), the individual top nav buttons (Pr
 | `tv-topbar-nav` | Back button / breadcrumb |
 
 ### Change Project Modal (`SearchModal`)
-**Used in:** Unified Dashboard command bar
+**Used in:** Unified Dashboard Projects bar
 
 Searchable modal for switching projects. The dashboard command bar labels this action "Change Project"; the modal title is also "Change Project". Admins see all projects with owner names; users see only their own.
 

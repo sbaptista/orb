@@ -10,10 +10,10 @@
 
 ## App State
 
-- **Branch:** `main` — v0.6.255 release approved by Stan; inspect git/production state to confirm the approved push and deployment completed.
+- **Branch:** `main` — ORB-366 is closed and approved as v0.6.256; committed locally. Production push awaits Stan’s mandatory Tier 1 run.
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.255** — release approved. Verify `/api/version` before treating production as updated.
+- **Version:** local/canonical **0.6.256** — unreleased.
 - **All three ORB-361 Phase 3 migrations were applied before the merge** (`projects.urgency_windows`, `todos.reminder_nudge_dismissed_at`, and the `restore_todos_from_archive` extension). Schema led code, which is the safe direction; nothing outstanding.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
@@ -35,17 +35,19 @@ Stan paused on 2026-07-26 to weigh whether the AI spend was worth it, then resum
 
 ## Last Session Completed
 
-**ORB-369 AI usage warning accuracy + AI Settings number fields — 2026-07-29 (Codex, GPT-5) — v0.6.255 — CLOSED, RELEASE APPROVED**
+**ORB-366 topbar and Projects bar — 2026-07-29 (Codex, GPT-5) — v0.6.256 — CLOSED, COMMITTED LOCALLY, PUSH AWAITS TIER 1**
 
-Verified the bulletin’s exact failure from production data. At the instant it said operational was 253% and strategic was 168%, the ledger actually held operational `$14.588019 / $16` (91%), strategic `$0.607646 / $24` (2.5%), voice `$25.211577 / $0`, and monthly `$40.407242 / $40` (101%). `checkOrbBudget()` intentionally changed `spentUsd` to the monthly blocking value once the total gate fired; the proactive monitor then incorrectly treated that overloaded value as every role’s own spend.
+Project-scoped controls now live in a dedicated right-aligned Projects bar inside the List pane, directly above the existing list toolbar. Change Project and + Project retain their existing search/create behavior and 44px icon-and-label targets; the create-modal performance span was preserved and the previously unmeasured search-modal open now has its own immediate dashboard interaction span.
 
-`OrbBudgetCheck` now carries an explicit `roleSpentUsd` while preserving the existing blocking-scope `spentUsd`/`limitUsd` contract. Role warning scopes use the role value; the monthly total is a separate `orb-monthly` scope; warning copy distinguishes approaching, reached, and exceeded limits across tickets, push, email, and broadcasts. A deterministic replay of the exact production figures passed and proved all three role values remain distinct while all three budget checks still block on the same `$40.407242` monthly total.
+The shared topbar is now a balanced three-column navigation row. Dashboard centers Settings (gear), Commands (four-square grid), and Account between the Orb/List edge controls. Settings pages keep Dashboard at the far left and center current/greyed Settings plus Commands, with Account intentionally omitted there. Help and Account use the same family, and Account marks itself current. The revised 10-step new-user tour introduces the Projects bar, removes the obsolete More-menu voice instruction, and accurately distinguishes the dedicated Settings control from Commands.
 
-The attached AI Settings screenshot exposed that every numeric policy field omitted the cataloged `.input` class. Restored that existing Settings pattern across monthly limits, warning threshold, and provider caps: 48px fields, no browser-native spinners, no overflow, and bottom-aligned provider-cap inputs. The monthly labels are now simply `Monthly total`, `Strategic`, `Operational`, and `Voice` — the misleading “reserve” suffix is gone. Visually verified in the signed-in localhost app at Mac 1280px, iPad 1024px, and iPhone 390px. Used the cataloged `s-page` / `s-card` / `s-form` / `.input` family; no new UI pattern or class.
+Settings is no longer duplicated inside Commands. The dialog now always contains Help and Print plus the hydrated `Orb v…` string below a divider. Print offers both All Projects and Current Project on Dashboard, Settings, Help, and Account. All desktop, mobile-picker, and hidden-nav version labels were removed from `CollapsibleSidebar`. Used the cataloged `appnav`, `modal-center`, `ud-commands-*`, and Unified Dashboard families; added and cataloged only the ticket’s explicit `ud-projects-bar` surface.
 
-The verified-false live broadcast row was deleted and its absence confirmed. The false `orb-strategic` July dedup row is deliberately retained until v0.6.255 is deployed: deleting it while the old cron is live would recreate the same false warning within 15 minutes. After deployment, delete that one row; the corrected cron will then warn on the genuinely exceeded monthly scope and compose a truthful banner. ORB-369 is closed with attributed resolution notes; Knowledge Repository entry `d37fabe3-6473-4516-8e72-a83718c854bc` records the durable lesson and links the still-accurate ORB-353 entries.
+The browser-global `todos_last_product_id` key was the wrong source of truth: an admin session could legitimately resolve a project chosen under another account. Migration `20260729_orb_366_current_project.sql` added nullable `users.current_project_id → projects.id ON DELETE SET NULL` and backfilled all three live users to their first active owned project. Dashboard initialization now validates that per-user value against visible projects, explicit switches persist through the existing own-user RLS policy, and the legacy key is deleted. Shared AppNav routes resolve the same database preference server-side and repair missing/dormant state without Realtime. Live verification switched Stanley’s current project back to Orb and confirmed the user row, then confirmed Settings Print exposes enabled `Current Project — Orb only`.
 
-Validation: `npx tsc --noEmit` clean; focused ESLint 0 errors (two pre-existing warnings in `app/api/orb-eval/route.ts`); UI catalog verifier passed; `git diff --check` passed; deterministic production-figure replay passed. No Orb-conversation capability changed, so no eval case or eval run applies. No schema, new query pattern, Realtime subscription, or new user-facing performance path; no database health run or new performance instrumentation required.
+Validation: Stan approved the complete change after checking Mac, iPad, and iPhone. `npx tsc --noEmit` passed once after the complete database wiring; `npm run build` passed once at v0.6.256; focused lint has 0 errors and 8 pre-existing UnifiedDashboard warnings; UI catalog verification and `git diff --check` passed. The migration’s second run completed with `UPDATE 0`, verifying idempotence. Signed-in localhost visual checks passed on Mac (1280px), iPad (820px), and iPhone (390px), including Dashboard, Settings, Help, Account, the Commands dialog, current/disabled states, version removal, and right-aligned project controls. The revised tour was also exercised through all new target points on desktop and at 390px; the mobile Projects and Views steps both exposed visible List-pane targets. Browser console had zero warnings/errors. No Orb conversation capability changed, so no eval case was added; the standing production Tier 1 gate still applies before push.
+
+Database impact: one nullable FK column and one low-frequency preference write per explicit project selection. No index is needed because reads locate the user by primary key; no query filters by `current_project_id`. No Realtime subscription. The canonical pre/post health audits were stable; schema/FK/backfill and the authenticated write were verified live. The health protocol flagged dead-row percentages above 20% on several tiny public tables; `VACUUM ANALYZE` completed for all nine flagged public tables and a follow-up returned zero remaining flagged public tables. Auth-schema tables were observed but not mutated. Performance instrumentation was required because modal-open workflows moved; project-create coverage remains and project-search modal-open coverage was added. The existing list-settled span remains the perceived project-switch measure, while persistence is fire-and-forget.
 
 ---
 
@@ -331,9 +333,16 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ---
 
+## Uncommitted Changes
+
+*(none after the ORB-366 completing commit)*
+
+---
+
 ## Next Priorities
 
-1. **Verify Phase 3 in production, then ORB-361 Phase 4.** Phase 4 is the last phase and the plan gates it on **production verification of Phases 1–3**, so this needs real use first, not just a deploy. Worth checking on live: a custom urgency window surviving a hard refresh (the SSR bug, v0.6.253); asking the Orb why the orb is urgent (it must name the task — if it ever answers *"I did not actually complete that"*, the false-claim guard is mis-firing again, v0.6.254); and Help → The Orb, whose numbers now render from the live constants.
+1. **Stan runs `npm run eval:t1` for the v0.6.256 production gate.** ORB-366 is closed and the local release commit is approved; after Stan reports Tier 1 green, push the committed `main` state using the approval already given in this session.
+2. **Verify Phase 3 in production, then ORB-361 Phase 4.** Phase 4 is the last phase and the plan gates it on **production verification of Phases 1–3**, so this needs real use first, not just a deploy. Worth checking on live: a custom urgency window surviving a hard refresh (the SSR bug, v0.6.253); asking the Orb why the orb is urgent (it must name the task — if it ever answers *"I did not actually complete that"*, the false-claim guard is mis-firing again, v0.6.254); and Help → The Orb, whose numbers now render from the live constants.
 2. **ORB-361 Phase 4** (the last phase) — drop `users.urgency_threshold_hours`; verify catalog/matrix/changelog across all phases. Gated by the plan on **production verification of Phases 1–3**, so it needs live use first, not just a merge.
 3. **Decide the deferred editor dismissal** for the no-reminder nudge (plan §5) — pre-emptive marking only; say yes or drop it from the plan.
 4. **The missing deterministic test layer.** Four throwaway suites were written and discarded across ORB-360/361 (due-time math, urgency boundaries, window validation, drivers, nudge, packet rendering) — each ran in ~1s for **$0** and caught real bugs, including a `computeUrgency` regression check that eval cases cannot express. The eval suite costs ~$1.26 a run and guards only the conversation layer. `verify-ui-catalog.js` and `verify-gemini-schema.ts` are existing precedent. **Not filed** — Stan has held this separate from the eval-cost question.

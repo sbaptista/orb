@@ -72,7 +72,7 @@ export function runOrbTour(env: TourEnv) {
       popover: {
         title: 'Or just talk',
         description:
-          'Tap the Orb to start a voice conversation. Speak naturally — the Orb is always listening, even while it\'s talking, so you can interrupt it just by speaking over it. You can also find <em>Talk to Orb</em> in the More menu, or press <strong>⌘ Shift O</strong>.',
+          'Tap the Orb to start a voice conversation. Speak naturally — the Orb is always listening, even while it\'s talking, so you can interrupt it just by speaking over it. You can also press <strong>⌘ Shift O</strong>.',
         side: env.isMobile ? 'bottom' : 'right',
         align: 'center',
       },
@@ -98,6 +98,16 @@ export function runOrbTour(env: TourEnv) {
       },
     },
     {
+      element: q('[data-tour="projects"]'),
+      popover: {
+        title: 'Your projects',
+        description:
+          'Change Project switches the list you are working in. Use + Project beside it whenever you need a new workspace.',
+        side: env.isMobile ? 'bottom' : 'left',
+        align: 'start',
+      },
+    },
+    {
       element: q('[data-tour="views"]'),
       popover: {
         title: 'Your workspace',
@@ -108,13 +118,13 @@ export function runOrbTour(env: TourEnv) {
       },
     },
     {
-      element: q('[data-tour="commands"]'),
+      element: q('[data-tour="global-nav"]'),
       popover: {
-        title: 'Everything else',
+        title: 'Settings and commands',
         description:
-          'Settings, Help, and Print are all in here.',
+          'The gear opens Settings. Commands keeps Help and Print close at hand, and your account is right beside them.',
         side: 'bottom',
-        align: 'end',
+        align: 'center',
       },
     },
     {
@@ -137,7 +147,7 @@ export function runOrbTour(env: TourEnv) {
 
   const ensurePaneFor = (index: number) => {
     if (!env.isMobile) return
-    if (index === 5) env.showListPane()
+    if (index === 5 || index === 6) env.showListPane()
     else env.showOrbPane()
   }
 

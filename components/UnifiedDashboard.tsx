@@ -79,7 +79,13 @@ type Todo = {
 
 type Priority   = { value: number; label: string; color?: string; is_urgent?: boolean }
 type StatusDef  = { id: string; name: string; sort_order: number; is_closed: boolean; is_open: boolean }
-type ResolvedUser = { id: string; email: string; first_name: string; last_name: string }
+type ResolvedUser = {
+  id: string
+  email: string
+  first_name: string
+  last_name: string
+  current_project_id: string | null
+}
 type AdminProject = { id: string; name: string; code: string | null; owner_name: string }
 
 type Props = {
@@ -90,7 +96,7 @@ type Props = {
 
 // ── Constants ──
 
-const LAST_PRODUCT_KEY  = 'todos_last_product_id'
+const LEGACY_LAST_PRODUCT_KEY = 'todos_last_product_id'
 const SS_INPUT          = 'todos_orb_input'
 const SS_CONVERSATION   = 'todos_orb_conversation'
 const SS_ACTION_SETS    = 'todos_orb_action_sets'
@@ -216,6 +222,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // ── Shared state ──
   const [products, setProducts]       = useState<Product[]>(initialProducts ?? [])
   const [selectedId, setSelectedId]   = useState<string | null>(null)
+  const persistedCurrentProjectRef    = useRef<string | null>(user?.current_project_id ?? null)
   const [isMobile, setIsMobile]       = useState(false)
   const [daysActive, setDaysActive]   = useState<number>(0)
   const [activeMobileTab, setActiveMobileTab] = useState<'orb' | 'list'>('list')
@@ -832,6 +839,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         const { data: { user: authUser } } = await supabase.auth.getUser()
         perf.mark('auth_user_loaded')
         if (authUser) {
+          localStorage.removeItem(LEGACY_LAST_PRODUCT_KEY)
           const savedUserId = sessionStorage.getItem('todos_user_id')
           if (!savedUserId || savedUserId !== authUser.id) {
             sessionStorage.removeItem(SS_CONVERSATION)
@@ -880,8 +888,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
         if (initialProducts) {
           if (initialProducts.length > 0) {
-            const last  = localStorage.getItem(LAST_PRODUCT_KEY)
-            const found = initialProducts.find(p => p.id === last)
+            const found = initialProducts.find(p => p.id === user?.current_project_id)
             setSelectedId(found ? found.id : initialProducts[0].id)
           }
           perf.end(true, null, { initialProducts: initialProducts.length })
@@ -895,8 +902,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         const list = (data ?? []) as Product[]
         setProducts(list)
         if (list.length > 0) {
-          const last  = localStorage.getItem(LAST_PRODUCT_KEY)
-          const found = list.find(p => p.id === last)
+          const found = list.find(p => p.id === user?.current_project_id)
           setSelectedId(found ? found.id : list[0].id)
         }
         perf.end(true, null, { products: list.length })
@@ -1012,8 +1018,21 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   useEffect(() => {
     if (!selectedId) return
     fetchOrbTodos()
-    localStorage.setItem(LAST_PRODUCT_KEY, selectedId)
-  }, [selectedId, fetchOrbTodos])
+    if (!user?.id || persistedCurrentProjectRef.current === selectedId) return
+
+    const previousProjectId = persistedCurrentProjectRef.current
+    persistedCurrentProjectRef.current = selectedId
+    supabase
+      .from('users')
+      .update({ current_project_id: selectedId })
+      .eq('id', user.id)
+      .then(({ error }) => {
+        if (!error) return
+        persistedCurrentProjectRef.current = previousProjectId
+        console.error('[dashboard] Current project persistence failed:', error.message)
+        toast.error('Current project could not be saved across devices.')
+      })
+  }, [selectedId, fetchOrbTodos, supabase, toast, user?.id])
 
   // All-project todos for overall urgency (fetched once, refreshed on tab focus)
   const allTodosRef = useRef<{ status: string; priority_value: number | null; due_at: string | null; due_timezone: string | null; product_id: string }[]>([])
@@ -1973,12 +1992,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           printContext={{ productId: selectedId, productName: selected?.name ?? null }}
           userInitial={(user?.first_name || user?.email || '?').charAt(0).toUpperCase()}
           userName={[user?.first_name, user?.last_name].filter(Boolean).join(' ') || undefined}
-          onSearchProjects={() => setProjectSearchOpen(true)}
-          onAddProject={() => {
-            const measurement = startDashboardInteraction('project_create_modal_open')
-            setShowAddProduct(true)
-            measurement.end(true)
-          }}
           orbToggle={
             <button
               className="appnav-btn appnav-edge"
@@ -2088,6 +2101,49 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           {/* List pane */}
           {(listPaneVisible || isMobile) && (
           <div className="ud-list-pane" style={!bothPanesVisible && !isMobile ? { flex: 1, width: '100%' } : undefined}>
+            <div className="ud-projects-bar" aria-label="Project controls" data-tour="projects">
+              <button
+                className="appnav-btn"
+                onClick={() => {
+                  const measurement = startDashboardInteraction('project_search_modal_open')
+                  setProjectSearchOpen(true)
+                  measurement.end(true)
+                }}
+                data-tooltip="Change project"
+                aria-label="Change project"
+              >
+                <span className="appnav-btn-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="7" height="7" rx="1.5"/>
+                    <rect x="14" y="13" width="7" height="7" rx="1.5"/>
+                    <path d="M14 5h3.5A2.5 2.5 0 0 1 20 7.5V10"/>
+                    <path d="M10 19H6.5A2.5 2.5 0 0 1 4 16.5V14"/>
+                    <path d="M17 7l3 3 3-3"/>
+                    <path d="M7 17l-3-3-3 3"/>
+                  </svg>
+                </span>
+                <span className="appnav-btn-label">Change Project</span>
+              </button>
+              <button
+                className="appnav-btn"
+                onClick={() => {
+                  const measurement = startDashboardInteraction('project_create_modal_open')
+                  setShowAddProduct(true)
+                  measurement.end(true)
+                }}
+                data-tooltip="Create a new project"
+                aria-label="New project"
+              >
+                <span className="appnav-btn-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                </span>
+                <span className="appnav-btn-label">Project</span>
+              </button>
+            </div>
+
             {/* List toolbar */}
             <div className="ud-list-toolbar">
               {selected && <h2 className="ud-list-title">{selected.name}</h2>}
@@ -2434,7 +2490,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               <p style={{ margin: '0 0 var(--sp-lg)', color: 'var(--text-secondary)', fontSize: 'var(--fs-base)', lineHeight: 'var(--lh-relaxed)' }}>
                 Want a quick tour? It takes about a minute.
                 <br />
-                <span style={{ fontSize: 'var(--fs-sm)', opacity: 0.7 }}>You can always start it later from Menu → Help.</span>
+                <span style={{ fontSize: 'var(--fs-sm)', opacity: 0.7 }}>You can always start it later from Commands → Help.</span>
               </p>
               <div className="modal-footer" style={{ justifyContent: 'center', gap: 'var(--sp-md)', padding: 0, borderTop: 'none' }}>
                 <button
