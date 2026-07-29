@@ -10,10 +10,11 @@
 
 ## App State
 
-- **Branch:** `main` (`claude/orb-361-phase-2` was fast-forwarded into `main` with the v0.6.246 release)
+- **Branch:** `claude/orb-361-phase-3` — **7 commits ahead of `main`, unmerged, unpushed.**
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.246** — pushed 2026-07-27. `main` == `origin/main`; nothing awaiting a push.
+- **Version:** branch **0.6.252**. `main` == `origin/main` == **v0.6.246**, which is what production runs.
+- **⚠ Three migrations are applied to the LIVE database while the code that uses them is unmerged.** All additive and safe: `projects.urgency_windows` (jsonb, NULL), `todos.reminder_nudge_dismissed_at` (timestamptz, NULL), and a `restore_todos_from_archive` replacement that carries the new column. Production (v0.6.246) never selects any of them, and `jsonb_populate_recordset` reads a missing key as NULL, so Backup & Recovery is unaffected. **Nothing needs undoing if the branch is abandoned** — but do not re-apply them blindly on merge; they are already live and idempotent.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
@@ -33,6 +34,28 @@ Stan paused on 2026-07-26 to weigh whether the AI spend was worth it, then resum
 ---
 
 ## Last Session Completed
+
+**ORB-361 Phase 3 — COMPLETE — 2026-07-28 (Claude Code, Opus 5) — v0.6.247→v0.6.252 — BUILT, UNMERGED, EVALS NOT RUN**
+
+Branch `claude/orb-361-phase-3` (required by concurrency protocol §4 — DB migrations). Seven commits. **`tsc` clean, focused lint 0 errors, UI catalog verifier passes** throughout. **No eval run has happened** — that is the gate before merge.
+
+**3.1 — per-project urgency windows (v0.6.247–248).** `projects.urgency_windows` jsonb, NULL = use defaults. Owner-or-admin (not admin-only: the Settings page this replaced was available to everyone). New **Urgency** button in the dashboard list toolbar → `UrgencyWindowsModal` (reuses `EditorModal` + `modal-lg` + `pf-*`; no new CSS class). Reset writes NULL, never a copy of the defaults, so untouched projects keep tracking them. **`computeUrgency`'s 4th argument changed meaning** — it was one flat override map, now keyed by project id; the old shape was simply wrong for every caller evaluating a mixed-project list. Windows are **value + unit** (hours/days/weeks/months), matching the reminder control; **months are calendar months** via `reminderTriggerInstant`, not 30-day approximations. `isDueWithinWarning` was **deleted** in favour of one `isDueWithinLead` primitive.
+
+**3.2 — Help overhaul (v0.6.249).** The old States table was actively wrong (said busy = ">5 active", urgent = "a P1"). Three sections now, with a small static `OrbStateIcon` beside each state. **The defaults table renders from `DEFAULT_URGENCY_WINDOWS`**, so it cannot go stale again — that staleness was the actual bug. `ORB_STYLE` extracted to `lib/orb-visual.ts` (only the *calm* colours existed as CSS vars); `describeWindowLead` moved to `orb-state.ts` so editor and Help phrase a window identically.
+
+**3.3 — "why is the orb urgent?" (v0.6.250).** The rules already computed which task was responsible and **discarded it**, so the Orb could only guess — confabulation guaranteed structurally, not a prompt weakness. `explainUrgency()` returns mood + drivers from one pass; `computeUrgency` delegates to it. Drivers ride in the health packet as `orb_state_because`, **only for non-calm projects**, capped at 3. **Harness gap closed:** `projectHealthOverride` seeds the packet in evals — the thing ORB-360 deferred its case for.
+
+**3.4 — no-reminder nudge (v0.6.251).** `todos.reminder_nudge_dismissed_at`. "Once" is **structural**: stamped when surfaced, so it cannot fire twice even unanswered; one todo per turn. Declining stamps the same column via `update_todo`'s `dismiss_reminder_nudge` (a tool-only param — the first attempt put it in `parameter_overrides`, where the generator silently ignored it). Never cleared; survives due-date edits. `computeObservations` stays **pure** — the caller stamps, because `buildOrbContext` also serves the eval route and evals must not write to real todos.
+
+**3.4a — explain the window, not just the task (v0.6.252).** Found by Stan in live use: the Orb named the driving task correctly, then quoted the *default* Low window (8 hours) for `chech check`, which is set to 8 days / 3 days. The derivation was right; only the explanation was starved. The packet now carries `orb_windows`, listing **only the priorities a project changed**. This is what the 3.1 prompt rule was written to prevent — a prompt cannot substitute for data the model was never given.
+
+**Repo hygiene, same session.** **`.claude/` untracked** — it was already in `.gitignore` but 103 files predated the rule, including a **full app snapshot frozen at 2026-05-12** (25,097 lines) that any repo-wide grep would hit and could read as current code; its `.git` was an orphaned pointer to the pre-rename `Projects/todos`, so the directory was deleted. **`docs/orb-327-architecture-audit-plan.md` committed** — untracked since 2026-07-14 while all 26 sibling plan docs were tracked; never exceptional, just never `git add`ed. **HANDOFF's standing-exceptions list is gone**: `git status` should be clean, and a permanently dirty status stops being information. Also `AGENTS.md` gained two verification rules ("ruled out" means tested; one pass is not verification).
+
+**Eval counts: Tier 1 78 (+1), Tier 2 36 (+4).** New: `reminder-nudge-decline-dismisses` (T1), `reminder-nudge-decline-does-not-set-a-reminder`, `orb-mood-names-the-driving-task`, `orb-mood-calm-project-has-no-invented-cause`, `orb-window-uses-project-override-not-default` (T2). **None have been run.**
+
+**Deterministic verification (free, ~1s, not eval spend):** 26/26 windows + validator, 26/26 drivers incl. proof `computeUrgency` is unchanged after being rebuilt on `explainUrgency`, 13/13 nudge, 8/8 packet against a rebuild of Stan's live case. Scripts were throwaway — **this is the fourth time such suites have been written and discarded; see Next Priorities.**
+
+**DEFERRED, needs Stan's call:** dismissing the nudge from the **todo editor** (plan §5 mentions it). Not built — the nudge is spent after one showing, so an editor control only serves pre-emptive marking, and the editor already has the Reminder field.
 
 **ORB-361 Phase 2 + ORB-363 + ORB-364 — 2026-07-26/27 (Claude Code, Opus 5) — v0.6.243→v0.6.246 — RELEASED**
 
@@ -287,7 +310,10 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ## Next Priorities
 
-1. **ORB-361 Phase 3** — per-project urgency-window overrides (owner-and-admin, via a dashboard toolbar button), Help overhaul with orb-state icons, "ask Orb why the mood shifted", and the no-reminder nudge with per-todo dismissal. `computeUrgency` already accepts the override argument, so the derivation layer is ready. Then **Phase 4** drops `users.urgency_threshold_hours`. Spec: `docs/per-todo-due-time-and-reminders-plan.md` §9. ORB-361 stays **in progress**.
+1. **Run the evals, then merge ORB-361 Phase 3.** Branch `claude/orb-361-phase-3`, 7 commits, v0.6.252. Tier 1 78 / Tier 2 36; **5 new cases have never been run**. This is the gate — do one full run rather than focused ones, since Phase 3 touched the derivation, the prompt, the contract, and the harness. Then fast-forward into `main` and push.
+2. **ORB-361 Phase 4** (the last phase) — drop `users.urgency_threshold_hours`; verify catalog/matrix/changelog across all phases. Gated by the plan on **production verification of Phases 1–3**, so it needs live use first, not just a merge.
+3. **Decide the deferred editor dismissal** for the no-reminder nudge (plan §5) — pre-emptive marking only; say yes or drop it from the plan.
+4. **The missing deterministic test layer.** Four throwaway suites were written and discarded across ORB-360/361 (due-time math, urgency boundaries, window validation, drivers, nudge, packet rendering) — each ran in ~1s for **$0** and caught real bugs, including a `computeUrgency` regression check that eval cases cannot express. The eval suite costs ~$1.26 a run and guards only the conversation layer. `verify-ui-catalog.js` and `verify-gemini-schema.ts` are existing precedent. **Not filed** — Stan has held this separate from the eval-cost question.
 2. **ORB-363** — cross-check provider spend against Orb's ledger; verify the still-unverified Gemini and ElevenLabs figures; decide the $0 voice budget and the three $0 provider caps (now safe to set); make a warning that has already fired escalate rather than go silent.
 3. **The missing deterministic test layer** — not filed, deliberately. Orb has no code tests; the eval suite is the only guard and it costs real money per run to protect only the conversation layer. Due-date math, urgency derivation and reminder arithmetic are pure functions that would test in ~1s for $0.
 4. **ORB-358 is on hold** — Dictate hidden from the UI (`DICTATE_ENABLED = false`), code intact. The Phase 2 spec (live-streaming rebuild, still below) stays captured for whenever Stan resumes this — not an active priority until he says so.
@@ -324,7 +350,7 @@ Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation beh
 
 ## AI Tool Used Last Session
 
-`2026-07-27 — Claude Code (Opus 5)`
+`2026-07-28 — Claude Code (Opus 5)`
 
 ---
 
