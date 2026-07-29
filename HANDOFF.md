@@ -10,11 +10,11 @@
 
 ## App State
 
-- **Branch:** `claude/orb-361-phase-3` — **11 commits ahead of `main`, unmerged, unpushed.**
+- **Branch:** `main` — `claude/orb-361-phase-3` was fast-forwarded in and **pushed 2026-07-28**. `main` == `origin/main`; nothing awaiting a push.
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** branch **0.6.254**. `main` == `origin/main` == **v0.6.246**, which is what production runs.
-- **⚠ Three migrations are applied to the LIVE database while the code that uses them is unmerged.** All additive and safe: `projects.urgency_windows` (jsonb, NULL), `todos.reminder_nudge_dismissed_at` (timestamptz, NULL), and a `restore_todos_from_archive` replacement that carries the new column. Production (v0.6.246) never selects any of them, and `jsonb_populate_recordset` reads a missing key as NULL, so Backup & Recovery is unaffected. **Nothing needs undoing if the branch is abandoned** — but do not re-apply them blindly on merge; they are already live and idempotent.
+- **Version:** local/canonical **0.6.254** — deployed. Confirm `/api/version` reports it.
+- **All three ORB-361 Phase 3 migrations were applied before the merge** (`projects.urgency_windows`, `todos.reminder_nudge_dismissed_at`, and the `restore_todos_from_archive` extension). Schema led code, which is the safe direction; nothing outstanding.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
 ---
@@ -29,7 +29,7 @@ Stan paused on 2026-07-26 to weigh whether the AI spend was worth it, then resum
 
 **Orb still has no code tests at all** — no test files, no framework in `package.json`, no `test` script. The eval suite is the only automated behavioural guard and covers only the AI conversation layer; due-date math, urgency derivation, reminder arithmetic, REST routes, migrations, auth and RLS have none. Two deterministic suites written during ORB-360/361 (due-time month-clamp/DST/round-trip, and the 13-case urgency boundary table) ran in ~1s for $0 and were thrown away. `verify-ui-catalog.js` and `verify-gemini-schema.ts` are precedent for free deterministic verifiers. **Not filed** — Stan separated the two questions (cheaper AI-behaviour regression vs. adding the missing deterministic layer) and took the first. The second is still open ground.
 
-**Open tickets:** **ORB-363** (P3, open) — cross-check provider spend against Orb's ledger; carries the unverified Gemini/ElevenLabs figures, the $0 voice + provider caps, and the fact that `orb_usage_warnings` dedupes per (scope, billing period) so a warning that fires once never escalates. **ORB-364** (P3, in progress) — eval cost; the cache-TTL fix shipped and its measured result is recorded in the ticket, but the remaining lever below is untouched.
+**Open tickets:** **ORB-367** (P3, open, filed 2026-07-28) — the seven pre-existing Tier 2 failures; deliberately scoped to the *class* (behavioural guarantees rot unnoticed because Tier 2 is the expensive, rarely-run tier) rather than seven individual fixes. **ORB-365** (P2, open, Stan's) — implement code regression tests; the free-deterministic-layer half of the same problem. **ORB-363** (P3, open) — cross-check provider spend against Orb's ledger; carries the unverified Gemini/ElevenLabs figures, the $0 voice + provider caps, and the fact that `orb_usage_warnings` dedupes per (scope, billing period) so a warning that fires once never escalates. **ORB-364** (P3, in progress) — eval cost; the cache-TTL fix shipped and its measured result is recorded in the ticket, but the remaining lever below is untouched.
 
 ---
 
@@ -318,7 +318,7 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ## Next Priorities
 
-1. **Attribute the seven Tier 2 failures, then merge ORB-361 Phase 3.** Branch `claude/orb-361-phase-3`, 11 commits, v0.6.254. **Tier 1 is green 78/78 — the hard gate passes.** The remaining question is whether the seven listed above are pre-existing or caused by Phase 3; run them on `main` to find out. Then fast-forward into `main` and push.
+1. **Verify Phase 3 in production, then ORB-361 Phase 4.** Phase 4 is the last phase and the plan gates it on **production verification of Phases 1–3**, so this needs real use first, not just a deploy. Worth checking on live: a custom urgency window surviving a hard refresh (the SSR bug, v0.6.253); asking the Orb why the orb is urgent (it must name the task — if it ever answers *"I did not actually complete that"*, the false-claim guard is mis-firing again, v0.6.254); and Help → The Orb, whose numbers now render from the live constants.
 2. **ORB-361 Phase 4** (the last phase) — drop `users.urgency_threshold_hours`; verify catalog/matrix/changelog across all phases. Gated by the plan on **production verification of Phases 1–3**, so it needs live use first, not just a merge.
 3. **Decide the deferred editor dismissal** for the no-reminder nudge (plan §5) — pre-emptive marking only; say yes or drop it from the plan.
 4. **The missing deterministic test layer.** Four throwaway suites were written and discarded across ORB-360/361 (due-time math, urgency boundaries, window validation, drivers, nudge, packet rendering) — each ran in ~1s for **$0** and caught real bugs, including a `computeUrgency` regression check that eval cases cannot express. The eval suite costs ~$1.26 a run and guards only the conversation layer. `verify-ui-catalog.js` and `verify-gemini-schema.ts` are existing precedent. **Not filed** — Stan has held this separate from the eval-cost question.
