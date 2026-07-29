@@ -9,6 +9,7 @@ export type OrbBudgetCheck = {
   allowed: boolean
   scope?: BudgetScope
   role: OrbModelRole
+  roleSpentUsd: number
   spentUsd: number
   limitUsd: number
   totalSpentUsd: number
@@ -67,12 +68,12 @@ export async function checkOrbBudget(admin: any, policy: OrbAiPolicy, role: OrbM
   const roleLimitUsd = role === 'strategic' ? policy.strategicBudgetUsd : role === 'voice' ? policy.voiceBudgetUsd : policy.operationalBudgetUsd
 
   if (totalSpentUsd >= policy.monthlyBudgetUsd) {
-    return { allowed: false, scope: 'monthly', role, spentUsd: totalSpentUsd, limitUsd: policy.monthlyBudgetUsd, totalSpentUsd, totalLimitUsd: policy.monthlyBudgetUsd, totalSource: 'ledger' }
+    return { allowed: false, scope: 'monthly', role, roleSpentUsd, spentUsd: totalSpentUsd, limitUsd: policy.monthlyBudgetUsd, totalSpentUsd, totalLimitUsd: policy.monthlyBudgetUsd, totalSource: 'ledger' }
   }
   if (roleSpentUsd >= roleLimitUsd) {
-    return { allowed: false, scope: role, role, spentUsd: roleSpentUsd, limitUsd: roleLimitUsd, totalSpentUsd, totalLimitUsd: policy.monthlyBudgetUsd, totalSource: 'ledger' }
+    return { allowed: false, scope: role, role, roleSpentUsd, spentUsd: roleSpentUsd, limitUsd: roleLimitUsd, totalSpentUsd, totalLimitUsd: policy.monthlyBudgetUsd, totalSource: 'ledger' }
   }
-  return { allowed: true, role, spentUsd: roleSpentUsd, limitUsd: roleLimitUsd, totalSpentUsd, totalLimitUsd: policy.monthlyBudgetUsd, totalSource: 'ledger' }
+  return { allowed: true, role, roleSpentUsd, spentUsd: roleSpentUsd, limitUsd: roleLimitUsd, totalSpentUsd, totalLimitUsd: policy.monthlyBudgetUsd, totalSource: 'ledger' }
 }
 
 export function budgetBlockMessage(check: OrbBudgetCheck): string {

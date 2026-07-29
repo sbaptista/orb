@@ -123,14 +123,15 @@ export default function SettingsAI() {
         <div className="s-form" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 'var(--sp-md)' }}>
           {[
             ['Monthly total', 'monthlyBudgetUsd'],
-            ['Strategic reserve', 'strategicBudgetUsd'],
-            ['Operational reserve', 'operationalBudgetUsd'],
-            ['Voice reserve', 'voiceBudgetUsd'],
+            ['Strategic', 'strategicBudgetUsd'],
+            ['Operational', 'operationalBudgetUsd'],
+            ['Voice', 'voiceBudgetUsd'],
           ].map(([label, key]) => (
             <label key={key}>
               <span className="label">{label}</span>
               <input
                 type="number"
+                className="input"
                 min="0"
                 step="1"
                 value={policy[key as keyof Pick<OrbAiPolicy, 'monthlyBudgetUsd' | 'strategicBudgetUsd' | 'operationalBudgetUsd' | 'voiceBudgetUsd'>]}
@@ -139,7 +140,7 @@ export default function SettingsAI() {
             </label>
           ))}
         </div>
-        {budgetError && <p className="text-sm" style={{ margin: 0, color: 'var(--error)' }}>Strategic, operational, and voice reserves cannot exceed the monthly total.</p>}
+        {budgetError && <p className="text-sm" style={{ margin: 0, color: 'var(--error)' }}>Strategic, operational, and voice limits cannot exceed the monthly total.</p>}
       </div>
 
       <div className="s-card flex-col gap-lg" style={{ marginTop: 'var(--sp-lg)' }}>
@@ -153,6 +154,7 @@ export default function SettingsAI() {
             <span className="label">Warning threshold (%)</span>
             <input
               type="number"
+              className="input"
               min="1"
               max="100"
               step="1"
@@ -160,7 +162,7 @@ export default function SettingsAI() {
               onChange={event => setPolicy(current => ({ ...current, warningThresholdPct: Number(event.target.value) }))}
             />
           </label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 'var(--sp-md)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 'var(--sp-md)', alignItems: 'end' }}>
             {[
               ['Anthropic spend cap ($)', 'anthropicSpendCapUsd'],
               ['OpenAI spend cap ($)', 'openaiSpendCapUsd'],
@@ -170,6 +172,7 @@ export default function SettingsAI() {
                 <span className="label">{label}</span>
                 <input
                   type="number"
+                  className="input"
                   min="0"
                   step="1"
                   value={policy[key as keyof Pick<OrbAiPolicy, 'anthropicSpendCapUsd' | 'openaiSpendCapUsd' | 'geminiSpendCapUsd'>]}

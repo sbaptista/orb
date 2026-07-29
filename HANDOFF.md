@@ -10,10 +10,10 @@
 
 ## App State
 
-- **Branch:** `main` — `claude/orb-361-phase-3` was fast-forwarded in and **pushed 2026-07-28**. `main` == `origin/main`; nothing awaiting a push.
+- **Branch:** `main` — v0.6.255 release approved by Stan; inspect git/production state to confirm the approved push and deployment completed.
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.254** — deployed. Confirm `/api/version` reports it.
+- **Version:** local/canonical **0.6.255** — release approved. Verify `/api/version` before treating production as updated.
 - **All three ORB-361 Phase 3 migrations were applied before the merge** (`projects.urgency_windows`, `todos.reminder_nudge_dismissed_at`, and the `restore_todos_from_archive` extension). Schema led code, which is the safe direction; nothing outstanding.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
@@ -34,6 +34,20 @@ Stan paused on 2026-07-26 to weigh whether the AI spend was worth it, then resum
 ---
 
 ## Last Session Completed
+
+**ORB-369 AI usage warning accuracy + AI Settings number fields — 2026-07-29 (Codex, GPT-5) — v0.6.255 — CLOSED, RELEASE APPROVED**
+
+Verified the bulletin’s exact failure from production data. At the instant it said operational was 253% and strategic was 168%, the ledger actually held operational `$14.588019 / $16` (91%), strategic `$0.607646 / $24` (2.5%), voice `$25.211577 / $0`, and monthly `$40.407242 / $40` (101%). `checkOrbBudget()` intentionally changed `spentUsd` to the monthly blocking value once the total gate fired; the proactive monitor then incorrectly treated that overloaded value as every role’s own spend.
+
+`OrbBudgetCheck` now carries an explicit `roleSpentUsd` while preserving the existing blocking-scope `spentUsd`/`limitUsd` contract. Role warning scopes use the role value; the monthly total is a separate `orb-monthly` scope; warning copy distinguishes approaching, reached, and exceeded limits across tickets, push, email, and broadcasts. A deterministic replay of the exact production figures passed and proved all three role values remain distinct while all three budget checks still block on the same `$40.407242` monthly total.
+
+The attached AI Settings screenshot exposed that every numeric policy field omitted the cataloged `.input` class. Restored that existing Settings pattern across monthly limits, warning threshold, and provider caps: 48px fields, no browser-native spinners, no overflow, and bottom-aligned provider-cap inputs. The monthly labels are now simply `Monthly total`, `Strategic`, `Operational`, and `Voice` — the misleading “reserve” suffix is gone. Visually verified in the signed-in localhost app at Mac 1280px, iPad 1024px, and iPhone 390px. Used the cataloged `s-page` / `s-card` / `s-form` / `.input` family; no new UI pattern or class.
+
+The verified-false live broadcast row was deleted and its absence confirmed. The false `orb-strategic` July dedup row is deliberately retained until v0.6.255 is deployed: deleting it while the old cron is live would recreate the same false warning within 15 minutes. After deployment, delete that one row; the corrected cron will then warn on the genuinely exceeded monthly scope and compose a truthful banner. ORB-369 is closed with attributed resolution notes; Knowledge Repository entry `d37fabe3-6473-4516-8e72-a83718c854bc` records the durable lesson and links the still-accurate ORB-353 entries.
+
+Validation: `npx tsc --noEmit` clean; focused ESLint 0 errors (two pre-existing warnings in `app/api/orb-eval/route.ts`); UI catalog verifier passed; `git diff --check` passed; deterministic production-figure replay passed. No Orb-conversation capability changed, so no eval case or eval run applies. No schema, new query pattern, Realtime subscription, or new user-facing performance path; no database health run or new performance instrumentation required.
+
+---
 
 **ORB-361 Phase 3 — COMPLETE — 2026-07-28 (Claude Code, Opus 5) — v0.6.247→v0.6.252 — BUILT, UNMERGED, EVALS NOT RUN**
 
@@ -297,7 +311,7 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ## Current Uncommitted Changes
 
-*(none)*
+*(none after the approved v0.6.255 commit)*
 
 **There are no standing exceptions any more (cleared 2026-07-28).** `git status` should be clean; if something is sitting in it, deal with it rather than adding it to a list of things to step around. Both long-standing entries turned out to be mistakes wearing a policy label, in opposite directions:
 
@@ -308,6 +322,7 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ## Active Risks / Unresolved Work
 
+- **ORB-369 post-deploy cleanup:** delete only the false `orb-strategic` / `2026-07` row from `orb_usage_warnings` after v0.6.255 is live. It remains intentionally while production runs the old monitor so the false push/email/banner cannot refire.
 - **ORB-342 (serial/Realtime convergence) is filed but not attempted.** Three separate pending-mutation mechanisms still exist (serial todo-batch: client-held; serial project/knowledge: DB-backed; Realtime: DB-backed, most robust). `propose_todo_batch` is meant as the start of a shared canonical pattern, not the convergence itself.
 - **`onMutation` in `components/UnifiedDashboard.tsx` only refetches todos, never projects**, after any mutation — flagged to Stan, not yet fixed. `switch_project` can silently no-op against a stale local project list while the server still speaks a false success confirmation.
 - **ORB-337 migration + v0.6.217 release cycle is complete** — production maintenance confirmed ended by Stan 2026-07-18. The emergency rollback script remains emergency-only; do not run it outside a genuine incident.
@@ -358,7 +373,7 @@ Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation beh
 
 ## AI Tool Used Last Session
 
-`2026-07-28 — Claude Code (Opus 5)`
+`2026-07-29 — Codex (GPT-5)`
 
 ---
 

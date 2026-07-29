@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.255',
+    date: '2026-07-29',
+    changes: [
+      'Fixed an AI-usage bulletin that showed 253% operational and 168% strategic usage. Once the $40 monthly total was reached, the warning monitor mistakenly divided that same total by each role reserve. Role warnings now keep their own spend, and the monthly total is reported once as its own scope with truthful approaching/reached/exceeded language (ORB-369).',
+      'AI Settings number fields now use Orb’s standard form treatment: consistent field sizing without browser-native spinner controls, with the provider-cap row aligned cleanly on iPhone.',
+    ],
+  },
+  {
     version: 'v0.6.254',
     date: '2026-07-28',
     changes: [

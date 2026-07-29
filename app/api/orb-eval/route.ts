@@ -345,6 +345,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         allowed: false,
         scope: budgetOverride === 'monthly' ? 'monthly' : routeRole,
         role: routeRole,
+        roleSpentUsd: 40,
         spentUsd: 40,
         limitUsd: 40,
         totalSpentUsd: 40,

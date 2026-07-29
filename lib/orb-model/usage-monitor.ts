@@ -210,9 +210,10 @@ async function collectScopes(admin: ReturnType<typeof createAdminClient>): Promi
   ])
 
   const scopes: ScopeResult[] = [
-    { key: 'orb-operational', label: 'Orb operational budget', usedUsd: operational.spentUsd, limitUsd: policy.operationalBudgetUsd, provider: policy.operationalProvider, role: 'operational' },
-    { key: 'orb-strategic', label: 'Orb strategic budget', usedUsd: strategic.spentUsd, limitUsd: policy.strategicBudgetUsd, provider: policy.strategicProvider, role: 'strategic' },
-    { key: 'orb-voice', label: 'Orb voice budget', usedUsd: voice.spentUsd, limitUsd: policy.voiceBudgetUsd, provider: 'openai', role: 'voice' },
+    { key: 'orb-monthly', label: 'Orb monthly AI budget', usedUsd: operational.totalSpentUsd, limitUsd: operational.totalLimitUsd, provider: null, role: null },
+    { key: 'orb-operational', label: 'Orb operational budget', usedUsd: operational.roleSpentUsd, limitUsd: policy.operationalBudgetUsd, provider: policy.operationalProvider, role: 'operational' },
+    { key: 'orb-strategic', label: 'Orb strategic budget', usedUsd: strategic.roleSpentUsd, limitUsd: policy.strategicBudgetUsd, provider: policy.strategicProvider, role: 'strategic' },
+    { key: 'orb-voice', label: 'Orb voice budget', usedUsd: voice.roleSpentUsd, limitUsd: policy.voiceBudgetUsd, provider: 'openai', role: 'voice' },
   ]
   if (anthropicSpent != null && policy.anthropicSpendCapUsd > 0) {
     scopes.push({ key: 'anthropic-org', label: 'Anthropic organization spend', usedUsd: anthropicSpent, limitUsd: policy.anthropicSpendCapUsd, provider: 'anthropic', role: null, reconciliationProvider: 'anthropic' })
@@ -261,18 +262,25 @@ function scopeDisplayLabel(scope: ScopeResult): string {
   return scope.label
 }
 
+function scopeWarningText(scope: ScopeResult, percent: number): string {
+  const displayLabel = scopeDisplayLabel(scope)
+  if (percent > 100) return `${displayLabel} has exceeded its limit (${percent.toFixed(0)}%)`
+  if (percent >= 100) return `${displayLabel} has reached its limit (100%)`
+  return `${displayLabel} is approaching its limit (${percent.toFixed(0)}%)`
+}
+
 async function pushAndEmailAdmins(admin: ReturnType<typeof createAdminClient>, scope: ScopeResult, percent: number) {
   const { data: admins, error: adminsError } = await admin.from('users').select('id, email').in('role_id', [1, 3])
   if (adminsError || !admins?.length) return
 
-  const displayLabel = scopeDisplayLabel(scope)
   const providerText = scope.provider ? providerLabel(scope.provider) : 'Orb'
-  const summary = `${displayLabel} approaching its limit (${percent.toFixed(0)}%) — Orb AI`
+  const warningText = scopeWarningText(scope, percent)
+  const summary = `${warningText} — Orb AI`
   const consoleUrl = scope.provider ? providerConsoleUrl(scope.provider) : undefined
   const consoleAction = consoleUrl
     ? `<p style="margin: 0; font-size: 15px;"><strong>Action:</strong> Review the <a href="${consoleUrl}" style="color: #2d5a2d;">${providerText} console</a>.</p>`
     : ''
-  const html = `<!DOCTYPE html><html><body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; color: #2a332a; line-height: 1.6; background: #e8ede8;"><div style="background: #f2f5f2; border: 2px solid #7a5010; border-radius: 8px; padding: 28px;"><h2 style="margin: 0 0 16px; color: #2a332a;">${displayLabel} is approaching its limit</h2><p style="margin: 0 0 12px;">Currently at <strong>${percent.toFixed(0)}%</strong> of the configured limit ($${scope.usedUsd.toFixed(2)} of $${scope.limitUsd.toFixed(2)}).</p>${consoleAction}</div></body></html>`
+  const html = `<!DOCTYPE html><html><body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; color: #2a332a; line-height: 1.6; background: #e8ede8;"><div style="background: #f2f5f2; border: 2px solid #7a5010; border-radius: 8px; padding: 28px;"><h2 style="margin: 0 0 16px; color: #2a332a;">${warningText}</h2><p style="margin: 0 0 12px;">Currently at <strong>${percent.toFixed(0)}%</strong> of the configured limit ($${scope.usedUsd.toFixed(2)} of $${scope.limitUsd.toFixed(2)}).</p>${consoleAction}</div></body></html>`
 
   await createTicket({
     source: 'orb-auto',
@@ -335,8 +343,8 @@ async function writeAutoBroadcast(
   // one), so if scope B crosses while scope A is already showing, the
   // banner correctly describes both.
   const message = overThreshold.length === 1
-    ? `${scopeDisplayLabel(overThreshold[0].scope)} is at ${overThreshold[0].percent.toFixed(0)}% of its limit.`
-    : `${overThreshold.length} AI usage scopes are approaching their limits: ${overThreshold.map(w => `${scopeDisplayLabel(w.scope)} (${w.percent.toFixed(0)}%)`).join(', ')}.`
+    ? `${scopeWarningText(overThreshold[0].scope, overThreshold[0].percent)}.`
+    : `${overThreshold.length} AI usage scopes need attention: ${overThreshold.map(w => scopeWarningText(w.scope, w.percent)).join('; ')}.`
 
   await admin.from('system_settings').upsert({
     key: 'broadcast_message',
