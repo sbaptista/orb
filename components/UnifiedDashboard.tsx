@@ -5,7 +5,7 @@ import { readStreamableValue } from 'ai/rsc'
 import { useRouter } from 'next/navigation'
 // Link removed — global nav moved to AppNav
 import { createClient } from '@/lib/supabase/client'
-import { visibleProjectsQuery, clampProjectName, resolveProjectByReference } from '@/lib/projects'
+import { visibleProjectsQuery, clampProjectName, resolveProjectByReference, DASHBOARD_PROJECT_FIELDS } from '@/lib/projects'
 import AddProductModal from './AddProductModal'
 import AppNav from './AppNav'
 import SearchModal from './ui/SearchModal'
@@ -480,7 +480,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   async function refreshProjects() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
-    const dq = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode, urgency_windows')
+    const dq = visibleProjectsQuery(supabase, DASHBOARD_PROJECT_FIELDS)
     const { data: freshProducts } = (authUser && !isAdmin) ? await dq.eq('created_by', authUser.id) : await dq
     const list = (freshProducts ?? []) as Product[]
     setProducts(list)
@@ -889,7 +889,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           return
         }
 
-        const q = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode, urgency_windows')
+        const q = visibleProjectsQuery(supabase, DASHBOARD_PROJECT_FIELDS)
         const { data } = (authUser && !isAdmin) ? await q.eq('created_by', authUser.id) : await q
         perf.mark('projects_loaded')
         const list = (data ?? []) as Product[]

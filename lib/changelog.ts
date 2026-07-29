@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.253',
+    date: '2026-07-28',
+    changes: [
+      'Fixed: custom urgency windows appeared to revert after a browser refresh. They were never lost — the database was correct the whole time — but the page load fetched projects without the windows column, so the orb quietly fell back to the shared defaults until something triggered a re-fetch (ORB-361).',
+    ],
+  },
+  {
     version: 'v0.6.252',
     date: '2026-07-28',
     changes: [

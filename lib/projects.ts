@@ -38,6 +38,19 @@ export function resolveProjectByReference<T extends { name: string; code?: strin
   return null
 }
 
+/**
+ * The project fields the dashboard needs, in one place.
+ *
+ * This list was hand-copied across four call sites — two server pages that
+ * seed `initialProducts`, and two client refetches. ORB-361 Phase 3 added
+ * `urgency_windows` to the client ones and missed the server ones, so a fresh
+ * page load silently fell back to the default urgency windows: the setting
+ * looked like it "reverted" on refresh while the database was correct all
+ * along. Any field the dashboard reads belongs here, not in a call site.
+ */
+export const DASHBOARD_PROJECT_FIELDS =
+  'id, name, code, description, created_by, view_mode, urgency_windows'
+
 export function visibleProjectsQuery(supabase: SupabaseClient, select = '*') {
   return supabase
     .from('projects')

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { resolveUser } from '@/lib/resolve-user'
 import { redirect } from 'next/navigation'
-import { visibleProjectsQuery } from '@/lib/projects'
+import { visibleProjectsQuery, DASHBOARD_PROJECT_FIELDS } from '@/lib/projects'
 import UnifiedDashboard from '@/components/UnifiedDashboard'
 import PasskeyGate from '@/components/PasskeyGate'
 
@@ -23,7 +23,7 @@ export default async function DashboardPage() {
 
   const isAdmin = result.user.role_id === 1 || result.user.role_id === 3
 
-  const query = visibleProjectsQuery(supabase, 'id, name, code, description, created_by, view_mode')
+  const query = visibleProjectsQuery(supabase, DASHBOARD_PROJECT_FIELDS)
   const { data } = isAdmin ? await query : await query.eq('created_by', user.id)
 
   return (
