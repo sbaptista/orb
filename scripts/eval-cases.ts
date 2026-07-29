@@ -866,16 +866,13 @@ Use this as the neutral project-health data surface for broad project summaries.
 - Orb: owner="Stan Baptista"; owned_by_current_user=true; dormant=false; active=3; parked=0; closed=0; urgent=1; in_progress=1; stale_active=0; orb_state=urgent; orb_state_because=[ORB-412 "Renew the domain certificate" is past due (2026-07-20T09:00:00+00:00)]; recent_14d={momentum:quiet, created:1, closed:0, updated:1, moved_to_in_progress:0, parked:0, last:2026-07-27T00:00:00.000Z, signals:[urgent_work_present]}`,
     input: 'Why is the orb urgent right now?',
     tier: 2,
-    // KNOWN RED as of 2026-07-28 — the case is right, the product is not.
-    // isFalseCompletionClaim (lib/orb-model/false-claim-guard.ts) replaces the
-    // whole answer with "I did not actually complete that" because ORB-412 is
-    // cited from neither a tool call nor history — it comes from the health
-    // packet, which the guard does not know is a legitimate source. Phase 3.3
-    // gave the Orb evidence to name a task and the guard treats naming it as a
-    // phantom citation. The guard is SHARED WITH PRODUCTION
-    // (orb-converse.ts:1132), so this is a product defect, not a harness one.
-    // Do not "fix" this case by adding history that contains the code — that
-    // hides the defect. Fix the guard to accept context-packet codes.
+    // Was red on 2026-07-28: isFalseCompletionClaim replaced the whole answer
+    // with "I did not actually complete that", because ORB-412 is cited from
+    // neither a tool call nor history — it comes from the health packet, which
+    // the guard did not count as a source. Fixed by including the health and
+    // next-step packets in the known-code set (v0.6.254). Do NOT "fix" a future
+    // regression here by adding history containing the code; that hides the
+    // defect this case exists to catch.
     // 3 or fewer = all must match: the specific task, and the actual reason.
     speechContains: ['ORB-412', 'past due'],
     // Must not reach for the generic definition instead of the evidence it has.

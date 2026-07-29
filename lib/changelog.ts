@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.254',
+    date: '2026-07-28',
+    changes: [
+      'Fixed: asking the Orb why the orb is urgent could get its answer replaced by "I did not actually complete that". A safety check that stops the Orb claiming credit for work it never did was counting the task it named as a fabrication, because that name came from its own briefing rather than from a lookup. It now recognises anything it was actually shown (ORB-361).',
+    ],
+  },
+  {
     version: 'v0.6.253',
     date: '2026-07-28',
     changes: [

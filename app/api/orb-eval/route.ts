@@ -507,7 +507,10 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     }
 
     const historyCodes = extractCitedCodes(
-      `${(history ?? []).map(h => h.text).join(' ')} ${input} ${todoList.map((todo: any) => todoCode(todo, productList)).join(' ')} ${strategicContextPacket?.backlog ?? ''} ${contextString}`,
+      // projectHealthContext/nextStepContext included for the same reason as
+      // production: a code the model was shown in its own system prompt is not
+      // a phantom citation. See orb-converse.ts.
+      `${(history ?? []).map(h => h.text).join(' ')} ${input} ${todoList.map((todo: any) => todoCode(todo, productList)).join(' ')} ${strategicContextPacket?.backlog ?? ''} ${contextString} ${projectHealthContext} ${nextStepContext}`,
     )
     // Codes this response's own tool calls are working with count as
     // legitimate provenance too — a delete_todo call citing TEST-1 in its

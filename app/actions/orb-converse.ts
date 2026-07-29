@@ -801,6 +801,14 @@ export async function orbConverse(req: OrbRequest) {
         // answered without calling query_tickets, which is legitimate) is not a
         // phantom citation just because no tool produced it this turn.
         + ' ' + ctx.contextString
+        // ORB-361 Phase 3.3 added orb_state_because to the project-health
+        // packet so the Orb can name the task driving the orb's mood. Those
+        // codes come from the packet, not from a tool call or history, so
+        // without this the guard called a correct, grounded answer a phantom
+        // citation and replaced it with "I did not actually complete that".
+        // Any code the model was actually SHOWN is legitimate provenance.
+        + ' ' + (ctx.projectHealthContext ?? '')
+        + ' ' + (ctx.nextStepContext ?? '')
       )
 
       const pendingTodoOps = pendingTodoOperations(req.pendingMutation)
