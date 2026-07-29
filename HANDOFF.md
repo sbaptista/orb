@@ -10,10 +10,10 @@
 
 ## App State
 
-- **Branch:** `claude/orb-361-phase-3` — **7 commits ahead of `main`, unmerged, unpushed.**
+- **Branch:** `claude/orb-361-phase-3` — **11 commits ahead of `main`, unmerged, unpushed.**
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** branch **0.6.252**. `main` == `origin/main` == **v0.6.246**, which is what production runs.
+- **Version:** branch **0.6.254**. `main` == `origin/main` == **v0.6.246**, which is what production runs.
 - **⚠ Three migrations are applied to the LIVE database while the code that uses them is unmerged.** All additive and safe: `projects.urgency_windows` (jsonb, NULL), `todos.reminder_nudge_dismissed_at` (timestamptz, NULL), and a `restore_todos_from_archive` replacement that carries the new column. Production (v0.6.246) never selects any of them, and `jsonb_populate_recordset` reads a missing key as NULL, so Backup & Recovery is unaffected. **Nothing needs undoing if the branch is abandoned** — but do not re-apply them blindly on merge; they are already live and idempotent.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
@@ -50,6 +50,14 @@ Branch `claude/orb-361-phase-3` (required by concurrency protocol §4 — DB mig
 **3.4a — explain the window, not just the task (v0.6.252).** Found by Stan in live use: the Orb named the driving task correctly, then quoted the *default* Low window (8 hours) for `chech check`, which is set to 8 days / 3 days. The derivation was right; only the explanation was starved. The packet now carries `orb_windows`, listing **only the priorities a project changed**. This is what the 3.1 prompt rule was written to prevent — a prompt cannot substitute for data the model was never given.
 
 **Repo hygiene, same session.** **`.claude/` untracked** — it was already in `.gitignore` but 103 files predated the rule, including a **full app snapshot frozen at 2026-05-12** (25,097 lines) that any repo-wide grep would hit and could read as current code; its `.git` was an orphaned pointer to the pre-rename `Projects/todos`, so the directory was deleted. **`docs/orb-327-architecture-audit-plan.md` committed** — untracked since 2026-07-14 while all 26 sibling plan docs were tracked; never exceptional, just never `git add`ed. **HANDOFF's standing-exceptions list is gone**: `git status` should be clean, and a permanently dirty status stops being information. Also `AGENTS.md` gained two verification rules ("ruled out" means tested; one pass is not verification).
+
+**EVAL RESULT (Stan, 2026-07-28): Tier 1 78/78 — the hard gate is GREEN. Tier 2 27/36, then 29/36 after two fixes below.** Of the 5 new cases, 3 passed first time; the other two were re-run 3/3 each after fixing.
+
+**The run found one real product defect (v0.6.254).** `isFalseCompletionClaim` blocks speech citing a task code from neither a tool call nor history — and Phase 3.3's `orb_state_because` codes come from the health packet, which the guard had never been told about. So "why is the orb urgent?" could have a correct answer replaced wholesale by *"I did not actually complete that."* The guard is shared with production. Fixed by adding the health/next-step packets to the known-code set; only the phantom-code branch widened, the completion-language branch is untouched. **Live use never hit this** because both call sites already seed from `ctx.todoList`, so real codes were always legitimate — the eval case cites a *fabricated* code, which is exactly why it caught what live use could not.
+
+**One assertion of mine was wrong (`orb-window-uses-project-override-not-default`).** It forbade '8 hours' to catch the default being quoted, but the model passed by naming the project's real windows *and* contrasting them with the defaults — a better answer than the one demanded.
+
+**⚠ SEVEN pre-existing Tier 2 failures are UNATTRIBUTED.** `greeting-no-automatic-summary`, `no-knowledge-delete-tool`, `project-count-distinguishes-visible-from-active-task-projects`, `mutation-approval`, `unsupported-commitment-no-false-promise`, `project-role-correction-offers-to-remember`, `propose-adaptation-after-repeated-correction`. **No baseline exists** — Tier 2 has not been run in full for many sessions, so it is unknown whether these predate Phase 3. Two of them (`greeting-no-automatic-summary`, `project-role-correction-offers-to-remember`) failed by producing long urgency-heavy answers naming real overdue tasks, and Phase 3.3 made exactly that data more prominent in every prompt — **a plausible connection, untested**. Cheapest way to settle it: run those seven on `main`. Do this before merging.
 
 **Eval counts: Tier 1 78 (+1), Tier 2 36 (+4).** New: `reminder-nudge-decline-dismisses` (T1), `reminder-nudge-decline-does-not-set-a-reminder`, `orb-mood-names-the-driving-task`, `orb-mood-calm-project-has-no-invented-cause`, `orb-window-uses-project-override-not-default` (T2). **None have been run.**
 
@@ -310,7 +318,7 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ## Next Priorities
 
-1. **Run the evals, then merge ORB-361 Phase 3.** Branch `claude/orb-361-phase-3`, 7 commits, v0.6.252. Tier 1 78 / Tier 2 36; **5 new cases have never been run**. This is the gate — do one full run rather than focused ones, since Phase 3 touched the derivation, the prompt, the contract, and the harness. Then fast-forward into `main` and push.
+1. **Attribute the seven Tier 2 failures, then merge ORB-361 Phase 3.** Branch `claude/orb-361-phase-3`, 11 commits, v0.6.254. **Tier 1 is green 78/78 — the hard gate passes.** The remaining question is whether the seven listed above are pre-existing or caused by Phase 3; run them on `main` to find out. Then fast-forward into `main` and push.
 2. **ORB-361 Phase 4** (the last phase) — drop `users.urgency_threshold_hours`; verify catalog/matrix/changelog across all phases. Gated by the plan on **production verification of Phases 1–3**, so it needs live use first, not just a merge.
 3. **Decide the deferred editor dismissal** for the no-reminder nudge (plan §5) — pre-emptive marking only; say yes or drop it from the plan.
 4. **The missing deterministic test layer.** Four throwaway suites were written and discarded across ORB-360/361 (due-time math, urgency boundaries, window validation, drivers, nudge, packet rendering) — each ran in ~1s for **$0** and caught real bugs, including a `computeUrgency` regression check that eval cases cannot express. The eval suite costs ~$1.26 a run and guards only the conversation layer. `verify-ui-catalog.js` and `verify-gemini-schema.ts` are existing precedent. **Not filed** — Stan has held this separate from the eval-cost question.
