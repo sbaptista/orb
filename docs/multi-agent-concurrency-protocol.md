@@ -2,7 +2,7 @@
 
 **Status:** Adopted 2026-07-02 by Stan. Binding on all writable AI agents working in this repo.
 **Amended 2026-07-02** (post-adoption polish, requested by Codex, approved by Stan): clarified claim-file commit semantics in §2 — claims are working-tree signals, not audit records.
-**Amended 2026-07-29** (approved by Stan after a live collision): §3 release bookkeeping is now **mandatory**, not conventional. Two agents independently released under v0.6.256 on the same day; one change reached production undocumented.
+**Amended 2026-07-29** (approved by Stan after a live collision): §3 release bookkeeping is now **mandatory**, not conventional. A later release reused v0.6.256 from stale branch/session state and omitted part of its release bookkeeping.
 **Origin:** `docs/multi-agent-concurrency-protocol-proposal.md` — drafted by Claude Code, refined to consensus with Codex, approved by Stan. Consult the proposal only for history/rationale.
 **Single source of truth:** this file holds ALL concurrency rules. `AGENTS.md` ("Multi-Agent Concurrency Protocol") and `ACTIVE_WORK/README.md` are thin pointers to this file and deliberately restate nothing. Any change to the protocol is made **here only** — never introduce rule text, summaries, or templates in the pointer files, or they will drift.
 
@@ -61,7 +61,7 @@ ACTIVE_WORK/
 
 **You MUST hold this claim before editing any of those four files.** This is not a convention or a courtesy — an agent that edits them without the claim is violating the protocol, even if the edit is one line and even if the other agent's ledger reads `*(none)*`.
 
-**Why it was made mandatory (2026-07-29).** It was previously written as a procedure and treated as advisory, and both agents skipped it on the same day. Codex used **v0.6.256** for ORB-366 while Claude Code independently used **v0.6.256** for ORB-361 Phase 4. Both shipped under one version number, only one got a changelog entry, and a substantial navigation change reached production undocumented in "What's New". Nothing was lost and no code broke — but the version number stopped identifying a release, which is the one job it has. **The protocol did not fail; it was simply not used.**
+**Why it was made mandatory (2026-07-29).** Git shows that ORB-366 produced a complete **v0.6.256** release record. Claude Code later reused **v0.6.256** for ORB-361 Phase 4 from stale branch/session state, changed only `package.json`, and did not add Phase 4 to `lib/changelog.ts` or advance `lib/version.ts`. Both changes shipped under one number, so the version stopped identifying a single release state. Nothing was lost and no code broke, but the published history became ambiguous. The claim ledger cannot establish retrospectively whether either agent held the claim: §2 deliberately makes claims uncommitted working-tree signals with no audit history. Making the claim explicit and mandatory protects concurrent work in real time; rereading the canonical files immediately before choosing a version protects against stale branch and session state.
 
 Procedure for the holder:
 

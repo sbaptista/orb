@@ -10,11 +10,11 @@
 
 ## App State
 
-- **Branch:** `main` == `origin/main`. ORB-366 and ORB-361 (all five phases) are both **released**.
+- **Branch:** `main` == `origin/main`. ORB-366, ORB-361 (all five phases), and the v0.6.258 release-history reconciliation are **released**.
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.257**. v0.6.256 was pushed 2026-07-29 (`1999ad0`); the 0.6.257 bump documents ORB-366 in the changelog and is not yet pushed.
-- **⚠ VERSION COLLISION, resolved retroactively.** Codex claimed v0.6.256 for ORB-366 while Claude Code independently used v0.6.256 for ORB-361 Phase 4, in the same window — the release-bookkeeping claim (protocol §3) was not held by either. Both shipped under one version number, and only Phase 4 had a changelog entry. ORB-366's user-facing changes are now documented under **v0.6.257**. The code was never at risk; the bookkeeping was.
+- **Version:** local/canonical **0.6.258** — documentation reconciliation only, released.
+- **⚠ VERSION COLLISION, reconciled in v0.6.258.** The claim ledger cannot establish after the fact whether the release-bookkeeping claim was held: claims are intentionally uncommitted working-tree signals and leave no audit history. Git does establish that ORB-366 produced matching v0.6.256 entries in `package.json`, `lib/version.ts`, and `lib/changelog.ts`. Claude Code’s later ORB-361 Phase 4 commit reused v0.6.256 from stale branch/session state and changed only `package.json`; it did not add the column removal to the v0.6.256 changelog or advance `lib/version.ts`. Both changes therefore shipped under v0.6.256. The first repair, v0.6.257, duplicated ORB-366 instead of recording Phase 4. v0.6.258 now preserves ORB-366 under the version it actually shipped in, adds Phase 4 to that release, and records v0.6.257 accurately as bookkeeping-only. The code was never at risk; the release history was.
 - **⚠ ORB-366 was pushed before its stated gate.** Its handoff entry said "Production push awaits Stan's mandatory Tier 1 run"; Claude Code pushed the range without checking what else it contained. Stan's 76/78 Tier 1 run covered that commit, and ORB-366 changed no Orb-conversation capability, so the exposure was low — but the lesson stands: verify the push range, not just your own commits.
 - **All three ORB-361 Phase 3 migrations were applied before the merge** (`projects.urgency_windows`, `todos.reminder_nudge_dismissed_at`, and the `restore_todos_from_archive` extension). Schema led code, which is the safe direction; nothing outstanding.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
@@ -37,7 +37,7 @@ Stan paused on 2026-07-26 to weigh whether the AI spend was worth it, then resum
 
 ## Last Session Completed
 
-**ORB-366 topbar and Projects bar — 2026-07-29 (Codex, GPT-5) — v0.6.256 — CLOSED, COMMITTED LOCALLY, PUSH AWAITS TIER 1**
+**ORB-366 topbar and Projects bar — 2026-07-29 (Codex, GPT-5) — v0.6.256 — CLOSED AND RELEASED**
 
 Project-scoped controls now live in a dedicated right-aligned Projects bar inside the List pane, directly above the existing list toolbar. Change Project and + Project retain their existing search/create behavior and 44px icon-and-label targets; the create-modal performance span was preserved and the previously unmeasured search-modal open now has its own immediate dashboard interaction span.
 
@@ -47,9 +47,11 @@ Settings is no longer duplicated inside Commands. The dialog now always contains
 
 The browser-global `todos_last_product_id` key was the wrong source of truth: an admin session could legitimately resolve a project chosen under another account. Migration `20260729_orb_366_current_project.sql` added nullable `users.current_project_id → projects.id ON DELETE SET NULL` and backfilled all three live users to their first active owned project. Dashboard initialization now validates that per-user value against visible projects, explicit switches persist through the existing own-user RLS policy, and the legacy key is deleted. Shared AppNav routes resolve the same database preference server-side and repair missing/dormant state without Realtime. Live verification switched Stanley’s current project back to Orb and confirmed the user row, then confirmed Settings Print exposes enabled `Current Project — Orb only`.
 
-Validation: Stan approved the complete change after checking Mac, iPad, and iPhone. `npx tsc --noEmit` passed once after the complete database wiring; `npm run build` passed once at v0.6.256; focused lint has 0 errors and 8 pre-existing UnifiedDashboard warnings; UI catalog verification and `git diff --check` passed. The migration’s second run completed with `UPDATE 0`, verifying idempotence. Signed-in localhost visual checks passed on Mac (1280px), iPad (820px), and iPhone (390px), including Dashboard, Settings, Help, Account, the Commands dialog, current/disabled states, version removal, and right-aligned project controls. The revised tour was also exercised through all new target points on desktop and at 390px; the mobile Projects and Views steps both exposed visible List-pane targets. Browser console had zero warnings/errors. No Orb conversation capability changed, so no eval case was added; the standing production Tier 1 gate still applies before push.
+Validation: Stan approved the complete change after checking Mac, iPad, and iPhone. `npx tsc --noEmit` passed once after the complete database wiring; `npm run build` passed once at v0.6.256; focused lint has 0 errors and 8 pre-existing UnifiedDashboard warnings; UI catalog verification and `git diff --check` passed. The migration’s second run completed with `UPDATE 0`, verifying idempotence. Signed-in localhost visual checks passed on Mac (1280px), iPad (820px), and iPhone (390px), including Dashboard, Settings, Help, Account, the Commands dialog, current/disabled states, version removal, and right-aligned project controls. The revised tour was also exercised through all new target points on desktop and at 390px; the mobile Projects and Views steps both exposed visible List-pane targets. Browser console had zero warnings/errors. No Orb conversation capability changed, so no eval case was added. The pushed range later reached the final ORB-361 Tier 1 position of 77/77.
 
 Database impact: one nullable FK column and one low-frequency preference write per explicit project selection. No index is needed because reads locate the user by primary key; no query filters by `current_project_id`. No Realtime subscription. The canonical pre/post health audits were stable; schema/FK/backfill and the authenticated write were verified live. The health protocol flagged dead-row percentages above 20% on several tiny public tables; `VACUUM ANALYZE` completed for all nine flagged public tables and a follow-up returned zero remaining flagged public tables. Auth-schema tables were observed but not mutated. Performance instrumentation was required because modal-open workflows moved; project-create coverage remains and project-search modal-open coverage was added. The existing list-settled span remains the perceived project-switch measure, while persistence is fire-and-forget.
+
+Post-release reconciliation: no ORB-366 implementation or UI-contract file changed between its completing commit `d8ee27e` and the current `origin/main`. Claude Code’s later changes in the collision window were release documentation and the separate ORB-361 Phase 4 migration; they did not adjust the navigation, tour, Print behavior, or per-user current-project implementation.
 
 ---
 
@@ -323,7 +325,7 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ## Current Uncommitted Changes
 
-*(none after the approved v0.6.255 commit)*
+*(none after the v0.6.258 reconciliation commit)*
 
 **There are no standing exceptions any more (cleared 2026-07-28).** `git status` should be clean; if something is sitting in it, deal with it rather than adding it to a list of things to step around. Both long-standing entries turned out to be mistakes wearing a policy label, in opposite directions:
 
@@ -343,27 +345,17 @@ The previous Realtime design was a **client-side manual turn/response state mach
 
 ---
 
-## Uncommitted Changes
-
-*(none after the ORB-366 completing commit)*
-
----
-
 ## Next Priorities
 
-1. **Stan runs `npm run eval:t1` for the v0.6.256 production gate.** ORB-366 is closed and the local release commit is approved; after Stan reports Tier 1 green, push the committed `main` state using the approval already given in this session.
-2. **Verify Phase 3 in production, then ORB-361 Phase 4.** Phase 4 is the last phase and the plan gates it on **production verification of Phases 1–3**, so this needs real use first, not just a deploy. Worth checking on live: a custom urgency window surviving a hard refresh (the SSR bug, v0.6.253); asking the Orb why the orb is urgent (it must name the task — if it ever answers *"I did not actually complete that"*, the false-claim guard is mis-firing again, v0.6.254); and Help → The Orb, whose numbers now render from the live constants.
-2. **Decide the deferred editor dismissal** for the no-reminder nudge (plan §5) — pre-emptive marking only; say yes or drop it from the plan.
-3. **The missing deterministic test layer.** Four throwaway suites were written and discarded across ORB-360/361 (due-time math, urgency boundaries, window validation, drivers, nudge, packet rendering) — each ran in ~1s for **$0** and caught real bugs, including a `computeUrgency` regression check that eval cases cannot express. The eval suite costs ~$1.26 a run and guards only the conversation layer. `verify-ui-catalog.js` and `verify-gemini-schema.ts` are existing precedent. **Not filed** — Stan has held this separate from the eval-cost question.
+1. **Decide the deferred editor dismissal** for the no-reminder nudge (plan §5) — pre-emptive marking only; say yes or drop it from the plan.
 2. **ORB-363** — cross-check provider spend against Orb's ledger; verify the still-unverified Gemini and ElevenLabs figures; decide the $0 voice budget and the three $0 provider caps (now safe to set); make a warning that has already fired escalate rather than go silent.
 3. **The missing deterministic test layer** — not filed, deliberately. Orb has no code tests; the eval suite is the only guard and it costs real money per run to protect only the conversation layer. Due-date math, urgency derivation and reminder arithmetic are pure functions that would test in ~1s for $0.
-4. **ORB-358 is on hold** — Dictate hidden from the UI (`DICTATE_ENABLED = false`), code intact. The Phase 2 spec (live-streaming rebuild, still below) stays captured for whenever Stan resumes this — not an active priority until he says so.
+4. **ORB-358 is on hold** — Dictate hidden from the UI (`DICTATE_ENABLED = false`), code intact. The Phase 2 spec stays captured for whenever Stan resumes this.
 5. **ORB-354** — verify successful registration, a simulated/reproducible failure, committed-credential reconciliation, and Continue-to-Orb recovery on the production domain before closing.
 6. **ORB-357** — plan complete per-project category CRUD and lifecycle before restoring Category to todo editors (currently Deferred).
 7. **ORB-342** — the fuller serial/Realtime pending-mutation convergence (three mechanisms → one shared pattern), once `propose_todo_batch` has some real-world use.
-8. **The `onMutation` project-list-refresh gap** in `UnifiedDashboard.tsx` — decide whether it's its own fix or folds into ORB-342.
+8. **The `onMutation` project-list-refresh gap** in `UnifiedDashboard.tsx` — decide whether it is its own fix or folds into ORB-342.
 9. **ORB-292** — user-facing Value/Balanced/Deep-Thinking modes, per-user allowances, consent-based tuning proposals.
-10. Continued live use of Realtime voice (now production-default, ORB-325 closed) — watch for anything `propose_todo_batch`, the multilingual confirmation fallback, or the confabulation-honesty fix miss in practice.
 
 ---
 
@@ -384,7 +376,7 @@ Load-bearing invariants. Full operating rules in **AGENTS.md**; conversation beh
 - **Voice/text must converge on identical operations, not diverge into separate paths (Stan's principle, 2026-07-19).** Three separate pending-mutation mechanisms exist today (serial todo-batch: client-held; serial project/knowledge: DB-backed; Realtime: DB-backed, most robust). `propose_todo_batch` extends Realtime's own robust pattern rather than bolting on a weaker one, and is meant as the start of a shared canonical pattern for both engines. Full convergence is **ORB-342**, not yet attempted.
 - **Identifier provenance.** Task/project codes may only be used if actually seen this conversation (backlog, tool result, or the user's words) — never constructed or remembered across a cleared session. Enforced at prompt + server gate.
 - **Browser support.** Safari/Chrome/Edge required; Firefox temporarily experimental (ORB-330). Canonical: `docs/browser-support-policy.md`.
-- **The release-bookkeeping claim is MANDATORY — protocol amended 2026-07-29 by Stan after this collision.** `docs/multi-agent-concurrency-protocol.md` §3 makes `package.json`, `lib/version.ts`, `lib/changelog.ts` and `HANDOFF.md` an **exclusive** claim, because every session touches them regardless of feature area. On 2026-07-29 neither agent held it: Codex used v0.6.256 for ORB-366 while Claude Code independently used v0.6.256 for ORB-361 Phase 4. Both shipped under one version number and only Phase 4 got a changelog entry, so a substantial navigation change reached production undocumented. **The protocol did not fail — it was simply not used.** Two specific habits it depends on, both skipped: take the claim *at commit time* and re-read the canonical version immediately before bumping (§3 step 2 says never trust what you read at session start); and remove the claim in the same commit that completes the work rather than holding it across a session. A second-order trap: Claude Code kept doing release work after releasing its claim, on the assumption HANDOFF.md still said what it had last written — the collision only surfaced because a text replacement silently failed to match Codex's edit. **Treat a stale in-memory picture of a shared file as the default, not the exception: re-read before editing.**
+- **The release-bookkeeping claim is MANDATORY — protocol amended 2026-07-29 by Stan after this collision.** `docs/multi-agent-concurrency-protocol.md` §3 makes `package.json`, `lib/version.ts`, `lib/changelog.ts` and `HANDOFF.md` an **exclusive** claim, because every session touches them regardless of feature area. The ledger cannot prove retrospectively whether either agent held the claim; its blank committed state is expected either way. Git shows that ORB-366 produced a complete v0.6.256 release record, while Claude Code later reused v0.6.256 for ORB-361 Phase 4, changed only `package.json`, and omitted the matching displayed-version and changelog updates. The durable lesson is that every release writer must take the exclusive claim and reread the canonical files immediately before editing, even if its branch already contains an apparently unused version. **Treat a stale in-memory or branch picture of shared release files as the default, not the exception.**
 - **Verify the push range, not just your own commits (same day).** `git push` was run to release three ORB-361 commits; the range also carried Codex's `d8ee27e`, whose own handoff entry said *"Production push awaits Stan's mandatory Tier 1 run."* Stan's 76/78 run did cover it and ORB-366 changed no conversation capability, so exposure was low. `git log --oneline origin/main..main` before pushing costs one call.
 - **Git push is never automatic** — explicit in-chat approval every time (also structurally enforced via settings.local.json).
 - **Orb identity:** Brownie temperament, butler intelligence.

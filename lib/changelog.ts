@@ -6,13 +6,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.258',
+    date: '2026-07-29',
+    changes: [
+      'Corrected the release history after concurrent work converged on v0.6.256. That release contained both the ORB-366 navigation redesign and ORB-361 Phase 4; the latter is now recorded with the release it actually shipped in, and the duplicate ORB-366 entry under v0.6.257 has been replaced with an accurate bookkeeping note.',
+      'No product behavior changed in this patch. The reconciliation keeps the package version, displayed version, What’s New history, handoff, and concurrency incident record aligned.',
+    ],
+  },
+  {
     version: 'v0.6.257',
     date: '2026-07-29',
     changes: [
-      'The navigation has been reorganised (ORB-366). Project controls — Change Project and + Project — now sit in their own right-aligned Projects bar inside the List pane, directly above the list toolbar, so the things that act on a project live next to the project rather than in the global bar.',
-      'The topbar is now a balanced three-row layout: on the dashboard, Settings, Commands and Account sit centred between the Orb and List edge controls. Settings pages keep Dashboard at the far left and centre the current Settings plus Commands. Help and Account follow the same pattern.',
-      'Settings is no longer duplicated inside Commands. The Commands dialog now holds Help and Print, with the version below a divider — and Print offers both All Projects and Current Project from the dashboard, Settings, Help and Account.',
-      'Your current project is now remembered per account in the database rather than per browser. The old browser-stored value was shared across accounts, so an admin session could reopen a project chosen under a different login. The new-user tour has been revised to match the new layout.',
+      'Release documentation was added after two independently prepared changes converged on v0.6.256. This patch changed release bookkeeping only; the complete v0.6.256 entry below records the product behavior that shipped.',
     ],
   },
   {
@@ -24,6 +29,7 @@ export const CHANGELOG: Release[] = [
       'Settings pages keep Dashboard at the far left with current Settings and Commands centered. The same balanced navigation model now covers Dashboard, Help, Account, Mac, iPad, and iPhone.',
       'The new-user tour now introduces the Projects bar and accurately explains the dedicated Settings control and Commands menu across desktop and mobile.',
       'The current project now belongs to the user rather than the browser: project selection is stored in the database and follows the user across sessions, browsers, and devices. This removes the browser-global last-project key that could reopen another user’s project, and makes All Projects plus Current Project available from Print on every page.',
+      'ORB-361 is complete: the obsolete users.urgency_threshold_hours column was removed after per-priority runway windows and per-project overrides replaced the old single global threshold. The migration records the retired values before the irreversible drop; no runtime code still read the column.',
     ],
   },
   {
