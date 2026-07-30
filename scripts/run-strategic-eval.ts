@@ -7,7 +7,7 @@ import { STRATEGIC_EVAL_MANIFEST, STRATEGIC_EXPLORATORY_CASES } from './strategi
 
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') })
 
-const baseUrl = process.env.EVAL_BASE_URL || 'https://192.168.86.90:3001'
+const baseUrl = process.env.EVAL_BASE_URL || 'https://localhost:3001'
 const secret = process.env.ORB_API_SECRET
 const userEmail = process.env.EVAL_USER_EMAIL || 'stan.baptista@gmail.com'
 

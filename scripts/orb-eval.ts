@@ -21,7 +21,7 @@ import { ORB_EVAL_DEFAULT_MODEL, ORB_EVAL_DEFAULT_PROVIDER } from '../lib/orb-mo
 // can silently go stale — this is a local file read + one env lookup, not
 // network activity, so it costs --help/--list nothing.
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') })
-const BASE_URL = process.env.EVAL_BASE_URL || 'https://192.168.86.90:3001'
+const BASE_URL = process.env.EVAL_BASE_URL || 'https://localhost:3001'
 
 // Single source for usage text — printed by --help. Keeping this as the only
 // copy (rather than a duplicate top-of-file comment) means the two can't
@@ -254,8 +254,14 @@ async function callOrbWithRetry(
       const message = timedError.message ?? ''
       const retryable = isNetworkError(message) || isTemporaryProviderCapacityError(message)
       if (retryable && attempt < retries - 1) {
-        const reason = isTemporaryProviderCapacityError(message) ? 'Provider capacity error' : 'Network error'
-        process.stderr.write(`\n  ⚠️  ${reason} on ${testCase.id} — retrying in ${delay}ms...\n`)
+        const reason = isTemporaryProviderCapacityError(message) ? 'Provider capacity error' : 'Cannot reach the dev server'
+        // Naming the target matters: the default used to be a hardcoded LAN
+        // IP, so a DHCP change made every request fail with "Network error"
+        // while the dev server sat healthy and silent — nothing reached it,
+        // so nothing was logged. The message must point at the host, not at
+        // the internet.
+        const where = isTemporaryProviderCapacityError(message) ? '' : ` at ${BASE_URL} (override with EVAL_BASE_URL)`
+        process.stderr.write(`\n  ⚠️  ${reason} on ${testCase.id}${where} — retrying in ${delay}ms...\n`)
         await new Promise(r => setTimeout(r, delay))
         delay *= 2
         continue
