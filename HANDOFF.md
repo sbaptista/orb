@@ -15,7 +15,7 @@
 - **Branch:** `main` == `origin/main`. Nothing awaiting a push.
 - **Dev server:** user-started on localhost:3001.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** **0.6.270** — pushed 2026-07-30 (`6091fec`).
+- **Version:** **0.6.276** — pushed 2026-07-30.
 - **Production maintenance:** off.
 - **Database:** `scripts/migrations/20260729_orb_342_canonical_proposals.sql`
   is applied.
@@ -25,6 +25,16 @@
 ---
 
 ## Last Session Completed
+
+**ORB-368 + ORB-372 — CLOSED 2026-07-30 (Claude Code, Opus 5) — v0.6.272→v0.6.276**
+
+**ORB-368.** Voice can now explain the orb's mood. New `get_orb_state` fact tool — deliberately a tool, not session instructions, because a Realtime session is long-lived and anything seeded at creation describes the past. Computed on demand from the same `explainUrgency()` the dashboard and text packet use: one implementation, three surfaces. The **selected project is the default scope** (the orb you are looking at is that project's orb); `all_projects` is the explicit opt-out. KB `08aa6fb6`.
+
+**ORB-372.** Closed on its last gap, paging, folded in since it lived in the same file. `list_todos` takes an offset and uses `.range()`; the packet carries the offset so the label states the real range. Verified: 1–5, 6–10, 11–12, "Last page", clean stop past the end.
+
+**Three defects found by Stan during verification, all mine, all the same shape** — fixing one layer and leaving another that speaks: `#undefined` for a task code (`codeFor` written for a todo row, given an `UrgencyDriver`); answering "all projects you can see" when asked about the current one; and then, having required the project name, giving the model no way to know it — so voice asked Stan to type the name of the project on his own screen. **Fixing a scope bug by asking the user for information the system already has is not a fix.** The client had `currentProjectIdRef` all along.
+
+**Unverified at close:** v0.6.276's default-scope change landed after the last live test. Closed on Stan's instruction; the check is asking why the current project is urgent and not being asked which project that is.
 
 **ORB-339 + ORB-372 — 2026-07-30 (Claude Code, Opus 5) — v0.6.261→v0.6.270 — RELEASED**
 
