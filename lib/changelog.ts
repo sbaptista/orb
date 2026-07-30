@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.267',
+    date: '2026-07-30',
+    changes: [
+      'Tables are back, and now they stay. Typed conversation renders proper markdown tables for multi-row answers like task lists — it always could, but nothing ever asked for it, so tables came and went as the wording drifted. It is now a stated rule rather than a habit (ORB-372).',
+      'Voice stops promising a table it cannot draw. It used to say "I will read it as a table" and then read a list; it now says plainly that voice reads results aloud and offers the text conversation if you want the grid.',
+    ],
+  },
+  {
     version: 'v0.6.266',
     date: '2026-07-30',
     changes: [
