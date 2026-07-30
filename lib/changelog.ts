@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.257',
+    date: '2026-07-29',
+    changes: [
+      'The navigation has been reorganised (ORB-366). Project controls — Change Project and + Project — now sit in their own right-aligned Projects bar inside the List pane, directly above the list toolbar, so the things that act on a project live next to the project rather than in the global bar.',
+      'The topbar is now a balanced three-row layout: on the dashboard, Settings, Commands and Account sit centred between the Orb and List edge controls. Settings pages keep Dashboard at the far left and centre the current Settings plus Commands. Help and Account follow the same pattern.',
+      'Settings is no longer duplicated inside Commands. The Commands dialog now holds Help and Print, with the version below a divider — and Print offers both All Projects and Current Project from the dashboard, Settings, Help and Account.',
+      'Your current project is now remembered per account in the database rather than per browser. The old browser-stored value was shared across accounts, so an admin session could reopen a project chosen under a different login. The new-user tour has been revised to match the new layout.',
+    ],
+  },
+  {
     version: 'v0.6.256',
     date: '2026-07-29',
     changes: [

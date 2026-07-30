@@ -10,10 +10,12 @@
 
 ## App State
 
-- **Branch:** `main` — ORB-366 is closed and approved as v0.6.256; committed locally. Production push awaits Stan’s mandatory Tier 1 run.
+- **Branch:** `main` == `origin/main`. ORB-366 and ORB-361 (all five phases) are both **released**.
 - **Dev server:** user-started on localhost:3001
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** local/canonical **0.6.256** — unreleased.
+- **Version:** local/canonical **0.6.257**. v0.6.256 was pushed 2026-07-29 (`1999ad0`); the 0.6.257 bump documents ORB-366 in the changelog and is not yet pushed.
+- **⚠ VERSION COLLISION, resolved retroactively.** Codex claimed v0.6.256 for ORB-366 while Claude Code independently used v0.6.256 for ORB-361 Phase 4, in the same window — the release-bookkeeping claim (protocol §3) was not held by either. Both shipped under one version number, and only Phase 4 had a changelog entry. ORB-366's user-facing changes are now documented under **v0.6.257**. The code was never at risk; the bookkeeping was.
+- **⚠ ORB-366 was pushed before its stated gate.** Its handoff entry said "Production push awaits Stan's mandatory Tier 1 run"; Claude Code pushed the range without checking what else it contained. Stan's 76/78 Tier 1 run covered that commit, and ORB-366 changed no Orb-conversation capability, so the exposure was low — but the lesson stands: verify the push range, not just your own commits.
 - **All three ORB-361 Phase 3 migrations were applied before the merge** (`projects.urgency_windows`, `todos.reminder_nudge_dismissed_at`, and the `restore_todos_from_archive` extension). Schema led code, which is the safe direction; nothing outstanding.
 - **Production maintenance:** confirmed **ended** by Stan (2026-07-18) — the ORB-337 migration + v0.6.217 release cycle completed.
 
