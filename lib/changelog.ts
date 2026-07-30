@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.273',
+    date: '2026-07-30',
+    changes: [
+      'Voice now names the task code correctly when explaining the orb. It briefly said "#undefined" instead — the answer was otherwise right, but a task you cannot identify is not much of an answer (ORB-368).',
+    ],
+  },
+  {
     version: 'v0.6.272',
     date: '2026-07-30',
     changes: [

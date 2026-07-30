@@ -319,9 +319,12 @@ export async function getOrbStatePacket(
   const windowsByProject: UrgencyWindowsByProject = {}
   for (const p of projects) windowsByProject[p.id] = parseUrgencyWindows((p as any).urgency_windows)
 
-  const codeFor = (t: any) => {
-    const p = projects.find((pp: any) => pp.id === t.product_id)
-    return p ? `${p.code}-${t.todo_number}` : `#${t.todo_number}`
+  // Drivers carry productId/todoNumber, not a todo row — reading product_id
+  // and todo_number off a driver silently produced "#undefined" in the first
+  // build of this packet.
+  const codeFor = (d: { productId?: string; todoNumber?: number | null }) => {
+    const p = projects.find((pp: any) => pp.id === d.productId)
+    return p && d.todoNumber != null ? `${p.code}-${d.todoNumber}` : null
   }
 
   const scope = project ? project.name : (auth.isAdmin ? 'all projects you can see' : 'your projects')
@@ -337,12 +340,15 @@ export async function getOrbStatePacket(
 
   const reasons = explained.drivers.map(d => {
     if (d.rule === 'volume') return 'there are more than five active tasks'
-    const name = d.title ? `${codeFor(d)}, ${d.title},` : 'a task'
+    const code = codeFor(d)
+    // Never emit a placeholder code: naming a task wrongly is worse than not
+    // naming it, and the title alone is still a true, useful answer.
+    const name = [code, d.title].filter(Boolean).join(', ') || 'a task'
     switch (d.rule) {
-      case 'urgent-priority': return `${name} is set to an urgent priority`
-      case 'past-due': return `${name} is past due`
-      case 'imminent': return `${name} is inside its urgent window`
-      default: return `${name} is inside its busy window`
+      case 'urgent-priority': return `${name}${d.title ? ',' : ''} is set to an urgent priority`
+      case 'past-due': return `${name}${d.title ? ',' : ''} is past due`
+      case 'imminent': return `${name}${d.title ? ',' : ''} is inside its urgent window`
+      default: return `${name}${d.title ? ',' : ''} is inside its busy window`
     }
   })
   const more = explained.truncated > 0 ? `, and ${explained.truncated} more` : ''

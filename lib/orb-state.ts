@@ -224,6 +224,13 @@ export type UrgencyDriver = {
   contributes: Exclude<Urgency, 'calm'>
   title?: string
   todoNumber?: number | null
+  /**
+   * Needed to render a task code when the caller spans several projects.
+   * project-health.ts builds one project at a time and passes the code in, so
+   * it never needed this; the Realtime orb-state packet (ORB-368) covers every
+   * visible project at once and produced "#undefined" without it.
+   */
+  productId?: string
   priorityValue?: number | null
   dueAt?: string | null
 }
@@ -260,7 +267,7 @@ export function explainUrgency(
     if (todo.priority_value !== null && urgentValues.has(todo.priority_value)) {
       drivers.push({
         rule: 'urgent-priority', contributes: 'urgent',
-        title: todo.title, todoNumber: todo.todo_number,
+        title: todo.title, todoNumber: todo.todo_number, productId: todo.product_id,
         priorityValue: todo.priority_value, dueAt: todo.due_at,
       })
     }
@@ -293,7 +300,7 @@ export function explainUrgency(
 
     drivers.push({
       rule, contributes,
-      title: todo.title, todoNumber: todo.todo_number,
+      title: todo.title, todoNumber: todo.todo_number, productId: todo.product_id,
       priorityValue: todo.priority_value, dueAt: todo.due_at,
     })
   }
