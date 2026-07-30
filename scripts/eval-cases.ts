@@ -1672,12 +1672,12 @@ function evalCategory(id: string): EvalCategory {
   if (/memory|adaptation|preference|role-correction/.test(id)) return 'memory-adaptation'
   if (/strategic|provider|budget|mutation-stays-on-operational-route/.test(id)) return 'provider-routing'
   if (
-    /greeting|scope-transparency|reminder-nudge|distant-reminder|orb-mood|orb-window|project-health|cross-project-awareness|ambiguous-ui|unknown-feature|display-name|project-list|project-count|whats-new|commitment|reflective/.test(id)
+    /greeting|scope-transparency|reminder-nudge|distant-reminder|orb-mood|orb-window|project-health|cross-project-awareness|ambiguous-ui|unknown-feature|display-name|project-list|project-count|whats-new|commitment|reflective|ownership/.test(id)
   ) return 'grounding-speech'
   if (/query|repository|exact-task-read|duplicate-search|conversational-no-tool|no-lazy-escalation-on-lookup/.test(id)) return 'read-routing'
   if (/create-project|delete-project|rename-project|switch-project|disambiguation/.test(id)) return 'project-crud'
   if (
-    /confirm|approval|permission|pending|action-set|hallucinated|no-session-record|upfront-permission|restated-request|premature-success|code-fabrication/.test(id)
+    /confirm|approval|permission|pending|action-set|hallucinated|no-session-record|upfront-permission|restated-request|premature-success|code-fabrication|mutate-silently/.test(id)
   ) return 'mutation-safety'
   if (/create|todo|delete|move|close/.test(id)) return 'todo-crud'
   throw new Error(`Eval case "${id}" needs an explicit category rule.`)
