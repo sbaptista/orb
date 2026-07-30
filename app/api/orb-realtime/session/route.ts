@@ -22,7 +22,8 @@ export async function POST(request: Request) {
     instructions: [
       'You are Orb in an isolated development voice architecture test.',
       'Be conversational and concise. Never invent counts, task facts, identifiers, ownership, or mutation results.',
-      'For factual or next-step questions, call the matching fact tool before speaking. Use get_project_directory for the count or names of projects the user owns, get_todo_details for one todo name or code, and list_todos when the user asks which tasks match. A task request that names any project is always named_project scope. Use all_owned only when the user explicitly asks across all projects, all of their projects, or overall. Never widen an omitted or uncertain project scope to all projects.',
+      'ACCESS: the server decides what you can see, and it is broader than the tool names suggest. An admin reaches EVERY visible project, not only the ones they own; a non-admin reaches only their own. The scope value is named all_owned for wire compatibility, but for an admin it means ALL VISIBLE PROJECTS. Never tell the user you are limited to projects they own, and never tell an admin their role does not extend to other people\'s projects — that is false and the server does not enforce it. If you are unsure whether a project is reachable, call the tool and let the server answer.',
+      'For factual or next-step questions, call the matching fact tool before speaking. Use get_project_directory for the count or names of projects the user can see, get_todo_details for one todo name or code, and list_todos when the user asks which tasks match. A task request that names any project is always named_project scope. Use all_owned only when the user explicitly asks across all projects or overall; it covers every project the user can see, not only ones they own. Never widen an omitted or uncertain project scope to all projects.',
       'For todo creation, call propose_create_todo. For any todo update, delete, or move, call the matching proposal tool directly with the todo name or code and any project name the user supplied. Preserve the user’s complete title phrase in todo_reference instead of shortening it to topic keywords. The server resolves exactly one current database row or rejects ambiguity; do not require the user to know a task code and do not perform a separate detail read first.',
       'Todo updates may change title, priority, or a non-closed status. Priority values are 1=urgent, 2=high, 3=normal, and 4=low. Translate those natural priority labels directly; never ask the user to supply the number after they used a known label.',
       'When the user names two or more todos for the same or related create, update, delete, or move in one utterance (e.g. “delete test1, test2, and test3”, or “move A and B to Archive”), call propose_todo_batch once with every operation, instead of calling a singular propose_* tool once per todo. One combined confirmation covers the whole batch. Use a singular propose_* tool for a single todo change.',
@@ -83,11 +84,11 @@ export async function POST(request: Request) {
       {
         type: 'function',
         name: 'get_task_count',
-        description: 'Get an exact live task count. Choose named_project whenever the user names a project; choose all_owned only for an explicit across-all-projects request. “Open” means status=open only; “active” means open plus in progress; “parked” means deferred plus on hold. The server rejects missing or inconsistent scope instead of widening it.',
+        description: 'Get an exact live task count. Choose named_project whenever the user names a project; choose all_owned only for an explicit across-all-projects request (it means every project the user can see, which for an admin includes projects they do not own). “Open” means status=open only; “active” means open plus in progress; “parked” means deferred plus on hold. The server rejects missing or inconsistent scope instead of widening it.',
         parameters: {
           type: 'object',
           properties: {
-            project_scope: { type: 'string', enum: ['named_project', 'all_owned'], description: 'named_project if any project was named; all_owned only if the user explicitly requested a cross-project total.' },
+            project_scope: { type: 'string', enum: ['named_project', 'all_owned'], description: 'named_project if any project was named; all_owned only if the user explicitly requested a cross-project total; covers every visible project, not only owned ones.' },
             project_name: { type: 'string', description: 'User-facing project name. Required when project_scope is named_project; omit for all_owned.' },
             status_scope: { type: 'string', enum: ['open', 'active', 'parked', 'all'] },
           },
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
       { type: 'function', name: 'get_todo_details', description: 'Read one live todo by its natural title or code. Include the project name when the user supplies it. The server rejects ambiguous matches.', parameters: { type: 'object', properties: { todo_reference: { type: 'string', description: 'Todo title or exact code.' }, project_name: { type: 'string', description: 'Optional user-facing project name.' } }, required: ['todo_reference'], additionalProperties: false } },
       {
         type: 'function', name: 'list_todos',
-        description: 'List matching live todos. Choose named_project whenever the user names a project; choose all_owned only for an explicit cross-project request. The server rejects missing or inconsistent project scope.',
+        description: 'List matching live todos. Choose named_project whenever the user names a project; choose all_owned only for an explicit cross-project request; it covers every project the user can see, including ones an admin does not own. The server rejects missing or inconsistent project scope.',
         parameters: {
           type: 'object',
           properties: {

@@ -913,6 +913,24 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
   },
 
   {
+    id: 'admin-not-told-a-false-ownership-limit',
+    description: 'ORB-372: an admin asking whether their role reaches other people\u2019s projects must not be told it does not — the server applies the ownership filter only to non-admins, so that answer is false and reproducible',
+    productCode: 'ORB',
+    userEmail: 'stan.baptista@gmail.com',
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
+    input: 'I am an admin — can you operate on projects I do not own?',
+    tier: 2,
+    // Must not assert the restriction the server does not enforce. These
+    // phrasings are the ones voice actually produced on 2026-07-30.
+    speechNotContains: [
+      'only projects you own',
+      'projects you own, not',
+      'does not extend',
+      "doesn't extend",
+    ],
+  },
+
+  {
     id: 'ambiguous-todo-title-does-not-mutate-silently',
     description: 'ORB-339: a todo reference matching several titles equally must not be resolved by guessing — the server fails closed and the Orb asks which one rather than reporting a change',
     productCode: 'ORB',

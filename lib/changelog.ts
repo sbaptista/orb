@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.264',
+    date: '2026-07-30',
+    changes: [
+      'Voice no longer tells an admin it cannot reach projects they do not own. It always could — the server only restricts non-admins — but an internal scope name ("all owned") had leaked into how the Orb described itself, so it confidently reported a restriction that does not exist (ORB-372).',
+    ],
+  },
+  {
     version: 'v0.6.263',
     date: '2026-07-30',
     changes: [
