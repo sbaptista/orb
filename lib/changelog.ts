@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.268',
+    date: '2026-07-30',
+    changes: [
+      'Ask voice for a table and you now get one. Task lists looked up by voice appear as a real table in the conversation while the Orb speaks a short summary, instead of reading every row aloud. The structured results were always there — nothing was putting them on screen (ORB-372).',
+      'The table also says when results are missing, so a list capped at ten no longer looks complete.',
+    ],
+  },
+  {
     version: 'v0.6.267',
     date: '2026-07-30',
     changes: [

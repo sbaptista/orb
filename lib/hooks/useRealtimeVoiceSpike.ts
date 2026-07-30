@@ -595,6 +595,27 @@ export function useRealtimeVoiceSpike(options: Options) {
       const exactText = result.referenceToken
         ? undefined
         : result.packet?.spokenText ?? result.proposal?.spokenText ?? result.receipt?.spokenText ?? result.spokenText
+      // ORB-372: voice speaks, but the transcript renders GitHub-flavoured
+      // markdown — so a list result can be a real table on screen while the
+      // spoken answer stays short. Realtime carried the structured tasks[] all
+      // along and discarded them, which is why "put that in table form" could
+      // only ever produce another read-out list. This is the serial engine's
+      // own convention (speak the summary, put the detail on screen) that
+      // Realtime never picked up.
+      const listPacket = result.packet
+      if (listPacket?.kind === 'todo_list' && Array.isArray(listPacket.tasks) && listPacket.tasks.length > 0) {
+        const cell = (value: unknown) => String(value ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ')
+        const rows = listPacket.tasks
+          .map((task: any) => `| ${cell(task.code)} | ${cell(task.title)} | ${cell(task.status)} |`)
+          .join('\n')
+        const shown = listPacket.tasks.length
+        const total = typeof listPacket.count === 'number' ? listPacket.count : shown
+        const omitted = Math.max(0, total - shown)
+        const note = omitted > 0
+          ? `\n\n_Showing ${shown} of ${total}. ${omitted} not listed — unprioritised tasks sort last._`
+          : ''
+        callbacksRef.current.onOrbTranscript(`| Code | Title | Status |\n| --- | --- | --- |\n${rows}${note}`)
+      }
       if ((result.receipt && !result.replayed) || result.mutated === true) callbacksRef.current.onMutation()
       sendToolOutput(item.call_id, result)
       if (turnId !== activeTurnIdRef.current) return { createResponse: false }
