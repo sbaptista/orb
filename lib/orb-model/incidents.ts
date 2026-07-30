@@ -122,7 +122,21 @@ export function classifyProviderFailure(error: any, provider: OrbModelProviderId
     : 'provider error'
   // A conflict is a stale session of ours, so the user is told what to do
   // about it rather than that the provider is down.
-  const userMessage = conflict
+  // The user message must reflect the REASON, not only the role. Before this,
+  // billing / rate limit / outage all produced the same "temporarily
+  // unavailable — try again in a moment" text, so an exhausted quota (which
+  // never recovers on its own) was reported as a transient blip. Observed
+  // 2026-07-30: OpenAI returned insufficient_quota and the user was told to
+  // try again in a moment. That is not merely unhelpful, it is false.
+  const userMessage = billing
+    ? role === 'voice'
+      ? `Realtime voice is stopped: the ${providerLabel(provider)} account is out of quota or over its spend limit. This will not clear on its own — add credit or raise the cap. Text input still works.`
+      : `Orb's AI is stopped: the ${providerLabel(provider)} account is out of quota or over its spend limit. This will not clear on its own — add credit or raise the cap. You can still manage tasks directly in the list.`
+    : rateLimited
+      ? role === 'voice'
+        ? `Realtime voice hit a rate limit at ${providerLabel(provider)}. Wait a minute and try again — text input still works.`
+        : `Orb hit a rate limit at ${providerLabel(provider)}. Wait a minute and try again.`
+    : conflict
     ? role === 'voice'
       ? 'A previous voice session is still closing. Wait a few seconds and start voice again — text input works meanwhile.'
       : 'That request collided with one already in progress. Wait a moment and try again.'

@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.263',
+    date: '2026-07-30',
+    changes: [
+      'AI failures now say what actually went wrong. Running out of provider credit, hitting a rate limit, and a genuine outage all produced the same "temporarily unavailable — try again in a moment" message, so an exhausted account looked like a passing blip and the advice was simply false: it never clears on its own. Out-of-quota now says so and says what fixes it (ORB-372).',
+    ],
+  },
+  {
     version: 'v0.6.262',
     date: '2026-07-30',
     changes: [
