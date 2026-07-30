@@ -913,6 +913,25 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
   },
 
   {
+    id: 'ambiguous-todo-title-does-not-mutate-silently',
+    description: 'ORB-339: a todo reference matching several titles equally must not be resolved by guessing — the server fails closed and the Orb asks which one rather than reporting a change',
+    productCode: 'ORB',
+    backlogOverride: `Orb [code: ORB]:
+  SUMMARY: active_count=3 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ORB-251 True voice conversation with Orb (not just text dictation) [open]
+  ORB-328 Test voice architecture [open]
+  ORB-336 Voice Permission Test [open]`,
+    input: 'Set the voice one to in progress.',
+    tier: 2,
+    // >3 entries = any-of: any request to disambiguate counts.
+    speechContains: ['which', 'ambiguous', 'more than one', 'several', 'clarify', 'do you mean'],
+    // Must not claim the change happened. Resolution is server-side now, so
+    // the safety property is that no success is REPORTED, not that no tool
+    // was called — the model may legitimately call and receive the ambiguity.
+    speechNotContains: ["i've set", 'i have set', 'is now in progress', 'updated to in progress'],
+  },
+
+  {
     id: 'orb-mood-names-the-driving-task',
     description: 'ORB-361 Phase 3.3: asked why the orb is urgent, the Orb names the actual task and rule from orb_state_because — it does not describe the mood in general terms or guess a plausible cause',
     productCode: 'ORB',

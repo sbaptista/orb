@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.261',
+    date: '2026-07-30',
+    changes: [
+      'Referring to a task by name in text now resolves the same way it does in voice. Typed conversation had no server-side name matching at all — the Orb had to pick the task code itself from the backlog, and with several similarly-named tasks it could pick the wrong one. Both now use one shared matcher (ORB-339).',
+      'When a name genuinely matches several tasks, the Orb asks which one instead of choosing. A near-tie is exactly where a wrong guess is least visible, so it refuses to guess rather than silently changing the wrong task.',
+    ],
+  },
+  {
     version: 'v0.6.260',
     date: '2026-07-29',
     changes: [

@@ -5,6 +5,7 @@ import { sendAdaptationEmail } from '@/lib/email'
 import { ALLOWED_OPS, ALLOWED_TABLES, COLUMN_NAME_RE, SOFT_DELETE_TABLES } from '@/lib/db-schema'
 import { getNextStepPacket, getProjectDirectoryPacket, getTaskCountPacket, getTodoDetailsPacket, getTodoListPacket } from '@/lib/orb-realtime/fact-gateway'
 import { fuzzyMatch, scoreTextMatch } from '@/lib/fuzzy-search'
+import { selectTodoByReference, describeTodoCandidates, isCodeLikeReference } from '@/lib/orb-operations/todo-reference'
 import { authorizesPendingMutation, grantsUpfrontMutationPermission } from '@/lib/orb-model/mutation-authorization'
 import { resolveKnowledgeReference } from '@/lib/orb-mutations'
 import { getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
@@ -116,28 +117,19 @@ async function resolveTodoReference(
 ): Promise<ResolvedTodo> {
   const reference = options.reference.trim()
   if (!reference) throw new RealtimeInputError('Name the todo you want to change.')
-  const codeLike = /^(.+)-(\d+)$/.test(reference.toUpperCase())
+  const codeLike = isCodeLikeReference(reference)
   const rows = await accessibleTodoRows(auth, {
     projectName: options.projectName,
     currentProjectId: codeLike ? undefined : options.currentProjectId,
   })
-  const normalized = reference.toLowerCase().replace(/\s+/g, ' ')
-  const exact = rows.filter(row => {
-    const code = `${row.projects.code}-${row.todo_number}`.toLowerCase()
-    return code === normalized || row.title.trim().toLowerCase().replace(/\s+/g, ' ') === normalized
-  })
-  const candidates = exact.length > 0 ? exact : rows.filter(row => fuzzyMatch(reference, row.title))
-  if (candidates.length === 1) return candidates[0]
-  if (candidates.length > 1) {
-    const ranked = candidates
-      .map(row => ({ row, score: scoreTextMatch(reference, row.title, '') }))
-      .sort((a, b) => b.score - a.score)
-    if (ranked[0].score > 0 && ranked[0].score > ranked[1].score) return ranked[0].row
-    const names = ranked.slice(0, 5).map(({ row }) => `${row.projects.code}-${row.todo_number}, “${row.title}”, in ${row.projects.name}`).join('; ')
-    throw new RealtimeInputError(`That todo reference is ambiguous: ${names}.`)
+  const result = selectTodoByReference(reference, rows)
+  if (result.kind === 'resolved') return result.row
+  if (result.kind === 'ambiguous') {
+    throw new RealtimeInputError(`That todo reference is ambiguous: ${describeTodoCandidates(result.candidates)}.`)
   }
   throw new RealtimeInputError(`Could not find one accessible todo matching “${reference}”.`)
 }
+
 
 export async function POST(request: Request) {
   try {

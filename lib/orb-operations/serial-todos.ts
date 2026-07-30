@@ -1,4 +1,5 @@
 import type { AuthContext } from '@/lib/auth'
+import { selectTodoByReference, describeTodoCandidates } from '@/lib/orb-operations/todo-reference'
 import { dueAtToInstant, validateReminderLead } from '@/lib/due-time'
 import { persistOrbMutationProposal, type OrbMutationKind } from '@/lib/orb-operations/proposals'
 
@@ -87,26 +88,61 @@ async function accessibleProject(
   return data
 }
 
-async function accessibleTodo(auth: AuthContext, code: string): Promise<TodoRow | null> {
-  const match = /^(.+)-(\d+)$/.exec(code.trim().toUpperCase())
-  if (!match) return null
-  let query = auth.admin
-    .from('todos')
-    .select('id, todo_number, title, description, resolution_notes, status, priority_value, urls, updated_at, product_id, due_at, due_timezone, due_city, reminder_lead_value, reminder_lead_unit, reminder_nudge_dismissed_at, projects!inner(id, name, code, created_by, deleted_at, is_dormant)')
-    .eq('todo_number', Number(match[2]))
-    .ilike('projects.code', match[1])
-    .is('deleted_at', null)
-    .is('projects.deleted_at', null)
-    .eq('projects.is_dormant', false)
-  if (!auth.isAdmin) query = query.eq('projects.created_by', auth.user.id)
-  const { data, error } = await query.maybeSingle()
-  if (error) throw error
-  if (!data) return null
+function shapeTodoRow(data: any): TodoRow {
   return {
     ...data,
     urls: Array.isArray(data.urls) ? data.urls as string[] : [],
     projects: data.projects as unknown as TodoRow['projects'],
   } as TodoRow
+}
+
+/** Every todo this user may act on. Same visibility rules as the code lookup. */
+function accessibleTodosQuery(auth: AuthContext) {
+  let query = auth.admin
+    .from('todos')
+    .select('id, todo_number, title, description, resolution_notes, status, priority_value, urls, updated_at, product_id, due_at, due_timezone, due_city, reminder_lead_value, reminder_lead_unit, reminder_nudge_dismissed_at, projects!inner(id, name, code, created_by, deleted_at, is_dormant)')
+    .is('deleted_at', null)
+    .is('projects.deleted_at', null)
+    .eq('projects.is_dormant', false)
+  if (!auth.isAdmin) query = query.eq('projects.created_by', auth.user.id)
+  return query
+}
+
+/**
+ * ORB-339 — resolve a todo reference server-side, by code OR by title.
+ *
+ * Previously code-only: a non-code reference returned null, so the serial
+ * model had to pick the code itself from the backlog and got it wrong on
+ * near-exact titles. Title resolution now runs through the SAME policy
+ * Realtime uses (lib/orb-operations/todo-reference.ts), so both channels
+ * agree on what a task name means and both fail closed on ambiguity.
+ *
+ * Throws on ambiguity rather than guessing — the caller turns that into a
+ * tool result the model reads back to the user.
+ */
+async function accessibleTodo(auth: AuthContext, reference: string): Promise<TodoRow | null> {
+  const trimmed = reference.trim()
+  if (!trimmed) return null
+
+  const match = /^(.+)-(\d+)$/.exec(trimmed.toUpperCase())
+  if (match) {
+    const { data, error } = await accessibleTodosQuery(auth)
+      .eq('todo_number', Number(match[2]))
+      .ilike('projects.code', match[1])
+      .maybeSingle()
+    if (error) throw error
+    return data ? shapeTodoRow(data) : null
+  }
+
+  const { data, error } = await accessibleTodosQuery(auth)
+  if (error) throw error
+  const rows = (data ?? []).map(shapeTodoRow)
+  const result = selectTodoByReference(trimmed, rows)
+  if (result.kind === 'resolved') return result.row
+  if (result.kind === 'ambiguous') {
+    throw new Error(`That task reference is ambiguous — say which one: ${describeTodoCandidates(result.candidates)}.`)
+  }
+  return null
 }
 
 function serialUpdateParams(
@@ -184,7 +220,9 @@ export async function proposeSerialTodoOperations(
       continue
     }
 
-    const todo = await accessibleTodo(auth, String(input.code ?? ''))
+    // ORB-339: title_match is a first-class reference now, not a hint the
+    // model has to convert into a code itself.
+    const todo = await accessibleTodo(auth, String(input.code ?? input.title_match ?? ''))
     if (!todo) throw new Error(`Todo ${input.code ?? ''} was not found or is not editable.`)
     const base = expectedTodo(todo)
 
