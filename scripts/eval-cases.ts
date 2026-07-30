@@ -950,6 +950,20 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
   },
 
   {
+    id: 'realtime-orb-state-intent-analogue',
+    description: 'ORB-368: asked why the orb is urgent, the serial analogue of the voice path must reach for the mood evidence rather than listing todos — voice had no such tool at all until now and guessed',
+    productCode: 'ORB',
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
+    projectHealthOverride: `PROJECT HEALTH PACKET (generated 2026-07-30T00:00:00.000Z; 14-day activity window):
+Use this as the neutral project-health data surface for broad project summaries. Signals are evidence cues, not verdicts; turn them into careful judgment only when supported.
+- Orb: owner="Stan Baptista"; owned_by_current_user=true; dormant=false; active=2; parked=0; closed=0; urgent=1; in_progress=0; stale_active=0; orb_state=urgent; orb_state_because=[ORB-501 "Renew the certificate" is past due (2026-07-28T09:00:00+00:00)]; recent_14d={momentum:quiet, created:0, closed:0, updated:1, moved_to_in_progress:0, parked:0, last:2026-07-29T00:00:00.000Z, signals:[urgent_work_present]}`,
+    input: 'Why is the orb urgent?',
+    tier: 2,
+    speechContains: ['ORB-501', 'past due'],
+    speechNotContains: ['more than 5', 'p1'],
+  },
+
+  {
     id: 'orb-mood-names-the-driving-task',
     description: 'ORB-361 Phase 3.3: asked why the orb is urgent, the Orb names the actual task and rule from orb_state_because — it does not describe the mood in general terms or guess a plausible cause',
     productCode: 'ORB',

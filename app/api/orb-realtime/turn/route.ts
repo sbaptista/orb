@@ -3,7 +3,7 @@ import { getAuthContext, type AuthContext } from '@/lib/auth'
 import { createTicket } from '@/app/actions/ticket-actions'
 import { sendAdaptationEmail } from '@/lib/email'
 import { ALLOWED_OPS, ALLOWED_TABLES, COLUMN_NAME_RE, SOFT_DELETE_TABLES } from '@/lib/db-schema'
-import { getNextStepPacket, getProjectDirectoryPacket, getTaskCountPacket, getTodoDetailsPacket, getTodoListPacket } from '@/lib/orb-realtime/fact-gateway'
+import { getNextStepPacket, getProjectDirectoryPacket, getTaskCountPacket, getTodoDetailsPacket, getTodoListPacket, getOrbStatePacket } from '@/lib/orb-realtime/fact-gateway'
 import { fuzzyMatch, scoreTextMatch } from '@/lib/fuzzy-search'
 import { selectTodoByReference, describeTodoCandidates, isCodeLikeReference } from '@/lib/orb-operations/todo-reference'
 import { authorizesPendingMutation, grantsUpfrontMutationPermission } from '@/lib/orb-model/mutation-authorization'
@@ -145,6 +145,7 @@ export async function POST(request: Request) {
       currentProjectId?: string
       textMatch?: string
       maxResults?: number
+      offset?: number
       title?: string
       name?: string
       description?: string
@@ -364,7 +365,12 @@ export async function POST(request: Request) {
         statusScope: body.statusScope,
         textMatch: body.textMatch,
         maxResults: body.maxResults,
+        offset: body.offset,
       })
+      return Response.json({ packet, gatewayMs: Math.round(performance.now() - startedAt) })
+    }
+    if (body.operation === 'orb_state') {
+      const packet = await getOrbStatePacket(auth, { projectName: body.projectName })
       return Response.json({ packet, gatewayMs: Math.round(performance.now() - startedAt) })
     }
     if (body.operation === 'next_step') {

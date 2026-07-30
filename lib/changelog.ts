@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.272',
+    date: '2026-07-30',
+    changes: [
+      'Ask by voice why the orb is urgent and it now names the task and the reason, the same as typed conversation does. Voice previously had no access to that evidence at all, so it looked at your task list and guessed (ORB-368).',
+      'Voice task lists can now page. Asking for more results actually returns the next ones instead of repeating the first page (ORB-372).',
+    ],
+  },
+  {
     version: 'v0.6.271',
     date: '2026-07-30',
     changes: [

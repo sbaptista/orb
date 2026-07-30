@@ -1,5 +1,5 @@
 export type OrbRealtimeFactPacket = {
-  kind: 'task_count' | 'next_step' | 'project_directory' | 'todo_details' | 'todo_list' | 'knowledge_search'
+  kind: 'task_count' | 'next_step' | 'project_directory' | 'todo_details' | 'todo_list' | 'knowledge_search' | 'orb_state'
   observedAt: string
   source: 'database'
   statuses: string[]

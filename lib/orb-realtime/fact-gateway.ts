@@ -2,6 +2,7 @@ import { ACTIVE_STATUSES, PARKED_STATUSES } from '@/lib/status-groups'
 import type { AuthContext } from '@/lib/auth'
 import { resolveProjectByReference } from '@/lib/projects'
 import type { OrbRealtimeFactPacket } from './types'
+import { explainUrgency, parseUrgencyWindows, describeWindowLead, type UrgencyWindowsByProject } from '@/lib/orb-state'
 
 type JoinedProject = { name: string; code: string }
 type CountScope = 'open' | 'active' | 'parked' | 'all'
@@ -134,6 +135,7 @@ export async function getTodoListPacket(
     statusScope?: CountScope
     textMatch?: string
     maxResults?: number
+    offset?: number
   },
 ): Promise<OrbRealtimeFactPacket> {
   const projectName = options.projectName?.trim()
@@ -157,6 +159,10 @@ export async function getTodoListPacket(
   // like a 10-result one. query_db already allows 200 and query_projects 100;
   // list_todos was the outlier. The spoken summary stays short regardless.
   const maxResults = Math.min(Math.max(options.maxResults ?? 50, 1), 200)
+  // ORB-372: paging. The previous build told the user to say "show the rest"
+  // with nothing implementing it, so asking repeated the same page. An offset
+  // is the smallest thing that makes that promise keepable.
+  const offset = Math.max(options.offset ?? 0, 0)
   let query = auth.admin
     .from('todos')
     .select('id, todo_number, title, status, priority_value, due_at, due_timezone,created_at, projects!inner(id, name, code, created_by)', { count: 'exact' })
@@ -165,7 +171,7 @@ export async function getTodoListPacket(
     .is('deleted_at', null)
     .order('priority_value', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true })
-    .limit(maxResults)
+    .range(offset, offset + maxResults - 1)
   if (project) query = query.eq('product_id', project.id)
   // ORB-372: this branch filtered to owned projects UNCONDITIONALLY, unlike
   // every other query in this file (lines ~42, ~110, ~147 all guard with
@@ -207,8 +213,10 @@ export async function getTodoListPacket(
   // redundant — and the previous wording told the user to say "show the rest",
   // which nothing implements. Never advertise a capability that does not
   // exist: that is the same defect as the rest of this ticket.
-  const spokenSummary = omitted > 0
-    ? `${subject} has ${exactCount} matching ${exactCount === 1 ? 'task' : 'tasks'}. The first ${tasks.length} are on screen; narrow by project or status to see the rest.`
+  const shownFrom = offset + 1
+  const shownTo = offset + tasks.length
+  const spokenSummary = exactCount > tasks.length
+    ? `${subject} has ${exactCount} matching ${exactCount === 1 ? 'task' : 'tasks'}. Showing ${shownFrom} to ${shownTo} on screen — say "show the next page" for more.`
     : `${subject} has ${exactCount} matching ${exactCount === 1 ? 'task' : 'tasks'}, on screen now.`
   return {
     kind: 'todo_list', observedAt: new Date().toISOString(), source: 'database',
@@ -249,5 +257,100 @@ export async function getNextStepPacket(auth: AuthContext): Promise<OrbRealtimeF
       priority: todo.priority_value, project: project.name,
     },
     spokenText: `Start with ${code}, ${todo.title}, in ${project.name}. It is the highest-priority active task in the current database snapshot.`,
+  }
+}
+
+
+/**
+ * ORB-368 — the orb's mood, and why, for voice.
+ *
+ * Text has had this since ORB-361 Phase 3.3: the project-health packet carries
+ * orb_state and orb_state_because, so the Orb can name the task and rule
+ * driving a colour. Voice never got it — buildOrbContext serves the serial
+ * conversation and the eval route only — so asked "why is it urgent?", voice
+ * fell back to querying todos and guessed. That is the confabulation Phase 3.3
+ * was built to eliminate, still fully present in the other channel.
+ *
+ * Deliberately a TOOL rather than session instructions: a Realtime session is
+ * long-lived, so a mood baked in at session creation would describe the past.
+ * This is computed when asked, from the same explainUrgency() the dashboard and
+ * the text packet use — one implementation, three surfaces.
+ */
+export async function getOrbStatePacket(
+  auth: AuthContext,
+  options: { projectName?: string } = {},
+): Promise<OrbRealtimeFactPacket> {
+  let project: { id: string; name: string; code: string } | null = null
+  if (options.projectName) {
+    let lookup = auth.admin.from('projects').select('id, name, code, created_by')
+      .eq('is_dormant', false).is('deleted_at', null)
+    if (!auth.isAdmin) lookup = lookup.eq('created_by', auth.user.id)
+    const { data, error } = await lookup
+    if (error) throw error
+    project = resolveProjectByReference(data ?? [], options.projectName) ?? null
+    if (!project) throw new Error(`Could not resolve one accessible project named “${options.projectName}”.`)
+  }
+
+  let projectQuery = auth.admin
+    .from('projects')
+    .select('id, name, code, urgency_windows')
+    .eq('is_dormant', false)
+    .is('deleted_at', null)
+  if (!auth.isAdmin) projectQuery = projectQuery.eq('created_by', auth.user.id)
+  if (project) projectQuery = projectQuery.eq('id', project.id)
+  const { data: projectRows, error: projectError } = await projectQuery
+  if (projectError) throw projectError
+  const projects = projectRows ?? []
+  const projectIds = projects.map((p: any) => p.id)
+
+  const [{ data: todoRows, error: todoError }, { data: priorityRows }, { data: userRow }] = await Promise.all([
+    projectIds.length
+      ? auth.admin.from('todos')
+        .select('status, priority_value, due_at, due_timezone, product_id, title, todo_number')
+        .in('product_id', projectIds).is('deleted_at', null)
+      : Promise.resolve({ data: [], error: null }),
+    auth.admin.from('priorities').select('value, is_urgent'),
+    auth.admin.from('users').select('timezone').eq('id', auth.user.id).maybeSingle(),
+  ])
+  if (todoError) throw todoError
+
+  const urgentValues = new Set<number>((priorityRows ?? []).filter((p: any) => p.is_urgent).map((p: any) => p.value))
+  const timeZone = (userRow as any)?.timezone || 'America/Los_Angeles'
+  const windowsByProject: UrgencyWindowsByProject = {}
+  for (const p of projects) windowsByProject[p.id] = parseUrgencyWindows((p as any).urgency_windows)
+
+  const codeFor = (t: any) => {
+    const p = projects.find((pp: any) => pp.id === t.product_id)
+    return p ? `${p.code}-${t.todo_number}` : `#${t.todo_number}`
+  }
+
+  const scope = project ? project.name : (auth.isAdmin ? 'all projects you can see' : 'your projects')
+  const explained = explainUrgency(todoRows ?? [], urgentValues, timeZone, windowsByProject, 3)
+
+  if (explained.urgency === 'calm' || explained.drivers.length === 0) {
+    return {
+      kind: 'orb_state', observedAt: new Date().toISOString(), source: 'database',
+      statuses: [], count: 0,
+      spokenText: `The orb is calm for ${scope}. Nothing is pressing — no urgent priority, nothing past due, and nothing inside its warning window.`,
+    }
+  }
+
+  const reasons = explained.drivers.map(d => {
+    if (d.rule === 'volume') return 'there are more than five active tasks'
+    const name = d.title ? `${codeFor(d)}, ${d.title},` : 'a task'
+    switch (d.rule) {
+      case 'urgent-priority': return `${name} is set to an urgent priority`
+      case 'past-due': return `${name} is past due`
+      case 'imminent': return `${name} is inside its urgent window`
+      default: return `${name} is inside its busy window`
+    }
+  })
+  const more = explained.truncated > 0 ? `, and ${explained.truncated} more` : ''
+
+  return {
+    kind: 'orb_state', observedAt: new Date().toISOString(), source: 'database',
+    statuses: [], count: explained.drivers.length,
+    project: project ? { id: project.id, name: project.name } : undefined,
+    spokenText: `The orb is ${explained.urgency} for ${scope} because ${reasons.join('; ')}${more}.`,
   }
 }
