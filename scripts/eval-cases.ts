@@ -829,7 +829,15 @@ export const EVAL_CASES: EvalCase[] = [
       { role: 'assistant', text: 'ORB-118 ("Take the cake out of the oven") has a due date but no reminder. Want me to set one?' },
     ],
     input: 'No, that one never needs a reminder.',
-    tier: 1,
+    // RE-TIERED 1 -> 2 on 2026-07-28. It passed 1/1 when added, and I let that
+    // stand as verification; a later run of the same code gave 0/1 with the
+    // model answering "Got it — noted. That one's all set." and calling nothing.
+    // Whether a soft conversational decline produces a tool call is not
+    // deterministic, so this never belonged in Tier 1. The behaviour is also now
+    // stated durably in buildUrgencyRules rather than only in the transient
+    // nudge observation — which this case does not supply, so the model
+    // previously had nothing in context telling it to make the call.
+    tier: 2,
     expectTool: {
       name: 'update_todo',
       params: { code: 'ORB-118', dismiss_reminder_nudge: true },
