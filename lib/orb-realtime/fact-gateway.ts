@@ -58,7 +58,7 @@ export async function getTaskCountPacket(
   const { count, error } = await countQuery
   if (error) throw error
   const exactCount = count ?? 0
-  const subject = project ? project.name : 'projects you own'
+  const subject = project ? project.name : (auth.isAdmin ? 'all projects you can see' : 'your projects')
   const taskWord = exactCount === 1 ? 'task' : 'tasks'
   const countPhrase = statusScope === 'all'
     ? `${exactCount} ${taskWord} total`
@@ -175,7 +175,7 @@ export async function getTodoListPacket(
     }
   })
   const exactCount = count ?? tasks.length
-  const subject = project ? project.name : 'projects you own'
+  const subject = project ? project.name : (auth.isAdmin ? 'all projects you can see' : 'your projects')
   if (exactCount === 0) {
     return {
       kind: 'todo_list', observedAt: new Date().toISOString(), source: 'database',
@@ -213,7 +213,7 @@ export async function getNextStepPacket(auth: AuthContext): Promise<OrbRealtimeF
     return {
       kind: 'next_step', observedAt: new Date().toISOString(), source: 'database',
       statuses: ['open', 'in progress'], count: count ?? 0,
-      spokenText: 'You have no active tasks in projects you own, so there is no verified next task to recommend.',
+      spokenText: `You have no active tasks in ${auth.isAdmin ? 'any project you can see' : 'your projects'}, so there is no verified next task to recommend.`,
     }
   }
   const project = todo.projects as unknown as JoinedProject

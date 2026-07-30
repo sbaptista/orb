@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.265',
+    date: '2026-07-30',
+    changes: [
+      'Voice results no longer describe themselves as coming from "projects you own". For an admin they never did — the search covers every project you can see — and saying otherwise made correct results look like they had quietly excluded something (ORB-372).',
+    ],
+  },
+  {
     version: 'v0.6.264',
     date: '2026-07-30',
     changes: [
