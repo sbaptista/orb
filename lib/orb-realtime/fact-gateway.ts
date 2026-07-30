@@ -162,7 +162,12 @@ export async function getTodoListPacket(
     .order('created_at', { ascending: true })
     .limit(maxResults)
   if (project) query = query.eq('product_id', project.id)
-  else query = query.eq('projects.created_by', auth.user.id)
+  // ORB-372: this branch filtered to owned projects UNCONDITIONALLY, unlike
+  // every other query in this file (lines ~42, ~110, ~147 all guard with
+  // !auth.isAdmin). For an admin it silently excluded projects they can see —
+  // and contradicted the spoken subject, which now says "all projects you can
+  // see". The filter belongs to non-admins only.
+  else if (!auth.isAdmin) query = query.eq('projects.created_by', auth.user.id)
   if (statusScope !== 'all') query = query.in('status', COUNT_STATUSES[statusScope])
   if (options.textMatch?.trim()) query = query.ilike('title', `%${options.textMatch.trim()}%`)
   const { data, count, error } = await query
@@ -175,6 +180,12 @@ export async function getTodoListPacket(
     }
   })
   const exactCount = count ?? tasks.length
+  // ORB-372: unprioritised todos sort LAST (nullsFirst: false), so a capped
+  // list drops exactly the items a user is least likely to have in mind and
+  // most likely to be hunting for. Stan searched "voice", got an accurate
+  // count of 12 and a list of 10 — the two missing ones were the two he
+  // meant. The omission is now stated with what to say to see them.
+  const omitted = Math.max(0, exactCount - tasks.length)
   const subject = project ? project.name : (auth.isAdmin ? 'all projects you can see' : 'your projects')
   if (exactCount === 0) {
     return {
@@ -184,8 +195,12 @@ export async function getTodoListPacket(
     }
   }
   const list = tasks.map(task => `${task.code}, ${task.title} (${task.status})`).join('; ')
-  const prefix = exactCount > tasks.length
-    ? `${subject} has ${exactCount} matching tasks. Here are the first ${tasks.length}:`
+  // "Here are the first 10" reads as a formatting note; it is actually a
+  // statement that some results are missing, and the ones cut are the
+  // lowest-priority — often exactly what the user is hunting for. Say what is
+  // missing and how to get it, rather than leaving the user to notice.
+  const prefix = omitted > 0
+    ? `${subject} has ${exactCount} matching tasks. I can only read ${tasks.length} at a time, so ${omitted} ${omitted === 1 ? 'is' : 'are'} not listed here — unprioritised tasks come last, so ask for a specific project or say "show the rest" to reach them:`
     : `${subject} has ${exactCount} matching ${exactCount === 1 ? 'task' : 'tasks'}:`
   return {
     kind: 'todo_list', observedAt: new Date().toISOString(), source: 'database',

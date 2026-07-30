@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.266',
+    date: '2026-07-30',
+    changes: [
+      'Voice searches no longer quietly drop results. A search reported an accurate total but read out only the first ten, and because unprioritised tasks sort last, the ones omitted were often exactly the ones being looked for. It now says how many it could not read and how to reach them (ORB-372).',
+      'A voice search by an admin also covers every project they can see. One query still filtered to owned projects only, which contradicted what the Orb said about its own access.',
+    ],
+  },
+  {
     version: 'v0.6.265',
     date: '2026-07-30',
     changes: [
