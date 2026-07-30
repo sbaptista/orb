@@ -12,10 +12,10 @@
 
 ## App State
 
-- **Branch:** `main` after the ORB-342 release fast-forward.
+- **Branch:** `main` == `origin/main`. Nothing awaiting a push.
 - **Dev server:** user-started on localhost:3001.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** **0.6.260**.
+- **Version:** **0.6.270** — pushed 2026-07-30 (`6091fec`).
 - **Production maintenance:** off.
 - **Database:** `scripts/migrations/20260729_orb_342_canonical_proposals.sql`
   is applied.
@@ -25,6 +25,16 @@
 ---
 
 ## Last Session Completed
+
+**ORB-339 + ORB-372 — 2026-07-30 (Claude Code, Opus 5) — v0.6.261→v0.6.270 — RELEASED**
+
+**ORB-339 — CLOSED.** Serial had no server-side todo title resolution: `update_todo` took a code, so which code got picked was the model's unaided judgment, and Haiku picked wrong on near-exact titles. Assessed first whether ORB-342 had made it obsolete — it had not. ORB-342 converged what a mutation DOES; this is what a task NAME means, decided before a proposal exists. What ORB-342 did change was the fix's shape: the proven Realtime resolver could be **lifted** into the shared layer rather than written a second time. `lib/orb-operations/todo-reference.ts` now holds the policy alone (exact before fuzzy; accept only a uniquely stronger candidate; **a tie is ambiguous, never the first candidate**); row access and error reporting stay per channel deliberately. Verified three ways: 10/10 deterministic, Stan's live voice test, and a Tier 2 eval at 3 runs. KB `e70c50c0`. Title resolution is bounded at 2000 candidates paired with an exact count — it **refuses** rather than ranking a partial set, because a bare `.limit()` would silently return a confident wrong answer.
+
+**ORB-372 — OPEN, retitled.** Six defects, one shape: the Orb stating something confidently untrue about itself. Orphaned Realtime calls never ended at OpenAI (409); the error message blaming the provider for our own fault and for quota exhaustion; a permission rule the server never enforced; the same misnomer again in the spoken results; a search that counted 12 and returned 10, dropping exactly the rows being hunted; and voice that could not show a table, then would not. All fixed and verified by Stan on localhost. KB `fbbe0293`. **Still open:** no paging beyond 200 results.
+
+**Tooling.** The eval runner defaulted to a hardcoded LAN IP that broke on every DHCP lease and reported it as "Network error" — two full runs and a proposal to restart the dev server were spent on it. Now defaults to localhost, and the failure names the host. Eval category rules added for two new cases (ORB-364 requires them; one uncategorised id throws at module load and blocks the whole file). `allowedDevOrigins` pruned from six accumulated IP entries to two wildcards, verified against Next's own matcher.
+
+**Key lesson (recorded in both KB entries).** Every defect this session was found by reading a recorded artifact; every wrong claim came from inferring off an artifact's surface — a blank claim ledger, a grep count, a commit subject line, a stale `git status`, and a matching result count. The sharpest instance: I reported "no incident ticket was written" three times as the top outstanding item. TICKETS-70 had recorded it hours earlier; my query had an operator-precedence bug. **A search returning nothing is evidence about the search, not about the world.** Also: a count matching is not the result being right — the truncated search was marked as passing because the number said 12.
 
 **ORB-342 — canonical serial/Realtime mutation convergence — 2026-07-29
 (Codex, GPT-5) — v0.6.260 — CLOSED**
@@ -94,10 +104,11 @@ Detailed design: `docs/orb-342-operation-convergence-plan.md`.
 
 ## Next Priorities
 
-1. ORB-365 — introduce the free deterministic test layer.
-2. ORB-363 — reconcile provider spend and configure meaningful caps/reserves.
-3. ORB-367 — repair the Tier 2 maintenance discipline.
-4. ORB-368 — give Realtime voice grounded project-health evidence.
+1. ORB-368 — give Realtime voice grounded project-health evidence. Raised to the top: voice still cannot explain the orb's mood, and this session showed repeatedly that voice having less than text is drift rather than decision.
+2. ORB-365 — introduce the free deterministic test layer.
+3. ORB-363 — reconcile provider spend and configure meaningful caps/reserves.
+4. ORB-367 — repair the Tier 2 maintenance discipline.
+5. ORB-372 — paging beyond 200 results; the only remaining gap on an otherwise-fixed ticket.
 
 ---
 
@@ -131,7 +142,7 @@ Detailed design: `docs/orb-342-operation-convergence-plan.md`.
 
 ## AI Tool Used Last Session
 
-`2026-07-29 — Codex (GPT-5)`
+`2026-07-30 — Claude Code (Opus 5)`
 
 ---
 
