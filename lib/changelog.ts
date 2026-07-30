@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.271',
+    date: '2026-07-30',
+    changes: [
+      'Resolution notes are visible again in the task editor. Choose a status that closes a task and the field appears, showing what was written when it was closed — including notes the Orb wrote itself. The data was always saved; there was simply nothing on screen to show or edit it.',
+    ],
+  },
+  {
     version: 'v0.6.269',
     date: '2026-07-30',
     changes: [

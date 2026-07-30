@@ -488,6 +488,23 @@ export default function TodoEditor({
             />
           </div>
 
+          {/* Resolution notes — only once the chosen status actually closes the
+              todo. It was already loaded, reset and saved (form.resolution_notes)
+              but never rendered, so notes written by the Orb on close were
+              invisible in the editor and could not be corrected by hand. */}
+          {statuses.find(st => st.name === form.status)?.is_closed && (
+            <div className="pf-field">
+              <label htmlFor="te-resolution" className="pf-label">Resolution notes</label>
+              <textarea
+                id="te-resolution"
+                className="pf-textarea"
+                value={form.resolution_notes ?? ''}
+                onChange={e => setForm(f => ({ ...f, resolution_notes: e.target.value }))}
+                placeholder="What was actually done to resolve this?"
+              />
+            </div>
+          )}
+
           {/* Status + Priority */}
           <div className="grid-2col">
             <div className="pf-field">
