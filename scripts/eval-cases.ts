@@ -3,10 +3,39 @@
 // Each case tests a specific Orb behavior — tool correctness or speech content.
 
 import { GEMINI_STRATEGIC_EVAL_MODEL } from '../lib/orb-model/gemini'
+import { ORB_TOOLS } from '../lib/orb-contract'
+import {
+  ORB_ADAPTATION_TOOL,
+  ORB_CAPABILITIES_TOOL,
+  ORB_DEV_CHANNEL_TOOL,
+  ORB_MEMORY_TOOLS,
+  ORB_PREFERENCE_TOOLS,
+} from '../lib/orb-prompt'
+
+export const EVAL_CATEGORIES = [
+  'todo-crud',
+  'project-crud',
+  'mutation-safety',
+  'knowledge',
+  'tickets',
+  'read-routing',
+  'provider-routing',
+  'voice',
+  'memory-adaptation',
+  'grounding-speech',
+  'capability-gaps',
+] as const
+
+export type EvalCategory = typeof EVAL_CATEGORIES[number]
+export const EVAL_SUITES = ['smoke', 'serial-tool-contract'] as const
+export type EvalSuite = typeof EVAL_SUITES[number]
 
 export type EvalCase = {
   id: string
   description: string
+  category: EvalCategory
+  suites: EvalSuite[]
+  modelCallExpected: boolean
   productCode: string | null       // which project is selected in the UI; null exercises the zero-project state
   input: string                    // what the user says to the Orb
   userEmail?: string               // optional admin context for strategic evaluations
@@ -27,7 +56,7 @@ export type EvalCase = {
   provider?: 'anthropic' | 'gemini' | 'mistral'
   model?: string
 
-  // Tier 1: Tool call assertions (deterministic)
+  // Tier 1: Tool-contract assertions (single model run)
   expectTool?: {
     name: string
     params?: Record<string, any>   // partial match — every key must match
@@ -47,8 +76,10 @@ export type EvalCase = {
   speechPattern?: RegExp           // regex match on speech
 
   // Config
-  tier: 1 | 2                     // Tier 1 = deterministic (1 run), Tier 2 = statistical (3 runs)
+  tier: 1 | 2                     // Tier 1 = single-shot (1 run), Tier 2 = statistical (3 runs)
 }
+
+type EvalCaseDefinition = Omit<EvalCase, 'category' | 'suites' | 'modelCallExpected'>
 
 // Frozen mini-backlog for project-routing cases — keeps them deterministic and
 // independent of whatever the live DB happens to contain.
@@ -58,10 +89,10 @@ function evalBacklog(projects: Array<{ name: string; code: string }>): string {
     .join('\n\n')
 }
 
-export const EVAL_CASES: EvalCase[] = [
+const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
 
   // ═══════════════════════════════════════════════════════════════════════
-  // TIER 1: Tool correctness (deterministic — single run, pass/fail)
+  // TIER 1: Tool-contract correctness (single run, pass/fail)
   // ═══════════════════════════════════════════════════════════════════════
 
   {
@@ -304,6 +335,10 @@ export const EVAL_CASES: EvalCase[] = [
     description: 'Granting permission in the requesting message still emits create_todo calls (the server then executes them pre-authorized instead of asking to confirm)',
     productCode: 'ORB',
     mutationApproval: 'ask',
+    // This case protects upfront authorization, not project choice. Reading the
+    // live multi-project backlog made the unrelated product_code assertion
+    // alternate between ORB and ADELESADUL in consecutive runs.
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
     input: 'Create two test todos — make up the names yourself, you have my permission to create them.',
     tier: 1,
     expectTool: {
@@ -1143,22 +1178,11 @@ DORMANT:
     },
   },
 
-  // The Anthropic harness cannot execute the isolated OpenAI Realtime tool
-  // surface. These focused Tier 1 analogues protect the same three intent
-  // routes; the signed-reference/proposal/RPC boundary is verified directly
-  // with rollback database tests and representative DEV-operator acceptance.
-  {
-    id: 'realtime-update-intent-analogue',
-    description: 'A precise non-closing todo update routes to the existing update capability',
-    productCode: 'ORB',
-    backlogOverride: `Orb [code: ORB]:
-  SUMMARY: active_count=1 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
-  ACTIVE:
-  ORB-325 [P3] [open] Fix voice issues`,
-    input: 'Set ORB-325 to high priority.',
-    tier: 1,
-    expectTool: { name: 'update_todo', params: { code: 'ORB-325', new_priority: 2 } },
-  },
+  // These are serial-engine capability cases retained because their tool or
+  // semantic boundary has no equivalent elsewhere in Tier 1. Despite their
+  // historical ids, they do not execute the OpenAI Realtime engine. Fourteen
+  // duplicate analogues were removed in ORB-364; direct Realtime wiring remains
+  // covered by rollback verification and representative DEV acceptance.
   {
     id: 'realtime-exact-title-update-analogue',
     description: 'An exact natural title targets that todo (not a broader one on the same topic), maps the natural priority label “normal” to 3, and executes on upfront permission without a second ask. Deliberately uses an EXACT title: near-exact ranking is resolved server-side by the shared scoreTextMatch ranker in the Realtime path (verified directly against that resolver — “voice permission tests” scores ORB-336 20 vs 10/10, and a bare “voice” ties at 80 and fails closed). The serial path has no server-side title ranker — update_todo takes a code, so the model must pick it from the backlog unaided — so asserting rank-the-near-miss here tested model judgment, not the ranker, and was a coin flip (it passed on Gemini and failed on Haiku, production’s own model). That real serial gap is tracked separately rather than hidden behind a green test.',
@@ -1172,18 +1196,6 @@ DORMANT:
     input: 'Change "Voice Permission Test" to normal priority, and you have my approval.',
     tier: 1,
     expectTool: { name: 'update_todo', params: { code: 'ORB-336', new_priority: 3 } },
-  },
-  {
-    id: 'realtime-delete-intent-analogue',
-    description: 'A precise todo deletion routes to the existing delete capability',
-    productCode: 'ORB',
-    backlogOverride: `Orb [code: ORB]:
-  SUMMARY: active_count=1 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
-  ACTIVE:
-  ORB-325 [P3] [open] Fix voice issues`,
-    input: 'Delete ORB-325.',
-    tier: 1,
-    expectTool: { name: 'delete_todo', params: { code: 'ORB-325' } },
   },
   {
     id: 'realtime-move-intent-analogue',
@@ -1201,88 +1213,12 @@ Helm [code: HELM]:
     expectTool: { name: 'move_todo', params: { code: 'ORB-325', target_project_code: 'HELM' } },
   },
   {
-    id: 'realtime-close-intent-analogue',
-    description: 'A todo close-with-resolution routes to the existing closing capability (Realtime propose_close_todo analogue)',
-    productCode: 'ORB',
-    backlogOverride: `Orb [code: ORB]:
-  SUMMARY: active_count=1 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
-  ACTIVE:
-  ORB-325 [P3] [open] Fix voice issues`,
-    input: 'Close ORB-325 — I fixed the voice issues by hardening the Realtime path.',
-    tier: 1,
-    expectTool: { name: 'update_todo', params: { code: 'ORB-325', new_status: 'closed' } },
-  },
-  {
-    id: 'realtime-batch-todo-mutation-intent-analogue',
-    description: 'Naming 2+ todos for the same action in one utterance is the shared intent Realtime\'s propose_todo_batch tool now covers in one combined confirmation (2026-07-19). The Anthropic harness cannot call that Realtime-only tool directly, so this analogue verifies the underlying serial behavior it mirrors: one tool call per named todo collected into one combined confirmation, same as bulk-delete-project-todos-calls-tools.',
-    productCode: 'TEST',
-    mutationApproval: 'ask',
-    backlogOverride: `Test [code: TEST]:
-  SUMMARY: active_count=3 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
-  ACTIVE:
-  TEST-1 [P-] [open] Alpha eval
-  TEST-2 [P-] [open] Beta eval
-  TEST-3 [P-] [open] Gamma eval`,
-    input: 'Delete Alpha eval, Beta eval, and Gamma eval.',
-    tier: 1,
-    expectTool: {
-      name: 'delete_todo',
-      params: { code: 'TEST-1' },
-    },
-    expectToolCount: {
-      name: 'delete_todo',
-      count: 3,
-    },
-  },
-  {
-    id: 'realtime-create-project-intent-analogue',
-    description: 'A Realtime project-create intent routes to the existing typed project creation capability using the exact name',
-    productCode: 'ORB',
-    input: 'Create a project called __UNIQUE__.',
-    tier: 1,
-    expectTool: { name: 'create_project', params: { name: '__UNIQUE__' } },
-  },
-  {
-    id: 'realtime-update-project-intent-analogue',
-    description: 'A Realtime project rename intent routes name-first to the existing typed project update capability',
-    productCode: 'ORB',
-    backlogOverride: evalBacklog([{ name: 'Helm', code: 'HELM' }]),
-    input: 'Rename the Helm project to Helm Classic.',
-    tier: 1,
-    expectTool: { name: 'update_project', params: { name: 'Helm', new_name: 'Helm Classic' } },
-  },
-  {
-    id: 'realtime-delete-project-intent-analogue',
-    description: 'A Realtime project deletion intent routes name-first to the existing typed permanent-delete capability',
-    productCode: 'ORB',
-    backlogOverride: evalBacklog([{ name: 'Temporary Project', code: 'TEMP' }]),
-    input: 'Permanently delete Temporary Project and all its todos.',
-    tier: 1,
-    expectTool: { name: 'delete_project', params: { name: 'Temporary Project' } },
-  },
-  {
-    id: 'realtime-search-knowledge-intent-analogue',
-    description: 'A Realtime Knowledge Repository topic read routes to the ranked typed read capability',
-    productCode: 'ORB',
-    input: 'What do we know about Realtime voice mutation safety?',
-    tier: 1,
-    expectTool: { name: 'search_knowledge' },
-  },
-  {
     id: 'realtime-add-knowledge-intent-analogue',
     description: 'A Realtime request to preserve an insight routes to the typed Knowledge Repository create capability',
     productCode: 'ORB',
     input: 'Save this to the knowledge repository: title "Realtime safety rule", content "Database receipts are the mutation boundary."',
     tier: 1,
     expectTool: { name: 'add_knowledge', params: { title: 'Realtime safety rule' } },
-  },
-  {
-    id: 'realtime-query-ticket-intent-analogue',
-    description: 'A Realtime request for one reporter-facing ticket routes to the admin-only typed ticket read',
-    productCode: 'ORB',
-    input: 'What is the status of TICKETS-42?',
-    tier: 1,
-    expectTool: { name: 'query_tickets', params: { code: 'TICKETS-42' } },
   },
   {
     id: 'realtime-query-audit-intent-analogue',
@@ -1297,23 +1233,6 @@ Helm [code: HELM]:
     expectTool: { name: 'query_audit_trail', params: { code: 'ORB-325' } },
   },
   {
-    id: 'realtime-query-repository-intent-analogue',
-    description: 'A Realtime implementation question routes to the role-gated repository inspection capability',
-    productCode: 'ORB',
-    input: 'Search the repository for confirm_realtime_mutation.',
-    tier: 1,
-    expectTool: { name: 'query_repository', params: { operation: 'search' } },
-  },
-  {
-    id: 'realtime-switch-project-intent-analogue',
-    description: 'A Realtime project switch routes through the verified name-first client action',
-    productCode: 'ORB',
-    backlogOverride: evalBacklog([{ name: 'Mr. Stokely from Boston', code: 'STOKELYFRO' }]),
-    input: 'Switch to Mr. Stokely.',
-    tier: 1,
-    expectTool: { name: 'client_action', params: { action: 'switch_project' } },
-  },
-  {
     id: 'realtime-set-preference-intent-analogue',
     description: 'A Realtime confirmation of an actual preference change routes to the validated preference write',
     productCode: 'ORB',
@@ -1324,26 +1243,6 @@ Helm [code: HELM]:
     input: 'Yes, save that preference now.',
     tier: 1,
     expectTool: { name: 'set_preference', params: { key: 'verbosity', value: 'detailed' } },
-  },
-  {
-    id: 'realtime-save-memory-intent-analogue',
-    description: 'A Realtime explicit acceptance of an offered memory routes to the offered memory track',
-    productCode: 'ORB',
-    history: [
-      { role: 'user', text: 'I prefer project reviews in the morning.' },
-      { role: 'assistant', text: 'That could help future planning. Would you like me to remember that across sessions?' },
-    ],
-    input: 'Yes, save that as a memory now.',
-    tier: 1,
-    expectTool: { name: 'save_memory', params: { track: 'offered' } },
-  },
-  {
-    id: 'realtime-recall-memory-intent-analogue',
-    description: 'A Realtime memory lookup routes to the typed recall capability',
-    productCode: 'ORB',
-    input: 'Check your memories for my project review habits.',
-    tier: 1,
-    expectTool: { name: 'recall_memories' },
   },
   {
     id: 'realtime-set-dormancy-intent-analogue',
@@ -1400,15 +1299,6 @@ Helm [code: HELM]:
     expectTool: { name: 'send_to_developer', params: { target_tool: 'Codex' } },
   },
   {
-    id: 'realtime-query-project-facts-intent-analogue',
-    description: 'A Realtime request for a missing project fact routes to the richer project read capability',
-    productCode: 'ORB',
-    backlogOverride: evalBacklog([{ name: 'Helm', code: 'HELM' }]),
-    input: 'Who owns Helm? Check the live project facts because the backlog summary does not include ownership.',
-    tier: 1,
-    expectTool: { name: 'query_projects', params: { name: 'Helm' } },
-  },
-  {
     id: 'realtime-query-db-intent-analogue',
     description: 'A Realtime structural date query routes to the bounded database fallback',
     productCode: 'ORB',
@@ -1449,6 +1339,17 @@ Helm [code: HELM]:
     tier: 1,
     expectTool: {
       name: 'recall_memories',
+    },
+  },
+
+  {
+    id: 'get-preferences-tool',
+    description: 'Asking how Orb is configured calls get_preferences instead of guessing from conversation context',
+    productCode: 'ORB',
+    input: 'What are my current Orb preferences?',
+    tier: 1,
+    expectTool: {
+      name: 'get_preferences',
     },
   },
 
@@ -1633,3 +1534,122 @@ Helm [code: HELM]:
     },
   },
 ]
+
+const SMOKE_CASE_IDS = new Set([
+  'create-default-project',
+  'confirmed-create-after-approval-tool',
+  'confirm-mutation-not-called-on-decline',
+  'conversational-no-tool',
+  'knowledge-search-tool',
+  'ticket-code-rejected-as-todo-mutation',
+  'exact-task-read-no-invented-blockers',
+])
+
+// One representative model-selection case for every tool the serial Orb can
+// expose on a fully enabled operational turn. This is deliberately separate
+// from smoke and from the incident-focused category cases: it answers the
+// narrow question "can the model select every available serial tool?" without
+// pretending one happy path covers negative safety or Realtime behavior.
+const SERIAL_TOOL_CONTRACT_CASE_BY_TOOL = {
+  create_todo: 'create-default-project',
+  update_todo: 'realtime-exact-title-update-analogue',
+  delete_todo: 'bulk-delete-project-todos-calls-tools',
+  query_repository: 'repository-inspection-tool',
+  query_todos: 'exact-task-read-no-invented-blockers',
+  query_projects: 'query-projects-tool',
+  query_tickets: 'query-tickets-admin-lookup',
+  query_db: 'realtime-query-db-schema-column-intent-analogue',
+  client_action: 'switch-project-partial-name-resolves',
+  search_knowledge: 'knowledge-search-tool',
+  add_knowledge: 'realtime-add-knowledge-intent-analogue',
+  update_knowledge: 'update-knowledge-correction-tool',
+  query_audit_trail: 'realtime-query-audit-intent-analogue',
+  create_ticket: 'ticket-no-premature-success',
+  move_todo: 'realtime-move-intent-analogue',
+  create_project: 'create-project-exact-name',
+  update_project: 'rename-project-proposes',
+  delete_project: 'delete-project-calls-tool',
+  confirm_mutation: 'confirm-mutation-executes-on-yes',
+  set_dormancy: 'realtime-set-dormancy-intent-analogue',
+  get_preferences: 'get-preferences-tool',
+  set_preference: 'realtime-set-preference-intent-analogue',
+  save_memory: 'memory-save-offered',
+  recall_memories: 'memory-recall',
+  query_capabilities: 'realtime-query-capabilities-intent-analogue',
+  send_to_developer: 'realtime-send-developer-intent-analogue',
+  propose_adaptation: 'propose-adaptation-after-repeated-correction',
+} as const
+
+const SERIAL_TOOL_CONTRACT_CASE_IDS = new Set<string>(
+  Object.values(SERIAL_TOOL_CONTRACT_CASE_BY_TOOL),
+)
+
+const FULLY_ENABLED_SERIAL_TOOL_NAMES = new Set([
+  ...ORB_TOOLS.map(tool => tool.name),
+  ...ORB_PREFERENCE_TOOLS.map(tool => tool.name),
+  ...ORB_MEMORY_TOOLS.map(tool => tool.name),
+  ORB_CAPABILITIES_TOOL.name,
+  ORB_DEV_CHANNEL_TOOL.name,
+  ORB_ADAPTATION_TOOL.name,
+])
+
+const MODEL_FREE_CASE_IDS = new Set([
+  'delete-first-action-set-resolves-by-ledger',
+  'pending-create-undercount-corrects-without-expanding',
+  'strategic-budget-preserves-operations',
+  'voice-project-state-uses-brief-summary',
+  'voice-current-project-status-update-uses-brief-summary',
+])
+
+function evalCategory(id: string): EvalCategory {
+  if (id.startsWith('realtime-')) return 'capability-gaps'
+  if (/knowledge/.test(id)) return 'knowledge'
+  if (/ticket|bugs-question/.test(id)) return 'tickets'
+  if (/voice/.test(id)) return 'voice'
+  if (/memory|adaptation|preference|role-correction/.test(id)) return 'memory-adaptation'
+  if (/strategic|provider|budget|mutation-stays-on-operational-route/.test(id)) return 'provider-routing'
+  if (
+    /greeting|scope-transparency|reminder-nudge|distant-reminder|orb-mood|orb-window|project-health|cross-project-awareness|ambiguous-ui|unknown-feature|display-name|project-list|project-count|whats-new|commitment|reflective/.test(id)
+  ) return 'grounding-speech'
+  if (/query|repository|exact-task-read|duplicate-search|conversational-no-tool|no-lazy-escalation-on-lookup/.test(id)) return 'read-routing'
+  if (/create-project|delete-project|rename-project|switch-project|disambiguation/.test(id)) return 'project-crud'
+  if (
+    /confirm|approval|permission|pending|action-set|hallucinated|no-session-record|upfront-permission|restated-request|premature-success|code-fabrication/.test(id)
+  ) return 'mutation-safety'
+  if (/create|todo|delete|move|close/.test(id)) return 'todo-crud'
+  throw new Error(`Eval case "${id}" needs an explicit category rule.`)
+}
+
+export const EVAL_CASES: EvalCase[] = EVAL_CASE_DEFINITIONS.map(testCase => ({
+  ...testCase,
+  category: evalCategory(testCase.id),
+  suites: [
+    ...(SMOKE_CASE_IDS.has(testCase.id) ? ['smoke' as const] : []),
+    ...(SERIAL_TOOL_CONTRACT_CASE_IDS.has(testCase.id) ? ['serial-tool-contract' as const] : []),
+  ],
+  modelCallExpected: !MODEL_FREE_CASE_IDS.has(testCase.id),
+}))
+
+for (const [toolName, caseId] of Object.entries(SERIAL_TOOL_CONTRACT_CASE_BY_TOOL)) {
+  const testCase = EVAL_CASES.find(candidate => candidate.id === caseId)
+  if (!testCase) {
+    throw new Error(`Serial tool contract case "${caseId}" for "${toolName}" does not exist.`)
+  }
+  if (testCase.expectTool?.name !== toolName) {
+    throw new Error(
+      `Serial tool contract case "${caseId}" must expect "${toolName}", not "${testCase.expectTool?.name ?? 'no tool'}".`,
+    )
+  }
+}
+
+const mappedSerialToolNames = new Set(Object.keys(SERIAL_TOOL_CONTRACT_CASE_BY_TOOL))
+for (const toolName of FULLY_ENABLED_SERIAL_TOOL_NAMES) {
+  if (!mappedSerialToolNames.has(toolName)) {
+    throw new Error(`Serial tool "${toolName}" has no serial-tool-contract case.`)
+  }
+}
+for (const toolName of mappedSerialToolNames) {
+  if (!FULLY_ENABLED_SERIAL_TOOL_NAMES.has(toolName)) {
+    throw new Error(`Serial tool contract maps "${toolName}", but the serial Orb does not expose it.`)
+  }
+}

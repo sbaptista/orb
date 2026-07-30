@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.259',
+    date: '2026-07-29',
+    changes: [
+      'Reduced the accepted full Tier 1 eval from 74 to 60 model calls and from $1.1993 to $0.9547 (20.4%) without weakening the statistical Tier 2 threshold. Fourteen duplicate serial cases that had been mislabeled as Realtime coverage were removed; retained serial analogues no longer claim to prove the separate voice engine (ORB-364).',
+      'Added risk-based release gates: a seven-case cross-cutting smoke suite for localized changes, affected capability categories, and a self-validating serial-tool-contract suite with one representative case for each of the 27 fully enabled serial tools. Shared prompt/context/model changes still require full Tier 1, while non-conversation changes require no model eval.',
+      'Eval runs now persist durable evidence—commit, selection, per-case assertions and failures, tool calls, provider/model, latency, and estimated cost—linked to the existing model-request ledger by run UUID. Model-free cases no longer wait behind artificial provider pacing.',
+      'A tested second cache boundary was rejected after moving prompt context changed project-routing behavior. The released one-hour eval cache remains, preserving the original prompt order rather than trading correctness for a theoretical cache gain.',
+    ],
+  },
+  {
     version: 'v0.6.258',
     date: '2026-07-29',
     changes: [

@@ -22,7 +22,7 @@ Constitutional frame: `docs/orb-craft-and-art-doctrine.md`.
 - **Never build/implement changes without explicit permission/confirmation from Stan.**
 - **Never `git push` without Stan's explicit in-chat approval.** Commit locally when asked. Never push. Push triggers a production deploy — that is always Stan's call. See shared AGENTS.md "Git — Commits and Pushes" for the full rule.
 - **Repeat verbatim the release documentation rule at the start of every session:** Before any code push/release, the agent must document all changes in `lib/changelog.ts` by adding a new `Release` entry with the bumped version, release date, and details of changes, and bump the patch version in both `package.json` and `lib/version.ts`.
-- **Orb eval suite is mandatory:** When you add or change any Orb-conversation capability (a tool, a tool param, a routing rule, or a defined speech/policy behavior), add or update a matching case in `scripts/eval-cases.ts` in the same change. Do not run the eval suite yourself — tell Stan to run `npm run eval:t1` from the terminal. If it fails, Stan will paste the output for you to fix. See the **Orb Eval Suite** section below.
+- **Orb eval coverage is mandatory for Orb-conversation changes:** When you add or change any Orb-conversation capability (a tool, a tool param, a routing rule, or a defined speech/policy behavior), add or update a matching categorized case in `scripts/eval-cases.ts` in the same change. Do not run model evals yourself — tell Stan which risk-based command from the **Orb Eval Suite** section to run. Non-conversation changes do not require model evals.
 - **Knowledge Repository Access:** The knowledgebase is stored in the database (`knowledge_repo` table). Always query it at the start of a task using the `SUPABASE_SECRET_KEY` (service role) to bypass Row Level Security (RLS) constraints. See the **Knowledge Repository Access** section below for connection details and query examples.
 - Your very first response back to the user must be the numbered list answering all questions. You must use read-only tools (such as `view_file` and `run_command` for `git status`) in your first turn to read `HANDOFF.md`, `package.json`, and check git state to answer these questions accurately.
 - Do not perform any write/mutating tool calls, compile code, or propose implementation plans until you have answered all questions and the user has approved them.
@@ -182,17 +182,23 @@ Orb also has a `create_ticket` tool that silently logs bugs, suggestions, capabi
 
 The conversational Orb's behavior is protected by an **eval suite**, not unit tests. It is the project's regression guard for what the Orb says and which tools it calls. Scope is deliberately tight: it exercises **Orb-conversation capabilities only** — tool calls and speech content. It does not (and cannot) test UI, frontend, or non-conversation features.
 
-- **Cases:** `scripts/eval-cases.ts` — append new cases to the `EVAL_CASES` array.
-  - **Tier 1 — tool correctness:** deterministic, one run, must pass 1/1. Asserts the Orb calls the right tool with the right params (`expectTool` / `expectNoTool`).
+- **Cases:** `scripts/eval-cases.ts` — append new cases to the case definitions and ensure the category resolver covers the new id.
+  - **Tier 1 — tool-contract correctness:** single-shot model run, must pass 1/1. The assertions are deterministic; the model response is not. Asserts the Orb calls the right tool with the right params (`expectTool` / `expectNoTool`).
   - **Tier 2 — behavioral:** statistical, three runs, must pass 2/3. Asserts speech via `speechContains` / `speechNotContains` / `speechPattern`.
 - **Runner (npm scripts — requires dev server on :3001):**
   - `npm run eval` — run all tiers
   - `npm run eval:t1` — Tier 1 only (tool correctness)
   - `npm run eval:t2` — Tier 2 only (behavioral)
+  - Cross-category smoke suite: `npm run eval:t1 -- --suite smoke`
+  - One representative case for every serial tool: `npm run eval -- --suite serial-tool-contract`
+  - Serial tool contract plus safety smoke: `npm run eval -- --suite serial-tool-contract,smoke`
+  - Affected category plus smoke sentinels: `npm run eval:t1 -- --suite smoke --category <category>[,<category>...]`
+  - Category only: `npm run eval:t1 -- --category <category>[,<category>...]`
   - One or more specific cases (comma-separated, no whole tier/suite): `npm run eval -- --id <case-id>[,<case-id>...]`
   - `npm run eval -- --list` — list every case id grouped by tier (no dev server or network needed)
   - `npm run eval -- --help` — full CLI usage (no dev server or network needed)
   - A Tier 1 failure exits non-zero and prints **"REGRESSION"** — that is the hard gate.
+  - Every run persists its commit, selection, per-case outcome, assertion failures, model-call count, and cost in `orb_eval_runs` / `orb_eval_results`.
 - **Endpoint:** `app/api/orb-eval/route.ts` (dev-only, non-streaming) — the surface the runner hits.
 
 **Rule — extend the suite as you build (Orb-conversation only):** When you add or change any Orb-conversation capability — a tool, a tool parameter, a routing rule, or a defined speech/policy behavior — you must add or update a matching case in `scripts/eval-cases.ts` in the **same change**. New tool or param → Tier 1 case. New or changed speech/policy behavior → Tier 2 case. Do not defer this to a later session.
@@ -201,7 +207,14 @@ The conversational Orb's behavior is protected by an **eval suite**, not unit te
 
 **`speechContains` quirk:** if the array has **more than 3 items it is treated as "any-of"** (a synonym list — at least one must match); **3 or fewer items means "all must match."** Size the array to the intent you want.
 
-**Before any production push:** Stan runs the eval suite from the terminal (`npm run eval:t1`). AI tools do not run evals themselves — they consume too many tokens for a task Stan can do in seconds. If evals fail, Stan pastes the output and the AI diagnoses and fixes the failing cases. Record the result (e.g. `Tier 1 N/N, Tier 2 N/N`) in the handoff.
+**Before a production push, classify the conversational blast radius and apply exactly one gate:**
+- **No Orb-conversation surface changed** (for example UI/CSS/docs or an unrelated schema change): no model eval is required; record `Eval: not applicable — no conversation surface changed` in the handoff.
+- **One or more localized conversation capabilities changed:** Stan runs the affected categories plus the cross-category sentinels: `npm run eval:t1 -- --suite smoke --category <category>[,<category>...]`.
+- **The serial tool inventory or tool schemas changed, without a global prompt/context change:** Stan runs one representative selection case for every serial tool plus the negative safety smoke: `npm run eval -- --suite serial-tool-contract,smoke`.
+- **A shared/global conversation surface changed** — global prompt or context assembly, provider/model, routing, mutation authorization shared across capabilities, or model-request construction in the eval engine: Stan runs full Tier 1 with `npm run eval:t1`.
+- **Realtime-only code changed:** serial “analogue” cases are not proof of Realtime behavior. Run any affected shared serial category plus the documented direct Realtime schema/route/RPC verification and representative DEV acceptance.
+
+AI tools do not run model evals themselves. If evals fail, Stan pastes the output and the AI diagnoses and fixes the failing cases. Record the exact command and result (for example `Tier 1 smoke+mutation-safety 19/19`) in the handoff. Tier 2 remains three runs per case and is used for affected speech/policy categories or broad prompt/model releases; never reduce it to two runs.
 
 ---
 
@@ -381,7 +394,7 @@ When instrumentation is required:
 Before any production release or code push, you must document all changes in the "What's New" release documentation file.
 - **File:** `/Users/stanleybaptista/Projects/orb/lib/changelog.ts`
 - **Action:** Bump the patch version in both `package.json` and `lib/version.ts`, and add a new entry to the `CHANGELOG` array in `lib/changelog.ts` with the new version string, release date, and detailed bullet points describing the changes.
-- **Eval gate:** Run the Orb eval suite (`NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts`) and confirm **Tier 1 is green** before pushing. See the **Orb Eval Suite** section above.
+- **Eval gate:** Apply the risk-based production gate in the **Orb Eval Suite** section above. Full Tier 1 is required for shared/global prompt/context/model changes; serial tool inventory/schema changes run the serial-tool-contract plus smoke suites; localized conversation changes run their categories plus smoke; non-conversation releases record eval as not applicable.
 - **Verification:** Ensure that clicking the "Update" button in the client forces a tab refresh and fetches the new server version cleanly.
 
 ---

@@ -8,7 +8,9 @@
  * Run with --help for usage, or --list to see every available case id.
  */
 
-import { EVAL_CASES, type EvalCase } from './eval-cases'
+import { execFileSync } from 'node:child_process'
+import { createClient } from '@supabase/supabase-js'
+import { EVAL_CASES, EVAL_CATEGORIES, EVAL_SUITES, type EvalCase, type EvalCategory, type EvalSuite } from './eval-cases'
 import * as dotenv from 'dotenv'
 import * as path from 'path'
 import type { OrbModelUsage } from '../lib/orb-model/types'
@@ -38,16 +40,26 @@ parameters, and does its speech contain the expected content?
 
 Usage:
   npm run eval                                  Run all tests
-  npm run eval:t1                               Run only Tier 1 (deterministic)
+  npm run eval:t1                               Run only Tier 1 (single-shot tool contract)
   npm run eval:t2                               Run only Tier 2 (behavioral)
+  npm run eval -- --suite smoke                 Run the cross-cutting safety smoke suite
+  npm run eval -- --suite serial-tool-contract  Run one representative case per serial tool
+  npm run eval -- --category <name>[,<name>...] Run one or more affected capability categories
   npm run eval -- --id <id>[,<id>...]           Run one or more specific cases by id
   npm run eval -- --list                        List every case id, grouped by tier
   npm run eval -- --help                        Show this message
 
 --tier and --id compose: --id filters within whatever --tier already selected.
+--suite accepts comma-separated suites. Suites and categories compose by union
+so an affected category can run beside smoke or tool-contract coverage.
+--tier and --id narrow that combined selection.
 
 Examples:
   npm run eval -- --id switch-project-partial-name-resolves
+  npm run eval:t1 -- --suite smoke
+  npm run eval:t1 -- --suite smoke --category mutation-safety
+  npm run eval -- --suite serial-tool-contract,smoke
+  npm run eval:t1 -- --category todo-crud,project-crud
   npm run eval -- --id bulk-delete-project-todos-calls-tools,switch-project-partial-name-resolves
   npm run eval:t1 -- --id create-default-project
 
@@ -76,10 +88,15 @@ if (earlyArgs.includes('--list')) {
   console.log(`\nOrb Eval — ${EVAL_CASES.length} cases\n`)
   for (const tier of [1, 2] as const) {
     const cases = byTier(tier)
-    console.log(`Tier ${tier} (${tier === 1 ? 'deterministic' : 'behavioral'}, ${cases.length} case${cases.length === 1 ? '' : 's'}):`)
-    for (const c of cases) console.log(`  ${c.id}\n    ${c.description}`)
+    console.log(`Tier ${tier} (${tier === 1 ? 'single-shot tool contract' : 'behavioral'}, ${cases.length} case${cases.length === 1 ? '' : 's'}):`)
+    for (const c of cases) {
+      const suites = c.suites.length > 0 ? `; suites: ${c.suites.join(', ')}` : ''
+      console.log(`  ${c.id} [${c.category}${suites}]\n    ${c.description}`)
+    }
     console.log()
   }
+  console.log(`Categories: ${EVAL_CATEGORIES.join(', ')}`)
+  console.log(`Suites: ${EVAL_SUITES.join(', ')}`)
   console.log('Run one or more with: npm run eval -- --id <id>[,<id>...]')
   process.exit(0)
 }
@@ -104,6 +121,14 @@ const EVAL_PROVIDER = process.env.EVAL_PROVIDER ?? ORB_EVAL_DEFAULT_PROVIDER
 const EVAL_MODEL = process.env.EVAL_MODEL ?? ORB_EVAL_DEFAULT_MODEL
 const EVAL_USER_EMAIL = process.env.EVAL_USER_EMAIL
 const EVAL_CONTEXT_PACKET_ID = process.env.EVAL_CONTEXT_PACKET_ID
+const EVAL_HISTORY_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+const EVAL_HISTORY_KEY = process.env.SUPABASE_SECRET_KEY
+const evalHistory = EVAL_HISTORY_URL && EVAL_HISTORY_KEY
+  ? createClient(EVAL_HISTORY_URL, EVAL_HISTORY_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+  : null
+let activeEvalRunId: string | null = null
 
 if (!API_SECRET) {
   console.error('❌ ORB_API_SECRET not found in .env.local')
@@ -125,9 +150,11 @@ type EvalResponse = {
 type TestResult = {
   id: string
   tier: 1 | 2
+  category: EvalCategory
   description: string
   passed: boolean
   runs: number
+  completedRuns: number
   passCount: number
   failures: string[]
   speech?: string
@@ -140,11 +167,21 @@ type TestResult = {
 
 // ── API Call ────────────────────────────────────────────────────────────────
 
-// The dev endpoint shares Orb's 10-calls-per-minute safety limit. Keep the
-// deterministic suite under that ceiling so its results are meaningful.
+// Keep model requests under the established 10-calls-per-minute ceiling.
+// ORB-364 paces only cases that can call a provider; deterministic server
+// checks should not pay an artificial 6.5-second delay.
 const INTER_REQUEST_DELAY_MS = 6500
+let lastExpectedModelCallAt = 0
+
+async function paceExpectedModelCall(testCase: EvalCase): Promise<void> {
+  if (!testCase.modelCallExpected) return
+  const remaining = INTER_REQUEST_DELAY_MS - (Date.now() - lastExpectedModelCallAt)
+  if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining))
+  lastExpectedModelCallAt = Date.now()
+}
 
 async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
+  await paceExpectedModelCall(testCase)
   const provider = testCase.provider ?? EVAL_PROVIDER
   const model = testCase.model ?? EVAL_MODEL
   const res = await fetch(`${BASE_URL}/api/orb-eval`, {
@@ -171,6 +208,7 @@ async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
       autoRoute: testCase.autoRoute,
       budgetOverride: testCase.budgetOverride,
       evaluationCaseId: testCase.id,
+      evaluationRunId: activeEvalRunId,
       ...(provider ? { provider } : {}),
       ...(model ? { model } : {}),
       ...(testCase.userEmail || EVAL_USER_EMAIL ? { userEmail: testCase.userEmail ?? EVAL_USER_EMAIL } : {}),
@@ -330,64 +368,6 @@ function substituteUnique(testCase: EvalCase): EvalCase {
   }
 }
 
-async function runCase(testCaseRaw: EvalCase): Promise<TestResult> {
-  const testCase = substituteUnique(testCaseRaw)
-  const runs = testCase.tier === 2 ? 3 : 1
-  let passCount = 0
-  let lastFailures: string[] = []
-  let lastResponse: EvalResponse | null = null
-  const modelUsages: OrbModelUsage[] = []
-  let totalMs = 0
-
-  for (let i = 0; i < runs; i++) {
-    const start = Date.now()
-    try {
-      const response = await callOrbWithRetry(testCase)
-      totalMs += Date.now() - start
-      lastResponse = response
-      if (response.modelUsage) modelUsages.push(response.modelUsage)
-
-      const toolFailures = assertToolCall(response, testCase)
-      const speechFailures = assertSpeech(response, testCase)
-      const routingFailures = assertRouting(response, testCase)
-      const allFailures = [...toolFailures, ...speechFailures, ...routingFailures]
-
-      if (allFailures.length === 0) {
-        passCount++
-      } else {
-        lastFailures = allFailures
-      }
-    } catch (err: any) {
-      totalMs += Date.now() - start
-      lastFailures = [`Error: ${err.message}`]
-    }
-
-    if (i < runs - 1) await new Promise(r => setTimeout(r, INTER_REQUEST_DELAY_MS))
-  }
-
-  // Tier 1: must pass 1/1. Tier 2: must pass 2/3.
-  const passThreshold = testCase.tier === 2 ? 2 : 1
-  const passed = passCount >= passThreshold
-
-  return {
-    id: testCase.id,
-    tier: testCase.tier,
-    description: testCase.description,
-    passed,
-    runs,
-    passCount,
-    failures: passed ? [] : lastFailures,
-    speech: lastResponse?.speech?.slice(0, 200),
-    toolCalls: lastResponse?.toolCalls,
-    tokens: lastResponse?.tokenUsage
-      ? lastResponse.tokenUsage.input_tokens + lastResponse.tokenUsage.output_tokens
-      : undefined,
-    modelUsage: lastResponse?.modelUsage,
-    modelUsages,
-    durationMs: Math.round(totalMs / runs),
-  }
-}
-
 // ── Status Bar ─────────────────────────────────────────────────────────────
 
 function formatElapsed(ms: number): string {
@@ -442,14 +422,151 @@ function updateStatusBar(opts: {
 
 // ── Main ───────────────────────────────────────────────────────────────────
 
+function currentGitSha(): string | null {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: path.resolve(__dirname, '..'),
+      encoding: 'utf8',
+    }).trim()
+  } catch {
+    return null
+  }
+}
+
+async function beginEvalHistory(options: {
+  selection: string
+  tier: number | null
+  categories: EvalCategory[] | null
+  cases: EvalCase[]
+  totalRuns: number
+}): Promise<void> {
+  if (!evalHistory) {
+    console.warn('  ⚠️  Eval history disabled: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY is missing.')
+    return
+  }
+  const { data, error } = await evalHistory
+    .from('orb_eval_runs')
+    .insert({
+      git_sha: currentGitSha(),
+      command: `npm run eval -- ${process.argv.slice(2).join(' ')}`.trim(),
+      selection: options.selection,
+      tier: options.tier,
+      category: options.categories?.length === 1 ? options.categories[0] : null,
+      case_count: options.cases.length,
+      requested_run_count: options.totalRuns,
+      metadata: {
+        categories: options.categories ?? [],
+        case_ids: options.cases.map(testCase => testCase.id),
+      },
+    })
+    .select('id')
+    .single()
+  if (error) {
+    console.warn(`  ⚠️  Eval history start failed: ${error.message}`)
+    return
+  }
+  activeEvalRunId = data.id
+}
+
+async function completeEvalHistory(options: {
+  results: TestResult[]
+  elapsed: number
+  estimatedCostUsd: number
+}): Promise<void> {
+  if (!evalHistory || !activeEvalRunId) return
+  const resultRows = options.results.map(result => {
+    const usages = result.modelUsages ?? []
+    const lastUsage = usages.at(-1) ?? result.modelUsage
+    return {
+      run_id: activeEvalRunId,
+      evaluation_case_id: result.id,
+      category: result.category,
+      tier: result.tier,
+      passed: result.passed,
+      requested_runs: result.runs,
+      completed_runs: result.completedRuns,
+      pass_count: result.passCount,
+      failures: result.failures,
+      tool_calls: result.toolCalls ?? null,
+      speech_excerpt: result.speech ?? null,
+      provider: lastUsage?.provider ?? null,
+      model: lastUsage?.model ?? null,
+      model_call_count: usages.length,
+      estimated_cost_usd: usages.reduce((sum, usage) => sum + (usage.estimatedCostUsd ?? 0), 0),
+      duration_ms: result.durationMs ?? null,
+    }
+  })
+  const { error: resultsError } = await evalHistory.from('orb_eval_results').insert(resultRows)
+  if (resultsError) {
+    console.warn(`  ⚠️  Eval result history failed: ${resultsError.message}`)
+  }
+  const passed = options.results.filter(result => result.passed).length
+  const modelCalls = options.results.reduce((sum, result) => sum + (result.modelUsages?.length ?? 0), 0)
+  const { error: runError } = await evalHistory
+    .from('orb_eval_runs')
+    .update({
+      completed_at: new Date().toISOString(),
+      passed_case_count: passed,
+      failed_case_count: options.results.length - passed,
+      model_call_count: modelCalls,
+      estimated_cost_usd: options.estimatedCostUsd,
+      duration_ms: options.elapsed,
+      status: 'completed',
+    })
+    .eq('id', activeEvalRunId)
+  if (runError) console.warn(`  ⚠️  Eval run history completion failed: ${runError.message}`)
+}
+
+async function abortEvalHistory(error: unknown): Promise<void> {
+  if (!evalHistory || !activeEvalRunId) return
+  await evalHistory
+    .from('orb_eval_runs')
+    .update({
+      completed_at: new Date().toISOString(),
+      status: 'aborted',
+      metadata: { fatal_error: error instanceof Error ? error.message : String(error) },
+    })
+    .eq('id', activeEvalRunId)
+}
+
 async function main() {
   const args = process.argv.slice(2)
   const tierFilter = args.includes('--tier') ? parseInt(args[args.indexOf('--tier') + 1]) : null
+  const suiteArg = args.includes('--suite') ? args[args.indexOf('--suite') + 1] : null
+  const suiteFilters = suiteArg
+    ? suiteArg.split(',').map(value => value.trim()).filter(Boolean) as EvalSuite[]
+    : null
+  const categoryArg = args.includes('--category') ? args[args.indexOf('--category') + 1] : null
+  const categoryFilters = categoryArg
+    ? categoryArg.split(',').map(value => value.trim()).filter(Boolean) as EvalCategory[]
+    : null
   const idArg = args.includes('--id') ? args[args.indexOf('--id') + 1] : null
   const idFilters = idArg ? idArg.split(',').map(s => s.trim()).filter(Boolean) : null
 
   let cases = EVAL_CASES
   if (tierFilter) cases = cases.filter(c => c.tier === tierFilter)
+  if (suiteFilters) {
+    const unknownSuites = suiteFilters.filter(suite => !EVAL_SUITES.includes(suite))
+    if (unknownSuites.length > 0) {
+      console.error(`❌ Unknown suite${unknownSuites.length > 1 ? 's' : ''}: ${unknownSuites.join(', ')}`)
+      console.error(`   Available suites: ${EVAL_SUITES.join(', ')}`)
+      process.exit(1)
+    }
+  }
+  if (categoryFilters) {
+    const unknownCategories = categoryFilters.filter(category => !EVAL_CATEGORIES.includes(category))
+    if (unknownCategories.length > 0) {
+      console.error(`❌ Unknown categor${unknownCategories.length > 1 ? 'ies' : 'y'}: ${unknownCategories.join(', ')}`)
+      console.error(`   Available categories: ${EVAL_CATEGORIES.join(', ')}`)
+      process.exit(1)
+    }
+  }
+  if (suiteFilters || categoryFilters) {
+    cases = cases.filter(testCase =>
+      Boolean(suiteFilters?.some(suite => testCase.suites.includes(suite)))
+      || Boolean(categoryFilters?.includes(testCase.category)),
+    )
+  }
   if (idFilters) {
     const knownIds = new Set(cases.map(c => c.id))
     const unmatched = idFilters.filter(id => !knownIds.has(id))
@@ -467,12 +584,26 @@ async function main() {
   }
 
   const totalRuns = cases.reduce((sum, c) => sum + (c.tier === 2 ? 3 : 1), 0)
+  const selection = [
+    suiteFilters ? `suite:${suiteFilters.join(',')}` : null,
+    categoryFilters ? `category:${categoryFilters.join(',')}` : null,
+    tierFilter ? `tier:${tierFilter}` : null,
+    idFilters ? `id:${idFilters.join(',')}` : null,
+  ].filter(Boolean).join(' ') || 'all'
+  await beginEvalHistory({
+    selection,
+    tier: tierFilter,
+    categories: categoryFilters,
+    cases,
+    totalRuns,
+  })
   const startedAt = new Date()
   console.log(`\n🔮 Orb Eval — ${cases.length} cases, ${totalRuns} total runs\n`)
   console.log(`   Started: ${formatDateTime(startedAt)}`)
   console.log(`   Target: ${BASE_URL}`)
   console.log(`   Evaluator: ${EVAL_PROVIDER}/${EVAL_MODEL}`)
-  console.log(`   Tier 1 (deterministic): ${cases.filter(c => c.tier === 1).length} cases`)
+  console.log(`   Selection: ${selection}`)
+  console.log(`   Tier 1 (single-shot tool contract): ${cases.filter(c => c.tier === 1).length} cases`)
   console.log(`   Tier 2 (behavioral, 3× each): ${cases.filter(c => c.tier === 2).length} cases`)
   console.log()
 
@@ -485,7 +616,8 @@ async function main() {
   // Show initial status bar
   updateStatusBar({ current: 0, total: totalRuns, passed: 0, failed: 0, elapsed: 0, currentCase: cases[0]?.id })
 
-  for (const testCase of cases) {
+  for (const testCaseRaw of cases) {
+    const testCase = substituteUnique(testCaseRaw)
     const runs = testCase.tier === 2 ? 3 : 1
     let passCount = 0
     let lastFailures: string[] = []
@@ -536,8 +668,6 @@ async function main() {
       }
       completedRuns++
 
-      // Cool-off between calls to respect the endpoint rate limit.
-      if (i < runs - 1) await new Promise(r => setTimeout(r, INTER_REQUEST_DELAY_MS))
     }
 
     // Tier 1: must pass 1/1. Tier 2: must pass majority of COMPLETED runs.
@@ -550,9 +680,11 @@ async function main() {
     const result: TestResult = {
       id: testCase.id,
       tier: testCase.tier,
+      category: testCase.category,
       description: testCase.description,
       passed,
       runs,
+      completedRuns: completedCaseRuns,
       passCount,
       failures: passed ? [] : lastFailures,
       speech: diagnosticResponse?.speech?.slice(0, 200),
@@ -565,10 +697,6 @@ async function main() {
       durationMs: Math.round(totalMs / runs),
     }
     results.push(result)
-
-    if (testCase !== cases[cases.length - 1]) {
-      await new Promise(r => setTimeout(r, INTER_REQUEST_DELAY_MS))
-    }
   }
 
   // Clear the status bar
@@ -646,12 +774,19 @@ async function main() {
   console.log(`  Elapsed:                   ${formatElapsed(elapsed)}`)
   console.log('═'.repeat(60) + '\n')
 
+  await completeEvalHistory({
+    results,
+    elapsed,
+    estimatedCostUsd: totalEstimatedCost,
+  })
+
   // The endpoint may leave HTTP keep-alive handles open after a completed run.
   // Exit only after printing every result so the CLI gate is deterministic.
   process.exit(tier1Pass < tier1.length ? 1 : 0)
 }
 
-main().catch(err => {
+main().catch(async err => {
+  await abortEvalHistory(err)
   console.error('Fatal error:', err)
   process.exit(1)
 })

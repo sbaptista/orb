@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
-  const { input, productCode, history, pendingSummary, pendingTodoOperations, actionSets, backlogOverride, projectHealthOverride, mutationApproval, voiceMode, ttsProvider, ttsModel, ttsVoiceId, provider, model, userEmail, evaluationMode, contextPacketId, autoRoute, budgetOverride, evaluationCaseId } = body as {
+  const { input, productCode, history, pendingSummary, pendingTodoOperations, actionSets, backlogOverride, projectHealthOverride, mutationApproval, voiceMode, ttsProvider, ttsModel, ttsVoiceId, provider, model, userEmail, evaluationMode, contextPacketId, autoRoute, budgetOverride, evaluationCaseId, evaluationRunId } = body as {
     input: string
     productCode?: string | null
     history?: Array<{ role: 'user' | 'assistant'; text: string }>
@@ -100,6 +100,7 @@ export async function POST(request: NextRequest) {
     autoRoute?: boolean
     budgetOverride?: 'monthly' | 'role'
     evaluationCaseId?: string
+    evaluationRunId?: string
   }
 
   if (!input) {
@@ -248,31 +249,51 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     ORB_DEV_CHANNEL_PROMPT,
   ].filter(Boolean).join('\n\n')
 
-  const dynamicSystemPrompt = [
-    `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`,
-    `USER CONTEXT: You are talking to ${auth.user.email} (Name: ${auth.user.name || 'Unknown'}, Role: ${auth.role}).`,
-    buildOrbScopePrompt({
-      currentProjectName: current?.name ?? 'No project selected',
-      currentUserNameOrEmail: auth.user.name || auth.user.email,
-    }),
-    ticketStatusRoutingHint,
-    voiceMode ? buildVoiceConversationPrompt({ ttsProvider, ttsModel, ttsVoiceId }) : '',
-    `BACKLOG:\n${contextString}`,
-    projectHealthContext,
-    nextStepContext,
-    `KNOWLEDGE BASE (Recent):\n${knowledgeList.slice(0, 5).map((k: any) => {
+  // Named pieces keep the single-string prompt readable without changing its
+  // behavioral order. Prompt order is part of the contract: ORB-364 briefly
+  // moved run-invariant material ahead of selected-project scope to create a
+  // second cache prefix, and 4/63 Tier 1 cases routed to the wrong project.
+  const currentDatePrompt = `CURRENT DATE: ${new Date().toISOString().split('T')[0]}`
+  const userContextPrompt = `USER CONTEXT: You are talking to ${auth.user.email} (Name: ${auth.user.name || 'Unknown'}, Role: ${auth.role}).`
+  const scopePrompt = buildOrbScopePrompt({
+    currentProjectName: current?.name ?? 'No project selected',
+    currentUserNameOrEmail: auth.user.name || auth.user.email,
+  })
+  const voiceContextPrompt = voiceMode
+    ? buildVoiceConversationPrompt({ ttsProvider, ttsModel, ttsVoiceId })
+    : ''
+  const backlogPrompt = `BACKLOG:\n${contextString}`
+  const knowledgePrompt = `KNOWLEDGE BASE (Recent):\n${knowledgeList.slice(0, 5).map((k: any) => {
       const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
       return `- [${k.projects?.name ?? k.projects?.code ?? '?'}] ${k.title}${tags}: ${k.content.slice(0, 100)}...`
-    }).join('\n')}`,
-    `WHAT'S NEW:\n${CHANGELOG.slice(0, 3).map(r => `${r.version} (${r.date}):\n${r.changes.map(c => `  - ${c}`).join('\n')}`).join('\n\n')}`,
-    buildMutationApprovalPrompt(preferenceList),
-    behaviorRuleList.length > 0
-      ? `BEHAVIORAL RULES (agreed with the user — always enforce):\n${behaviorRuleList.map((r: any) => `- **${r.title}:** ${r.content}`).join('\n')}`
-      : '',
-    buildPreferencesPrompt(preferenceList),
-    buildAdaptationsPrompt(ctx.adaptationList),
-    buildObservationsPrompt(ctx.observations, ctx.guidanceLevel),
-    buildMemoryPrompt(ctx.memoryList, 'full'),
+    }).join('\n')}`
+  const whatsNewPrompt = `WHAT'S NEW:\n${CHANGELOG.slice(0, 3).map(r => `${r.version} (${r.date}):\n${r.changes.map(c => `  - ${c}`).join('\n')}`).join('\n\n')}`
+  const mutationApprovalPrompt = buildMutationApprovalPrompt(preferenceList)
+  const behaviorRulesPrompt = behaviorRuleList.length > 0
+    ? `BEHAVIORAL RULES (agreed with the user — always enforce):\n${behaviorRuleList.map((r: any) => `- **${r.title}:** ${r.content}`).join('\n')}`
+    : ''
+  const preferencesPrompt = buildPreferencesPrompt(preferenceList)
+  const adaptationsPrompt = buildAdaptationsPrompt(ctx.adaptationList)
+  const observationsPrompt = buildObservationsPrompt(ctx.observations, ctx.guidanceLevel)
+  const memoryPrompt = buildMemoryPrompt(ctx.memoryList, 'full')
+
+  const dynamicSystemPrompt = [
+    currentDatePrompt,
+    userContextPrompt,
+    scopePrompt,
+    ticketStatusRoutingHint,
+    voiceContextPrompt,
+    backlogPrompt,
+    projectHealthContext,
+    nextStepContext,
+    knowledgePrompt,
+    whatsNewPrompt,
+    mutationApprovalPrompt,
+    behaviorRulesPrompt,
+    preferencesPrompt,
+    adaptationsPrompt,
+    observationsPrompt,
+    memoryPrompt,
     ORB_MEMORY_BEHAVIOR,
   ].filter(Boolean).join('\n\n')
 
@@ -425,10 +446,10 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       const response = await anthropic.messages.create({
         model: model ?? ANTHROPIC_HAIKU_REFERENCE_MODEL,
         max_tokens: 4096,
-        // Mirror production's cache split (orb-converse.ts): breakpoint after the
-        // stable block so all cases in a run share one cached prefix. Strategic
-        // evals replace the whole prompt (frozen packet / mode suffix), so they
-        // keep the single-string form — rare and usually routed to Gemini anyway.
+        // Mirror production's cache split (orb-converse.ts): breakpoint after
+        // the stable block so every case shares one cached prefix. A second
+        // breakpoint would require reordering dynamic context around per-case
+        // scope; the full Tier 1 suite proved that reordering unsafe.
         system: isStrategicEvaluation
           ? evalSystemPrompt
           : [
@@ -497,6 +518,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           responseText: speech,
           routeRole,
           evaluationCaseId,
+          correlationId: evaluationRunId,
         }),
       ])
       if (metricsResult.status === 'fulfilled' && metricsResult.value.error) {
