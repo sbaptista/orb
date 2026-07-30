@@ -225,5 +225,17 @@ export async function POST(request: Request) {
     }).catch(error => console.error('[orb-realtime] Incident notification failed:', error))
     return Response.json({ error: failure.userMessage }, { status: 502 })
   }
-  return new Response(body, { headers: { 'Content-Type': 'application/sdp' } })
+  // ORB-372: OpenAI identifies the created call in the Location header
+  // (/v1/realtime/calls/{id}); the body is the SDP answer. Without capturing
+  // this we had no handle to end the call, so closing the peer connection
+  // tore down our transport and left OpenAI's call object alive until it
+  // expired — and the next start collided with it (409).
+  const location = response.headers.get('location') ?? ''
+  const callId = location.split('/').filter(Boolean).pop() ?? ''
+  return new Response(body, {
+    headers: {
+      'Content-Type': 'application/sdp',
+      ...(callId ? { 'X-Orb-Call-Id': callId } : {}),
+    },
+  })
 }

@@ -106,18 +106,39 @@ export function classifyProviderFailure(error: any, provider: OrbModelProviderId
   const billing = /credit balance|billing|spend cap|usage limits|quota.*(?:exceeded|limit|billing)/i.test(message)
   const rateLimited = type === 'rate_limit_error' || /rate.?limit|\b429\b|resource has been exhausted/i.test(message)
   const unavailable = /overloaded|\b500\b|\b502\b|\b503\b|fetch failed|ECONNREFUSED|ETIMEDOUT/i.test(message)
-  const reason = billing ? 'billing or spend limit' : rateLimited ? 'rate limit or provider quota' : unavailable ? 'provider unavailable' : 'provider error'
-  const userMessage = role === 'strategic'
-    ? `Strategic reads are temporarily unavailable through ${providerLabel(provider)}. Everyday task help remains available.`
-    : role === 'voice'
-      ? `Realtime voice is temporarily unavailable through ${providerLabel(provider)}. Try again in a moment — text input still works.`
-      : `Orb's operational assistant is temporarily unavailable through ${providerLabel(provider)}. You can still manage tasks directly in the list.`
+  // ORB-372: a 409 conflict is OUR fault, not the provider's. The observed
+  // case is "A live session already exists for the provided call_id" — an
+  // orphaned Realtime call that was never ended. Before this branch it matched
+  // none of the tests above, fell through to a generic provider error, and
+  // told the user OpenAI was unavailable. Blaming the provider for our own
+  // stale session sends the user to the wrong place, and "try again in a
+  // moment" is only accidentally right (the orphaned call eventually expires).
+  const conflict = /\b409\b|already exists|conflict/i.test(message)
+    || /already exists/i.test(type)
+  const reason = conflict ? 'session conflict (existing live session)'
+    : billing ? 'billing or spend limit'
+    : rateLimited ? 'rate limit or provider quota'
+    : unavailable ? 'provider unavailable'
+    : 'provider error'
+  // A conflict is a stale session of ours, so the user is told what to do
+  // about it rather than that the provider is down.
+  const userMessage = conflict
+    ? role === 'voice'
+      ? 'A previous voice session is still closing. Wait a few seconds and start voice again — text input works meanwhile.'
+      : 'That request collided with one already in progress. Wait a moment and try again.'
+    : role === 'strategic'
+      ? `Strategic reads are temporarily unavailable through ${providerLabel(provider)}. Everyday task help remains available.`
+      : role === 'voice'
+        ? `Realtime voice is temporarily unavailable through ${providerLabel(provider)}. Try again in a moment — text input still works.`
+        : `Orb's operational assistant is temporarily unavailable through ${providerLabel(provider)}. You can still manage tasks directly in the list.`
   return {
     type,
     message,
     reason,
     userMessage,
-    summary: `${providerLabel(provider)} ${role} service unavailable — Orb AI`,
-    consoleUrl: billing || rateLimited ? providerConsoleUrl(provider) : undefined,
+    summary: conflict
+      ? `Orb ${role} session conflict — stale ${providerLabel(provider)} session not ended`
+      : `${providerLabel(provider)} ${role} service unavailable — Orb AI`,
+    consoleUrl: !conflict && (billing || rateLimited) ? providerConsoleUrl(provider) : undefined,
   }
 }

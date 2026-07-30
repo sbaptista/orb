@@ -69,6 +69,9 @@ export function useRealtimeVoiceSpike(options: Options) {
   const [status, setStatus] = useState<SpikeStatus>('off')
   const [error, setError] = useState<string | null>(null)
   const peerRef = useRef<RTCPeerConnection | null>(null)
+  // ORB-372: OpenAI's handle for the live call, so stop() can end it there
+  // and not just locally. Null once ended or never established.
+  const callIdRef = useRef<string | null>(null)
   const channelRef = useRef<RTCDataChannel | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const sileroShadowRef = useRef<SileroShadowController | null>(null)
@@ -946,6 +949,8 @@ export function useRealtimeVoiceSpike(options: Options) {
         body: offer.sdp,
         signal: startupAbort.signal,
       })
+      // ORB-372: OpenAI's handle for this call, so stop() can end it there.
+      callIdRef.current = response.headers.get('X-Orb-Call-Id') || null
       if (!isCurrent()) {
         disposeLocal()
         return

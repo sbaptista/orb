@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.262',
+    date: '2026-07-30',
+    changes: [
+      'Fixed voice failing to start with "Realtime voice is temporarily unavailable through OpenAI". OpenAI was not at fault: stopping voice closed the connection on this end but never told OpenAI the call had ended, so the abandoned call stayed alive and the next attempt collided with it. Voice now ends the call properly when you stop (ORB-372).',
+      'And when a collision does happen, the message says what is actually true — that a previous session is still closing — instead of reporting the provider as unavailable and sending you to look in the wrong place.',
+    ],
+  },
+  {
     version: 'v0.6.261',
     date: '2026-07-30',
     changes: [
