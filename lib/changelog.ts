@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.269',
+    date: '2026-07-30',
+    changes: [
+      'Voice task lists now return up to 200 results instead of 10. The old cap existed because the only output was speech; a table renders on screen now, so showing results costs nothing like reading them aloud (ORB-372).',
+      'The Orb also stops telling you to say "show the rest" — nothing implemented that, so it repeated the same page each time you asked. It now speaks a short summary and points at the table, and says how to narrow the search when a result set is genuinely too large.',
+    ],
+  },
+  {
     version: 'v0.6.268',
     date: '2026-07-30',
     changes: [

@@ -151,7 +151,12 @@ export async function getTodoListPacket(
     if (!project) throw new Error(`Could not resolve one accessible project named “${projectName}”.`)
   }
 
-  const maxResults = Math.min(Math.max(options.maxResults ?? 5, 1), 10)
+  // ORB-372: this was capped at 10 because the only output was speech. The
+  // transcript now renders a table, so FETCHING and DISPLAYING is not the same
+  // cost as reading aloud — conflating them meant a 12-result search looked
+  // like a 10-result one. query_db already allows 200 and query_projects 100;
+  // list_todos was the outlier. The spoken summary stays short regardless.
+  const maxResults = Math.min(Math.max(options.maxResults ?? 50, 1), 200)
   let query = auth.admin
     .from('todos')
     .select('id, todo_number, title, status, priority_value, due_at, due_timezone,created_at, projects!inner(id, name, code, created_by)', { count: 'exact' })
@@ -194,19 +199,22 @@ export async function getTodoListPacket(
       spokenText: `${subject} has no matching ${scopeLabel(statusScope)} tasks.`,
     }
   }
-  const list = tasks.map(task => `${task.code}, ${task.title} (${task.status})`).join('; ')
   // "Here are the first 10" reads as a formatting note; it is actually a
   // statement that some results are missing, and the ones cut are the
   // lowest-priority — often exactly what the user is hunting for. Say what is
   // missing and how to get it, rather than leaving the user to notice.
-  const prefix = omitted > 0
-    ? `${subject} has ${exactCount} matching tasks. I can only read ${tasks.length} at a time, so ${omitted} ${omitted === 1 ? 'is' : 'are'} not listed here — unprioritised tasks come last, so ask for a specific project or say "show the rest" to reach them:`
-    : `${subject} has ${exactCount} matching ${exactCount === 1 ? 'task' : 'tasks'}:`
+  // The table on screen carries every row, so speaking all of them is
+  // redundant — and the previous wording told the user to say "show the rest",
+  // which nothing implements. Never advertise a capability that does not
+  // exist: that is the same defect as the rest of this ticket.
+  const spokenSummary = omitted > 0
+    ? `${subject} has ${exactCount} matching ${exactCount === 1 ? 'task' : 'tasks'}. The first ${tasks.length} are on screen; narrow by project or status to see the rest.`
+    : `${subject} has ${exactCount} matching ${exactCount === 1 ? 'task' : 'tasks'}, on screen now.`
   return {
     kind: 'todo_list', observedAt: new Date().toISOString(), source: 'database',
     statuses: statusScope === 'all' ? [] : COUNT_STATUSES[statusScope], count: exactCount, tasks,
     project: project ? { id: project.id, name: project.name } : undefined,
-    spokenText: `${prefix} ${list}.`,
+    spokenText: spokenSummary,
   }
 }
 

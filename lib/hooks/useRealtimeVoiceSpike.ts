@@ -612,7 +612,7 @@ export function useRealtimeVoiceSpike(options: Options) {
         const total = typeof listPacket.count === 'number' ? listPacket.count : shown
         const omitted = Math.max(0, total - shown)
         const note = omitted > 0
-          ? `\n\n_Showing ${shown} of ${total}. ${omitted} not listed — unprioritised tasks sort last._`
+          ? `\n\n_Showing ${shown} of ${total}. Narrow by project or status to see the rest._`
           : ''
         callbacksRef.current.onOrbTranscript(`| Code | Title | Status |\n| --- | --- | --- |\n${rows}${note}`)
       }

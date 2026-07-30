@@ -111,7 +111,7 @@ export async function POST(request: Request) {
             project_name: { type: 'string', description: 'Required for named_project; omit for all_owned.' },
             status_scope: { type: 'string', enum: ['open', 'active', 'parked', 'all'] },
             text_match: { type: 'string', description: 'Optional title text filter.' },
-            max_results: { type: 'integer', minimum: 1, maximum: 10 },
+            max_results: { type: 'integer', minimum: 1, maximum: 200 },
           },
           required: ['project_scope', 'status_scope'],
           additionalProperties: false,
