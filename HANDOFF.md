@@ -51,7 +51,15 @@ Database impact: one nullable FK column and one low-frequency preference write p
 
 ---
 
-**ORB-361 Phase 3 — COMPLETE — 2026-07-28 (Claude Code, Opus 5) — v0.6.247→v0.6.252 — BUILT, UNMERGED, EVALS NOT RUN**
+**ORB-361 — CLOSED 2026-07-29 (Claude Code, Opus 5) — all five phases, v0.6.239→v0.6.256**
+
+Closed with full resolution notes. **Knowledge Repo entry `8e18ffc5-60a3-4cde-a807-0ca2124f944e`** records the design, the reasoning behind "a reminder never colours the orb", the recurring duplicate-source-of-truth failure mode, and the eval-harness lessons. It **partially supersedes** `7b8602d3` (ORB-360) — the users.timezone-canonical claim only; that entry now carries a banner saying so.
+
+**Phase 4 (v0.6.256):** `users.urgency_threshold_hours` dropped after verifying zero readers across all `.ts`/`.tsx`/`.sql`/`.yaml`. Values recorded in the migration comment before deletion (24 for one user, 0 for two). Irreversible by design, no rollback script.
+
+**Final eval position: Tier 1 77/77 green.** The re-tiered `reminder-nudge-decline-dismisses` passed on rerun (all 3 runs called the tool). `upfront-permission-still-emits-creates` remains flaky — it carries no `backlogOverride` and reads live data; belongs to ORB-367.
+
+**ORB-361 Phase 3 detail — 2026-07-28 — v0.6.247→v0.6.252**
 
 Branch `claude/orb-361-phase-3` (required by concurrency protocol §4 — DB migrations). Seven commits. **`tsc` clean, focused lint 0 errors, UI catalog verifier passes** throughout. **No eval run has happened** — that is the gate before merge.
 
