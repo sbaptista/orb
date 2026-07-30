@@ -318,6 +318,23 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
   },
 
   {
+    id: 'confirm-knowledge-save-executes-on-yes',
+    description: 'Affirming a pending knowledge save calls the same canonical confirm_mutation tool used by project changes',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    history: [
+      { role: 'user', text: 'Save the decision that database receipts are the mutation boundary.' },
+      { role: 'assistant', text: 'I\'ll save “Database receipts are the mutation boundary” to the Orb knowledge repository. Go ahead?' },
+    ],
+    pendingSummary: 'save the knowledge entry "Database receipts are the mutation boundary" in Orb',
+    input: 'yes',
+    tier: 1,
+    expectTool: {
+      name: 'confirm_mutation',
+    },
+  },
+
+  {
     id: 'no-session-record-looks-up-before-delete',
     description: 'With a cleared session record, "delete the todos you created" triggers a lookup — the model must not fabricate task codes by sequence',
     productCode: 'ORB',
@@ -1219,6 +1236,15 @@ Helm [code: HELM]:
     input: 'Save this to the knowledge repository: title "Realtime safety rule", content "Database receipts are the mutation boundary."',
     tier: 1,
     expectTool: { name: 'add_knowledge', params: { title: 'Realtime safety rule' } },
+  },
+  {
+    id: 'add-knowledge-does-not-claim-completion-before-confirm',
+    description: 'A serial knowledge save is now a canonical proposal, so the proposing turn never claims the entry is already saved',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    input: 'Save this to the knowledge repository: title "Canonical receipt rule", content "The database receipt is the mutation boundary."',
+    tier: 2,
+    speechNotContains: ['saved it', 'entry is saved', 'done'],
   },
   {
     id: 'realtime-query-audit-intent-analogue',

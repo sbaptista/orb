@@ -12,15 +12,14 @@ import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_FOUNDATIONAL_DEFINITIONS, ORB_
 // computeInsights suspended — code preserved in lib/insights.ts for future use
 import { resolveProjectByReference } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
-import { computeUrgency, type Urgency } from '@/lib/orb-state'
-import { dueAtToInstant, validateReminderLead } from '@/lib/due-time'
 import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
 import { createTicket, getTickets } from '@/app/actions/ticket-actions'
 import { sendAdaptationEmail } from '@/lib/email'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-import { VERSION } from '@/lib/version'
-import { PROJECT_MUTATIONS, KNOWLEDGE_MUTATIONS, getPendingMutation, storePendingMutation, clearPendingMutation, proposeProjectMutation, proposeKnowledgeMutation, executePendingProjectMutation, executePendingKnowledgeMutation, resolveKnowledgeReference, type PendingMutationRow } from '@/lib/orb-mutations'
+import { PROJECT_MUTATIONS, KNOWLEDGE_MUTATIONS, getPendingMutation, storePendingMutation, clearPendingMutation, proposeProjectMutation, proposeKnowledgeMutation, resolveKnowledgeReference, type PendingMutationRow } from '@/lib/orb-mutations'
+import { confirmOrbMutation } from '@/lib/orb-operations/confirmation'
+import { proposeSerialTodoOperations } from '@/lib/orb-operations/serial-todos'
 import { DB_SCHEMA, ALLOWED_TABLES, SOFT_DELETE_TABLES, ALLOWED_OPS, COLUMN_NAME_RE } from '@/lib/db-schema'
 import { fuzzyMatch, scoreTextMatch } from '@/lib/fuzzy-search'
 import { CHANGELOG } from '@/lib/changelog'
@@ -80,11 +79,10 @@ type OrbInsight = NonNullable<OrbResponse['insight']>
 
 // ── Structural mutation gate ──
 // CRUD mutations are held until the user confirms. The server intercepts the
-// tool call, feeds a "held" result to the AI (so it proposes the action),
-// and returns a pendingMutation to the client. On the next turn, if the
-// client sends back the same pendingMutation, the tool is allowed to execute.
-// LEGACY (todos only). Project mutations use the server-held propose/confirm/execute
-// flow in lib/orb-mutations.ts. Todos migrate to that flow in a follow-up pass.
+// tool call, resolves and persists the exact intent in the canonical proposal
+// table, and confirmation invokes the same transactional dispatcher used by
+// Realtime. PendingMutation remains only as a one-deployment compatibility
+// bridge for browser tabs opened before ORB-342; new responses never emit it.
 const GATED_MUTATIONS = new Set([
   'create_todo', 'update_todo', 'delete_todo', 'move_todo',
 ])
@@ -105,6 +103,30 @@ function pendingTodoOperations(pending: PendingMutation | undefined): PendingMut
   return []
 }
 
+function canonicalPendingTodoOperations(pending: PendingMutationRow | null): PendingMutationOperation[] {
+  if (!pending) return []
+  if (pending.tool === 'batch_todo_action') {
+    const operations = Array.isArray(pending.params.operations) ? pending.params.operations : []
+    return operations.map((operation: Record<string, any>) => {
+      const action = String(operation.action ?? '')
+      const tool = action === 'create'
+        ? 'create_todo'
+        : action === 'update'
+          ? 'update_todo'
+          : action === 'delete'
+            ? 'delete_todo'
+            : action === 'move'
+              ? 'move_todo'
+              : action
+      return { tool, params: operation }
+    })
+  }
+  if (['create_todo', 'update_todo', 'delete_todo', 'move_todo', 'close_todo'].includes(pending.tool)) {
+    return [{ tool: pending.tool === 'close_todo' ? 'update_todo' : pending.tool, params: pending.params }]
+  }
+  return []
+}
+
 // Voice transcripts often stack or repeat affirmations ("Confirm confirm",
 // "yes go ahead", "okay do it"). Accept any input made up solely of
 // affirmation phrases, in any combination — mixed content still falls
@@ -121,22 +143,6 @@ function todoActionNoun(tool: string): string {
   if (tool === 'delete_todo') return 'delete'
   if (tool === 'move_todo') return 'move'
   return tool
-}
-
-function joinNatural(items: string[]): string {
-  if (items.length <= 1) return items[0] ?? ''
-  if (items.length === 2) return `${items[0]} and ${items[1]}`
-  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`
-}
-
-function formatMutationSummaries(summaries: string[]): string {
-  const parsed = summaries.map(s => s.match(/^(Created|Updated|Deleted|Moved)\s+(.+)$/))
-  const firstVerb = parsed[0]?.[1]
-  if (firstVerb && parsed.every(p => p?.[1] === firstVerb)) {
-    if (summaries.length > 1) return `${firstVerb.toLowerCase()} ${summaries.length} todos`
-    return `${firstVerb.toLowerCase()} ${joinNatural(parsed.map(p => p?.[2] ?? '').filter(Boolean))}`
-  }
-  return joinNatural(summaries)
 }
 
 function isDeleteRequest(input: string): boolean {
@@ -221,40 +227,6 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
 // explicit tool param → live client zone → user's stored zone. A wall-clock
 // due_at string becomes the true instant; reminder pair passes through only
 // when due_at exists and the pair is set.
-type DueFields = {
-  due_at: string | null
-  due_timezone: string | null
-  due_city: string | null
-  reminder_lead_value: number | null
-  reminder_lead_unit: string | null
-}
-
-function resolveDueFields(
-  input: any,
-  existing: (DueFields & Record<string, any>) | null,
-  requestZone: string,
-): DueFields {
-  const dueProvided = input.due_at !== undefined
-  const rawDue = dueProvided ? input.due_at : (existing?.due_at ?? null)
-  if (!rawDue) {
-    return { due_at: null, due_timezone: null, due_city: null, reminder_lead_value: null, reminder_lead_unit: null }
-  }
-  const zone = input.due_timezone || (dueProvided ? requestZone : (existing?.due_timezone || requestZone))
-  const dueAtIso = dueProvided ? dueAtToInstant(String(rawDue), zone).toISOString() : rawDue
-  const value = input.reminder_lead_value !== undefined ? input.reminder_lead_value : (existing?.reminder_lead_value ?? null)
-  const unit = input.reminder_lead_unit !== undefined ? input.reminder_lead_unit : (existing?.reminder_lead_unit ?? null)
-  const pairValid = validateReminderLead(value, unit) === null && value != null
-  return {
-    due_at: dueAtIso,
-    due_timezone: zone,
-    // The spoken place ("Boston") — the zone alone can't reproduce it
-    // (America/New_York → "New York"), and it's what the list views show.
-    due_city: input.due_city ?? (input.due_timezone ? null : (existing?.due_city ?? null)),
-    reminder_lead_value: pairValid ? value : null,
-    reminder_lead_unit: pairValid ? unit : null,
-  }
-}
-
 // ──────────────────────────────────────────────────────────────────────────
 // Tool Context & Helpers
 // ──────────────────────────────────────────────────────────────────────────
@@ -262,8 +234,6 @@ function resolveDueFields(
 function buildSurveyPrompt(daysActive: number | undefined, prefs: Array<{ key: string; value: string }>): string {
   const completed = prefs.find(p => p.key === 'survey_completed')?.value === 'true'
   if (completed || !daysActive || daysActive < 7) return ''
-
-  const stage = prefs.find(p => p.key === 'survey_stage')?.value ?? 'none'
 
   return `ALPHA USER SURVEY CHECK-IN RULES:
 Since the user has been active for ${daysActive} days (>= 7 days) and hasn't completed the survey, you MUST administer the alpha check-in.
@@ -521,251 +491,6 @@ export async function orbConverse(req: OrbRequest) {
         return lines.join('\n')
       }
 
-      async function executeTodoOperation(op: PendingMutationOperation): Promise<{
-        ok: true
-        summary: string
-        code?: string
-        old_code?: string
-        new_code?: string
-        mutatedProductId?: string
-        mutationType: 'create' | 'update' | 'delete'
-      } | { ok: false; summary: string; error: string }> {
-        const input = op.params
-
-        if (op.tool === 'create_todo') {
-          if (!input.title) return { ok: false, summary: 'Create failed', error: 'title is required' }
-          const product = input.product_code
-            ? ctx.productList.find((p: any) => p.code?.toUpperCase() === String(input.product_code).toUpperCase())
-            : ctx.productList.find((p: any) => p.id === req.productId)
-          if (!product) return { ok: false, summary: 'Create failed', error: 'project not found' }
-          const { data: openStatus } = await supabase
-            .from('statuses').select('name').eq('is_open', true).limit(1).single()
-          const dueFields = resolveDueFields(input, null, requestZone)
-          const { data, error } = await supabase.from('todos').insert({
-            product_id: product.id,
-            title: input.title,
-            description: input.description ?? null,
-            status: openStatus?.name ?? 'open',
-            priority_value: input.priority_value ?? null,
-            ...dueFields,
-          }).select('id, todo_number').single()
-          if (error) return { ok: false, summary: `Create "${input.title}" failed`, error: error.message }
-          const code = `${product.code}-${data.todo_number}`
-          await logAuditEvent({
-            action: 'todo_create',
-            table_name: 'todos',
-            record_id: data.id,
-            after: { code, title: input.title, priority_value: input.priority_value ?? null, due_at: input.due_at ?? null },
-            actor: 'orb',
-            user_id: auth.user.id,
-            system_info: req.systemInfo,
-          })
-          return { ok: true, summary: `Created ${code}`, code, mutatedProductId: product.id, mutationType: 'create' }
-        }
-
-        if (op.tool === 'update_todo') {
-          const productCode = input.code?.split('-')[0]
-          const todoNum = parseInt(input.code?.split('-')[1] || '0')
-          let todo = ctx.todoList.find((t: any) => {
-            const p = ctx.productList.find((pp: any) => pp.id === t.product_id)
-            return p?.code === productCode && t.todo_number === todoNum
-          })
-          if (!todo) {
-            const { data: found } = await supabase
-              .from('todos')
-              .select('*, projects!inner(code)')
-              .eq('todo_number', todoNum)
-              .ilike('projects.code', productCode)
-              .maybeSingle()
-            if (found) todo = found
-          }
-          if (!todo) return { ok: false, summary: `Update ${input.code} failed`, error: 'todo not found' }
-
-          const closingStatus = !!(input.new_status &&
-            ctx.statusList.find((s: any) => s.name === input.new_status)?.is_closed
-          )
-          const dueFields = resolveDueFields(input, todo, requestZone)
-          const dueChanged = dueFields.due_at !== todo.due_at
-            || dueFields.reminder_lead_value !== todo.reminder_lead_value
-            || dueFields.reminder_lead_unit !== todo.reminder_lead_unit
-          const { data, error } = await supabase.from('todos').update({
-            title: input.new_title ?? todo.title,
-            status: input.new_status ?? todo.status,
-            priority_value: input.new_priority !== undefined ? input.new_priority : todo.priority_value,
-            description: input.description ?? todo.description,
-            resolution_notes: input.resolution_notes ?? todo.resolution_notes,
-            closed_at: closingStatus ? new Date().toISOString() : todo.closed_at,
-            ...dueFields,
-            reminded_at: dueChanged ? null : todo.reminded_at,
-          }).eq('id', todo.id).select('*').single()
-          if (error) return { ok: false, summary: `Update ${input.code} failed`, error: error.message }
-          await logAuditEvent({
-            action: closingStatus && !todo.closed_at ? 'todo_close' : 'todo_update',
-            table_name: 'todos',
-            record_id: todo.id,
-            before: { status: todo.status, priority_value: todo.priority_value, title: todo.title },
-            after: { status: data.status, priority_value: data.priority_value, title: data.title, code: input.code, due_at: data.due_at },
-            actor: 'orb',
-            user_id: auth.user.id,
-            system_info: req.systemInfo,
-          })
-          return { ok: true, summary: `Updated ${input.code}`, code: input.code, mutatedProductId: todo.product_id, mutationType: 'update' }
-        }
-
-        if (op.tool === 'delete_todo') {
-          const productCode = input.code?.split('-')[0]
-          const todoNum = parseInt(input.code?.split('-')[1] || '0')
-          let todo = ctx.todoList.find((t: any) => {
-            const p = ctx.productList.find((pp: any) => pp.id === t.product_id)
-            return p?.code === productCode && t.todo_number === todoNum
-          })
-          if (!todo) {
-            const { data: found } = await supabase
-              .from('todos')
-              .select('*, projects!inner(code)')
-              .eq('todo_number', todoNum)
-              .ilike('projects.code', productCode)
-              .maybeSingle()
-            if (found) todo = found
-          }
-          if (!todo) return { ok: false, summary: `Delete ${input.code} failed`, error: 'todo not found' }
-          const { data: deleted, error } = await supabase.from('todos').delete().eq('id', todo.id).select().maybeSingle()
-          if (error) return { ok: false, summary: `Delete ${input.code} failed`, error: error.message }
-          if (!deleted) return { ok: false, summary: `Delete ${input.code} failed`, error: 'row was not removed' }
-          await logAuditEvent({
-            action: 'todo_delete',
-            table_name: 'todos',
-            record_id: todo.id,
-            before: { code: input.code, title: todo.title, status: todo.status },
-            actor: 'orb',
-            user_id: auth.user.id,
-            system_info: req.systemInfo,
-          })
-          return { ok: true, summary: `Deleted ${input.code}`, code: input.code, mutatedProductId: todo.product_id, mutationType: 'delete' }
-        }
-
-        if (op.tool === 'move_todo') {
-          const productCode = input.code?.split('-')[0]
-          const todoNum = parseInt(input.code?.split('-')[1] || '0')
-          const targetCode = String(input.target_project_code).toUpperCase()
-          let todo = ctx.todoList.find((t: any) => {
-            const p = ctx.productList.find((pp: any) => pp.id === t.product_id)
-            return p?.code === productCode && t.todo_number === todoNum
-          })
-          if (!todo) {
-            const { data: found } = await supabase
-              .from('todos')
-              .select('*, projects!inner(code)')
-              .eq('todo_number', todoNum)
-              .ilike('projects.code', productCode)
-              .maybeSingle()
-            if (found) todo = found
-          }
-          if (!todo) return { ok: false, summary: `Move ${input.code} failed`, error: 'todo not found' }
-          const sourceProject = ctx.productList.find((p: any) => p.id === todo.product_id)
-          const moveTargetQuery = supabase.from('projects').select('id, code, name').ilike('code', targetCode)
-          if (!auth.isAdmin) moveTargetQuery.eq('created_by', auth.user.id)
-          const { data: targetProject } = await moveTargetQuery.maybeSingle()
-          if (!targetProject) return { ok: false, summary: `Move ${input.code} failed`, error: `project "${targetCode}" not found` }
-          if (targetProject.id === todo.product_id) return { ok: false, summary: `Move ${input.code} failed`, error: 'task is already in that project' }
-          const { data: movedTodo, error } = await supabase
-            .from('todos')
-            .update({ product_id: targetProject.id })
-            .eq('id', todo.id)
-            .select('todo_number')
-            .single()
-          if (error || !movedTodo) {
-            return {
-              ok: false,
-              summary: `Move ${input.code} failed`,
-              error: error?.message ?? 'move returned no todo',
-            }
-          }
-          const oldCode = `${sourceProject?.code ?? '???'}-${todo.todo_number}`
-          const newCode = `${targetProject.code}-${movedTodo.todo_number}`
-          await logAuditEvent({
-            action: 'todo_move',
-            table_name: 'todos',
-            record_id: todo.id,
-            before: { code: oldCode, product_code: sourceProject?.code },
-            after: { code: newCode, product_code: targetProject.code },
-            actor: 'orb',
-            user_id: auth.user.id,
-            system_info: req.systemInfo,
-          })
-          return { ok: true, summary: `Moved ${oldCode} to ${newCode}`, old_code: oldCode, new_code: newCode, mutatedProductId: sourceProject?.id, mutationType: 'update' }
-        }
-
-        return { ok: false, summary: `${todoActionNoun(op.tool)} failed`, error: `Unsupported todo action: ${op.tool}` }
-      }
-
-      async function executeTodoOperationsAndFinish(ops: PendingMutationOperation[], opts?: { preAuthorized?: boolean }): Promise<void> {
-        stream.update({ speech: '', thought: opts?.preAuthorized ? 'Going ahead...' : 'Confirming...', isStreaming: true })
-        const results = []
-        for (const op of ops) {
-          const result = await executeTodoOperation(op)
-          results.push(result)
-          if (result.ok) {
-            if (result.code) toolProducedCodes.add(result.code)
-            if (result.old_code) toolProducedCodes.add(result.old_code)
-            if (result.new_code) toolProducedCodes.add(result.new_code)
-            hasMutated = true; hasActed = true
-            stream.update({
-              speech: '',
-              thought: result.summary,
-              refresh: true,
-              mutatedProductId: result.mutatedProductId,
-              mutationType: result.mutationType,
-              isStreaming: true,
-            })
-          }
-        }
-
-        const successes = results.filter(r => r.ok)
-        const failures = results.filter(r => !r.ok)
-        const lastSuccess = successes[successes.length - 1]
-        const successSummary = formatMutationSummaries(successes.map(r => r.summary))
-        const successCodes = successes.flatMap(r => {
-          if (!r.ok) return []
-          return [r.code, r.old_code, r.new_code].filter(Boolean) as string[]
-        })
-        const firstTool = ops[0]?.tool ?? 'todo_action'
-        const sameTool = ops.every(op => op.tool === firstTool)
-        const actionSet: ActionSet | undefined = successCodes.length > 0
-          ? {
-              id: `todo_set_${Date.now()}`,
-              kind: 'todo_set',
-              tool: sameTool ? firstTool : 'mixed',
-              ordinal: (req.actionSets?.length ?? 0) + 1,
-              codes: successCodes,
-              summary: successSummary,
-              createdAt: new Date().toISOString(),
-            }
-          : undefined
-        const speech = failures.length === 0
-          ? opts?.preAuthorized
-            ? `You'd given me the go-ahead, so it's done — ${successSummary}.`
-            : `Done — ${successSummary}.`
-          : successes.length > 0
-            ? `Partially done — ${successSummary}. ${failures.map(r => `${r.summary}: ${r.error}`).join('; ')}.`
-            : `I couldn't complete that — ${failures.map(r => `${r.summary}: ${r.error}`).join('; ')}.`
-
-        if (hasMutated) {
-          checkAndNotifyEscalation(auth.user.id, beforeUrgency, supabase)
-            .catch(err => console.error('[orbConverse] Push check failed:', err))
-        }
-        recordModelRequest(speech)
-        recordMetrics(speech.length)
-        stream.done({
-          speech,
-          isStreaming: false,
-          refresh: successes.length > 0,
-          mutatedProductId: lastSuccess && lastSuccess.ok ? lastSuccess.mutatedProductId : undefined,
-          mutationType: lastSuccess && lastSuccess.ok ? lastSuccess.mutationType : undefined,
-          actionSet,
-        })
-      }
-
       const openness = ctx.preferenceList.find(p => p.key === 'openness')?.value ?? 'natural'
       const memoryLevel = ctx.preferenceList.find(p => p.key === 'memory_level')?.value ?? 'full'
 
@@ -796,28 +521,27 @@ export async function orbConverse(req: OrbRequest) {
       const historyCodes = extractCitedCodes(
         (req.history ?? []).map(h => h.text).join(' ') + ' ' + req.input
         + ' ' + ctx.todoList.map((t: any) => todoCode(t, ctx.productList)).join(' ')
-        // ctx.contextString is the static BACKLOG/RECENT TICKETS block injected into
-        // every system prompt — a code cited straight from it (e.g. a ticket code
-        // answered without calling query_tickets, which is legitimate) is not a
-        // phantom citation just because no tool produced it this turn.
         + ' ' + ctx.contextString
-        // ORB-361 Phase 3.3 added orb_state_because to the project-health
-        // packet so the Orb can name the task driving the orb's mood. Those
-        // codes come from the packet, not from a tool call or history, so
-        // without this the guard called a correct, grounded answer a phantom
-        // citation and replaced it with "I did not actually complete that".
-        // Any code the model was actually SHOWN is legitimate provenance.
         + ' ' + (ctx.projectHealthContext ?? '')
         + ' ' + (ctx.nextStepContext ?? '')
       )
 
-      const pendingTodoOps = pendingTodoOperations(req.pendingMutation)
+      let pendingMutation: PendingMutationRow | null = await getPendingMutation(auth.admin, auth.user.id)
+      const browserPendingTodoOps = pendingTodoOperations(req.pendingMutation)
+      const canonicalTodoOps = canonicalPendingTodoOperations(pendingMutation)
+      const pendingTodoOps = canonicalTodoOps.length > 0 ? canonicalTodoOps : browserPendingTodoOps
       if (pendingTodoOps.length > 0) {
-        const pendingSummary = 'summary' in req.pendingMutation! && req.pendingMutation.summary
+        const browserPendingSummary = req.pendingMutation
+          && 'kind' in req.pendingMutation
+          && req.pendingMutation.kind === 'todo_action_transaction'
           ? req.pendingMutation.summary
-          : summarizeTodoOperations(pendingTodoOps)
+          : null
+        const pendingSummary = pendingMutation?.summary
+          ?? browserPendingSummary
+          ?? summarizeTodoOperations(pendingTodoOps)
 
         if (isBareMutationDecline(req.input)) {
+          if (pendingMutation) await clearPendingMutation(auth.admin, auth.user.id)
           const speech = `Okay — I did not ${pendingSummary}.`
           recordModelRequest(speech)
           recordMetrics(speech.length)
@@ -834,7 +558,46 @@ export async function orbConverse(req: OrbRequest) {
         }
 
         if (await authorizesPendingMutation(req.input)) {
-          await executeTodoOperationsAndFinish(pendingTodoOps)
+          if (pendingMutation) {
+            stream.update({ speech: '', thought: 'Confirming...', isStreaming: true })
+            const confirmation = await confirmOrbMutation(auth, pendingMutation.proposal_id)
+            const receipt = confirmation.receipt
+            if (receipt.code) toolProducedCodes.add(receipt.code)
+            if (receipt.oldCode) toolProducedCodes.add(receipt.oldCode)
+            hasMutated = true
+            hasActed = true
+            const mutationType = receipt.kind === 'delete_todo' ? 'delete' : receipt.kind === 'create_todo' ? 'create' : 'update'
+            const speech = receipt.spokenText
+            checkAndNotifyEscalation(auth.user.id, beforeUrgency, supabase)
+              .catch(err => console.error('[orbConverse] Push check failed:', err))
+            recordModelRequest(speech)
+            recordMetrics(speech.length)
+            stream.done({
+              speech,
+              isStreaming: false,
+              refresh: true,
+              mutatedProductId: pendingMutation.project_id ?? undefined,
+              mutationType,
+            })
+          } else {
+            // A tab opened before the ORB-342 deployment may still echo the
+            // old browser-held shape. Convert it to a durable proposal before
+            // confirming; even the compatibility bridge uses the canonical DB
+            // transaction and never invokes the legacy executor.
+            const summary = browserPendingSummary ?? summarizeTodoOperations(pendingTodoOps)
+            const proposal = await proposeSerialTodoOperations(auth, pendingTodoOps, {
+              currentProjectId: req.productId,
+              requestZone,
+              summary,
+            })
+            const confirmation = await confirmOrbMutation(auth, proposal.proposalId)
+            const receipt = confirmation.receipt
+            const mutationType = receipt.kind === 'delete_todo' ? 'delete' : receipt.kind === 'create_todo' ? 'create' : 'update'
+            const speech = receipt.spokenText
+            recordModelRequest(speech)
+            recordMetrics(speech.length)
+            stream.done({ speech, isStreaming: false, refresh: true, mutationType })
+          }
           return
         }
 
@@ -847,10 +610,24 @@ export async function orbConverse(req: OrbRequest) {
           return
         }
       }
+      if (canonicalTodoOps.length > 0 && pendingMutation) {
+        await clearPendingMutation(auth.admin, auth.user.id)
+        pendingMutation = null
+      }
 
       const confirmedDeleteOps = await inferConfirmedDeleteOpsFromHistory(req.history, req.input)
       if (!req.pendingMutation && confirmedDeleteOps.length > 0) {
-        await executeTodoOperationsAndFinish(confirmedDeleteOps)
+        const summary = summarizeTodoOperations(confirmedDeleteOps)
+        const proposal = await proposeSerialTodoOperations(auth, confirmedDeleteOps, {
+          currentProjectId: req.productId,
+          requestZone,
+          summary,
+        })
+        const confirmation = await confirmOrbMutation(auth, proposal.proposalId)
+        const speech = confirmation.receipt.spokenText
+        recordModelRequest(speech)
+        recordMetrics(speech.length)
+        stream.done({ speech, isStreaming: false, refresh: true, mutationType: 'delete' })
         return
       }
 
@@ -858,15 +635,15 @@ export async function orbConverse(req: OrbRequest) {
       if (!req.pendingMutation && referencedSet && isDeleteRequest(req.input)) {
         const operations = referencedSet.codes.map(code => ({ tool: 'delete_todo', params: { code } }))
         const summary = summarizeTodoOperations(operations)
-        const pending: PendingMutation = {
-          kind: 'todo_action_transaction',
-          operations,
+        await proposeSerialTodoOperations(auth, operations, {
+          currentProjectId: req.productId,
+          requestZone,
           summary,
-        }
+        })
         const speech = `Confirm: ${summary}?\n\n${listTodoOperationLines(operations)}`
         recordModelRequest(speech)
         recordMetrics(speech.length)
-        stream.done({ speech, isStreaming: false, pendingMutation: pending })
+        stream.done({ speech, isStreaming: false })
         return
       }
 
@@ -885,16 +662,15 @@ export async function orbConverse(req: OrbRequest) {
         messages.push({ role: 'user', content: `[SYSTEM: This note applies to the user's latest message. ${ticketStatusRoutingHint}]` })
       }
 
-      // Server-held pending PROJECT mutation (propose/confirm/execute). The client
+      // Server-held canonical mutation proposal. The browser never holds the
+      // mutation intent; confirmation executes the exact persisted proposal.
       // echoes nothing — the server is the source of truth for what's awaiting confirmation.
-      const pendingMutation: PendingMutationRow | null = await getPendingMutation(auth.admin, auth.user.id)
-      const projectConfirmationAllowed = Boolean(pendingMutation) && (await authorizesPendingMutation(req.input))
-      if (pendingMutation) {
-        // Consume on load: a pending is confirmable ONLY on the turn directly after it
-        // was proposed. Clear it now (the in-memory copy still serves this turn's
-        // confirm_mutation) so it can never linger and be confirmed on a later, unrelated
-        // turn. If the user doesn't confirm this turn, it's already gone — fail-safe.
-        await clearPendingMutation(auth.admin, auth.user.id)
+      const hasProjectOrKnowledgePending = Boolean(
+        pendingMutation
+        && (PROJECT_MUTATIONS.has(pendingMutation.tool) || KNOWLEDGE_MUTATIONS.has(pendingMutation.tool)),
+      )
+      const projectConfirmationAllowed = hasProjectOrKnowledgePending && (await authorizesPendingMutation(req.input))
+      if (pendingMutation && hasProjectOrKnowledgePending) {
         messages.push({ role: 'user', content: buildPendingMutationConfirmationInstruction(pendingMutation.summary) })
       }
 
@@ -1132,6 +908,10 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         messages.push({ role: 'assistant', content: assistantContent })
 
         if (toolCalls.length === 0) {
+          if (pendingMutation && hasProjectOrKnowledgePending) {
+            await clearPendingMutation(auth.admin, auth.user.id)
+            pendingMutation = null
+          }
           if (hasMutated) {
             checkAndNotifyEscalation(auth.user.id, beforeUrgency, supabase)
               .catch(err => console.error('[orbConverse] Push check failed:', err))
@@ -1198,14 +978,45 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           if (PROJECT_MUTATIONS.has(tc.name) || KNOWLEDGE_MUTATIONS.has(tc.name)) {
             const proposal = PROJECT_MUTATIONS.has(tc.name)
               ? await proposeProjectMutation(auth.admin, { userId: auth.user.id, isAdmin: auth.isAdmin }, tc.name, input)
-              : await proposeKnowledgeMutation(auth.admin, tc.name, input)
+              : await proposeKnowledgeMutation(
+                  auth.admin,
+                  { userId: auth.user.id, isAdmin: auth.isAdmin },
+                  tc.name,
+                  tc.name === 'add_knowledge' && !input.product_code
+                    ? { ...input, product_code: ctx.current?.code }
+                    : input,
+                )
             if (proposal.kind === 'error') {
               output = { error: proposal.message }
             } else if (proposal.kind === 'ambiguous') {
               const list = proposal.candidates.map(c => c.code ? `${c.name} (${c.code})` : c.name).join(', ')
               output = { needs_disambiguation: true, candidates: proposal.candidates, _instruction: `More than one project matches: ${list}. Ask the user which one they mean — refer to them by name. Do not act yet.` }
             } else {
-              await storePendingMutation(auth.admin, auth.user.id, { tool: tc.name, target_id: proposal.target_id, params: proposal.params, summary: proposal.summary })
+              const persisted = await storePendingMutation(auth, {
+                tool: tc.name,
+                target_id: proposal.target_id,
+                project_id: proposal.project_id,
+                params: proposal.params,
+                summary: proposal.summary,
+                title: proposal.title,
+              })
+              if (grantsUpfrontMutationPermission(req.input)) {
+                const confirmation = await confirmOrbMutation(auth, persisted.proposalId)
+                const receipt = confirmation.receipt
+                hasMutated = true
+                hasActed = true
+                if (receipt.code) toolProducedCodes.add(receipt.code)
+                output = {
+                  ok: true,
+                  summary: receipt.spokenText,
+                  preAuthorized: true,
+                  _instruction: `Done: ${receipt.spokenText} Tell the user plainly. Do not ask for confirmation again.`,
+                }
+                accumulatedSpeech = ''
+                stream.update({ speech: '', thought: receipt.spokenText, refresh: true })
+                toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
+                continue
+              }
               const targetVerification = KNOWLEDGE_MUTATIONS.has(tc.name)
                 ? ` You MUST include the exact resolved entry title in quotes in your confirmation, verbatim from "${proposal.summary}" — this is the only way the user can catch a wrong-entry resolution before it executes. Do not paraphrase or shorten the title.`
                 : ''
@@ -1227,38 +1038,57 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
               continue
             }
-            // pendingMutation was consumed (cleared) on load; the in-memory copy is the
-            // sole source of truth for this turn. Null means nothing was pending.
             const pend = pendingMutation
             if (!pend) {
               output = { error: 'There is nothing pending to confirm.' }
               toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
               continue
             }
-            const result = PROJECT_MUTATIONS.has(pend.tool)
-              ? await executePendingProjectMutation(auth.admin, { userId: auth.user.id, isAdmin: auth.isAdmin }, pend)
-              : await executePendingKnowledgeMutation(auth.admin, { userId: auth.user.id }, pend)
-            if (!result.ok) {
-              toolErrors.push(`confirm_mutation: ${result.error}`)
-              output = { error: result.error, _instruction: `This failed: ${result.error}. Tell the user plainly. Do NOT claim success.` }
+            let confirmation
+            try {
+              confirmation = await confirmOrbMutation(auth, pend.proposal_id)
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error)
+              toolErrors.push(`confirm_mutation: ${message}`)
+              output = { error: message, _instruction: `This failed: ${message}. Tell the user plainly. Do NOT claim success.` }
               toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
               continue
             }
+            const receipt = confirmation.receipt
+            const mutationType = receipt.kind === 'create_project'
+              ? 'project_create'
+              : receipt.kind === 'update_project'
+                ? 'project_update'
+                : receipt.kind === 'delete_project'
+                  ? 'project_delete'
+                  : 'knowledge_update'
+            let newProject
+            if (receipt.kind === 'create_project') {
+              const { data } = await auth.admin
+                .from('projects')
+                .select('id, name, code, description, created_by')
+                .eq('code', receipt.code)
+                .eq('created_by', auth.user.id)
+                .is('deleted_at', null)
+                .maybeSingle()
+              newProject = data ?? undefined
+            }
+            const summary = receipt.spokenText.replace(/[.!?]\s*$/, '')
             hasMutated = true; hasActed = true
-            if (result.code) toolProducedCodes.add(result.code)
+            if (receipt.code) toolProducedCodes.add(receipt.code)
             // Discard premature pre-confirm speech ("Renaming X now.") so the result reads cleanly.
             accumulatedSpeech = ''
-            stream.update({ speech: '', thought: result.summary, refresh: true, mutationType: result.mutationType, ...(result.newProject ? { newProject: result.newProject } : {}) })
+            stream.update({ speech: '', thought: summary, refresh: true, mutationType, ...(newProject ? { newProject } : {}) })
             // HYBRID confirm: voice → deterministic done (no extra model turn). Text → Orb narrates.
             if (req.uiContext?.voiceMode) {
-              const doneSpeech = `${result.summary}.`
+              const doneSpeech = receipt.spokenText
               checkAndNotifyEscalation(auth.user.id, beforeUrgency, supabase).catch(err => console.error('[orbConverse] Push check failed:', err))
               recordModelRequest(doneSpeech)
               recordMetrics(doneSpeech.length)
-              stream.done({ speech: doneSpeech, isStreaming: false, refresh: true, mutationType: result.mutationType, ...(result.newProject ? { newProject: result.newProject } : {}) })
+              stream.done({ speech: doneSpeech, isStreaming: false, refresh: true, mutationType, ...(newProject ? { newProject } : {}) })
               return
             }
-            output = { ok: true, summary: result.summary, _instruction: `Done: ${result.summary}. Tell the user in your own voice. Do not mention internal mechanics.` }
+            output = { ok: true, summary, replayed: confirmation.replayed, _instruction: `Done: ${summary}. Tell the user in your own voice. Do not mention internal mechanics.` }
             toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
             continue
           } else
@@ -1303,46 +1133,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           // try/catch wraps every tool handler so a throw doesn't crash the stream
           try {
 
-          if (tc.name === 'create_todo') {
-            if (!input.title) { output = { error: 'title is required' } }
-            else {
-            if (!input.product_code) {
-              console.warn('[orbConverse] create_todo called without product_code — falling back to current project', ctx.current?.code)
-            }
-            const product = input.product_code
-              ? ctx.productList.find((p: any) => p.code?.toUpperCase() === String(input.product_code).toUpperCase())
-              : ctx.productList.find((p: any) => p.id === req.productId)
-            if (!product) output = { error: 'product not found' }
-            else {
-              const { data: openStatus } = await supabase
-                .from('statuses').select('name').eq('is_open', true).limit(1).single()
-              const dueFields = resolveDueFields(input, null, requestZone)
-              const { data, error } = await supabase.from('todos').insert({
-                product_id: product.id,
-                title: input.title,
-                description: input.description ?? null,
-                status: openStatus?.name ?? 'open',
-                priority_value: input.priority_value ?? null,
-                ...dueFields,
-              }).select('id, todo_number').single()
-              if (error) output = { error: error.message }
-              else {
-                output = { ok: true, code: `${product.code}-${data.todo_number}` }
-                stream.update({ speech: accumulatedSpeech, thought: `Created ${product.code}-${data.todo_number}`, refresh: true, mutatedProductId: product.id, mutationType: 'create' })
-                hasMutated = true; hasActed = true
-                await logAuditEvent({
-                  action: 'todo_create',
-                  table_name: 'todos',
-                  record_id: data.id,
-                  after: { code: `${product.code}-${data.todo_number}`, title: input.title, priority_value: input.priority_value ?? null, due_at: input.due_at ?? null },
-                  actor: 'orb',
-                  user_id: auth.user.id,
-                  system_info: req.systemInfo,
-                })
-              }
-            }
-            }
-          } else if (tc.name === 'query_todos') {
+          if (tc.name === 'query_todos') {
             let results = ctx.todoList.slice()
 
             if (input.codes && Array.isArray(input.codes) && input.codes.length > 0) {
@@ -1512,223 +1303,6 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
                 }
               }
             }
-          } else if (tc.name === 'update_todo') {
-            const productCode = input.code?.split('-')[0]
-            const todoNum = parseInt(input.code?.split('-')[1] || '0')
-            let todo = ctx.todoList.find((t: any) => {
-              const p = ctx.productList.find((pp: any) => pp.id === t.product_id)
-              return p?.code === productCode && t.todo_number === todoNum
-            })
-
-            if (!todo) {
-                const { data: found } = await supabase
-                    .from('todos')
-                    .select('*, projects!inner(code)')
-                    .eq('todo_number', todoNum)
-                    .ilike('projects.code', productCode)
-                    .maybeSingle()
-                if (found) todo = found
-            }
-
-            if (!todo) output = { error: 'todo not found' }
-            else {
-              const closingStatus = !!(input.new_status &&
-                ctx.statusList.find((s: any) => s.name === input.new_status)?.is_closed
-              )
-
-              const dueFields = resolveDueFields(input, todo, requestZone)
-              const dueChanged = dueFields.due_at !== todo.due_at
-                || dueFields.reminder_lead_value !== todo.reminder_lead_value
-                || dueFields.reminder_lead_unit !== todo.reminder_lead_unit
-              const { data, error } = await supabase.from('todos').update({
-                title: input.new_title ?? todo.title,
-                status: input.new_status ?? todo.status,
-                priority_value: input.new_priority !== undefined ? input.new_priority : todo.priority_value,
-                description: input.description ?? todo.description,
-                resolution_notes: input.resolution_notes ?? todo.resolution_notes,
-                closed_at: closingStatus ? new Date().toISOString() : todo.closed_at,
-                ...dueFields,
-                reminded_at: dueChanged ? null : todo.reminded_at,
-                // ORB-361 Phase 3.4: "this one doesn't need a reminder." Never
-                // un-set — a dismissal is about the todo's nature, not its
-                // current date, so it survives later due-date edits.
-                reminder_nudge_dismissed_at: input.dismiss_reminder_nudge
-                  ? (todo.reminder_nudge_dismissed_at ?? new Date().toISOString())
-                  : todo.reminder_nudge_dismissed_at,
-              }).eq('id', todo.id).select('*').single()
-
-              if (error) output = { error: error.message }
-              else {
-                const ticketNum = todo.tickets?.ticket_number
-                output = {
-                  ok: true,
-                  ...(ticketNum && closingStatus ? { linked_ticket: `TICKETS-${ticketNum}`, is_closing: true } : {})
-                }
-                stream.update({ speech: accumulatedSpeech, thought: `Updated ${input.code}`, refresh: true, mutatedProductId: todo.product_id, mutationType: 'update' })
-                hasMutated = true; hasActed = true
-                await logAuditEvent({
-                  action: closingStatus && !todo.closed_at ? 'todo_close' : 'todo_update',
-                  table_name: 'todos',
-                  record_id: todo.id,
-                  before: { status: todo.status, priority_value: todo.priority_value, title: todo.title },
-                  after: { status: data.status, priority_value: data.priority_value, title: data.title, code: input.code, due_at: data.due_at },
-                  actor: 'orb',
-                  user_id: auth.user.id,
-                  system_info: req.systemInfo,
-                })
-
-
-
-                // Only distill when task is being closed for the first time
-                const isClosing = closingStatus && !todo.closed_at
-                if (isClosing) {
-                    const notesLen = (data.resolution_notes || '').length
-                    stream.update({ speech: accumulatedSpeech, thought: `Distilling insights (${notesLen} chars of notes)...` })
-
-                    const distillation = await anthropic.messages.create({
-                        model: 'claude-haiku-4-5',
-                        max_tokens: 500,
-                        system: "Extract the 'Gold' (the key technical decision or lesson learned) from the task. Return a RAW JSON object with 'title' and 'content'. DO NOT use markdown or code blocks.",
-                        messages: [{ role: 'user', content: `Task: ${data.title}\nDescription: ${data.description}\nResolution: ${data.resolution_notes}` }]
-                    })
-                    metricInputTokens += distillation.usage?.input_tokens ?? 0
-                    metricOutputTokens += distillation.usage?.output_tokens ?? 0
-                    metricCacheCreationTokens += (distillation.usage as any)?.cache_creation_input_tokens ?? 0
-                    metricCacheReadTokens += (distillation.usage as any)?.cache_read_input_tokens ?? 0
-                    try {
-                        const text = (distillation.content[0] as any).text
-                        const firstBrace = text.indexOf('{')
-                        const lastBrace = text.lastIndexOf('}')
-                        if (firstBrace !== -1 && lastBrace !== -1) {
-                            const jsonStr = text.substring(firstBrace, lastBrace + 1)
-                            const result = JSON.parse(jsonStr)
-
-                            if (!result.skip) {
-                                output = { ...output, distillation: { success: true, title: result.title } }
-                                stream.update({
-                                    speech: accumulatedSpeech,
-                                    thought: 'Insight ready to review',
-                                    suggestedKnowledge: {
-                                        id: todo.id,
-                                        productId: todo.product_id,
-                                        title: todo.title,
-                                        suggestion: result
-                                    }
-                                })
-                            } else {
-                                output = { ...output, distillation: { success: false, reason: 'no_gold_found' } }
-                                stream.update({ speech: accumulatedSpeech, thought: 'No new insights to distill' })
-                            }
-                        }
-                    } catch (e) {
-                        console.error('Distillation failed', e)
-                        output = { ...output, distillation: { success: false, error: String(e) } }
-                    }
-                }
-              }
-            }
-          } else if (tc.name === 'delete_todo') {
-            const productCode = input.code?.split('-')[0]
-            const todoNum = parseInt(input.code?.split('-')[1] || '0')
-            let todo = ctx.todoList.find((t: any) => {
-              const p = ctx.productList.find((pp: any) => pp.id === t.product_id)
-              return p?.code === productCode && t.todo_number === todoNum
-            })
-
-            if (!todo) {
-                const { data: found } = await supabase
-                    .from('todos')
-                    .select('*, projects!inner(code)')
-                    .eq('todo_number', todoNum)
-                    .ilike('projects.code', productCode)
-                    .maybeSingle()
-                if (found) todo = found
-            }
-
-            if (!todo) output = { error: 'todo not found' }
-            else {
-              const { data: deleted, error } = await supabase.from('todos').delete().eq('id', todo.id).select().maybeSingle()
-              if (error) output = { error: error.message }
-              else if (!deleted) output = { error: 'delete failed — row was not removed' }
-              else {
-                output = { ok: true, code: input.code }
-                stream.update({ speech: accumulatedSpeech, thought: `Deleted ${input.code}`, refresh: true, mutatedProductId: todo.product_id, mutationType: 'delete' })
-                hasMutated = true; hasActed = true
-                await logAuditEvent({
-                  action: 'todo_delete',
-                  table_name: 'todos',
-                  record_id: todo.id,
-                  before: { code: input.code, title: todo.title, status: todo.status },
-                  actor: 'orb',
-                  user_id: auth.user.id,
-                  system_info: req.systemInfo,
-                })
-              }
-            }
-          } else if (tc.name === 'move_todo') {
-            const productCode = input.code?.split('-')[0]
-            const todoNum = parseInt(input.code?.split('-')[1] || '0')
-            const targetCode = String(input.target_project_code).toUpperCase()
-
-            let todo = ctx.todoList.find((t: any) => {
-              const p = ctx.productList.find((pp: any) => pp.id === t.product_id)
-              return p?.code === productCode && t.todo_number === todoNum
-            })
-
-            if (!todo) {
-              const { data: found } = await supabase
-                .from('todos')
-                .select('*, projects!inner(code)')
-                .eq('todo_number', todoNum)
-                .ilike('projects.code', productCode)
-                .maybeSingle()
-              if (found) todo = found
-            }
-
-            if (!todo) {
-              output = { error: 'todo not found' }
-            } else {
-              const sourceProject = ctx.productList.find((p: any) => p.id === todo.product_id)
-              const moveTargetQuery = supabase
-                .from('projects')
-                .select('id, code, name')
-                .ilike('code', targetCode)
-              if (!auth.isAdmin) moveTargetQuery.eq('created_by', auth.user.id)
-              const { data: targetProject } = await moveTargetQuery.maybeSingle()
-
-              if (!targetProject) {
-                output = { error: `project "${targetCode}" not found` }
-              } else if (targetProject.id === todo.product_id) {
-                output = { error: 'task is already in that project' }
-              } else {
-                const { data: movedTodo, error } = await supabase
-                  .from('todos')
-                  .update({ product_id: targetProject.id })
-                  .eq('id', todo.id)
-                  .select('todo_number')
-                  .single()
-
-                if (error || !movedTodo) {
-                  output = { error: error?.message ?? 'move returned no todo' }
-                } else {
-                  const oldCode = `${sourceProject?.code ?? '???'}-${todo.todo_number}`
-                  const newCode = `${targetProject.code}-${movedTodo.todo_number}`
-                  output = { ok: true, old_code: oldCode, new_code: newCode }
-                  stream.update({ speech: accumulatedSpeech, thought: `Moved ${oldCode} → ${newCode}`, refresh: true, mutatedProductId: sourceProject?.id, mutationType: 'update' })
-                  hasMutated = true; hasActed = true
-                  await logAuditEvent({
-                    action: 'todo_move',
-                    table_name: 'todos',
-                    record_id: todo.id,
-                    before: { code: oldCode, product_code: sourceProject?.code },
-                    after: { code: newCode, product_code: targetProject.code },
-                    actor: 'orb',
-                    user_id: auth.user.id,
-                    system_info: req.systemInfo,
-                  })
-                }
-              }
-            }
           } else if (tc.name === 'client_action') {
             if (input.action === 'switch_project' && input.target) {
               // Shared with the client (lib/projects.ts): exact name → exact
@@ -1805,27 +1379,6 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               const returned = results.slice(0, 10).map((k: any) => ({ title: k.title, content: k.content, code: k.projects?.code }))
               output = { count: results.length, returned }
               stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length} insights`, knowledgeResults: returned })
-            }
-          } else if (tc.name === 'add_knowledge') {
-            let pId = ctx.current?.id ?? null
-            if (input.product_code) {
-                const p = ctx.productList.find((pp: any) => pp.code?.toUpperCase() === String(input.product_code).toUpperCase())
-                if (p) pId = p.id
-            }
-            if (!pId) {
-                output = { error: 'Could not determine project to save knowledge to.' }
-            } else {
-                const { error } = await auth.admin.from('knowledge_repo').insert({
-                    product_id: pId,
-                    title: input.title,
-                    content: input.content,
-                    tags: input.tags || []
-                })
-                if (error) output = { error: error.message }
-                else {
-                    output = { ok: true }
-                    stream.update({ speech: accumulatedSpeech, thought: 'Saved to knowledge repository' })
-                }
             }
           } else if (tc.name === 'query_audit_trail') {
             let query = auth.admin.from('audit_log').select('*').order('created_at', { ascending: false })
@@ -2180,23 +1733,28 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           }
         }
         if (heldTodoOperations.length > 0) {
-          // Permission granted in the requesting message itself — don't make
-          // the user confirm what they already authorized. Stop remains the
-          // escape hatch, and deletes are soft.
-          if (grantsUpfrontMutationPermission(req.input)) {
-            await executeTodoOperationsAndFinish(heldTodoOperations, { preAuthorized: true })
-            return
-          }
           const summary = summarizeTodoOperations(heldTodoOperations)
-          const pending: PendingMutation = {
-            kind: 'todo_action_transaction',
-            operations: heldTodoOperations,
+          const proposal = await proposeSerialTodoOperations(auth, heldTodoOperations, {
+            currentProjectId: req.productId,
+            requestZone,
             summary,
+          })
+          // Permission granted in the requesting message itself still travels
+          // through the same persisted proposal and transactional RPC.
+          if (grantsUpfrontMutationPermission(req.input)) {
+            const confirmation = await confirmOrbMutation(auth, proposal.proposalId)
+            const receipt = confirmation.receipt
+            const mutationType = receipt.kind === 'delete_todo' ? 'delete' : receipt.kind === 'create_todo' ? 'create' : 'update'
+            const speech = receipt.spokenText
+            recordModelRequest(speech)
+            recordMetrics(speech.length)
+            stream.done({ speech, isStreaming: false, refresh: true, mutationType })
+            return
           }
           const speech = `Confirm: ${summary}?\n\n${listTodoOperationLines(heldTodoOperations)}`
           recordModelRequest(speech)
           recordMetrics(speech.length)
-          stream.done({ speech, isStreaming: false, pendingMutation: pending })
+          stream.done({ speech, isStreaming: false })
           return
         }
         if (!hasMutated && toolErrors.length > 0) {

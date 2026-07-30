@@ -1,76 +1,55 @@
 # Orb Action Transaction Thesis
 
-Status: first approximation implemented in v0.6.84.
-Date: 2026-06-29.
+Status: canonical implementation completed by ORB-342.
+Original approximation: v0.6.84, 2026-06-29.
+Canonical convergence: 2026-07-29.
 
 ## Thesis
 
-Orb requires a product-level transaction record for actions.
+Orb requires a product-level transaction record for confirmable actions.
 
-Provider/model instrumentation can help the model choose tools and follow instructions, but it cannot own Orb-specific truth: which records were targeted, which operations are waiting for approval, which writes actually completed, and what the user is allowed to hear as a verified outcome.
+Provider/model instrumentation can help a model choose tools and follow instructions, but it cannot own Orb-specific truth: which records were targeted, which operation is waiting for approval, which writes actually completed, or what the user may hear as a verified outcome.
 
-## First Approximation
+## Canonical implementation
 
-The first approximation is intentionally small and shared by both text and voice:
+Serial text and Realtime voice retain channel-appropriate model tool schemas, then translate those calls into the same operation spine:
 
-- Text and voice still enter the same `orbConverse` path.
-- Todo mutation tool calls are collected into one pending action transaction for the turn.
-- Verified todo action batches are recorded as session action sets, including the actual task codes.
-- Action sets are kept in memory and mirrored to `sessionStorage` with the conversation transcript, so same-tab reloads can recover references such as "the first five" or "delete them."
-- A pending action can contain one or many operations.
-- The app returns deterministic confirmation language from that pending action.
-- A bare affirmation executes exactly the stored operations before another model call.
-- A decline cancels the pending action.
-- A status question such as "is it set?" while an action is pending gets a deterministic "not yet" answer and keeps the pending action available.
-- The Orb may still interpret user intent and choose tools, but it no longer narrates todo mutation success before verified execution.
+1. The server resolves names/codes to accessible row ids and snapshots mutable target state.
+2. It persists the exact intent in `orb_realtime_proposals`. The historical table name is retained for deployment compatibility; `channel` distinguishes serial and Realtime proposals.
+3. The shared authorization grammar evaluates the trusted current user utterance. Upfront permission still creates the proposal before confirming it.
+4. `confirm_realtime_mutation` dispatches to the domain transaction. The historical RPC name is also retained for compatibility.
+5. The transaction locks the proposal and target rows, rejects stale state, performs the domain write and audit write atomically, stores a canonical receipt, and returns that receipt on replay without writing twice.
 
-Project mutations keep the existing server-held `orb_pending_mutations` flow for now.
+The browser may temporarily retain a signed proposal id or a one-release legacy compatibility shape, but it never owns new mutation intent. New serial proposals are server-held.
 
-## Why This Is Not Yet a Workflow Engine
+## Covered operations
 
-This pass deliberately does not add new database tables or persistent transaction history. It tests whether a short-lived action transaction in the shared conversation path removes the observed failure mode:
+- Todos: create, update, soft-delete, move, close, and all-or-nothing create/update/delete/move batches.
+- Projects: create, update, and permanent delete.
+- Knowledge Repository: create and update.
 
-- "add three" should not create two records while holding one for confirmation.
-- "confirm" should not re-interpret the request.
-- text and voice should share action truth.
-- questions about a pending action should not accidentally execute it.
+Closing remains singular because every close requires its own resolution notes and Knowledge Repository entry. Batch todo operations preserve serial's richer metadata fields while using Realtime's atomic receipt boundary.
 
-If this works, persistence can be considered only for cases that need recovery across refreshes, devices, or longer gaps.
+Preferences, memories, dormancy, tickets, adaptation proposals, developer messages, and client navigation are authenticated commands but are not confirmable CRUD transactions in ORB-342.
 
-The current action-set ledger is not a durable cross-device journal. It survives same-tab reloads through `sessionStorage`, but not a different device, browser profile, or cleared transcript. If the network fails after database writes complete but before the final action-set response reaches the client, the database remains true but the session ledger may be incomplete. In that case Orb should fall back to clarification or a fresh lookup rather than guessing.
+## Action sets versus proposals
 
-## Verification Targets
+The session action-set ledger still records verified result codes so follow-ups such as "delete the first five" can resolve a previously created set. It is a conversational reference ledger, not the mutation authority.
 
-Stan-run voice/text checks:
+`orb_realtime_proposals` is the mutation authority. It survives a dropped response, supports replay, and is safe across browsers/devices because the intent and receipt live in the database.
 
-- Text: ask to add three todos; confirm; verify exactly three are created.
-- Voice: ask to add three todos; confirm; verify exactly three are created and the spoken result matches the transcript.
-- Text and voice: ask to update one todo; before confirming, ask "is it set?"; Orb should say not yet and keep the confirmation available.
-- Text and voice: decline a pending action; verify no write occurred.
-- Batch partial failure, if reproducible: verify successes and failures are reported separately.
+## Verification
 
-Eval coverage:
+`scripts/verify-orb-342.sql` executes inside a transaction and rolls every write back. It verifies:
 
-- `batch-create-three-todos` checks that the model emits three `create_todo` calls for a three-todo request.
+- a serial-only todo field is applied inside canonical confirmation;
+- a repeated confirmation returns the same receipt without a second write;
+- a rich create/update batch preserves metadata atomically;
+- project creation uses the same dispatcher;
+- Knowledge Repository create/update use the same dispatcher.
 
-## Tune Or Abandon
+Conversational evals continue to verify that the models select the expected tools and confirmation tool. They do not substitute for direct database transaction verification.
 
-Tune the thesis if:
+## Database impact
 
-- batch operations stop duplicating or losing items;
-- confirmation executes exactly the stored operations;
-- voice becomes shorter without hiding action truth;
-- latency stays roughly flat because no extra model turn is added for confirmation.
-
-Abandon or replace the thesis if:
-
-- the transaction layer duplicates existing tool results without reducing errors;
-- ambiguity still relies mostly on model memory;
-- latency or code complexity climbs faster than reliability improves;
-- text and voice require divergent action paths.
-
-## Database Impact
-
-No schema change.
-
-No new query pattern, table, Realtime subscription, or high-frequency write path was added in the first approximation. Todo execution uses the same Supabase insert/update/delete calls as the existing shared conversation path. Session action sets are browser `sessionStorage`, not database writes.
+ORB-342 adds no table and no Realtime subscription. It adds `channel` and `summary` to the existing proposal table plus a partial `(user_id, channel, created_at DESC)` index for pending lookup. Mutations add one proposal insert and one receipt update per confirmed action; proposal and target confirmation lookups are primary-key based.

@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
 import { logAuditEvent } from '@/lib/audit'
 import { getAuthContext, type AuthContext } from '@/lib/auth'
 import { createTicket } from '@/app/actions/ticket-actions'
@@ -12,7 +11,14 @@ import { getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 import { generateUniqueCode } from '@/lib/project-codes'
 import { resolveProjectByReference } from '@/lib/projects'
 import { queryRepository, type RepositoryOperation, type RepositorySource } from '@/lib/repository-reader'
-import type { OrbRealtimeMutationReceipt, OrbRealtimeProposal } from '@/lib/orb-realtime/types'
+import type { OrbRealtimeProposal } from '@/lib/orb-realtime/types'
+import {
+  readOrbProposalCapability,
+  readOrbTodoReferenceCapability,
+  signOrbOperationCapability,
+} from '@/lib/orb-operations/capabilities'
+import { confirmOrbMutation } from '@/lib/orb-operations/confirmation'
+import { persistOrbMutationProposal } from '@/lib/orb-operations/proposals'
 
 export const runtime = 'nodejs'
 
@@ -33,9 +39,6 @@ function attributeKnowledgeUpdate(text: string) {
   return attribute(withoutPriorStamp)
 }
 
-type ProposalPayload = { type: 'proposal'; proposalId: string; userId: string; expiresAt: number }
-type TodoReferencePayload = { type: 'todo_reference'; todoId: string; userId: string; expiresAt: number }
-type SignedPayload = ProposalPayload | TodoReferencePayload
 type UpdateStatus = 'open' | 'in progress' | 'deferred' | 'on hold'
 
 const UPDATE_STATUSES: UpdateStatus[] = ['open', 'in progress', 'deferred', 'on hold']
@@ -134,53 +137,6 @@ async function resolveTodoReference(
     throw new RealtimeInputError(`That todo reference is ambiguous: ${names}.`)
   }
   throw new RealtimeInputError(`Could not find one accessible todo matching “${reference}”.`)
-}
-
-async function confirmProposal(auth: AuthContext, proposalId: string) {
-  const { data, error } = await auth.admin.rpc('confirm_realtime_mutation', {
-    p_proposal_id: proposalId,
-    p_user_id: auth.user.id,
-  })
-  if (error) throw error
-  const result = data as { receipt: OrbRealtimeMutationReceipt; replayed: boolean } | null
-  if (!result?.receipt) throw new Error('The database did not return a mutation receipt.')
-  return result
-}
-
-function signingKey() {
-  const key = process.env.ORB_REALTIME_PROPOSAL_SECRET || process.env.ORB_API_SECRET || process.env.OPENAI_API_KEY
-  if (!key) throw new Error('Realtime proposal signing is not configured')
-  return key
-}
-
-function signPayload(payload: SignedPayload) {
-  const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
-  const signature = createHmac('sha256', signingKey()).update(encoded).digest('base64url')
-  return `${encoded}.${signature}`
-}
-
-function readPayload(token: string): SignedPayload {
-  const [encoded, signature] = token.split('.')
-  if (!encoded || !signature) throw new Error('Invalid proposal')
-  const expected = createHmac('sha256', signingKey()).update(encoded).digest()
-  const actual = Buffer.from(signature, 'base64url')
-  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) throw new Error('Invalid proposal')
-  const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString()) as SignedPayload
-  if (payload.type !== 'proposal' && payload.type !== 'todo_reference') throw new Error('Invalid signed token')
-  if (payload.expiresAt < Date.now()) throw new Error('Proposal expired')
-  return payload
-}
-
-function readProposal(token: string) {
-  const payload = readPayload(token)
-  if (payload.type !== 'proposal') throw new Error('Invalid proposal')
-  return payload
-}
-
-function readTodoReference(token: string) {
-  const payload = readPayload(token)
-  if (payload.type !== 'todo_reference') throw new Error('Invalid todo reference')
-  return payload
 }
 
 export async function POST(request: Request) {
@@ -404,7 +360,7 @@ export async function POST(request: Request) {
       })
       const packet = await getTodoDetailsPacket(auth, { todoId: todo.id })
       if (!packet.task) throw new Error('The database did not return the todo reference.')
-      const referenceToken = signPayload({
+      const referenceToken = signOrbOperationCapability({
         type: 'todo_reference', todoId: packet.task.id, userId: auth.user.id, expiresAt: Date.now() + 2 * 60_000,
       })
       return Response.json({ packet, referenceToken, gatewayMs: Math.round(performance.now() - startedAt) })
@@ -922,24 +878,17 @@ export async function POST(request: Request) {
       if (projectError || !project || (!auth.isAdmin && project.created_by !== auth.user.id)) {
         return Response.json({ error: 'Choose a project you can edit before creating the todo.' }, { status: 400 })
       }
-      const payload: ProposalPayload = {
-        type: 'proposal', proposalId: crypto.randomUUID(), userId: auth.user.id, expiresAt: Date.now() + 5 * 60_000,
-      }
-      const { error: proposalError } = await auth.admin.from('orb_realtime_proposals').insert({
-        id: payload.proposalId,
-        user_id: auth.user.id,
-        project_id: project.id,
+      const persisted = await persistOrbMutationProposal(auth, {
         kind: 'create_todo',
         title,
-        expires_at: new Date(payload.expiresAt).toISOString(),
+        projectId: project.id,
       })
-      if (proposalError) throw proposalError
       if (grantsUpfrontMutationPermission(body.userUtterance ?? '')) {
-        const result = await confirmProposal(auth, payload.proposalId)
+        const result = await confirmOrbMutation(auth, persisted.proposalId)
         return Response.json({ ...result, preAuthorized: true, gatewayMs: Math.round(performance.now() - startedAt) })
       }
       const proposal: OrbRealtimeProposal = {
-        kind: 'create_todo', proposalToken: signPayload(payload), title,
+        kind: 'create_todo', proposalToken: persisted.proposalToken, title,
         project: { id: project.id, name: project.name, code: project.code },
         spokenText: `Confirm: create “${title}” in ${project.name}?`,
       }
@@ -1023,23 +972,21 @@ export async function POST(request: Request) {
 
       if (!project) throw new Error('The project proposal lost its resolved project.')
       const proposalProject = project
-      const { error: proposalError } = await auth.admin.from('orb_realtime_proposals').insert({
-        id: proposalId,
-        user_id: auth.user.id,
-        project_id: proposalProject.id || null,
+      const persisted = await persistOrbMutationProposal(auth, {
+        proposalId,
+        expiresAt,
         kind,
         title,
+        projectId: proposalProject.id || null,
         params,
-        expires_at: new Date(expiresAt).toISOString(),
       })
-      if (proposalError) throw proposalError
       if (grantsUpfrontMutationPermission(body.userUtterance ?? '')) {
-        const result = await confirmProposal(auth, proposalId)
+        const result = await confirmOrbMutation(auth, proposalId)
         return Response.json({ ...result, preAuthorized: true, gatewayMs: Math.round(performance.now() - startedAt) })
       }
       const proposal: OrbRealtimeProposal = {
         kind,
-        proposalToken: signPayload({ type: 'proposal', proposalId, userId: auth.user.id, expiresAt }),
+        proposalToken: persisted.proposalToken,
         project: { id: proposalProject.id, name: proposalProject.name, code: proposalProject.code },
         title,
         ...(changes ? { changes } : {}),
@@ -1132,23 +1079,21 @@ export async function POST(request: Request) {
         spokenText = `Confirm: update the knowledge entry “${entry.title}”?`
       }
 
-      const { error: proposalError } = await auth.admin.from('orb_realtime_proposals').insert({
-        id: proposalId,
-        user_id: auth.user.id,
-        project_id: project.id || null,
+      const persisted = await persistOrbMutationProposal(auth, {
+        proposalId,
+        expiresAt,
         kind,
         title,
+        projectId: project.id || null,
         params,
-        expires_at: new Date(expiresAt).toISOString(),
       })
-      if (proposalError) throw proposalError
       if (grantsUpfrontMutationPermission(body.userUtterance ?? '')) {
-        const result = await confirmProposal(auth, proposalId)
+        const result = await confirmOrbMutation(auth, proposalId)
         return Response.json({ ...result, preAuthorized: true, gatewayMs: Math.round(performance.now() - startedAt) })
       }
       const proposal: OrbRealtimeProposal = {
         kind,
-        proposalToken: signPayload({ type: 'proposal', proposalId, userId: auth.user.id, expiresAt }),
+        proposalToken: persisted.proposalToken,
         project,
         title,
         ...(changes ? { changes } : {}),
@@ -1159,7 +1104,7 @@ export async function POST(request: Request) {
     if (body.operation === 'propose_update_todo' || body.operation === 'propose_delete_todo' || body.operation === 'propose_move_todo' || body.operation === 'propose_close_todo') {
       let todo: ResolvedTodo
       if (body.referenceToken) {
-        const reference = readTodoReference(body.referenceToken)
+        const reference = readOrbTodoReferenceCapability(body.referenceToken)
         if (reference.userId !== auth.user.id) return Response.json({ error: 'Todo reference belongs to another user.' }, { status: 403 })
         const rows = await accessibleTodoRows(auth, {})
         const referenced = rows.find(row => row.id === reference.todoId)
@@ -1248,25 +1193,23 @@ export async function POST(request: Request) {
         spokenText = `Confirm: move ${code}, “${todo.title}”, from ${project.name} to ${destination.name}? Its code will change.`
       }
 
-      const { error: proposalError } = await auth.admin.from('orb_realtime_proposals').insert({
-        id: proposalId,
-        user_id: auth.user.id,
-        project_id: project.id,
+      const persisted = await persistOrbMutationProposal(auth, {
+        proposalId,
+        expiresAt,
         kind,
         title: todo.title,
+        projectId: project.id,
         params,
-        target_todo_id: todo.id,
-        destination_project_id: destinationProject?.id ?? null,
-        expires_at: new Date(expiresAt).toISOString(),
+        targetTodoId: todo.id,
+        destinationProjectId: destinationProject?.id ?? null,
       })
-      if (proposalError) throw proposalError
       if (grantsUpfrontMutationPermission(body.userUtterance ?? '')) {
-        const result = await confirmProposal(auth, proposalId)
+        const result = await confirmOrbMutation(auth, proposalId)
         return Response.json({ ...result, preAuthorized: true, gatewayMs: Math.round(performance.now() - startedAt) })
       }
       const proposal: OrbRealtimeProposal = {
         kind,
-        proposalToken: signPayload({ type: 'proposal', proposalId, userId: auth.user.id, expiresAt }),
+        proposalToken: persisted.proposalToken,
         project: { id: project.id, name: project.name, code: project.code },
         title: todo.title,
         code,
@@ -1393,23 +1336,21 @@ export async function POST(request: Request) {
       const spokenText = `Confirm: ${itemLines.join('; ')}${extra}?`
       const title = `Batch: ${resolvedOps.length} todo operations`.slice(0, 240)
 
-      const { error: proposalError } = await auth.admin.from('orb_realtime_proposals').insert({
-        id: proposalId,
-        user_id: auth.user.id,
-        project_id: uniformProjectId,
+      const persisted = await persistOrbMutationProposal(auth, {
+        proposalId,
+        expiresAt,
         kind: 'batch_todo_action',
         title,
+        projectId: uniformProjectId,
         params: { operations: resolvedOps.map(op => op.params) },
-        expires_at: new Date(expiresAt).toISOString(),
       })
-      if (proposalError) throw proposalError
       if (grantsUpfrontMutationPermission(body.userUtterance ?? '')) {
-        const result = await confirmProposal(auth, proposalId)
+        const result = await confirmOrbMutation(auth, proposalId)
         return Response.json({ ...result, preAuthorized: true, gatewayMs: Math.round(performance.now() - startedAt) })
       }
       const proposal: OrbRealtimeProposal = {
         kind: 'batch_todo_action',
-        proposalToken: signPayload({ type: 'proposal', proposalId, userId: auth.user.id, expiresAt }),
+        proposalToken: persisted.proposalToken,
         title,
         operationCount: resolvedOps.length,
         spokenText,
@@ -1421,9 +1362,9 @@ export async function POST(request: Request) {
       if (!(await authorizesPendingMutation(body.userUtterance ?? ''))) {
         return Response.json({ error: 'That response did not explicitly approve the pending change.' }, { status: 409 })
       }
-      const payload = readProposal(body.proposalToken)
+      const payload = readOrbProposalCapability(body.proposalToken)
       if (payload.userId !== auth.user.id) return Response.json({ error: 'Proposal belongs to another user.' }, { status: 403 })
-      const result = await confirmProposal(auth, payload.proposalId)
+      const result = await confirmOrbMutation(auth, payload.proposalId)
       return Response.json({ ...result, gatewayMs: Math.round(performance.now() - startedAt) })
     }
     return Response.json({ error: 'Unsupported operation.' }, { status: 400 })

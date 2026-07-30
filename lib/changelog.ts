@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.260',
+    date: '2026-07-29',
+    changes: [
+      'Serial text and Realtime voice mutations now converge on one canonical server-held proposal, confirmation, database transaction, and durable receipt boundary. Todo, project, and Knowledge Repository changes share the same row-locked, replay-safe dispatcher while retaining channel-appropriate model tool schemas (ORB-342).',
+      'Serial todo intent is no longer stored in the browser, direct serial todo/project/knowledge executors were removed, and rich todo batches now execute atomically instead of one item at a time. Ownership, expiry, stale-target checks, audit behavior, and completion claims are enforced around the same persisted proposal for both channels.',
+      'Eval timing now excludes the runner’s intentional provider pacing delay, temporary Gemini capacity failures retry automatically, and direct requests such as “remember that…” are treated as authorization to save the offered memory rather than asking permission twice.',
+      'Stan verified both serial and Realtime voice flows: each proposed first, waited for explicit approval, and reported completion only after the database returned the new task code.',
+    ],
+  },
+  {
     version: 'v0.6.259',
     date: '2026-07-29',
     changes: [

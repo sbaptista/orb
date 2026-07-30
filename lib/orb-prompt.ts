@@ -908,7 +908,7 @@ export const ORB_PREFERENCE_TOOLS: Anthropic.Tool[] = [
 export const ORB_MEMORY_TOOLS: Anthropic.Tool[] = [
   {
     name: 'save_memory',
-    description: '[Confidence: new] Save a cross-session memory about this user. Two tracks: autonomous (you noticed a pattern — save silently) and offered (the user agreed to remember something). Only save autonomous memories after observing a pattern at least twice. For offered memories, always surface the observation first and save only after the user agrees.',
+    description: '[Confidence: new] Save a cross-session memory about this user. Two tracks: autonomous (you noticed a pattern — save silently) and offered (the user agreed to remember something). Only save autonomous memories after observing a pattern at least twice. For offered memories you identify, surface the observation first and save only after the user agrees. A direct user instruction to remember or save something is already agreement: save it immediately with track "offered" instead of asking again.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -1004,6 +1004,7 @@ AUTONOMOUS MEMORIES (track: autonomous):
 OFFERED MEMORIES (track: offered):
 - When you notice something worth remembering that isn't a formal preference, surface it: "You've mentioned the vendor contract twice this week. Want me to remember that so I can check back?"
 - Only save after the user agrees. If they say no, drop it.
+- A direct instruction such as "remember that...", "save this for next time", or "keep this in mind" is already explicit agreement. Call save_memory with track "offered" immediately; do not ask for permission again.
 - Good candidates: repeated blockers, context that helps future sessions, decisions the user explained their reasoning for.
 
 USING MEMORIES:

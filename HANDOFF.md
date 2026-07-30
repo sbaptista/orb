@@ -12,70 +12,56 @@
 
 ## App State
 
-- **Branch:** `main` after the ORB-364 release fast-forward.
+- **Branch:** `main` after the ORB-342 release fast-forward.
 - **Dev server:** user-started on localhost:3001.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** **0.6.259**.
+- **Version:** **0.6.260**.
 - **Production maintenance:** off.
-- **Database:** `scripts/migrations/20260729_eval_run_history.sql` is applied.
-- **ORB-364:** closed. Knowledge Repository entry
-  `2b74e034-0f4c-4a70-957b-035974854101`.
+- **Database:** `scripts/migrations/20260729_orb_342_canonical_proposals.sql`
+  is applied.
+- **ORB-342:** closed. Knowledge Repository entry
+  `7a0f52c3-7490-45e6-a984-af4b14c70f96`.
 
 ---
 
 ## Last Session Completed
 
-**ORB-364 — eval cost, selection, and durable evidence — 2026-07-29
-(Codex, GPT-5) — v0.6.259 — CLOSED**
+**ORB-342 — canonical serial/Realtime mutation convergence — 2026-07-29
+(Codex, GPT-5) — v0.6.260 — CLOSED**
 
-The accepted full Tier 1 run fell from the 74-call / $1.1993 baseline to
-60 calls / $0.9547, a 20.4% cost reduction. Fourteen duplicate serial cases
-that had been labeled as Realtime analogues were removed. Ten distinct serial
-capability cases remain under their historical ids but no longer claim to prove
-OpenAI Realtime behavior.
+Serial text and Realtime voice now share one mutation implementation beneath
+their channel-specific model schemas. Todo, project, and Knowledge Repository
+changes resolve into `orb_realtime_proposals`, authorize the current user
+response, execute through `confirm_realtime_mutation`, and return the same
+durable replay-safe receipt.
 
-A proposed second cache boundary was tested, not assumed. Moving run-invariant
-context changed prompt order and caused four selected-project routing failures
-(59/63). The change was reverted; the exact original prompt order and released
-one-hour eval cache remain. The reverted four cases passed 4/4 focused. The next
-full run passed 62/63; the remaining failure was a known live-backlog fixture
-leak in `upfront-permission-still-emits-creates`. After freezing that case to
-its intended ORB-only world, Stan ran it three times and it passed 3/3.
+The browser no longer holds serial todo intent. Direct serial domain executors
+were removed, and rich todo batches are atomic rather than sequential. The
+shared boundary preserves ownership, five-minute expiry, target snapshots,
+stale rejection, row locking, audit behavior, and replay protection. Existing
+Realtime table/RPC names remain as transport-neutral implementation details for
+migration safety; `orb_pending_mutations` is unused but retained for rollback.
 
-Every eval case now has a capability category. The common smoke suite contains
-seven cross-cutting safety cases and measured $0.1055, down from $0.3444 for the
-earlier 14-case smoke. The `serial-tool-contract` suite maps exactly one
-representative case to every one of the 27 fully enabled serial tools and
-validates that map against Orb's actual exported tool inventory. It contains
-27 cases / 31 runs because `create_ticket` and `propose_adaptation` remain
-statistical Tier 2 cases. Contract plus smoke is 31 unique cases / 35 runs.
-The previously uncovered `get_preferences` case passed once, 1/1, at $0.0569
-including its first cache write.
+The additive migration is applied. Rollback-only verification passed for
+singular todo metadata, rich batches, replay, project creation, and knowledge
+create/update. Database health was checked and the proposal table vacuumed.
 
-`orb_eval_runs` and `orb_eval_results` now persist the commit, selection,
-per-case outcome, assertion failures, tool calls, provider/model, latency, and
-estimated cost. `orb_model_requests.correlation_id` links provider-token evidence
-to the parent eval run. Pacing occurs before expected model calls only; five
-deterministic server cases no longer pay the 6.5-second delay.
+Stan's full Tier 1 run passed 62/65. The memory case and one Gemini case passed
+focused; the final Gemini strategic case exhausted three retries with verified
+503 high-demand responses and was accepted as provider unavailability, not an
+assertion result. Eval timing now excludes the intentional 6.5-second pacing
+delay; actual request telemetry showed Claude median 1.8s / p95 3.5s and one
+20.3s Gemini outlier. Direct “remember that” instructions now authorize the
+offered-memory save immediately.
 
-Release gates are now risk-based:
+Stan manually accepted both channels. Serial proposed, waited for approval,
+then created ORB-370 from the receipt. Realtime voice independently proposed,
+waited for approval, then created ORB-371 through the same canonical path.
 
-- No Orb-conversation change: no model eval.
-- Localized capability change: affected categories plus `smoke`.
-- Serial tool inventory/schema change: `serial-tool-contract,smoke`.
-- Shared prompt/context/provider/model/routing/authorization change: full Tier 1.
-- Realtime-only change: direct Realtime schema, route/RPC, and DEV verification;
-  serial cases are not proof.
-- Tier 2 stays three runs with a 2/3 threshold.
+Validation: TypeScript, scoped ESLint, diff checks, production build, database
+rollback verification, and manual serial/Realtime confirmation passed.
 
-Database impact is limited to two append-only local-eval evidence tables. There
-is no Realtime subscription or user-facing write path. Pre/post health audits,
-RLS policies, indexes, and a rolled-back structural insert were verified.
-
-Validation: TypeScript passed; focused ESLint had zero errors and two existing
-eval-route warnings; `git diff --check` passed; production build passed.
-
-Detailed analysis: `docs/orb-364-eval-cost-plan.md`.
+Detailed design: `docs/orb-342-operation-convergence-plan.md`.
 
 ---
 
@@ -87,13 +73,6 @@ Detailed analysis: `docs/orb-364-eval-cost-plan.md`.
 
 ## Active Risks / Unresolved Work
 
-- **ORB-342 — serial/Realtime convergence.** The 27 serial and 33 Realtime
-  tools are model-facing schemas, not independent domain capabilities. Three
-  pending-mutation mechanisms still exist: serial todos are client-held,
-  serial project/knowledge mutations use `orb_pending_mutations`, and Realtime
-  uses the stronger row-locked, replay-safe `orb_realtime_proposals` RPC spine.
-  Both model adapters should eventually translate into the same canonical
-  operations and database transactions.
 - **ORB-368 — Realtime voice lacks the project-health packet.** Voice cannot
   explain the orb's mood from the same evidence as text.
 - **ORB-367 — seven pre-existing Tier 2 failures.** Address the class and decide
@@ -108,6 +87,8 @@ Detailed analysis: `docs/orb-364-eval-cost-plan.md`.
 - `onMutation` in `UnifiedDashboard.tsx` refreshes todos but not projects after
   mutations; decide whether to fix separately or with ORB-342.
 - Firefox Realtime voice remains experimental under ORB-330.
+- ORB-370 and ORB-371 are explicit ORB-342 acceptance-test todos and remain in
+  the backlog until Stan chooses to delete them.
 
 ---
 
@@ -116,8 +97,7 @@ Detailed analysis: `docs/orb-364-eval-cost-plan.md`.
 1. ORB-365 — introduce the free deterministic test layer.
 2. ORB-363 — reconcile provider spend and configure meaningful caps/reserves.
 3. ORB-367 — repair the Tier 2 maintenance discipline.
-4. ORB-342 — converge serial and Realtime on canonical operations.
-5. ORB-368 — give Realtime voice grounded project-health evidence.
+4. ORB-368 — give Realtime voice grounded project-health evidence.
 
 ---
 
@@ -131,6 +111,7 @@ Detailed analysis: `docs/orb-364-eval-cost-plan.md`.
 - **Serial and Realtime schemas may differ at the model boundary; database
   behavior should converge.** Voice-specific fact/proposal tools are adapters,
   not justification for duplicated validation, authorization, or writes.
+  ORB-342 now enforces this for todo, project, and knowledge mutations.
 - **Realtime voice is the production voice path.** OpenAI server VAD owns turn
   detection and interruption; the client does not send `response.cancel`.
 - **Name-first project identifiers.** Project names are user-facing; codes are

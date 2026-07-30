@@ -437,7 +437,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "add_knowledge",
-    "description": "[Confidence: well-tested] Write an insight, decision, or reference material directly to the Knowledge Repository. Use this to preserve important information from the conversation without creating a task. Defaults to the current project if product_code is omitted. You should proactively ask the user \"Would you like me to save this to the knowledge repository?\" when a valuable decision or insight is reached.",
+    "description": "[Confidence: well-tested] Propose preserving an insight, decision, or reference material in the Knowledge Repository. Defaults to the current project if product_code is omitted. The server holds the exact entry for confirmation; never claim it was saved until confirm_mutation succeeds. You should proactively ask the user \"Would you like me to save this to the knowledge repository?\" when a valuable decision or insight is reached.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -638,7 +638,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "confirm_mutation",
-    "description": "[Confidence: new] Execute the project action you most recently proposed, after the user confirms it. Call this — and ONLY this — when the user agrees to a pending create/rename/delete you just described (e.g. they say \"yes\", \"go ahead\", \"do it\"). It takes no parameters; the server runs the exact action that was proposed. Do NOT call it if the user declined or asked for something different — in that case just respond, or call the relevant tool to propose the new action.",
+    "description": "[Confidence: new] Execute the project or Knowledge Repository action you most recently proposed, after the user confirms it. Call this — and ONLY this — when the user agrees to the exact create/update/delete/save action you just described (e.g. they say \"yes\", \"go ahead\", \"do it\"). It takes no parameters; the server runs the exact persisted action. Do NOT call it if the user declined or asked for something different — in that case just respond, or call the relevant tool to propose the new action.",
     "input_schema": {
       "type": "object",
       "properties": {}

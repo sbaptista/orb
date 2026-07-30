@@ -5,44 +5,41 @@
 // owns WHEN and WHICH. Mutation tools PROPOSE; a single confirm step EXECUTES
 // the exact stored intent. Identity is a resolved row id, never a free-text name.
 //
-// Scope (this pass): PROJECT mutations only. Todo mutations remain on the legacy
-// gate until the follow-up pass; the resolution sophistication here (fuzzy name
-// matching) is project-specific by design — todos are identified by their stable
-// code and need no such resolution.
+// This module owns serial-facing project/knowledge resolution. Persistence and
+// execution are transport-neutral in lib/orb-operations; todos use the same
+// spine through lib/orb-operations/serial-todos.ts.
 // ────────────────────────────────────────────────────────────────────────────
 
 import type { createAdminClient } from '@/lib/supabase/admin'
-import { createProject } from '@/app/actions/manage-project'
-import { logAuditEvent } from '@/lib/audit'
+import type { AuthContext } from '@/lib/auth'
+import { generateUniqueCode } from '@/lib/project-codes'
+import { persistOrbMutationProposal, type OrbMutationKind } from '@/lib/orb-operations/proposals'
 
 type Admin = ReturnType<typeof createAdminClient>
 
-export const PENDING_TTL_MS = 5 * 60 * 1000
-
-// Project mutations routed through propose/confirm/execute this pass.
 export const PROJECT_MUTATIONS = new Set(['create_project', 'update_project', 'delete_project'])
 
-// Knowledge mutations ride the same spine. Update only — there is deliberately
-// NO knowledge delete tool: deletion is reserved for admins in the Settings UI,
-// and the Orb files a create_ticket when it detects staleness it cannot fix
-// with an update (ORB-302).
-export const KNOWLEDGE_MUTATIONS = new Set(['update_knowledge'])
+// There is deliberately no knowledge delete tool: deletion is reserved for
+// admins in Settings, and Orb files a ticket when stale content cannot be fixed.
+export const KNOWLEDGE_MUTATIONS = new Set(['add_knowledge', 'update_knowledge'])
 
 export type PendingMutationRow = {
   id: string
   user_id: string
   tool: string
   target_id: string | null
+  project_id: string | null
   params: Record<string, any>
   summary: string
   created_at: string
   expires_at: string
+  proposal_id: string
 }
 
 // ── Resolution: free-text reference → exactly one row, or 0 / N ───────────────
 
 export type ProjectResolution =
-  | { status: 'found'; id: string; name: string; code: string }
+  | { status: 'found'; id: string; name: string; code: string; description: string | null; updated_at: string }
   | { status: 'ambiguous'; candidates: Array<{ id: string; name: string; code: string }> }
   | { status: 'not_found' }
 
@@ -64,10 +61,10 @@ export async function resolveProjectReference(
   const ref = normalize(reference)
   if (!ref) return { status: 'not_found' }
 
-  let q = admin.from('projects').select('id, name, code, created_by').is('deleted_at', null)
+  let q = admin.from('projects').select('id, name, code, description, updated_at, created_by').is('deleted_at', null)
   if (!ctx.isAdmin) q = q.eq('created_by', ctx.userId)
   const { data } = await q
-  const projects = (data ?? []) as Array<{ id: string; name: string; code: string; created_by: string }>
+  const projects = (data ?? []) as Array<{ id: string; name: string; code: string; description: string | null; updated_at: string; created_by: string }>
 
   let matches = projects.filter(p => normalize(p.name) === ref)
   if (matches.length === 0) matches = projects.filter(p => (p.code ?? '').toLowerCase() === ref)
@@ -75,7 +72,7 @@ export async function resolveProjectReference(
 
   if (matches.length === 1) {
     const m = matches[0]
-    return { status: 'found', id: m.id, name: m.name, code: m.code }
+    return { status: 'found', id: m.id, name: m.name, code: m.code, description: m.description, updated_at: m.updated_at }
   }
   if (matches.length > 1) {
     return { status: 'ambiguous', candidates: matches.map(m => ({ id: m.id, name: m.name, code: m.code })) }
@@ -155,42 +152,82 @@ export async function resolveKnowledgeReference(
 
 export async function getPendingMutation(admin: Admin, userId: string): Promise<PendingMutationRow | null> {
   const { data } = await admin
-    .from('orb_pending_mutations')
+    .from('orb_realtime_proposals')
     .select('*')
     .eq('user_id', userId)
+    .eq('channel', 'serial')
+    .eq('status', 'proposed')
     .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle()
-  return (data as PendingMutationRow) ?? null
+  if (!data) return null
+  return {
+    id: data.id,
+    proposal_id: data.id,
+    user_id: data.user_id,
+    tool: data.kind,
+    target_id: data.target_todo_id ?? data.project_id ?? data.params?.knowledge_id ?? null,
+    project_id: data.project_id ?? null,
+    params: data.params ?? {},
+    summary: data.summary ?? data.title,
+    created_at: data.created_at,
+    expires_at: data.expires_at,
+  }
 }
 
 export async function storePendingMutation(
-  admin: Admin,
-  userId: string,
-  m: { tool: string; target_id: string | null; params: Record<string, any>; summary: string },
-): Promise<void> {
-  const now = new Date()
-  await admin.from('orb_pending_mutations').upsert(
-    {
-      user_id: userId,
-      tool: m.tool,
-      target_id: m.target_id,
-      params: m.params,
-      summary: m.summary,
-      created_at: now.toISOString(),
-      expires_at: new Date(now.getTime() + PENDING_TTL_MS).toISOString(),
-    },
-    { onConflict: 'user_id' },
-  )
+  auth: AuthContext,
+  m: {
+    tool: string
+    target_id: string | null
+    params: Record<string, any>
+    summary: string
+    title?: string
+    project_id?: string | null
+    destination_project_id?: string | null
+  },
+){
+  await auth.admin
+    .from('orb_realtime_proposals')
+    .delete()
+    .eq('user_id', auth.user.id)
+    .eq('channel', 'serial')
+    .eq('status', 'proposed')
+  const isTodo = ['update_todo', 'delete_todo', 'move_todo', 'close_todo'].includes(m.tool)
+  const isProject = ['update_project', 'delete_project'].includes(m.tool)
+  return persistOrbMutationProposal(auth, {
+    kind: m.tool as OrbMutationKind,
+    title: (m.title ?? m.summary).slice(0, 240),
+    projectId: m.project_id ?? (isProject ? m.target_id : null),
+    params: m.params,
+    targetTodoId: isTodo ? m.target_id : null,
+    destinationProjectId: m.destination_project_id ?? null,
+    channel: 'serial',
+    summary: m.summary,
+  })
 }
 
 export async function clearPendingMutation(admin: Admin, userId: string): Promise<void> {
-  await admin.from('orb_pending_mutations').delete().eq('user_id', userId)
+  await admin
+    .from('orb_realtime_proposals')
+    .delete()
+    .eq('user_id', userId)
+    .eq('channel', 'serial')
+    .eq('status', 'proposed')
 }
 
 // ── Propose: resolve + validate, but DO NOT execute ───────────────────────────
 
 export type ProposeResult =
-  | { kind: 'propose'; target_id: string | null; params: Record<string, any>; summary: string }
+  | {
+      kind: 'propose'
+      target_id: string | null
+      project_id?: string | null
+      params: Record<string, any>
+      summary: string
+      title: string
+    }
   | { kind: 'ambiguous'; candidates: Array<{ name: string; code?: string }> }
   | { kind: 'error'; message: string }
 
@@ -225,11 +262,26 @@ export async function proposeProjectMutation(
       .is('deleted_at', null)
       .maybeSingle()
     if (conflict) return { kind: 'error', message: `You already have a project named "${name}".` }
+    const requestedCode = typeof input.code === 'string' ? input.code.trim().toUpperCase() : ''
+    const candidateCode = requestedCode || await generateUniqueCode(admin, name, ctx.userId)
+    if (!/^[A-Z0-9]{1,10}$/.test(candidateCode)) {
+      return { kind: 'error', message: 'The project code must be 1–10 uppercase letters or numbers.' }
+    }
+    const { data: codeConflict } = await admin
+      .from('projects')
+      .select('id')
+      .eq('created_by', ctx.userId)
+      .ilike('code', candidateCode)
+      .is('deleted_at', null)
+      .maybeSingle()
+    if (codeConflict) return { kind: 'error', message: `The project code "${candidateCode}" is already in use.` }
     return {
       kind: 'propose',
       target_id: null,
-      params: { name, code: input.code || null, description: input.description || null },
+      project_id: null,
+      params: { candidate_code: candidateCode, description: input.description || null },
       summary: `create a new project called "${name}"`,
+      title: name,
     }
   }
 
@@ -253,8 +305,17 @@ export async function proposeProjectMutation(
     return {
       kind: 'propose',
       target_id: res.id,
-      params: { new_name: hasName ? input.new_name.trim() : undefined, new_description: hasDesc ? input.new_description : undefined },
+      project_id: res.id,
+      params: {
+        expected_updated_at: res.updated_at,
+        expected_name: res.name,
+        expected_code: res.code,
+        expected_description: res.description,
+        ...(hasName ? { new_name: input.new_name.trim() } : {}),
+        ...(hasDesc ? { new_description: input.new_description } : {}),
+      },
       summary: parts.join(' and '),
+      title: res.name,
     }
   }
 
@@ -262,8 +323,15 @@ export async function proposeProjectMutation(
     return {
       kind: 'propose',
       target_id: res.id,
-      params: {},
+      project_id: res.id,
+      params: {
+        expected_updated_at: res.updated_at,
+        expected_name: res.name,
+        expected_code: res.code,
+        expected_description: res.description,
+      },
       summary: `permanently delete the project "${res.name}" and all of its todos`,
+      title: res.name,
     }
   }
 
@@ -272,9 +340,39 @@ export async function proposeProjectMutation(
 
 export async function proposeKnowledgeMutation(
   admin: Admin,
+  ctx: { userId: string; isAdmin: boolean },
   tool: string,
   input: any,
 ): Promise<ProposeResult> {
+  if (tool === 'add_knowledge') {
+    const title = String(input.title ?? '').trim().slice(0, 240)
+    const content = String(input.content ?? '').trim()
+    if (!title || !content) return { kind: 'error', message: 'A knowledge title and content are required.' }
+    const code = String(input.product_code ?? '').trim()
+    if (!code) return { kind: 'error', message: 'Choose a project before saving knowledge.' }
+    let query = admin
+      .from('projects')
+      .select('id, name, code, created_by')
+      .ilike('code', code)
+      .is('deleted_at', null)
+    if (!ctx.isAdmin) query = query.eq('created_by', ctx.userId)
+    const { data: project, error } = await query.maybeSingle()
+    if (error || !project) return { kind: 'error', message: `Project "${code}" was not found or is not editable.` }
+    const attributed = `${new Date().toISOString().slice(0, 10)} — Orb (Claude Haiku 4.5)\n\n${content}`
+    return {
+      kind: 'propose',
+      target_id: null,
+      project_id: project.id,
+      params: {
+        content: attributed,
+        tags: Array.from(new Set((Array.isArray(input.tags) ? input.tags : [])
+          .map((tag: unknown) => String(tag).trim())
+          .filter(Boolean))).slice(0, 20),
+      },
+      summary: `save the knowledge entry "${title}" in ${project.name}`,
+      title,
+    }
+  }
   if (tool !== 'update_knowledge') return { kind: 'error', message: `I don't know how to ${tool}.` }
 
   const reference = String(input.title ?? '').trim()
@@ -286,6 +384,15 @@ export async function proposeKnowledgeMutation(
     return { kind: 'ambiguous', candidates: res.candidates.map(c => ({ name: c.title })) }
   }
 
+  const { data: entry, error: entryError } = await admin
+    .from('knowledge_repo')
+    .select('id, title, content, tags, updated_at, product_id')
+    .eq('id', res.id)
+    .single()
+  if (entryError || !entry) {
+    return { kind: 'error', message: 'That knowledge entry is no longer available.' }
+  }
+
   const hasContent = typeof input.new_content === 'string' && input.new_content.trim() !== ''
   const hasTitle = typeof input.new_title === 'string' && input.new_title.trim() !== ''
   if (!hasContent && !hasTitle) return { kind: 'error', message: 'What would you like to change about it?' }
@@ -295,108 +402,18 @@ export async function proposeKnowledgeMutation(
   return {
     kind: 'propose',
     target_id: res.id,
-    params: { new_content: hasContent ? input.new_content.trim() : undefined, new_title: hasTitle ? input.new_title.trim() : undefined },
+    project_id: entry.product_id,
+    params: {
+      knowledge_id: entry.id,
+      expected_updated_at: entry.updated_at,
+      expected_title: entry.title,
+      expected_content: entry.content,
+      expected_product_id: entry.product_id,
+      expected_tags: entry.tags ?? [],
+      new_content: stampKnowledgeContent(hasContent ? input.new_content.trim() : entry.content),
+      ...(hasTitle ? { new_title: input.new_title.trim() } : {}),
+    },
     summary: `${parts.join(' and ')} for "${res.title}"`,
+    title: res.title,
   }
-}
-
-// ── Execute: run the EXACT stored intent against the resolved id ──────────────
-
-export type ExecuteResult =
-  | { ok: true; summary: string; mutationType: 'project_create' | 'project_update' | 'project_delete' | 'knowledge_update'; code?: string; newProject?: any }
-  | { ok: false; error: string }
-
-export async function executePendingProjectMutation(
-  admin: Admin,
-  ctx: { userId: string; isAdmin: boolean },
-  pending: PendingMutationRow,
-): Promise<ExecuteResult> {
-  const { tool, target_id, params } = pending
-
-  if (tool === 'create_project') {
-    const res = await createProject({
-      name: params.name,
-      code: params.code || null,
-      description: params.description || null,
-      ownerId: ctx.userId,
-    })
-    if (res.error) return { ok: false, error: res.error }
-    const project = res.project!
-    return { ok: true, summary: `Created project ${project.name}`, mutationType: 'project_create', code: project.code, newProject: project }
-  }
-
-  // update / delete: re-validate the target still exists and is owned (fail-safe).
-  if (!target_id) return { ok: false, error: 'That action lost its target. Please ask again.' }
-  const { data: project } = await admin
-    .from('projects')
-    .select('id, name, code, created_by')
-    .eq('id', target_id)
-    .is('deleted_at', null)
-    .maybeSingle()
-  if (!project) return { ok: false, error: 'That project no longer exists.' }
-  if (!ctx.isAdmin && project.created_by !== ctx.userId) {
-    return { ok: false, error: 'You can only change your own projects.' }
-  }
-
-  if (tool === 'update_project') {
-    const updates: Record<string, any> = {}
-    if (typeof params.new_name === 'string' && params.new_name.trim() !== '') updates.name = params.new_name.trim()
-    if (params.new_description !== undefined) updates.description = params.new_description || null
-    if (Object.keys(updates).length === 0) return { ok: false, error: 'There was nothing to change.' }
-    const { data: updated, error } = await admin
-      .from('projects')
-      .update(updates)
-      .eq('id', target_id)
-      .select('id, name, code')
-      .single()
-    if (error) return { ok: false, error: error.message }
-    await logAuditEvent({ action: 'project_update', table_name: 'projects', record_id: target_id, after: updates, actor: 'orb', user_id: ctx.userId })
-    return { ok: true, summary: `Renamed to ${updated.name}`, mutationType: 'project_update', code: updated.code }
-  }
-
-  if (tool === 'delete_project') {
-    const { data: del, error } = await admin.from('projects').delete().eq('id', target_id).select()
-    if (error) return { ok: false, error: error.message }
-    if (!del || del.length === 0) return { ok: false, error: 'Delete affected no rows.' }
-    await logAuditEvent({ action: 'project_delete', table_name: 'projects', record_id: target_id, actor: 'orb', user_id: ctx.userId })
-    return { ok: true, summary: `Deleted project ${project.name}`, mutationType: 'project_delete', code: project.code }
-  }
-
-  return { ok: false, error: `I don't know how to ${tool}.` }
-}
-
-export async function executePendingKnowledgeMutation(
-  admin: Admin,
-  ctx: { userId: string },
-  pending: PendingMutationRow,
-): Promise<ExecuteResult> {
-  const { target_id, params } = pending
-  if (!target_id) return { ok: false, error: 'That action lost its target. Please ask again.' }
-
-  const { data: entry } = await admin
-    .from('knowledge_repo')
-    .select('id, title, content')
-    .eq('id', target_id)
-    .maybeSingle()
-  if (!entry) return { ok: false, error: 'That knowledge entry no longer exists.' }
-
-  const updates: Record<string, any> = {}
-  const hasNewContent = typeof params.new_content === 'string' && params.new_content.trim() !== ''
-  const hasNewTitle = typeof params.new_title === 'string' && params.new_title.trim() !== ''
-  if (!hasNewContent && !hasNewTitle) return { ok: false, error: 'There was nothing to change.' }
-
-  // Any successful update carries a fresh sign-and-timestamp, whether or not
-  // the content text itself changed — "any update" per the standing rule.
-  updates.content = stampKnowledgeContent(hasNewContent ? params.new_content.trim() : entry.content)
-  if (hasNewTitle) updates.title = params.new_title.trim()
-
-  const { data: updated, error } = await admin
-    .from('knowledge_repo')
-    .update(updates)
-    .eq('id', target_id)
-    .select('id, title')
-    .single()
-  if (error) return { ok: false, error: error.message }
-  await logAuditEvent({ action: 'knowledge_update', table_name: 'knowledge_repo', record_id: target_id, before: { title: entry.title, content: entry.content }, after: updates, actor: 'orb', user_id: ctx.userId })
-  return { ok: true, summary: `Updated "${updated.title}"`, mutationType: 'knowledge_update' }
 }

@@ -181,7 +181,6 @@ async function paceExpectedModelCall(testCase: EvalCase): Promise<void> {
 }
 
 async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
-  await paceExpectedModelCall(testCase)
   const provider = testCase.provider ?? EVAL_PROVIDER
   const model = testCase.model ?? EVAL_MODEL
   const res = await fetch(`${BASE_URL}/api/orb-eval`, {
@@ -228,19 +227,41 @@ function isNetworkError(msg: string): boolean {
   return /fetch failed|ECONNRESET|ETIMEDOUT|ECONNREFUSED|socket hang up/i.test(msg)
 }
 
-async function callOrbWithRetry(testCase: EvalCase, retries = 3): Promise<EvalResponse> {
+function isTemporaryProviderCapacityError(msg: string): boolean {
+  return /Gemini API 503|currently experiencing high demand|overloaded/i.test(msg)
+}
+
+type TimedEvalError = Error & { evalDurationMs?: number }
+
+async function callOrbWithRetry(
+  testCase: EvalCase,
+  retries = 3,
+): Promise<{ response: EvalResponse; durationMs: number }> {
   let delay = 1000
+  let requestDurationMs = 0
   for (let attempt = 0; attempt < retries; attempt++) {
+    // Pacing protects the provider rate limit but is runner overhead, not
+    // response latency. Start the stopwatch only after the pacing wait.
+    await paceExpectedModelCall(testCase)
+    const requestStart = Date.now()
     try {
-      return await callOrb(testCase)
-    } catch (err: any) {
-      if (isNetworkError(err.message ?? '') && attempt < retries - 1) {
-        process.stderr.write(`\n  ⚠️  Network error on ${testCase.id} — retrying in ${delay}ms...\n`)
+      const response = await callOrb(testCase)
+      requestDurationMs += Date.now() - requestStart
+      return { response, durationMs: requestDurationMs }
+    } catch (err: unknown) {
+      requestDurationMs += Date.now() - requestStart
+      const timedError = err as TimedEvalError
+      const message = timedError.message ?? ''
+      const retryable = isNetworkError(message) || isTemporaryProviderCapacityError(message)
+      if (retryable && attempt < retries - 1) {
+        const reason = isTemporaryProviderCapacityError(message) ? 'Provider capacity error' : 'Network error'
+        process.stderr.write(`\n  ⚠️  ${reason} on ${testCase.id} — retrying in ${delay}ms...\n`)
         await new Promise(r => setTimeout(r, delay))
         delay *= 2
         continue
       }
-      throw err
+      timedError.evalDurationMs = requestDurationMs
+      throw timedError
     }
   }
   throw new Error('Retries exhausted')
@@ -635,10 +656,10 @@ async function main() {
         currentCase: testCase.id, currentRun: i + 1, totalRuns: runs,
       })
 
-      const runStart = Date.now()
       try {
-        const response = await callOrbWithRetry(testCase)
-        totalMs += Date.now() - runStart
+        const timedResponse = await callOrbWithRetry(testCase)
+        const response = timedResponse.response
+        totalMs += timedResponse.durationMs
         lastResponse = response
         if (response.modelUsage) modelUsages.push(response.modelUsage)
 
@@ -655,7 +676,7 @@ async function main() {
         }
         completedCaseRuns++
       } catch (err: any) {
-        totalMs += Date.now() - runStart
+        totalMs += err.evalDurationMs ?? 0
         const msg = err.message || ''
         if (msg.includes('credit balance') || msg.includes('rate_limit') || msg.includes('overloaded')) {
           console.warn(`\n  ⚠️  API limit hit on ${testCase.id} run ${i + 1} — skipping run`)
