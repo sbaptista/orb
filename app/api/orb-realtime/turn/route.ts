@@ -146,6 +146,7 @@ export async function POST(request: Request) {
       textMatch?: string
       maxResults?: number
       offset?: number
+      allProjects?: boolean
       title?: string
       name?: string
       description?: string
@@ -370,7 +371,11 @@ export async function POST(request: Request) {
       return Response.json({ packet, gatewayMs: Math.round(performance.now() - startedAt) })
     }
     if (body.operation === 'orb_state') {
-      const packet = await getOrbStatePacket(auth, { projectName: body.projectName })
+      const packet = await getOrbStatePacket(auth, {
+        projectName: body.projectName,
+        currentProjectId: body.currentProjectId,
+        allProjects: body.allProjects,
+      })
       return Response.json({ packet, gatewayMs: Math.round(performance.now() - startedAt) })
     }
     if (body.operation === 'next_step') {

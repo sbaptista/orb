@@ -340,7 +340,12 @@ export function useRealtimeVoiceSpike(options: Options) {
       // ORB-368: voice asks the server why the orb is the colour it is,
       // rather than inferring a cause from a task list.
       operation = 'orb_state'
-      body = { operation, projectName: args.project_name }
+      body = {
+        operation,
+        projectName: args.project_name,
+        allProjects: args.all_projects === true,
+        currentProjectId: currentProjectIdRef.current,
+      }
     } else if (item.name === 'get_next_step') {
       operation = 'next_step'; body = { operation }
     } else if (item.name === 'search_knowledge') {

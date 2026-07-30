@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.276',
+    date: '2026-07-30',
+    changes: [
+      'Asking voice why the orb is urgent now answers about the project you are looking at, without asking you which one that is. It briefly had to ask for the project name — the server always knew, the question just never carried it (ORB-368).',
+    ],
+  },
+  {
     version: 'v0.6.275',
     date: '2026-07-30',
     changes: [

@@ -284,9 +284,20 @@ export async function getNextStepPacket(auth: AuthContext): Promise<OrbRealtimeF
  */
 export async function getOrbStatePacket(
   auth: AuthContext,
-  options: { projectName?: string } = {},
+  options: { projectName?: string; currentProjectId?: string | null; allProjects?: boolean } = {},
 ): Promise<OrbRealtimeFactPacket> {
   let project: { id: string; name: string; code: string } | null = null
+  // ORB-368: the orb the user is looking at IS the selected project's orb, so
+  // the selected project is the default scope. Answering across everything
+  // when one project is on screen can name a task the user cannot even see.
+  // allProjects is the explicit opt-out; the model no longer has to know, or
+  // ask for, the current project's name.
+  if (!options.projectName && !options.allProjects && options.currentProjectId) {
+    const { data, error } = await auth.admin.from('projects')
+      .select('id, name, code').eq('id', options.currentProjectId).maybeSingle()
+    if (error) throw error
+    project = (data as any) ?? null
+  }
   if (options.projectName) {
     let lookup = auth.admin.from('projects').select('id, name, code, created_by')
       .eq('is_dormant', false).is('deleted_at', null)
