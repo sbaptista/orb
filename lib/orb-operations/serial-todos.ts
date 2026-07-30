@@ -100,13 +100,31 @@ function shapeTodoRow(data: any): TodoRow {
 function accessibleTodosQuery(auth: AuthContext) {
   let query = auth.admin
     .from('todos')
-    .select('id, todo_number, title, description, resolution_notes, status, priority_value, urls, updated_at, product_id, due_at, due_timezone, due_city, reminder_lead_value, reminder_lead_unit, reminder_nudge_dismissed_at, projects!inner(id, name, code, created_by, deleted_at, is_dormant)')
+    .select('id, todo_number, title, description, resolution_notes, status, priority_value, urls, updated_at, product_id, due_at, due_timezone, due_city, reminder_lead_value, reminder_lead_unit, reminder_nudge_dismissed_at, projects!inner(id, name, code, created_by, deleted_at, is_dormant)', { count: 'exact' })
     .is('deleted_at', null)
     .is('projects.deleted_at', null)
     .eq('projects.is_dormant', false)
   if (!auth.isAdmin) query = query.eq('projects.created_by', auth.user.id)
   return query
 }
+
+/**
+ * ORB-339: how many candidates a title reference may be ranked against.
+ *
+ * Ranking needs candidates, so resolving a title reads the accessible set —
+ * previously unbounded, which is fine at a few hundred todos and a full table
+ * read at fifty thousand. A plain .limit() would be worse than unbounded: cap
+ * at N and the todo you meant sits at N+1, and the resolver does not fail — it
+ * ranks the N it happens to have and confidently returns the wrong one. That
+ * is the silent wrong-mutation this whole ticket exists to prevent,
+ * reintroduced as a performance tweak.
+ *
+ * So the cap is paired with an exact count. If more rows exist than were
+ * fetched, resolution REFUSES rather than guessing from a partial set. The
+ * limit is deliberately far above any plausible backlog, so the refusal is a
+ * safety net that should never fire, not a routine path.
+ */
+const TITLE_RESOLUTION_CANDIDATE_LIMIT = 2000
 
 /**
  * ORB-339 — resolve a todo reference server-side, by code OR by title.
@@ -134,9 +152,17 @@ async function accessibleTodo(auth: AuthContext, reference: string): Promise<Tod
     return data ? shapeTodoRow(data) : null
   }
 
-  const { data, error } = await accessibleTodosQuery(auth)
+  const { data, error, count } = await accessibleTodosQuery(auth)
+    .limit(TITLE_RESOLUTION_CANDIDATE_LIMIT)
   if (error) throw error
   const rows = (data ?? []).map(shapeTodoRow)
+  // Fail closed on a partial candidate set: ranking what happened to be
+  // fetched would produce a confident answer from incomplete evidence.
+  if (typeof count === 'number' && count > rows.length) {
+    throw new Error(
+      `There are too many tasks (${count}) to match "${trimmed}" by name safely. Name the project, or use the task code.`,
+    )
+  }
   const result = selectTodoByReference(trimmed, rows)
   if (result.kind === 'resolved') return result.row
   if (result.kind === 'ambiguous') {
