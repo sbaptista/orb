@@ -1,5 +1,7 @@
 export type OrbRealtimeFactPacket = {
   kind: 'task_count' | 'next_step' | 'project_directory' | 'todo_details' | 'todo_list' | 'knowledge_search' | 'orb_state'
+  /** ORB-372: rows skipped, so a caller can render "6 to 10 of 12" rather than "5 of 12". */
+  offset?: number
   observedAt: string
   source: 'database'
   statuses: string[]

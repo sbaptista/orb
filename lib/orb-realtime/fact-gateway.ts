@@ -215,12 +215,18 @@ export async function getTodoListPacket(
   // exist: that is the same defect as the rest of this ticket.
   const shownFrom = offset + 1
   const shownTo = offset + tasks.length
-  const spokenSummary = exactCount > tasks.length
-    ? `${subject} has ${exactCount} matching ${exactCount === 1 ? 'task' : 'tasks'}. Showing ${shownFrom} to ${shownTo} on screen — say "show the next page" for more.`
-    : `${subject} has ${exactCount} matching ${exactCount === 1 ? 'task' : 'tasks'}, on screen now.`
+  const hasMore = shownTo < exactCount
+  // Past the end: offset+1 > count produced "Showing 13 to 12", which is not a
+  // range. And offering another page when none exists is the same false
+  // promise as the "show the rest" wording this replaced.
+  const spokenSummary = tasks.length === 0
+    ? `That is all of them — ${exactCount} matching ${exactCount === 1 ? 'task' : 'tasks'} in ${subject}, and you have seen them all.`
+    : exactCount > tasks.length
+      ? `${subject} has ${exactCount} matching ${exactCount === 1 ? 'task' : 'tasks'}. Showing ${shownFrom} to ${shownTo} on screen${hasMore ? ' — say "show the next page" for more' : ', which is the last page'}.`
+      : `${subject} has ${exactCount} matching ${exactCount === 1 ? 'task' : 'tasks'}, on screen now.`
   return {
     kind: 'todo_list', observedAt: new Date().toISOString(), source: 'database',
-    statuses: statusScope === 'all' ? [] : COUNT_STATUSES[statusScope], count: exactCount, tasks,
+    statuses: statusScope === 'all' ? [] : COUNT_STATUSES[statusScope], count: exactCount, tasks, offset,
     project: project ? { id: project.id, name: project.name } : undefined,
     spokenText: spokenSummary,
   }

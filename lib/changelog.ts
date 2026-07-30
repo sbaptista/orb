@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.275',
+    date: '2026-07-30',
+    changes: [
+      'Paging through voice results now ends properly. Asking for another page past the last one said "Showing 13 to 12" and still offered more; it now says you have seen them all, and stops offering a next page once you are on the last one (ORB-372).',
+      'The label above each table shows the actual range — "6–10 of 12" — instead of "Showing 5 of 12" on every page regardless of which rows those were.',
+    ],
+  },
+  {
     version: 'v0.6.273',
     date: '2026-07-30',
     changes: [

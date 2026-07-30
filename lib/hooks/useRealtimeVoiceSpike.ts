@@ -617,8 +617,12 @@ export function useRealtimeVoiceSpike(options: Options) {
         const shown = listPacket.tasks.length
         const total = typeof listPacket.count === 'number' ? listPacket.count : shown
         const omitted = Math.max(0, total - shown)
-        const note = omitted > 0
-          ? `\n\n_Showing ${shown} of ${total}. Narrow by project or status to see the rest._`
+        // Render the actual range. "Showing 5 of 12" on page three was simply
+        // false — those were rows 11 and 12, not the first five.
+        const from = (typeof listPacket.offset === 'number' ? listPacket.offset : 0) + 1
+        const to = from + shown - 1
+        const note = total > shown
+          ? `\n\n_${from}–${to} of ${total}${to < total ? '. Say "show the next page" for more.' : '. Last page.'}_`
           : ''
         callbacksRef.current.onOrbTranscript(`| Code | Title | Status |\n| --- | --- | --- |\n${rows}${note}`)
       }
