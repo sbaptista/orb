@@ -306,6 +306,32 @@ choose which question it is answering.
   never asked about twice. This is the opposite of the earlier design and is strictly better —
   it turns the classifier's ignorance into a prompt rather than a silent omission.
 
+- **Surfacing is the error-correction loop for a manual step, not a fallback for exotic
+  vendors (Stan, 2026-07-30).** Curation is done by hand, so it will sometimes be wrong, and
+  the mistakes run both ways:
+
+  - a **non-AI row slips in** → unrecognised → surfaced → Stan says "not AI" → dropped, and
+    the descriptor is remembered so it never appears again;
+  - an **AI row with an unfamiliar descriptor** → surfaced → classified → counted.
+
+  One mechanism catches both, which is what makes it worth building rather than a special
+  case. The consequence: Stan does not have to curate *correctly*, only *approximately*, and
+  Orb asks about the remainder. That is what makes a hand-maintained export trustworthy at
+  all.
+
+  Same shape as ORB-339's todo resolver, and the pattern recurs often enough in this project
+  to be worth naming: **when input is ambiguous, ask rather than guess.** A tie does not
+  resolve to the first candidate; an unknown descriptor does not resolve to "probably
+  nothing".
+
+- **Review must read as routine, not as failure — this is a design decision, not a mechanical
+  one.** If unclassified rows are presented as errors (red, "import problems", a warning
+  icon), Stan will start avoiding the import, and a runway figure nobody refreshes is worse
+  than none. Present it as ordinary work: "3 rows need a home", inline, with the classification
+  one click away and previously-answered descriptors already filled in. The count of
+  unclassified rows should trend to zero on its own as the mapping learns, so a non-zero count
+  means something genuinely new happened — which is information, not a fault.
+
 - **Keep filtering server-side anyway.** One export described as stripped still contained 128
   non-AI rows and $7,313 of unrelated personal spending. That was a human step failing once,
   and it will fail again. Curation is now the primary mechanism and server-side filtering is
