@@ -100,7 +100,7 @@ point. The current page's failure is that the rows *are* the page.
 
 ---
 
-## 5. Import: yes, and the schema is already designed
+## 5. Import: yes — but the schema is NOT already designed (see §13.3)
 
 Automatic pulling exists for API spend (ORB-353: Anthropic Cost API, OpenAI Costs API, Gemini
 via BigQuery, ElevenLabs). It **cannot** reach two things:
@@ -113,7 +113,7 @@ via BigQuery, ElevenLabs). It **cannot** reach two things:
 
 So import is not a fallback, it is the only route to the majority of the money.
 
-**Stan's spreadsheet is already the right schema** — `date, item, company, model, type, notes`
+**Stan's spreadsheet is a useful shape, not a schema** — `date, item, company, model, type, notes`
 with `type ∈ {credit, monthly, yearly, auto-charge}`. Adopt it directly rather than inventing
 one; it has survived real use for 148 days.
 
@@ -170,7 +170,9 @@ explicitly in code with a comment, and the divergence display is what catches th
 - **Phase 4 — CONTROLS.** Merge settings in, resolve the spend-cap question, retire what
   ORB-363 concludes is dead.
 
-Each phase is independently shippable. Phase 1 alone would have prevented all three outages.
+Each phase is independently shippable. **Superseded by §13.8** — an earlier draft claimed
+Phase 1 alone would have prevented all three outages. That was wrong: import without the
+calculation *and* the warning delivery still requires Stan to remember to look.
 
 ---
 
@@ -192,16 +194,13 @@ Consequences, all load-bearing:
 - **Orb becomes the system of record.** There is no longer a hand-checked sheet to reconcile
   against, so import correctness is the whole safety net. The reconciliation UI is not a
   nicety; it is the only thing that will catch a missed charge.
-- **Classification must be automatic, with review.** The card gives
-  `ANTHROPIC ANTHROPIC.COMCA`, `CLAUDE.AI SUBSCRIPTION`, `OPENAI *CHATGPT SUBSCR`,
-  `GOOGLE *CLOUD` vs `GOOGLE *Google One`. Map descriptor → (provider, type), show the
-  proposed classification, let Stan correct it, and **remember the correction** so the same
-  descriptor is never asked about twice.
-- **The card contains everything else in his life.** Groceries, dental, air travel. Import
-  must filter to AI vendors and **discard the rest without storing it** — not import-then-hide.
-  Data minimisation is the rule: a row that is not AI spend should never reach the database.
-  This also means an unrecognised descriptor is dropped, not stored "just in case", so the
-  classifier must be reviewable rather than silent.
+- **Classification must be automatic, with review.** Map descriptor → (provider, type), show
+  the proposed classification, let Stan correct it, and **remember the correction** so the same
+  descriptor is never asked about twice. **Final policy — see §13.7; earlier drafts of this
+  section said unknown rows were dropped, which contradicted §11 and is superseded.**
+- **Data minimisation still applies.** A row that is not AI spend must never be persisted.
+  But *unknown* is not the same as *not AI* — see §13.7. Unknown rows are held in the review
+  session and persisted only once classified.
 - **Amounts include Hawaii GET at 4.712%.** Provider invoices are pre-tax; the card is
   post-tax. Store both, reconcile on pre-tax, and display post-tax as the cash figure. Getting
   this wrong makes every comparison look 4.7% off and invites a second cents-style hunt.
@@ -244,7 +243,7 @@ Card import moves first, because runway depends on it.
 
 ---
 
-## 11. Classification, derived from real data (30-row curated sample, 2026-07-30)
+## 11b. Classification, derived from real data (30-row curated sample, 2026-07-30)
 
 Stan's curated export reconciled to the statement **exactly** — 30 rows, $920.37, zero missing,
 zero extra. Classification falls out of the descriptor alone, so the mapping below is evidence,
@@ -381,3 +380,124 @@ beside the figure and go amber once staleness exceeds what the burn rate makes s
 2. RESOLVED: event-driven — see §12.
 3. Retroactive scope: import 2026 to date only, or 2025 as well for a full baseline? 2025 has
    no AI spend at all beyond consumer Google One, so probably not.
+
+
+---
+
+# 13. Revision 2 — Codex review, 2026-07-30
+
+Codex reviewed and the corrections are structural. Accepted essentially in full; where a point
+supersedes earlier text, the earlier text has been marked above rather than silently edited, so
+the reasoning stays traceable.
+
+**13.1 — "Per provider" is the wrong financial boundary.** Accepted. Providers do not each hold
+a prepaid dollar balance. The unit is a **funding pool / account**, carrying a `funding_mode`:
+
+| mode | example | what NOW shows |
+|---|---|---|
+| `prepaid_credit` | Anthropic API, OpenAI API | dollar runway |
+| `subscription_quota` | ElevenLabs characters | units remaining + renewal date |
+| `postpaid` | Google Cloud | projected month-end vs warning level |
+| `subscription_cash` | Claude.ai, ChatGPT, Perplexity, GitHub | recurring cost, no runway |
+
+"OpenAI" alone is insufficient: OpenAI API, ChatGPT subscription and ChatGPT credit are three
+different pools. This also resolves the credit/subscription split in §11b more precisely than
+`is_orb_runtime` did.
+
+**13.2 — The balance formula needs an opening balance.** Accepted, and the correct form is:
+
+    balance = opening balance + top-ups + grants/refunds − consumption − expirations/adjustments
+
+A 2026-only import understates every account that carried prior credit. Transactions must be
+**signed**, and grants, refunds, expirations and manual reconciled adjustments are first-class,
+not edge cases.
+
+**Also accepted: "derived balance ≤ 0 while calls succeed is PROOF of an unrecorded top-up" was
+too strong.** It could equally be free credits, a wrong rate card, another funding pool, or
+underestimated consumption. It is a strong *signal* worth prompting on, not proof. This is
+precisely the error this session has been correcting elsewhere — asserting proof from a surface
+observation — and it went into the plan anyway.
+
+**13.3 — The existing reconciliation table cannot support this.** Accepted, and this is the
+most valuable finding because Codex verified it against live data rather than reasoning about
+it. `orb_cost_reconciliations` currently mixes card purchases, provider-reported consumption,
+and **overlapping month-to-date snapshots** — Anthropic has July snapshots ending the 23rd,
+29th, 30th and 31st, and the summary adds matching rows, so cumulative snapshots double-count.
+
+A **Phase 0 data-model correction** is required, separating: provider consumption snapshots;
+imported financial transactions; import batches; descriptor classification rules; opening
+balances and adjustments; daily usage rollups.
+
+**13.4 — `(date, description, amount)` is not a safe idempotency key.** Accepted. Two identical
+$10 top-ups on the same day are both legitimate and would collapse into one — silently losing a
+real charge, which is the failure mode this whole plan exists to prevent. Prefer a bank
+transaction/reference ID. Absent one, identity needs a stable statement/account identifier plus
+a duplicate occurrence index, or a reviewable match. **Re-import protection must never discard a
+genuine repeat.**
+
+**13.5 — Funding and consumption are not reconcilable transaction-to-transaction.** Accepted.
+A top-up records when credit was *bought*; provider usage records when it was *consumed*, weeks
+apart. Three independent views, not one:
+
+1. **Runtime consumption** — ledger estimate vs provider-reported usage.
+2. **Funding** — top-ups, grants, refunds, derived balance.
+3. **Operating spend** — subscriptions and recurring tools.
+
+A card transaction reconciles against a top-up receipt or invoice, never against individual API
+usage.
+
+**13.6 — Do not assume every charge contains exactly 4.712% GET.** Accepted. Taxes, exemptions,
+currency conversion and fees vary by vendor and date. **The card amount is authoritative cash
+outflow.** Store tax and pre-tax only when an invoice supplies them; any computed pre-tax figure
+is marked *inferred*, with the assumed rate recorded. (The Anthropic invoice does state 4.712%
+explicitly — so where an invoice exists the figure is exact; the error was generalising from
+one vendor.)
+
+**13.7 — Final import policy** (supersedes the contradictory text in §9 and §11):
+
+- known **included** descriptor → persist
+- known **excluded** descriptor → discard
+- **unknown** descriptor → hold in the preview/review session only; persist after classification
+- remember **both** inclusion and exclusion decisions
+
+**No pattern-based discarding of "obvious grocery" descriptors** unless they are exact remembered
+exclusions. Codex is right that heuristic discarding reintroduces the guessing this design
+exists to remove — and an unknown row in a curated file is more likely a curation error or a new
+vendor than noise.
+
+**13.8 — Warning delivery belongs with NOW, not Phase 5.** Accepted, and it corrects a claim I
+made in §10. Runway without proactive notification still depends on Stan remembering to look, so
+import alone would not have prevented any of the three outages. Warning thresholds, escalation,
+hysteresis and notification routing move into the NOW phase, reusing the existing 15-minute
+usage-monitoring cron — whose once-per-period deduplication must be corrected first (a warning
+that fires once and then goes quiet as the situation worsens is already a known defect,
+ORB-363).
+
+**Burn rate needs guardrails.** A 7-day mean is misleading on intermittent usage. Show 7- and
+30-day context, handle zero-usage windows, and distinguish ordinary product burn from eval
+spikes — the conservative headline should assume all expected consumption, including evals.
+
+**13.9 — Revised phasing** (supersedes §10):
+
+1. Data model + reconciliation cleanup (Phase 0 above)
+2. Import, classification, opening balances, adjustments
+3. NOW surface **plus** proactive warning pipeline
+4. Provider-consumption reconciliation
+5. Daily rollups + HISTORY charts
+6. Settings/controls consolidation
+
+**13.10 — Smaller corrections, all accepted.**
+
+- **Standardise the category enum.** The document alternates between `monthly/yearly/auto-charge`
+  (from Stan's sheet) and `subscription/credit`. Settle on `funding_mode` (§13.1) plus a
+  transaction `kind` (`top_up | subscription | grant | refund | adjustment | expiration`).
+- **Duplicate §11 renumbered** to §11b.
+- **Do not require a `dataviz` skill.** Not available in every agent's environment. The durable
+  requirement is an **approved chart pattern proposed to Stan before creation and added to
+  `docs/ui-catalog.md` in the same change** — which is the existing UI Assembly Protocol and
+  needs no new tooling.
+- **"Cost per todo created" needs an explicit attribution design or it should be dropped.** The
+  request ledger cannot reliably connect a multi-turn conversation's total cost to one resulting
+  todo. Cost per *conversation* and per *eval run* are well-defined; cost per todo is not, yet.
+- **§9's per-user vs org-level distinction stands** — Codex confirms it, and it remains the
+  reason per-user views can only ever be estimate-based.
