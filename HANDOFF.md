@@ -64,8 +64,8 @@ Grew out of reconciling Stan's own tracking spreadsheet and card statements. Key
 - **Keep the rate cards.** Provider APIs give totals, not attribution; every cost question worth asking this week needed attribution. Show estimate vs provider vs card with the *divergence* as a first-class number — the 100× cents bug survived days because nothing displayed that gap.
 - **Import the card statement, not a curated sheet.** Orb becomes the system of record. Non-API spend ($575.90 of subscriptions) exceeds runtime API spend ($344.47) and no provider usage API can see any of it.
 - **Category dimension is the schema change.** Only credits belong in runway; a subscription does not deplete.
-- **Import is event-driven.** A derived balance ≤ 0 while requests still succeed is proof of an unrecorded top-up — Orb detects the need rather than nagging on a timer.
-- **Never trust a pre-filtered file.** One export described as stripped still held 128 non-AI rows and $7,313 of personal spending. Filter server-side, every time.
+- **Import is event-driven.** A derived balance ≤ 0 while requests still succeed is a strong *signal* of an unrecorded top-up — **not proof**, per Codex's Revision 2 correction; it could also be free credits, a wrong rate card, or another funding pool. Orb prompts on the signal rather than nagging on a timer.
+- **Never trust a pre-filtered file.** One export described as stripped still held 128 non-AI rows and $7,313 of personal spending. Filter server-side — but **surface unknowns rather than dropping them** (Revision 2 §13.7): in a curated file an unrecognised row is a curation error or a new vendor, not noise.
 
 **Superseded:** the ticket is ORB-373 and phasing was revised in Revision 2 — Phase 0 (data model) precedes import.
 
