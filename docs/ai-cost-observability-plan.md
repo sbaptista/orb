@@ -397,11 +397,24 @@ a prepaid dollar balance. The unit is a **funding pool / account**, carrying a `
 |---|---|---|
 | `prepaid_credit` | Anthropic API, OpenAI API | dollar runway |
 | `subscription_quota` | ElevenLabs characters | units remaining + renewal date |
-| `postpaid` | Google Cloud | projected month-end vs warning level |
+| ~~`postpaid`~~ | ~~Google Cloud~~ | **out of scope — see below** |
 | `subscription_cash` | Claude.ai, ChatGPT, Perplexity, GitHub | recurring cost, no runway |
 
 "OpenAI" alone is insufficient: OpenAI API, ChatGPT subscription and ChatGPT credit are three
-different pools. This also resolves the credit/subscription split in §11b more precisely than
+different pools.
+
+**Google Cloud is out of scope (Stan, 2026-07-30).** With it excluded, **no remaining pool is
+postpaid** — Anthropic API, OpenAI API and Mistral are prepaid credit; ElevenLabs is a
+subscription quota; Claude.ai, ChatGPT, Perplexity and GitHub are subscription cash. So
+`postpaid` should **not be built**. Designing a funding mode nothing uses is speculative
+generality, and this plan already has more surface than it needs; add it if and when a postpaid
+account actually appears.
+
+**But the historical row still needs classifying.** One charge exists — `GOOGLE *CLOUD Sv2CZD`,
+$25.00 on 2026-06-23, the initial Gemini credit — and it is in the curated export. It must
+classify and total correctly as a one-off credit; it simply never produces a runway figure and
+never needs a live balance. This is the distinction between *classification* (must handle every
+row that has ever existed) and *funding modelling* (only needs to handle pools that are live). This also resolves the credit/subscription split in §11b more precisely than
 `is_orb_runtime` did.
 
 **13.2 — The balance formula needs an opening balance.** Accepted, and the correct form is:
