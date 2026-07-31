@@ -118,6 +118,9 @@ AI Metrics uses the standard settings shell plus `SettingsCrudList` for the requ
 | `metrics-request-log-heading` / `metrics-request-log-collapsed` | Header/caption/toggle block above the AI request log plus the collapsed-state placeholder |
 | `metrics-summary-grid` / `metrics-summary-card` / `metrics-summary-label` / `metrics-summary-value` | Shared compact summary cards, also used by Performance Settings |
 | `metrics-cost-bar` | Small status/cost strip for loading or compact informational states |
+| `metrics-chart-*` | Accessible native-SVG time-series chart with direct axis labels, summary copy, and a screen-reader data table; first explored in the ORB-373 AI observability prototype |
+
+**ORB-373 prototype composition:** `app/prototype/ai-cost-observability` explores the approved AI observability information architecture using the existing `s-page-wide`, `s-card`, `s-section-title`, `pill`, form-control, `metrics-details-*`, and `metrics-reconciliation-*` patterns. Prototype-only `metrics-observability-*`, `metrics-runway-*`, and `metrics-provider-*` classes compose those established pieces without defining a parallel Settings shell. Before ORB-373 closes, these draft composition classes must be promoted, refactored into established patterns, or deleted under the doctrine's Prototype Pattern Escape Hatch.
 
 ### Account Page (`account-*`)
 **Files:** `app/account/page.tsx`, `components/settings/SettingsAccount.tsx`, `components/settings/ChangeNameModal.tsx`, `components/settings/ChangeEmailModal.tsx`, `components/settings/SettingsPasskeys.tsx`

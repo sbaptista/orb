@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.277',
+    date: '2026-07-30',
+    changes: [
+      'Added a development-only design prototype for the AI cost observability rebuild (ORB-373). It brings runway, consumption history, provider reconciliation, statement classification, warning controls, model roles, and rate assumptions into one reviewable experience before any production data or Settings behavior changes.',
+      'The prototype distinguishes prepaid API runway, subscription quota runway, and recurring subscription cost so operating spend is never presented as consumable funding. It also introduces an accessible chart pattern with direct labels and a screen-reader data table.',
+    ],
+  },
+  {
     version: 'v0.6.276',
     date: '2026-07-30',
     changes: [
