@@ -208,6 +208,12 @@ Consequences, all load-bearing:
 - **`Google One` is not Orb.** It runs identically through 2025, predating the project. The
   classifier must exclude it by default while keeping `GOOGLE *CLOUD`.
 
+**Who decides what counts as "AI spend": Stan, at export time.** He curates the CSV; Orb does
+not attempt to judge whether a vendor is AI-related. Orb's job is narrower and more tractable:
+given a row Stan considers AI spend, determine `(provider, type, is_orb_runtime)`. This is a
+good split — Stan holds the judgment that needs context, Orb holds the mapping that needs
+consistency — and it is why unrecognised rows must be surfaced rather than dropped.
+
 **Per-user attribution.** The rollup keys on `user_id`. `orb_model_requests` already carries
 it. Note the asymmetry this creates and design for it explicitly: **the ledger is per-user,
 the card is org-level** — a card charge is Stan's card, not any particular user's usage. So
@@ -286,8 +292,30 @@ choose which question it is answering.
 - **A `Credit` column may be missing entirely.** Two exports carried only `Debit`, so refunds
   and grants — including a −$0.16 Anthropic free credit — were invisible. Request the credit
   column; if absent, say so at import rather than silently treating the file as complete.
-- Never trust a file described as pre-filtered: one "stripped" export still contained 128
-  non-AI rows and $7,313 of unrelated personal spending. Filter server-side, every time.
+- **The file is curated by Stan (updated 2026-07-30).** He now exports AI rows only and has
+  removed `GOOGLE *Google One`. That changes what an unrecognised descriptor MEANS, and it is
+  the most important consequence in this section:
+
+  - Previously an unknown row was probably groceries → drop it silently.
+  - Now an unknown row is spend **Stan deliberately included** → it is either a provider Orb
+    has never seen (a new model, a new tool) or a descriptor variant of a known one. Dropping
+    it silently would lose real spend and understate cost with no trace.
+
+  So: **unrecognised rows are surfaced for classification, never discarded.** Import reports
+  "3 rows I could not classify" and asks; the answer is remembered so the same descriptor is
+  never asked about twice. This is the opposite of the earlier design and is strictly better —
+  it turns the classifier's ignorance into a prompt rather than a silent omission.
+
+- **Keep filtering server-side anyway.** One export described as stripped still contained 128
+  non-AI rows and $7,313 of unrelated personal spending. That was a human step failing once,
+  and it will fail again. Curation is now the primary mechanism and server-side filtering is
+  defence in depth — but with unknowns surfaced rather than dropped (above), the two are no
+  longer in tension: obvious non-AI descriptors (grocery, fuel, restaurant patterns) are
+  discarded without storing, and everything else is either classified or queued for review.
+
+- **`GOOGLE *Google One` is no longer expected in input** but the exclusion rule stays as a
+  guard. It ran identically through all of 2025, predating Orb, so if it reappears it should
+  not be counted.
 
 ## 12. Import cadence: event-driven, not scheduled
 
