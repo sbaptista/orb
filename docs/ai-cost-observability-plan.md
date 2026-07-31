@@ -238,13 +238,92 @@ Card import moves first, because runway depends on it.
 
 ---
 
+## 11. Classification, derived from real data (30-row curated sample, 2026-07-30)
+
+Stan's curated export reconciled to the statement **exactly** — 30 rows, $920.37, zero missing,
+zero extra. Classification falls out of the descriptor alone, so the mapping below is evidence,
+not guesswork:
+
+| Descriptor contains | Provider | Type | Orb runtime? |
+|---|---|---|---|
+| `CLAUDE.AI SUBSCRIPTION` | Anthropic | subscription | no |
+| `ANTHROPIC` (otherwise) | Anthropic | credit | **yes** |
+| `OPENAI *CHATGPT SUBSCR` | OpenAI | subscription | no |
+| `OPENAI* CHATGPT CREDIT` | OpenAI | credit | **no** — ChatGPT account, not the API |
+| `OPENAI` (otherwise) | OpenAI | credit | **yes** |
+| `GOOGLE *CLOUD` | Google | credit | **yes** |
+| `GOOGLE *Google One` | Google One | consumer | no — predates Orb, present all through 2025 |
+| `ELEVENLABS` | ElevenLabs | subscription | **yes** |
+| `MISTRAL` | Mistral | credit | **yes** |
+| `WWW.PERPLEXITY.AI` | Perplexity | subscription | no |
+| `GITHUB` | GitHub | subscription | no |
+
+**Order matters.** `CLAUDE.AI SUBSCRIPTION` must be tested before the generic `ANTHROPIC`
+match, and both ChatGPT variants before the generic `OPENAI`. Written casually, a regex
+conflates the OpenAI API account with the ChatGPT account — they are different accounts and
+only one is Orb.
+
+### The category dimension is the substantive schema change
+
+Split the same 30 rows by **type** instead of vendor and they read completely differently:
+
+- **credits $344.47** — money that flowed through Orb's own API calls
+- **subscriptions $575.90** — tools Stan would pay for whether Orb existed or not
+
+Nearly two thirds of "AI spend" is not Orb's running cost. Only the credit half belongs in
+runway and burn-rate arithmetic: **a subscription does not deplete**, so including it makes
+runway meaningless. Store `(provider, type, is_orb_runtime)` per row and let every surface
+choose which question it is answering.
+
+### Parser requirements, from three real exports
+
+- Find the header row rather than assuming row 1 — one export had a blank leading line and the
+  header on row 2, plus trailing empty columns.
+- Quoted fields containing commas are real (`"GITHUB, INC. GITHUB.COM CA"`).
+- **Do not assume date ordering.** The curated file is sorted by provider then date. Key each
+  row on the tuple `(date, description, amount)`, which is also what makes re-importing an
+  overlapping export idempotent.
+- **A `Credit` column may be missing entirely.** Two exports carried only `Debit`, so refunds
+  and grants — including a −$0.16 Anthropic free credit — were invisible. Request the credit
+  column; if absent, say so at import rather than silently treating the file as complete.
+- Never trust a file described as pre-filtered: one "stripped" export still contained 128
+  non-AI rows and $7,313 of unrelated personal spending. Filter server-side, every time.
+
+## 12. Import cadence: event-driven, not scheduled
+
+**Answer: monthly as a backstop, and prompted whenever the derived balance says a top-up is
+missing.** The reasoning matters more than the interval.
+
+Balance is derived as `Σ top-ups − Σ consumption`. Consumption is known continuously from the
+ledger, so the derived balance decays accurately on its own. **It only becomes wrong when a
+top-up happens that Orb has not imported** — and that error is one-directional:
+
+- **A missing top-up understates the balance** → runway too short → Orb warns *early*. Safe.
+- A *consumption* underestimate (a missing rate card, a parsing bug) overstates the balance →
+  warns *late*. Dangerous — and no import frequency fixes it. That is what the estimate-versus-
+  provider divergence in §2 is for.
+
+So import cadence is not safety-critical; it governs how pessimistic the runway looks. That
+argues strongly against nagging.
+
+**Orb can detect when it needs an import rather than asking on a timer.** A derived balance
+at or below zero while calls are still succeeding is proof of an unrecorded top-up — the
+provider clearly has credit Orb cannot see. That is a precise, self-detecting trigger:
+
+1. **Derived balance ≤ 0 but requests succeeding** → "You have topped up since the last
+   import. Import to restore an accurate runway."
+2. **Runway below the warning threshold** → prompt, since that is exactly when the figure
+   needs to be trustworthy.
+3. **Monthly** → backstop for the subscription and reconciliation side, which has no
+   self-detecting signal because subscriptions do not deplete.
+
+**Always show the age of the balance data.** A runway of "9 days" computed from a three-week-old
+import is a confident lie, and this session has enough of those. Display the last import date
+beside the figure and go amber once staleness exceeds what the burn rate makes safe.
+
 ## 11. Remaining open questions
 
-1. Which card export format? The `.TXT` samples are tab-ish and irregular; a real CSV export
-   from the card issuer would be more stable to parse. Worth checking what formats are offered
-   before writing a parser against the sample.
-2. Should import be periodic-manual (upload when you think of it) or prompted? A runway figure
-   silently drifting stale is worse than no runway figure — it should say how old the balance
-   data is, and go amber when the last import is older than the burn rate makes safe.
+1. RESOLVED: CSV (`Date,Description,Debit`) — see §11.
+2. RESOLVED: event-driven — see §12.
 3. Retroactive scope: import 2026 to date only, or 2025 as well for a full baseline? 2025 has
    no AI spend at all beyond consumer Google One, so probably not.
