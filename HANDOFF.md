@@ -26,7 +26,35 @@
 
 ## Last Session Completed
 
-**AI cost observability — PLAN DRAFTED, NOT BUILT — 2026-07-30 (Claude Code, Opus 5)**
+**ORB-373 — AI cost observability — PLANNED AND HANDED TO CODEX — 2026-07-30**
+
+**Codex is implementing this.** Claude Code planned it and is out of usage. Plan:
+`docs/ai-cost-observability-plan.md` (**Revision 2**, incorporating Codex's own review).
+**ORB-363 was absorbed into ORB-373 and deleted** (soft) — its live items are in ORB-373's
+description; keeping both would have meant two tickets working the same table.
+
+**Start with Phase 0, and claim it first.** It alters `orb_cost_reconciliations`, which the
+ORB-353 usage-monitoring cron writes to — an **exclusive DB schema claim** under
+`docs/multi-agent-concurrency-protocol.md` §7. Claude Code holds no claims; the ledger is clear.
+
+**The finding that makes Phase 0 mandatory** was Codex's own, from querying live data:
+`orb_cost_reconciliations` mixes card purchases, provider-reported consumption, and
+**overlapping month-to-date snapshots** — Anthropic has July snapshots ending the 23rd, 29th,
+30th and 31st, and the summary adds matching rows, so cumulative snapshots double-count.
+
+**Three things in the plan most likely to be lost in implementation:**
+- **Only credits belong in runway.** Of $920 of AI spend, $575.90 is subscriptions that do not
+  deplete. A subscription has no runway; including it makes the number meaningless.
+- **Unknown descriptors are surfaced, never dropped**, and the review must **read as routine**
+  ("3 rows need a home"), not as an error. Curation is manual and fails both ways; if review
+  looks like failure Stan will avoid importing, and a runway figure nobody refreshes is worse
+  than none.
+- **Warning delivery ships with the NOW surface, not later.** Runway without notification still
+  needs Stan to remember to look, so import alone would not have prevented any of the three
+  outages. The 15-minute cron's once-per-period dedupe must be fixed first — a warning that
+  fires once and goes quiet as things worsen reads as health.
+
+**Original planning note, retained:**
 
 `docs/ai-cost-observability-plan.md` — a redesign of Settings → AI Metrics + AI Settings, drafted for Stan and Codex to review. **No code written. No ticket filed yet.**
 
@@ -39,7 +67,7 @@ Grew out of reconciling Stan's own tracking spreadsheet and card statements. Key
 - **Import is event-driven.** A derived balance ≤ 0 while requests still succeed is proof of an unrecorded top-up — Orb detects the need rather than nagging on a timer.
 - **Never trust a pre-filtered file.** One export described as stripped still held 128 non-AI rows and $7,313 of personal spending. Filter server-side, every time.
 
-**Next:** Stan and Codex review; then file a ticket and start Phase 1 (import + classification), which everything else depends on.
+**Superseded:** the ticket is ORB-373 and phasing was revised in Revision 2 — Phase 0 (data model) precedes import.
 
 **ORB-368 + ORB-372 — CLOSED 2026-07-30 (Claude Code, Opus 5) — v0.6.272→v0.6.276**
 
