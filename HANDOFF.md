@@ -26,6 +26,21 @@
 
 ## Last Session Completed
 
+**AI cost observability — PLAN DRAFTED, NOT BUILT — 2026-07-30 (Claude Code, Opus 5)**
+
+`docs/ai-cost-observability-plan.md` — a redesign of Settings → AI Metrics + AI Settings, drafted for Stan and Codex to review. **No code written. No ticket filed yet.**
+
+Grew out of reconciling Stan's own tracking spreadsheet and card statements. Key conclusions, each grounded in real data rather than design speculation:
+
+- **Runway, not spend, is the headline.** With auto-recharge off (Stan disabled it 2026-06-09), the credit balance *is* the cap and it fails closed. Running out — not overspending — is the live risk, and has already caused three outages.
+- **Keep the rate cards.** Provider APIs give totals, not attribution; every cost question worth asking this week needed attribution. Show estimate vs provider vs card with the *divergence* as a first-class number — the 100× cents bug survived days because nothing displayed that gap.
+- **Import the card statement, not a curated sheet.** Orb becomes the system of record. Non-API spend ($575.90 of subscriptions) exceeds runtime API spend ($344.47) and no provider usage API can see any of it.
+- **Category dimension is the schema change.** Only credits belong in runway; a subscription does not deplete.
+- **Import is event-driven.** A derived balance ≤ 0 while requests still succeed is proof of an unrecorded top-up — Orb detects the need rather than nagging on a timer.
+- **Never trust a pre-filtered file.** One export described as stripped still held 128 non-AI rows and $7,313 of personal spending. Filter server-side, every time.
+
+**Next:** Stan and Codex review; then file a ticket and start Phase 1 (import + classification), which everything else depends on.
+
 **ORB-368 + ORB-372 — CLOSED 2026-07-30 (Claude Code, Opus 5) — v0.6.272→v0.6.276**
 
 **ORB-368.** Voice can now explain the orb's mood. New `get_orb_state` fact tool — deliberately a tool, not session instructions, because a Realtime session is long-lived and anything seeded at creation describes the past. Computed on demand from the same `explainUrgency()` the dashboard and text packet use: one implementation, three surfaces. The **selected project is the default scope** (the orb you are looking at is that project's orb); `all_projects` is the explicit opt-out. KB `08aa6fb6`.
