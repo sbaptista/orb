@@ -228,25 +228,32 @@ async function collectScopes(admin: ReturnType<typeof createAdminClient>): Promi
     scopes.push({ key: 'elevenlabs', label: 'ElevenLabs character usage', usedUsd: elevenLabs.used, limitUsd: elevenLabs.limit, provider: 'elevenlabs', role: null })
   }
 
-  // Auto-populate the existing manual "provider bills" table with real
-  // queried spend for the providers that expose it, replacing the need to
-  // remember to type it in — Stan's own framing for why this beats a
-  // manually-maintained figure.
+  // ORB-373 Phase 0: provider-reported consumption has its own table. The
+  // legacy reconciliation table mixed these cumulative snapshots with card
+  // purchases and subscriptions, so adding matching rows produced double
+  // counts. One row per pool/day preserves the history needed for freshness
+  // and quota burn without conflating usage with funding.
   const window = monthWindow()
-  const reconciliationRows = scopes
-    .filter(scope => scope.reconciliationProvider)
-    .map(scope => ({
-      provider: scope.reconciliationProvider,
-      period_start: window.startDate,
-      period_end: window.endDate,
-      actual_orb_cost_usd: scope.usedUsd,
-      notes: 'Auto-populated by the ORB-353 usage-check cron from the provider\'s own cost API.',
-    }))
-  if (reconciliationRows.length > 0) {
-    const { error: reconciliationError } = await admin
-      .from('orb_cost_reconciliations')
-      .upsert(reconciliationRows, { onConflict: 'provider,period_start,period_end' })
-    if (reconciliationError) console.error('[usage-monitor] Reconciliation upsert failed:', reconciliationError.message)
+  const snapshotRows = [
+    anthropicSpent == null ? null : {
+      pool_key: 'anthropic_api', provider: 'anthropic', period_start: window.startDate,
+      period_end: window.endDate, spending_usd: anthropicSpent, source: 'provider_api', fetched_at: window.nowIso,
+    },
+    openaiSpent == null ? null : {
+      pool_key: 'openai_api', provider: 'openai', period_start: window.startDate,
+      period_end: window.endDate, spending_usd: openaiSpent, source: 'provider_api', fetched_at: window.nowIso,
+    },
+    elevenLabs == null ? null : {
+      pool_key: 'elevenlabs', provider: 'elevenlabs', period_start: window.startDate,
+      period_end: window.endDate, usage_value: elevenLabs.used, usage_limit: elevenLabs.limit,
+      usage_unit: 'characters', source: 'provider_api', fetched_at: window.nowIso,
+    },
+  ].filter((row): row is NonNullable<typeof row> => row !== null)
+  if (snapshotRows.length > 0) {
+    const { error: snapshotError } = await admin
+      .from('orb_provider_consumption_snapshots')
+      .upsert(snapshotRows, { onConflict: 'pool_key,period_start,period_end,source' })
+    if (snapshotError) console.error('[usage-monitor] Provider snapshot upsert failed:', snapshotError.message)
   }
 
   return { scopes, warningThresholdPct: policy.warningThresholdPct }

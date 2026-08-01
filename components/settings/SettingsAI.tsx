@@ -146,7 +146,7 @@ export default function SettingsAI() {
       <div className="s-card flex-col gap-lg" style={{ marginTop: 'var(--sp-lg)' }}>
         <div>
           <h2 className="s-card-title">Usage Monitoring</h2>
-          <p className="s-card-desc">Warns admins (push, email, and a broadcast banner) when a usage scope approaches its limit — Orb&apos;s own budgets above, plus real provider account spend for the caps below. A cap of 0 disables that provider&apos;s check. ElevenLabs needs no cap here; its own API reports its real limit directly.</p>
+          <p className="s-card-desc">Warns admins through push, email, and the broadcast banner when a usage scope approaches its limit. Provider funding caps now live with runway in AI Metrics.</p>
         </div>
 
         <div className="s-form" style={{ display: 'grid', gap: 'var(--sp-lg)' }}>
@@ -162,25 +162,6 @@ export default function SettingsAI() {
               onChange={event => setPolicy(current => ({ ...current, warningThresholdPct: Number(event.target.value) }))}
             />
           </label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 'var(--sp-md)', alignItems: 'end' }}>
-            {[
-              ['Anthropic spend cap ($)', 'anthropicSpendCapUsd'],
-              ['OpenAI spend cap ($)', 'openaiSpendCapUsd'],
-              ['Gemini spend cap ($)', 'geminiSpendCapUsd'],
-            ].map(([label, key]) => (
-              <label key={key}>
-                <span className="label">{label}</span>
-                <input
-                  type="number"
-                  className="input"
-                  min="0"
-                  step="1"
-                  value={policy[key as keyof Pick<OrbAiPolicy, 'anthropicSpendCapUsd' | 'openaiSpendCapUsd' | 'geminiSpendCapUsd'>]}
-                  onChange={event => setPolicy(current => ({ ...current, [key]: Number(event.target.value) }))}
-                />
-              </label>
-            ))}
-          </div>
         </div>
       </div>
 

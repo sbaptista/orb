@@ -102,7 +102,7 @@ Standard settings layout with centered content card.
 | `cs-mobile-menu-icon` / `cs-mobile-menu-label` | Icon and label inside a mobile menu item |
 
 ### AI Metrics (`metrics-*`)
-**Files:** `components/settings/SettingsMetrics.tsx`, `components/settings/SettingsCostReconciliation.tsx`
+**Files:** `components/settings/SettingsMetrics.tsx`, `components/settings/SettingsCostReconciliation.tsx`, `components/settings/SettingsSubscriptions.tsx`, `components/settings/StatementImportModal.tsx`
 **CSS prefix:** `metrics-`
 
 AI Metrics uses the standard settings shell plus `SettingsCrudList` for the request log. Keep the section headers outside cards, then place the data surface inside `s-card` containers. The accounting summary uses database-side rollups so the page does not fetch raw request-ledger rows to calculate totals. The request log must retain the shared pagination controller and table column navigation controller. Because it is a growing operational log, it uses cursor pagination on indexed `created_at` instead of exact-count offset pagination.
@@ -119,8 +119,14 @@ AI Metrics uses the standard settings shell plus `SettingsCrudList` for the requ
 | `metrics-summary-grid` / `metrics-summary-card` / `metrics-summary-label` / `metrics-summary-value` | Shared compact summary cards, also used by Performance Settings |
 | `metrics-cost-bar` | Small status/cost strip for loading or compact informational states |
 | `metrics-chart-*` | Accessible native-SVG time-series chart with direct axis labels, summary copy, and a screen-reader data table; first explored in the ORB-373 AI observability prototype |
+| `metrics-section-tabs` | Horizontally scrollable AI Metrics section switcher assembled from the canonical `pill` / `pill-active` controls; never uses the prototype's near-black segmented bar |
+| `metrics-runway-grid` / `metrics-runway-card` / `metrics-runway-*` / `metrics-state-pill` | Responsive Current Status cards for prepaid-dollar and quota runway, with direct status text, source/freshness, cap/usage, and 7/30-day burn context |
+| `metrics-funding-controls` | Standard `s-card` + `s-form` composition for provider funding caps; numeric fields use the Settings `.input` treatment |
+| `metrics-collection-list` | Two-column desktop / one-column mobile wrapper for funding-entry and subscription `crud-card` records; the cards keep the canonical New, Edit, and inline Delete/Cancel interaction model |
+| `metrics-editor-form` / `metrics-editor-wide` | Responsive field grid inside the canonical `EditorModal` for individual funding entries and subscriptions |
+| `metrics-import-modal-body` / `metrics-import-file-fields` / `metrics-import-preview` / `metrics-import-row` / `metrics-import-actions` | Single-statement CSV import flow inside the canonical `modal-center modal-compose` shell: select a file, preview automatic classification, resolve unknowns and duplicates, then explicitly confirm the batch |
 
-**ORB-373 prototype composition:** `app/prototype/ai-cost-observability` explores the approved AI observability information architecture using the existing `s-page-wide`, `s-card`, `s-section-title`, `pill`, form-control, `metrics-details-*`, and `metrics-reconciliation-*` patterns. Prototype-only `metrics-observability-*`, `metrics-runway-*`, and `metrics-provider-*` classes compose those established pieces without defining a parallel Settings shell. Before ORB-373 closes, these draft composition classes must be promoted, refactored into established patterns, or deleted under the doctrine's Prototype Pattern Escape Hatch.
+**ORB-373 production assembly:** `SettingsMetrics` uses the standard `s-page-wide` + `s-header` + `s-title` shell. Current Status, History, Providers, and Controls switch with ordinary catalogued pills; the dark segmented prototype navigation was deliberately not promoted. The runway card family graduated from the prototype because it now renders sourced production data and preserves its four/two/one-column Mac/iPad/iPhone behavior. History uses the accessible native-SVG chart family with real ledger data and provider comparison bars. Providers has one statement-import entry point for heterogeneous CSV rows plus per-item funding CRUD; Current Status uses the matching per-item subscription CRUD. The remaining prototype-only shell classes stay confined to `app/prototype/ai-cost-observability` and are not production grammar.
 
 ### Account Page (`account-*`)
 **Files:** `app/account/page.tsx`, `components/settings/SettingsAccount.tsx`, `components/settings/ChangeNameModal.tsx`, `components/settings/ChangeEmailModal.tsx`, `components/settings/SettingsPasskeys.tsx`

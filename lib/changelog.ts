@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.278',
+    date: '2026-08-01',
+    changes: [
+      'AI Metrics now uses real provider and request-ledger data. Current Status shows provider funding, usage, burn, and runway without treating recurring subscriptions as consumable credit; History adds Product, Evals, and combined views across 7, 30, 90, or 365 days with accessible charts and provider comparisons (ORB-373).',
+      'Financial data has two deliberate maintenance paths: one mixed CSV statement import with preview, classification learning, duplicate protection, and atomic commit, plus todo-style New, Edit, and inline Delete/Cancel controls for individual funding, bill, and subscription entries.',
+      'Automated provider-consumption snapshots are now stored separately from purchases and bills, eliminating the accounting ambiguity that mixed cumulative provider readings with financial transactions. Provider caps persist independently and drive prepaid runway; no always-on Realtime database subscription was added.',
+      'The production interface follows the established Settings, modal, pill, and todo-card patterns across Mac, iPad, and iPhone layouts. Mistral, OpenAI TTS, and ElevenLabs remain available; a separate provider-neutral runtime Model Registry plan documents future model activation without coupling executable configuration to imported financial metadata.',
+    ],
+  },
+  {
     version: 'v0.6.277',
     date: '2026-07-30',
     changes: [

@@ -30,6 +30,17 @@ function toNumber(value: unknown, name: string): number {
   return number
 }
 
+function toOptionalNumber(value: unknown, name: string): number | null {
+  if (value === null || value === undefined || value === '') return null
+  return toNumber(value, name)
+}
+
+export type AiFundingCapsInput = {
+  anthropicApi: number | null
+  openaiApi: number | null
+  mistralApi: number | null
+}
+
 export async function getTtsConfig(): Promise<TtsConfigResult> {
   const supabase = await createAuthClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -104,6 +115,64 @@ export async function saveOrbAiPolicy(next: OrbAiPolicy) {
   return { ok: true }
 }
 
+export async function saveAiFundingCaps(input: AiFundingCapsInput) {
+  const ctx = await requireAdmin()
+  const caps = {
+    anthropic_api: toOptionalNumber(input.anthropicApi, 'Anthropic API cap'),
+    openai_api: toOptionalNumber(input.openaiApi, 'OpenAI API cap'),
+    mistral_api: toOptionalNumber(input.mistralApi, 'Mistral API cap'),
+  }
+  const { data: before, error: beforeError } = await ctx.admin
+    .from('orb_ai_funding_pools')
+    .select('pool_key, spending_cap_usd')
+    .in('pool_key', Object.keys(caps))
+  if (beforeError) throw beforeError
+
+  const now = new Date().toISOString()
+  const poolDefinitions = {
+    anthropic_api: { provider: 'anthropic', display_name: 'Anthropic API', sort_order: 10 },
+    openai_api: { provider: 'openai', display_name: 'OpenAI API', sort_order: 20 },
+    mistral_api: { provider: 'mistral', display_name: 'Mistral API', sort_order: 30 },
+  } as const
+  const rows = Object.entries(caps).map(([poolKey, spendingCapUsd]) => ({
+    pool_key: poolKey,
+    ...poolDefinitions[poolKey as keyof typeof poolDefinitions],
+    funding_mode: 'prepaid_credit',
+    spending_cap_usd: spendingCapUsd,
+    active: true,
+    updated_at: now,
+    updated_by: ctx.user.id,
+  }))
+  const { error } = await ctx.admin
+    .from('orb_ai_funding_pools')
+    .upsert(rows, { onConflict: 'pool_key' })
+  if (error) throw error
+
+  // Keep the two legacy provider-warning fields aligned while the warning
+  // pipeline is migrated to funding pools in a later ORB-373 phase.
+  const { error: compatibilityError } = await ctx.admin
+    .from('orb_ai_policy')
+    .update({
+      anthropic_spend_cap_usd: caps.anthropic_api ?? 0,
+      openai_spend_cap_usd: caps.openai_api ?? 0,
+      updated_at: now,
+      updated_by: ctx.user.id,
+    })
+    .eq('id', true)
+  if (compatibilityError) throw compatibilityError
+
+  await logAuditEvent({
+    action: 'orb_ai_funding_caps_update',
+    table_name: 'orb_ai_funding_pools',
+    record_id: 'prepaid-pools',
+    before,
+    after: rows,
+    actor: 'web-ui',
+    user_id: ctx.user.id,
+  })
+  return { ok: true }
+}
+
 export async function saveOrbModelRateCard(input: Omit<OrbModelRateCard, 'id'> & { id?: string }) {
   const ctx = await requireAdmin()
   if (!input.provider || !input.model || !/^\d{4}-\d{2}-\d{2}$/.test(input.effectiveFrom)) throw new Error('Provider, model, and effective date are required.')
@@ -137,7 +206,9 @@ export async function getOrbCostReconciliations() {
     .order('period_start', { ascending: false })
     .order('provider')
   if (error) throw error
-  return (data ?? []).map(row => ({
+  return (data ?? [])
+    .filter(row => !row.notes?.startsWith('Auto-populated by the ORB-353 usage-check cron'))
+    .map(row => ({
     id: row.id,
     provider: row.provider,
     periodStart: row.period_start,
@@ -145,7 +216,7 @@ export async function getOrbCostReconciliations() {
     actualOrbCostUsd: Number(row.actual_orb_cost_usd),
     notes: row.notes ?? null,
     createdAt: row.created_at,
-  }) satisfies OrbCostReconciliation)
+    }) satisfies OrbCostReconciliation)
 }
 
 export async function saveOrbCostReconciliation(input: Omit<OrbCostReconciliation, 'id' | 'createdAt'> & { id?: string }) {

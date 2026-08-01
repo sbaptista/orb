@@ -617,6 +617,32 @@ a, button, [role="button"], input, select, textarea {
   width: 280px;
   max-width: 100%;
 }
+.metrics-section-tabs {
+  display: flex;
+  gap: var(--sp-sm);
+  padding-bottom: var(--sp-xl);
+  margin-bottom: var(--sp-xl);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: none;
+}
+.metrics-section-tabs .pill {
+  min-height: var(--touch);
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.metrics-funding-controls {
+  display: grid;
+  gap: var(--sp-lg);
+}
+.metrics-funding-controls .s-form {
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+.metrics-funding-controls .btn-primary {
+  justify-self: start;
+}
 
 .metrics-summary-panel {
   margin-bottom: var(--sp-md);
@@ -1194,7 +1220,7 @@ a, button, [role="button"], input, select, textarea {
 .metrics-import-card { padding-block: 0; }
 .metrics-import-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1.4fr) minmax(150px, 0.8fr) minmax(150px, 0.8fr);
+  grid-template-columns: minmax(220px, 1.4fr) minmax(150px, 0.8fr) minmax(150px, 0.8fr) auto;
   gap: var(--sp-md);
   align-items: end;
   padding: var(--sp-lg) 0;
@@ -1214,6 +1240,37 @@ a, button, [role="button"], input, select, textarea {
 }
 .metrics-import-charge span { color: var(--muted); font-size: var(--fs-xs); }
 .metrics-import-row .select { width: 100%; min-height: var(--touch); }
+.metrics-import-modal-body {
+  display: grid;
+  gap: var(--sp-lg);
+}
+.metrics-import-file-fields,
+.metrics-editor-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-md);
+}
+.metrics-import-row-actions {
+  display: flex;
+  min-height: var(--touch);
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-sm);
+}
+.metrics-import-duplicate-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  color: var(--warning);
+  font-size: var(--fs-xs);
+}
+.metrics-collection-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-md);
+}
+.metrics-collection-list .crud-card { margin-bottom: 0; }
+.metrics-editor-wide { grid-column: 1 / -1; }
 .metrics-import-actions {
   display: flex;
   align-items: center;
@@ -1368,6 +1425,11 @@ a, button, [role="button"], input, select, textarea {
   .metrics-chart { min-height: 200px; }
   .metrics-import-preview { padding: var(--sp-lg) var(--sp-md); }
   .metrics-import-row { grid-template-columns: 1fr; }
+  .metrics-import-file-fields,
+  .metrics-editor-form,
+  .metrics-collection-list { grid-template-columns: 1fr; }
+  .metrics-editor-wide { grid-column: auto; }
+  .metrics-import-row-actions { justify-content: flex-start; flex-wrap: wrap; }
   .metrics-import-charge strong { white-space: normal; }
   .metrics-import-actions { align-items: stretch; flex-direction: column; }
   .metrics-control-row { grid-template-columns: 1fr; gap: var(--sp-md); }

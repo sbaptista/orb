@@ -65,6 +65,48 @@ export type AiCostSummary = {
   reconciledTotalUsd: number
 }
 
+export type AiFundingMode = 'prepaid_credit' | 'subscription_quota' | 'subscription_cash'
+
+export type AiRunwayPool = {
+  poolKey: string
+  provider: string
+  displayName: string
+  fundingMode: AiFundingMode
+  spendingCapUsd: number | null
+  recurringCostUsd: number | null
+  usedUsd: number | null
+  remainingUsd: number | null
+  usageValue: number | null
+  usageLimit: number | null
+  usageUnit: string | null
+  dailyBurn7d: number | null
+  dailyBurn30d: number | null
+  evalShare7d: number | null
+  runwayDays: number | null
+  usageSource: 'provider_reported' | 'ledger_estimate' | 'provider_quota' | 'not_available'
+  dataFreshAt: string | null
+  latestRequestAt: string | null
+  status: 'comfortable' | 'warning' | 'attention' | 'needs_setup' | 'no_usage'
+}
+
+export type AiObservabilityStatus = {
+  generatedAt: string
+  runwayPools: AiRunwayPool[]
+  subscriptions: AiRunwayPool[]
+}
+
+export type AiCostHistoryPoint = {
+  date: string
+  provider: string
+  scope: 'eval' | 'product'
+  costUsd: number
+}
+
+export type AiCostHistory = {
+  days: number
+  points: AiCostHistoryPoint[]
+}
+
 function toDateOnly(date: Date) {
   return date.toISOString().slice(0, 10)
 }
@@ -264,18 +306,196 @@ async function computeAiCostSummary(ctx: AuthContext, options: AiCostSummaryOpti
   }
 }
 
+type FundingPoolRow = {
+  pool_key: string
+  provider: string
+  display_name: string
+  funding_mode: AiFundingMode
+  spending_cap_usd: number | string | null
+  recurring_cost_usd: number | string | null
+  sort_order: number
+}
+
+type ProviderSnapshotRow = {
+  pool_key: string
+  provider: string
+  spending_usd: number | string | null
+  usage_value: number | string | null
+  usage_limit: number | string | null
+  usage_unit: string | null
+  fetched_at: string
+}
+
+type ProviderBurnRow = {
+  provider: string
+  cost_7d: number | string | null
+  cost_30d: number | string | null
+  cost_current_month: number | string | null
+  eval_cost_7d: number | string | null
+  product_cost_7d: number | string | null
+  latest_request_at: string | null
+}
+
+function nullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
+async function computeAiCostHistory(ctx: AuthContext, days = 30, timeZone = 'UTC'): Promise<AiCostHistory> {
+  const safeDays = Math.min(Math.max(Math.round(days), 1), 366)
+  const safeTimeZone = (() => {
+    try {
+      Intl.DateTimeFormat(undefined, { timeZone }).format()
+      return timeZone
+    } catch {
+      return 'UTC'
+    }
+  })()
+  const { data, error } = await ctx.admin.rpc('get_ai_cost_history', { p_days: safeDays, p_time_zone: safeTimeZone })
+  if (error) throw error
+  return {
+    days: safeDays,
+    points: (data ?? []).map((row: any) => ({
+      date: row.usage_date,
+      provider: row.provider,
+      scope: row.usage_scope,
+      costUsd: asNumber(row.estimated_cost_usd),
+    })),
+  }
+}
+
+function runwayStatus(cap: number | null, remaining: number | null, runwayDays: number | null, burn: number | null): AiRunwayPool['status'] {
+  if (cap === null) return 'needs_setup'
+  if (remaining !== null && remaining <= 0) return 'attention'
+  if (!burn) return 'no_usage'
+  if (runwayDays !== null && runwayDays <= 7) return 'warning'
+  return 'comfortable'
+}
+
+async function computeAiObservabilityStatus(ctx: AuthContext, now = new Date()): Promise<AiObservabilityStatus> {
+  const since = new Date(now)
+  since.setUTCDate(since.getUTCDate() - 31)
+
+  const [{ data: pools, error: poolsError }, { data: snapshots, error: snapshotsError }, { data: burns, error: burnsError }] = await Promise.all([
+    ctx.admin
+      .from('orb_ai_funding_pools')
+      .select('pool_key, provider, display_name, funding_mode, spending_cap_usd, recurring_cost_usd, sort_order')
+      .eq('active', true)
+      .order('sort_order'),
+    ctx.admin
+      .from('orb_provider_consumption_snapshots')
+      .select('pool_key, provider, spending_usd, usage_value, usage_limit, usage_unit, fetched_at')
+      .gte('fetched_at', since.toISOString())
+      .order('fetched_at', { ascending: false }),
+    ctx.admin.rpc('get_ai_provider_burn', { p_as_of: now.toISOString() }),
+  ])
+
+  if (poolsError) throw poolsError
+  if (snapshotsError) throw snapshotsError
+  if (burnsError) throw burnsError
+
+  const snapshotRows = (snapshots ?? []) as ProviderSnapshotRow[]
+  const snapshotsByPool = new Map<string, ProviderSnapshotRow[]>()
+  for (const snapshot of snapshotRows) {
+    const rows = snapshotsByPool.get(snapshot.pool_key) ?? []
+    rows.push(snapshot)
+    snapshotsByPool.set(snapshot.pool_key, rows)
+  }
+  const burnByProvider = new Map(((burns ?? []) as ProviderBurnRow[]).map(row => [row.provider, row]))
+
+  const mapped = ((pools ?? []) as FundingPoolRow[]).map(pool => {
+    const poolSnapshots = snapshotsByPool.get(pool.pool_key) ?? []
+    const latestSnapshot = poolSnapshots[0] ?? null
+    const burn = burnByProvider.get(pool.provider) ?? null
+    const dailyBurn7d = burn ? asNumber(burn.cost_7d) / 7 : null
+    const dailyBurn30d = burn ? asNumber(burn.cost_30d) / 30 : null
+    const conservativeBurn = Math.max(dailyBurn7d ?? 0, dailyBurn30d ?? 0)
+    const evalCost7d = burn ? asNumber(burn.eval_cost_7d) : 0
+    const totalCost7d = burn ? asNumber(burn.cost_7d) : 0
+    const evalShare7d = totalCost7d > 0 ? evalCost7d / totalCost7d : null
+    const spendingCapUsd = nullableNumber(pool.spending_cap_usd)
+    const providerSpent = nullableNumber(latestSnapshot?.spending_usd)
+    const ledgerSpent = burn ? asNumber(burn.cost_current_month) : null
+    const usedUsd = pool.funding_mode === 'prepaid_credit' ? (providerSpent ?? ledgerSpent) : null
+    const remainingUsd = spendingCapUsd === null || usedUsd === null ? null : Math.max(spendingCapUsd - usedUsd, 0)
+    let quotaBurn: number | null = null
+
+    if (pool.funding_mode === 'subscription_quota' && latestSnapshot) {
+      const older = poolSnapshots.find(snapshot => {
+        const ageDays = (new Date(latestSnapshot.fetched_at).getTime() - new Date(snapshot.fetched_at).getTime()) / 86_400_000
+        return ageDays >= 1
+      })
+      if (older) {
+        const latestUsage = nullableNumber(latestSnapshot.usage_value)
+        const olderUsage = nullableNumber(older.usage_value)
+        const elapsedDays = Math.max(1, (new Date(latestSnapshot.fetched_at).getTime() - new Date(older.fetched_at).getTime()) / 86_400_000)
+        if (latestUsage !== null && olderUsage !== null && latestUsage >= olderUsage) quotaBurn = (latestUsage - olderUsage) / elapsedDays
+      }
+    }
+
+    const usageValue = nullableNumber(latestSnapshot?.usage_value)
+    const usageLimit = nullableNumber(latestSnapshot?.usage_limit)
+    const quotaRemaining = usageValue !== null && usageLimit !== null ? Math.max(usageLimit - usageValue, 0) : null
+    const runwayDays = pool.funding_mode === 'prepaid_credit'
+      ? (remainingUsd !== null && conservativeBurn > 0 ? remainingUsd / conservativeBurn : null)
+      : (quotaRemaining !== null && quotaBurn && quotaBurn > 0 ? quotaRemaining / quotaBurn : null)
+    const status = pool.funding_mode === 'prepaid_credit'
+      ? runwayStatus(spendingCapUsd, remainingUsd, runwayDays, conservativeBurn)
+      : pool.funding_mode === 'subscription_quota'
+        ? (usageLimit === null ? 'needs_setup' : quotaRemaining === 0 ? 'attention' : runwayDays !== null && runwayDays <= 7 ? 'warning' : 'comfortable')
+        : 'comfortable'
+
+    return {
+      poolKey: pool.pool_key,
+      provider: pool.provider,
+      displayName: pool.display_name,
+      fundingMode: pool.funding_mode,
+      spendingCapUsd,
+      recurringCostUsd: nullableNumber(pool.recurring_cost_usd),
+      usedUsd,
+      remainingUsd,
+      usageValue,
+      usageLimit,
+      usageUnit: latestSnapshot?.usage_unit ?? null,
+      dailyBurn7d: pool.funding_mode === 'subscription_quota' ? quotaBurn : dailyBurn7d,
+      dailyBurn30d: pool.funding_mode === 'subscription_quota' ? null : dailyBurn30d,
+      evalShare7d,
+      runwayDays,
+      usageSource: pool.funding_mode === 'subscription_quota'
+        ? latestSnapshot ? 'provider_quota' : 'not_available'
+        : providerSpent !== null ? 'provider_reported' : burn ? 'ledger_estimate' : 'not_available',
+      dataFreshAt: latestSnapshot?.fetched_at ?? burn?.latest_request_at ?? null,
+      latestRequestAt: burn?.latest_request_at ?? null,
+      status,
+    } satisfies AiRunwayPool
+  })
+
+  return {
+    generatedAt: now.toISOString(),
+    runwayPools: mapped.filter(pool => pool.fundingMode !== 'subscription_cash'),
+    subscriptions: mapped.filter(pool => pool.fundingMode === 'subscription_cash'),
+  }
+}
+
 export async function getAiCostSummary(options: AiCostSummaryOptions = {}): Promise<AiCostSummary> {
   return computeAiCostSummary(await requireAdmin(), options)
+}
+
+export async function getAiCostHistory(days = 30, timeZone = 'UTC'): Promise<AiCostHistory> {
+  return computeAiCostHistory(await requireAdmin(), days, timeZone)
 }
 
 // ORB-312: one auth check + server-side parallel fetch, replacing the client's
 // Promise.all([getAiCostSummary(), getOrbAiSettings()]) which Next.js ran as two
 // serial server actions, each paying a full getAuthContext()/getUser() round-trip.
-export async function getAiMetricsBundle(options: AiCostSummaryOptions = {}): Promise<{ summary: AiCostSummary; settings: OrbAiSettingsResult }> {
+export async function getAiMetricsBundle(options: AiCostSummaryOptions = {}, timeZone = 'UTC'): Promise<{ summary: AiCostSummary; settings: OrbAiSettingsResult; observability: AiObservabilityStatus; history: AiCostHistory }> {
   const ctx = await requireAdmin()
-  const [summary, settings] = await Promise.all([
+  const [summary, settings, observability, history] = await Promise.all([
     computeAiCostSummary(ctx, options),
     fetchOrbAiSettings(ctx),
+    computeAiObservabilityStatus(ctx),
+    computeAiCostHistory(ctx, 30, timeZone),
   ])
-  return { summary, settings }
+  return { summary, settings, observability, history }
 }

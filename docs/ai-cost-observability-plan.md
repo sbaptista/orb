@@ -514,3 +514,46 @@ spikes — the conservative headline should assume all expected consumption, inc
   todo. Cost per *conversation* and per *eval run* are well-defined; cost per todo is not, yet.
 - **§9's per-user vs org-level distinction stands** — Codex confirms it, and it remains the
   reason per-user views can only ever be estimate-based.
+
+---
+
+## 14. Revision 3 — Stan prototype review, 2026-07-31
+
+Two prototype decisions supersede earlier wording:
+
+1. The production page remains **AI Metrics**, using the standard Settings `s-title` heading.
+   The oversized prototype “AI” display heading does not graduate.
+2. Provider spending caps remain visible because they are inputs to runway, not merely a
+   second warning ceiling. For prepaid accounts, the working calculation is provider cap minus
+   current provider-reported spend, divided by the conservative recent burn rate. When a
+   provider figure is unavailable, an Orb-ledger estimate may stand in only when it is labelled
+   as an estimate. ElevenLabs continues to use the quota limit returned by its provider API.
+
+This supersedes §9's blanket “hide spend caps” decision. The production Controls surface names
+them **funding caps** to make their role explicit and keeps warning thresholds conceptually
+separate.
+
+---
+
+## 15. Revision 4 — production data review, 2026-07-31
+
+Stan's review of the first real-data build adds these binding product decisions:
+
+1. **Import and per-item editing are complementary paths.** Providers has one statement-import
+   button for large files and a todo-style Funding and Bill Entries list for individual New,
+   Edit, and Delete operations. Subscriptions uses the same per-item interaction model.
+2. **One import accepts heterogeneous rows.** The CSV contract is date, company, cost, and type,
+   with model, notes, and transaction/reference ID optional. Preview classifies each row to a
+   funding pool and canonical transaction kind; unknown and possible duplicate rows require
+   explicit review before the atomic import is committed. Exact descriptor+kind decisions may
+   be remembered because one company can legitimately produce both subscriptions and API
+   credits.
+3. **History is visual and uses real data.** The production History surface plots daily ledger
+   cost for All, Product, or Evals across 7/30/90/365 days, compares provider totals, and retains
+   a screen-reader data table. A text-only placeholder is not an acceptable History surface.
+4. **No provider or voice path is retired implicitly.** Mistral, OpenAI TTS, and ElevenLabs stay
+   in place until Stan explicitly approves removal after a usage-and-call-site audit.
+5. **Financial provider configuration does not activate runtime models.** UI-based model
+   registration and activation is desirable but is a separate runtime architecture change,
+   documented in `docs/orb-model-registry-plan.md`; ORB-373 does not silently turn Rate Cards or
+   funding pools into runtime adapters.

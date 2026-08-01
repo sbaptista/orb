@@ -12,14 +12,13 @@
 
 ## App State
 
-- **Branch:** `main`; v0.6.277 is committed locally pending the Tier 1 gate and
-  authorized push.
+- **Branch:** `codex/orb-373-real-data`; v0.6.278 is committed locally pending
+  Stan's review and explicit push approval.
 - **Dev server:** user-started on localhost:3001.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** **0.6.277** — ORB-373 visual prototype release.
+- **Version:** **0.6.278** — ORB-373 real-data AI Metrics implementation.
 - **Production maintenance:** off.
-- **Database:** `scripts/migrations/20260729_orb_342_canonical_proposals.sql`
-  is applied.
+- **Database:** ORB-373 Phase 0 and financial-import migrations are applied.
 - **ORB-342:** closed. Knowledge Repository entry
   `7a0f52c3-7490-45e6-a984-af4b14c70f96`.
 
@@ -27,54 +26,54 @@
 
 ## Last Session Completed
 
-**ORB-373 — AI cost observability visual prototype — 2026-07-30 (Codex, GPT-5)**
+**ORB-373 — AI Metrics real-data implementation — 2026-07-31 (Codex, GPT-5)**
 
-Implemented the first reviewable prototype from
-`docs/ai-cost-observability-plan.md` Revision 2 at
-`/prototype/ai-cost-observability`. It is development-only and uses static
-sample data; it does not query or mutate the database, call providers, import
-statements, alter accounting, save settings, or deliver warnings.
+Expanded the approved visual prototype into the production `/settings/metrics`
+surface. Current Status and Providers now use persisted provider snapshots and
+funding caps; History uses the real model-request ledger with Product/Evals/All
+scope, 7/30/90/365-day ranges, provider comparison, and an accessible native
+SVG chart.
 
-The prototype has four sections:
+Added two maintenance paths for financial data:
 
-- **Current Status:** prepaid API runway, ElevenLabs quota runway, recurring
-  subscriptions without false runway, freshness, and a concise “what changed”
-  explanation.
-- **History:** product/eval scope filters, time ranges, provider comparison,
-  and an accessible native-SVG trend chart with direct labels plus a
-  screen-reader data table.
-- **Providers:** separate runtime consumption, funding, and operating-spend
-  lanes; reconciliation divergence; and a routine “3 rows need a home”
-  statement-import review.
-- **Controls:** runway/quota warning thresholds, push/email channels, model
-  roles, routing, and cost assumptions. Legacy spend caps remain absent from
-  the proposed interface.
+- one heterogeneous CSV import with required date/company/cost/type columns,
+  optional model/notes/reference columns, preview classification, exact
+  descriptor learning, duplicate protection, and atomic commit;
+- todo-style New/Edit modals and inline Delete/Cancel for individual funding,
+  bill, and subscription entries.
 
-Used the standard Settings and AI Metrics families (`s-card`,
-`s-section-title`, `pill`, form controls, `metrics-details-*`, and
-`metrics-reconciliation-*`). The only proposed reusable primitive is
-`metrics-chart-*`. Prototype composition classes are explicitly temporary and
-must be promoted, refactored, or removed before ORB-373 closes.
+Phase 0 separates automated provider-consumption snapshots from financial
+transactions. Provider caps persist independently and drive prepaid runway;
+subscriptions remain operating costs without fabricated runway. No Realtime
+subscription was added. Settings-focused performance telemetry covers history,
+import preview/commit, and financial/subscription CRUD.
 
-Validation: TypeScript passed, focused ESLint passed, `git diff --check`
-passed, all four section interactions were inspected, the import review opened
-correctly, and responsive geometry was checked at Mac (four runway columns),
-iPad (two columns), and iPhone (one column with no body overflow). This is one
-visual review pass, not production verification.
+Mistral, OpenAI TTS, and ElevenLabs remain present. Verified usage evidence and
+a provider-neutral runtime Model Registry proposal are documented separately;
+runtime model activation is not part of this implementation and requires its
+own approved todo.
 
-**DB impact:** none in the prototype. The real implementation still begins with
-the exclusive Phase 0 schema claim because `orb_cost_reconciliations` currently
-mixes purchases, provider consumption, and overlapping snapshots.
+Used the Settings/AI Metrics catalog family, `modal-center` via `EditorModal`,
+todo `crud-card` lists, catalogued pills, standard inputs, and touch-sized
+actions. Desktop interactions were inspected for all four sections, import,
+New/Edit, and Delete/Cancel. Responsive CSS provides two-column tablet and
+one-column phone layouts; actual iPad/iPhone device review remains with Stan.
 
-**Performance instrumentation:** not required for this static visual prototype.
-The production Settings implementation will require `settings`
-instrumentation under the ORB-309 focus-area model.
+Validation after the final import-safety fix: TypeScript passed once, focused
+ESLint passed once, UI catalog verification passed once, and `git diff --check`
+passed. `Eval: not applicable — no conversation surface changed`.
+
+**Database impact:** two migrations applied. They add funding pools, provider
+snapshots, import batches, descriptor rules, financial transactions, and three
+RPCs with wrapped admin RLS and targeted fingerprint/reference/date/pool
+indexes. Post-migration audits found no RLS init-plan issue or material new IO
+regression. No Realtime/WAL reader is used.
 
 ---
 
 ## Current Uncommitted Changes
 
-*(none after the v0.6.277 release commit)*
+*(none after the v0.6.278 local release commit)*
 
 ---
 
@@ -86,9 +85,12 @@ instrumentation under the ORB-309 focus-area model.
 - **ORB-365 — deterministic code regression tests.** Orb still lacks a
   conventional test framework for due-time math, urgency, reminders, routes,
   auth, RLS, and migrations.
-- **ORB-373 remains a prototype.** No production data model, import,
-  classification, provider balance, warning, or consolidated Settings behavior
-  has been implemented.
+- **ORB-373 remains open for review.** The production data model and UI are
+  committed locally, but Stan expects further visual/information-architecture
+  adjustments before push or closure.
+- **Runtime provider/model activation is not implemented.** It is a separate
+  control-plane project described in `docs/orb-model-registry-plan.md`; imported
+  financial metadata must never activate executable runtime configuration.
 - `onMutation` in `UnifiedDashboard.tsx` refreshes todos but not projects after
   mutations; decide whether to fix separately or with ORB-342.
 - Firefox Realtime voice remains experimental under ORB-330.
@@ -97,13 +99,15 @@ instrumentation under the ORB-309 focus-area model.
 
 ## Next Priorities
 
-1. Stan reviews the ORB-373 prototype and identifies any information-architecture
-   or visual changes.
-2. Incorporate prototype feedback before touching the production data model.
-3. Begin ORB-373 Phase 0 with an exclusive DB schema claim, canonical health
-   queries before/after, and the production instrumentation plan.
-4. ORB-365 — introduce the free deterministic test layer.
-5. ORB-367 — repair the Tier 2 maintenance discipline.
+1. Stan reviews the real-data `/settings/metrics` page on Mac, iPad, and iPhone
+   and identifies the next visual or information-architecture changes.
+2. Keep Mistral, OpenAI TTS, and ElevenLabs intact unless Stan separately
+   authorizes retirement.
+3. Create and approve a separate todo before implementing the runtime Model
+   Registry/provider activation plan.
+4. Push v0.6.278 only after Stan explicitly approves it; no model eval is
+   required because no conversation surface changed.
+5. ORB-365 and ORB-367 remain later quality priorities.
 
 ---
 
@@ -137,7 +141,7 @@ instrumentation under the ORB-309 focus-area model.
 
 ## AI Tool Used Last Session
 
-`2026-07-30 — Codex (GPT-5)`
+`2026-08-01 — Codex (GPT-5)`
 
 ---
 

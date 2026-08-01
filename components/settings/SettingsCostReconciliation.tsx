@@ -1,120 +1,145 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useToast } from '@/components/ui/Toast'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  deleteOrbCostReconciliation,
-  getOrbCostReconciliations,
-  saveOrbCostReconciliation,
-  type OrbCostReconciliation,
-} from '@/app/actions/orb-ai-settings'
+  deleteFinancialTransaction,
+  getFinancialImportSetup,
+  getFinancialTransactions,
+  saveFinancialTransaction,
+  type FinancialKind,
+  type FinancialPoolOption,
+  type FinancialTransaction,
+} from '@/app/actions/orb-financial-import'
+import EditorModal from '@/components/ui/EditorModal'
+import { useToast } from '@/components/ui/Toast'
+import { startInteraction } from '@/lib/performance/telemetry'
 
-function monthStart() {
-  const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
+const KIND_LABELS: Record<FinancialKind, string> = {
+  top_up: 'Credit / top-up',
+  subscription: 'Subscription',
+  grant: 'Grant',
+  refund: 'Refund',
+  adjustment: 'Adjustment',
+  expiration: 'Expiration',
+}
+const FINANCIAL_KINDS: FinancialKind[] = ['top_up', 'subscription', 'grant', 'refund', 'adjustment', 'expiration']
+
+type EntryForm = {
+  id?: string
+  transactionDate: string
+  company: string
+  amountUsd: string
+  kind: FinancialKind
+  poolKey: string
+  model: string
+  notes: string
 }
 
 function today() {
   return new Date().toISOString().slice(0, 10)
 }
 
-const PROVIDERS = [
-  { value: 'anthropic', label: 'Anthropic' },
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'google', label: 'Google' },
-  { value: 'mistral', label: 'Mistral' },
-  { value: 'elevenlabs', label: 'ElevenLabs' },
-]
-
-function providerLabel(provider: string) {
-  return PROVIDERS.find(option => option.value === provider)?.label ?? provider
+function emptyForm(): EntryForm {
+  return { transactionDate: today(), company: '', amountUsd: '', kind: 'top_up', poolKey: '', model: '', notes: '' }
 }
 
-function formatCost(value: number) {
-  return '$' + value.toFixed(2)
+function formFor(item: FinancialTransaction): EntryForm {
+  return {
+    id: item.id,
+    transactionDate: item.transactionDate,
+    company: item.company,
+    amountUsd: String(item.amountUsd),
+    kind: item.kind,
+    poolKey: item.poolKey,
+    model: item.model ?? '',
+    notes: item.notes ?? '',
+  }
 }
 
 export default function SettingsCostReconciliation({ onLoaded, onSaved }: { onLoaded?: (success: boolean, error?: string) => void; onSaved?: () => void }) {
   const toast = useToast()
-  const [items, setItems] = useState<OrbCostReconciliation[]>([])
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [items, setItems] = useState<FinancialTransaction[]>([])
+  const [pools, setPools] = useState<FinancialPoolOption[]>([])
+  const [form, setForm] = useState<EntryForm | null>(null)
+  const [baseline, setBaseline] = useState<EntryForm | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
-  const [provider, setProvider] = useState('anthropic')
-  const [periodStart, setPeriodStart] = useState(monthStart)
-  const [periodEnd, setPeriodEnd] = useState(today)
-  const [actualCost, setActualCost] = useState('')
-  const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
 
   async function load() {
+    const perf = startInteraction({ focus: 'settings', flow: 'settings-ai-metrics', interaction: 'financial_entries_load', surface: 'settings-metrics', immediateFlush: true })
     try {
-      setItems(await getOrbCostReconciliations())
+      const [transactions, setup] = await Promise.all([getFinancialTransactions(), getFinancialImportSetup()])
+      setItems(transactions)
+      setPools(setup.pools)
       onLoaded?.(true)
+      perf.end(true, null, { rows: transactions.length })
     } catch (error) {
-      onLoaded?.(false, error instanceof Error ? error.message : 'Failed to load actual costs.')
-      toast.error(error instanceof Error ? error.message : 'Failed to load actual costs.')
+      const message = error instanceof Error ? error.message : 'Failed to load financial entries.'
+      onLoaded?.(false, message)
+      toast.error(message)
+      perf.end(false, message)
     }
   }
 
-  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function resetForm() {
-    setEditingId(null)
-    setDeleteConfirmId(null)
-    setProvider('anthropic')
-    setPeriodStart(monthStart())
-    setPeriodEnd(today())
-    setActualCost('')
-    setNotes('')
-  }
+  const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(baseline), [baseline, form])
+  const invalid = !form || !form.transactionDate || !form.company.trim() || !form.amountUsd || !form.poolKey
 
-  function edit(item: OrbCostReconciliation) {
-    setEditingId(item.id)
+  function openForm(next: EntryForm) {
+    const perf = startInteraction({ focus: 'settings', flow: 'settings-ai-metrics', interaction: next.id ? 'financial_entry_edit_open' : 'financial_entry_new_open', surface: 'settings-metrics' })
     setDeleteConfirmId(null)
-    setProvider(item.provider)
-    setPeriodStart(item.periodStart)
-    setPeriodEnd(item.periodEnd)
-    setActualCost(String(item.actualOrbCostUsd))
-    setNotes(item.notes ?? '')
+    setForm(next)
+    setBaseline(next)
+    perf.end(true)
   }
 
   async function save() {
+    if (!form || invalid) return false
+    const perf = startInteraction({ focus: 'settings', flow: 'settings-ai-metrics', interaction: form.id ? 'financial_entry_update' : 'financial_entry_create', surface: 'settings-metrics', immediateFlush: true })
     setSaving(true)
     try {
-      await saveOrbCostReconciliation({
-        id: editingId ?? undefined,
-        provider,
-        periodStart,
-        periodEnd,
-        actualOrbCostUsd: Number(actualCost),
-        notes,
+      await saveFinancialTransaction({
+        id: form.id,
+        transactionDate: form.transactionDate,
+        company: form.company,
+        amountUsd: Number(form.amountUsd),
+        kind: form.kind,
+        poolKey: form.poolKey,
+        model: form.model,
+        notes: form.notes,
       })
-      resetForm()
       await load()
       onSaved?.()
-      toast.success(editingId ? 'Provider bill entry updated.' : 'Provider bill entry recorded.')
+      toast.success(form.id ? 'Financial entry updated.' : 'Financial entry created.')
+      perf.end(true)
+      setForm(null)
+      setBaseline(null)
+      return true
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to record actual cost.')
+      const message = error instanceof Error ? error.message : 'Failed to save financial entry.'
+      toast.error(message)
+      perf.end(false, message)
+      return false
     } finally {
       setSaving(false)
     }
   }
 
-  async function remove(item: OrbCostReconciliation) {
-    if (deleteConfirmId !== item.id) {
-      setDeleteConfirmId(item.id)
-      return
-    }
+  async function remove(id: string) {
+    const perf = startInteraction({ focus: 'settings', flow: 'settings-ai-metrics', interaction: 'financial_entry_delete', surface: 'settings-metrics', immediateFlush: true })
     setSaving(true)
     try {
-      await deleteOrbCostReconciliation(item.id)
-      if (editingId === item.id) resetForm()
+      await deleteFinancialTransaction(id)
       setDeleteConfirmId(null)
       await load()
       onSaved?.()
-      toast.success('Provider bill entry deleted.')
+      toast.success('Financial entry deleted.')
+      perf.end(true)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to delete provider bill entry.')
+      const message = error instanceof Error ? error.message : 'Failed to delete financial entry.'
+      toast.error(message)
+      perf.end(false, message)
     } finally {
       setSaving(false)
     }
@@ -122,72 +147,66 @@ export default function SettingsCostReconciliation({ onLoaded, onSaved }: { onLo
 
   return (
     <section className="metrics-reconciliation-section">
-      <div className="metrics-section-heading">
-        <h2 className="s-card-title" style={{ margin: 0 }}>Provider Bill Reconciliation</h2>
-        <p className="s-card-desc" style={{ marginTop: 'var(--sp-xs)' }}>
-          Optional provider bill entries used to compare actual invoices with request-ledger estimates.
-        </p>
-      </div>
-      <div className="s-card metrics-reconciliation-card">
+      <div className="metrics-section-intro">
         <div>
-          <div className="s-card-title">{editingId ? 'Edit Bill Entry' : 'New Bill Entry'}</div>
-          <p className="s-card-desc" style={{ marginTop: 'var(--sp-xs)' }}>
-            Use this for invoice totals, plan charges, or provider-console costs for the selected period.
-          </p>
+          <h2 className="s-card-title">Funding and Bill Entries</h2>
+          <p className="s-card-desc">Individual credit purchases, grants, refunds, adjustments, expirations, and subscription charges.</p>
         </div>
-        <div className="s-form metrics-rate-form">
-          <label>
-            <span className="label">Provider</span>
-            <select value={provider} onChange={event => setProvider(event.target.value)}>
-              {PROVIDERS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          <label>
-            <span className="label">Provider bill amount</span>
-            <input type="number" min="0" step="0.0001" value={actualCost} onChange={event => setActualCost(event.target.value)} placeholder="0.00" />
-          </label>
-          <label>
-            <span className="label">Period start</span>
-            <input type="date" value={periodStart} onChange={event => setPeriodStart(event.target.value)} />
-          </label>
-          <label>
-            <span className="label">Period end</span>
-            <input type="date" value={periodEnd} onChange={event => setPeriodEnd(event.target.value)} />
-          </label>
-          <label className="metrics-reconciliation-notes">
-            <span className="label">Notes</span>
-            <input value={notes} onChange={event => setNotes(event.target.value)} placeholder="Optional invoice, console, or plan note" />
-          </label>
-        </div>
-        <div className="flex-center gap-md">
-          {editingId && (
-            <button type="button" className="btn-cancel" onClick={resetForm} disabled={saving}>Cancel Edit</button>
-          )}
-          <button type="button" className="btn-primary" onClick={save} disabled={saving || actualCost === ''}>
-            {saving ? 'Saving...' : editingId ? 'Update Bill Entry' : 'Record Bill Entry'}
-          </button>
-        </div>
+        <button type="button" className="tv-toolbar-btn tv-toolbar-primary" onClick={() => openForm(emptyForm())}>+ New</button>
       </div>
-      {items.length > 0 && (
-        <div className="s-card metrics-reconciliation-list">
-          <div className="s-card-title">Recorded Bill Entries</div>
-          {items.map(item => (
-            <div key={item.id} className="metrics-reconciliation-row">
-              <div className="metrics-reconciliation-main">
-                <span className="metrics-details-label">{providerLabel(item.provider)}</span>
-                <span className="metrics-details-value">{item.periodStart} to {item.periodEnd}</span>
-                {item.notes && <span className="s-card-desc">{item.notes}</span>}
-              </div>
-              <strong className="metrics-reconciliation-amount">{formatCost(item.actualOrbCostUsd)}</strong>
-              <div className="metrics-reconciliation-actions">
-                <button type="button" className="text-btn" onClick={() => edit(item)} disabled={saving}>Edit</button>
-                <button type="button" className="text-btn" onClick={() => remove(item)} disabled={saving} style={{ color: 'var(--error)' }}>
-                  {deleteConfirmId === item.id ? 'Confirm Delete' : 'Delete'}
-                </button>
-              </div>
+
+      <div className="metrics-collection-list">
+        {items.length === 0 ? <div className="s-card s-card-desc">No financial entries yet.</div> : items.map(item => (
+          <article className="crud-card" style={{ cursor: 'default' }} key={item.id}>
+            <div className="crud-card-header">
+              <div className="crud-card-header-left"><span className="crud-card-code">{item.poolName}</span></div>
+              <span className="crud-card-date">{item.transactionDate}</span>
             </div>
-          ))}
-        </div>
+            <div className="crud-card-title">{item.company} · ${item.amountUsd.toFixed(2)}</div>
+            <div className="crud-card-pills">
+              <span className="crud-card-pill">{KIND_LABELS[item.kind]}</span>
+              {item.imported && <span className="crud-card-pill">Imported</span>}
+              {item.model && <span className="crud-card-pill">{item.model}</span>}
+            </div>
+            {item.notes && <div className="crud-card-meta"><span className="crud-card-meta-value">{item.notes}</span></div>}
+            {deleteConfirmId === item.id ? (
+              <div className="crud-card-actions s-row-delete" aria-live="polite">
+                <span className="text-sm text-error" style={{ marginRight: 'auto' }}>Delete this entry?</span>
+                <button type="button" className="btn-cancel" onClick={() => setDeleteConfirmId(null)} disabled={saving}>Cancel</button>
+                <button type="button" className="btn-danger-confirm" onClick={() => void remove(item.id)} disabled={saving}>{saving ? 'Deleting…' : 'Confirm Delete'}</button>
+              </div>
+            ) : (
+              <div className="crud-card-actions">
+                <button type="button" className="text-btn btn-sm" onClick={() => openForm(formFor(item))}>Edit</button>
+                <button type="button" className="text-btn btn-sm" style={{ color: 'var(--error)' }} onClick={() => setDeleteConfirmId(item.id)}>Delete</button>
+              </div>
+            )}
+          </article>
+        ))}
+      </div>
+
+      {form && (
+        <EditorModal
+          title={form.id ? 'Edit financial entry' : 'New financial entry'}
+          titleId="financial-entry-title"
+          isDirty={dirty}
+          isSaving={saving}
+          saveDisabled={invalid}
+          saveLabel={form.id ? 'Save Changes' : 'Create Entry'}
+          onSave={save}
+          onClose={() => { setForm(null); setBaseline(null) }}
+          lockSettingsScroll
+        >
+          <div className="modal-body s-form metrics-editor-form">
+            <label><span className="label">Date</span><input className="input" type="date" value={form.transactionDate} onChange={event => setForm(current => current && ({ ...current, transactionDate: event.target.value }))} /></label>
+            <label><span className="label">Company</span><input className="input" value={form.company} onChange={event => setForm(current => current && ({ ...current, company: event.target.value }))} /></label>
+            <label><span className="label">Cost ($)</span><input className="input" type="number" step="0.01" value={form.amountUsd} onChange={event => setForm(current => current && ({ ...current, amountUsd: event.target.value }))} /></label>
+            <label><span className="label">Type</span><select className="select" value={form.kind} onChange={event => setForm(current => current && ({ ...current, kind: event.target.value as FinancialKind }))}>{FINANCIAL_KINDS.map(kind => <option key={kind} value={kind}>{KIND_LABELS[kind]}</option>)}</select></label>
+            <label><span className="label">Destination</span><select className="select" value={form.poolKey} onChange={event => setForm(current => current && ({ ...current, poolKey: event.target.value }))}><option value="">Choose…</option>{pools.map(pool => <option key={pool.poolKey} value={pool.poolKey}>{pool.displayName}{pool.active ? '' : ' · historical'}</option>)}</select></label>
+            <label><span className="label">Model <span className="text-muted">(optional)</span></span><input className="input" value={form.model} onChange={event => setForm(current => current && ({ ...current, model: event.target.value }))} /></label>
+            <label className="metrics-editor-wide"><span className="label">Notes <span className="text-muted">(optional)</span></span><textarea value={form.notes} onChange={event => setForm(current => current && ({ ...current, notes: event.target.value }))} /></label>
+          </div>
+        </EditorModal>
       )}
     </section>
   )

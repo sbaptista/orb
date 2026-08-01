@@ -1,18 +1,31 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
 import DateSearchModal, { type CreatedFilter } from './DateSearchModal'
 import SettingsCostReconciliation from './SettingsCostReconciliation'
+import SettingsSubscriptions from './SettingsSubscriptions'
+import StatementImportModal from './StatementImportModal'
 import { getAiRequestLog, type AiRequestLogRow } from '@/app/actions/get-ai-request-log'
-import { getAiMetricsBundle, type AiCostDateMode, type AiCostSummary } from '@/app/actions/get-ai-cost-summary'
-import { saveOrbModelRateCard } from '@/app/actions/orb-ai-settings'
+import {
+  getAiMetricsBundle,
+  getAiCostHistory,
+  type AiCostDateMode,
+  type AiCostHistory,
+  type AiCostSummary,
+  type AiObservabilityStatus,
+  type AiRunwayPool,
+} from '@/app/actions/get-ai-cost-summary'
+import { saveAiFundingCaps, saveOrbModelRateCard } from '@/app/actions/orb-ai-settings'
 import type { OrbModelRateCard } from '@/lib/orb-model/policy'
 import { useToast } from '@/components/ui/Toast'
 import { startInteraction } from '@/lib/performance/telemetry'
 
 type MetricsForm = Record<string, never>
+type MetricsSection = 'status' | 'history' | 'providers' | 'controls'
+type HistoryScope = 'all' | 'product' | 'eval'
+type FundingCapDraft = { anthropicApi: string; openaiApi: string; mistralApi: string }
 type EditableRateCard = OrbModelRateCard & { saving?: boolean }
 type DraftRateCard = {
   provider: string
@@ -28,6 +41,7 @@ type DraftRateCard = {
 
 const EMPTY_FORM: MetricsForm = {}
 const PAGE_SIZE = 50
+const EMPTY_FUNDING_CAPS: FundingCapDraft = { anthropicApi: '', openaiApi: '', mistralApi: '' }
 const todayDate = () => new Date().toISOString().slice(0, 10)
 const emptyNewRateCard = (): DraftRateCard => ({
   provider: '',
@@ -76,6 +90,31 @@ function formatMs(value: number | null | undefined): string {
   return `${formatNumber(value)}ms`
 }
 
+function formatDays(value: number | null) {
+  if (value === null) return null
+  if (value < 1) return '<1 day'
+  const rounded = Math.floor(value)
+  return `${rounded} ${rounded === 1 ? 'day' : 'days'}`
+}
+
+function formatPercent(value: number | null) {
+  return value === null ? '—' : `${Math.round(value * 100)}%`
+}
+
+function runwayStatusLabel(status: AiRunwayPool['status']) {
+  if (status === 'comfortable') return 'Comfortable'
+  if (status === 'warning') return 'Add funds soon'
+  if (status === 'attention') return 'At limit'
+  if (status === 'needs_setup') return 'Cap needed'
+  return 'No recent use'
+}
+
+function runwayStatusTone(status: AiRunwayPool['status']) {
+  if (status === 'comfortable') return 'good'
+  if (status === 'warning' || status === 'attention') return 'warning'
+  return 'neutral'
+}
+
 function formatModel(provider: string, model: string) {
   if (provider === 'anthropic' && model === 'claude-haiku-4-5') return 'Claude Haiku 4.5'
   if (provider === 'google' && model === 'gemini-3.1-pro-preview') return 'Gemini 3.1 Pro Preview'
@@ -112,6 +151,95 @@ function actualRangeText(summary: AiCostSummary, timeZone: string) {
   return `${formatDateTime(summary.actualStart, timeZone)} to ${formatDateTime(summary.actualEnd, timeZone)}`
 }
 
+function CostHistoryCharts({ history, scope }: { history: AiCostHistory; scope: HistoryScope }) {
+  const titleId = useId()
+  const descriptionId = useId()
+  const series = useMemo(() => {
+    const end = new Date()
+    end.setUTCHours(0, 0, 0, 0)
+    const start = new Date(end)
+    start.setUTCDate(start.getUTCDate() - (history.days - 1))
+    const totals = new Map<string, number>()
+    for (const point of history.points) {
+      if (scope !== 'all' && point.scope !== scope) continue
+      totals.set(point.date, (totals.get(point.date) ?? 0) + point.costUsd)
+    }
+    return Array.from({ length: history.days }, (_, index) => {
+      const date = new Date(start)
+      date.setUTCDate(start.getUTCDate() + index)
+      const key = date.toISOString().slice(0, 10)
+      return { date: key, value: totals.get(key) ?? 0 }
+    })
+  }, [history, scope])
+  const providerTotals = useMemo(() => {
+    const totals = new Map<string, number>()
+    for (const point of history.points) {
+      if (scope !== 'all' && point.scope !== scope) continue
+      totals.set(point.provider, (totals.get(point.provider) ?? 0) + point.costUsd)
+    }
+    return Array.from(totals.entries()).map(([provider, value]) => ({ provider, value })).sort((a, b) => b.value - a.value)
+  }, [history, scope])
+  const max = Math.max(...series.map(point => point.value), 0.01)
+  const line = series.map((point, index) => {
+    const x = 40 + (index * 530) / Math.max(series.length - 1, 1)
+    const y = 174 - (point.value / max) * 136
+    return `${x},${y}`
+  }).join(' ')
+  const total = series.reduce((sum, point) => sum + point.value, 0)
+  const providerMax = Math.max(...providerTotals.map(item => item.value), 0.01)
+  const labelForDate = (value: string) => new Date(`${value}T00:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
+
+  return (
+    <div className="metrics-observability-stack">
+      <section aria-labelledby="metrics-consumption-history-heading">
+        <div className="metrics-section-intro">
+          <div>
+            <h2 id="metrics-consumption-history-heading">Consumption over time</h2>
+            <p>Estimated runtime consumption from Orb&apos;s request ledger. Subscriptions and credit purchases are excluded.</p>
+          </div>
+        </div>
+        <div className="s-card metrics-chart-shell">
+          <div className="metrics-chart-heading">
+            <div><p className="metrics-chart-kicker">{scope === 'all' ? 'All consumption' : scope === 'eval' ? 'Evals' : 'Product'}</p><p className="metrics-chart-total">{formatCost(total)}</p></div>
+            <p>Past {history.days} days</p>
+          </div>
+          <svg className="metrics-chart" viewBox="0 0 600 210" role="img" aria-labelledby={`${titleId} ${descriptionId}`}>
+            <title id={titleId}>AI consumption trend</title>
+            <desc id={descriptionId}>{formatCost(total)} of {scope === 'all' ? 'all' : scope} AI consumption over the past {history.days} days.</desc>
+            {[38, 83, 128, 174].map((y, index) => (
+              <g key={y}>
+                <line x1="40" y1={y} x2="570" y2={y} className="metrics-chart-gridline" />
+                <text x="0" y={y + 4} className="metrics-chart-axis">{formatCost(max * (3 - index) / 3)}</text>
+              </g>
+            ))}
+            <path d={`M ${line.replaceAll(' ', ' L ')}`} className="metrics-chart-area" />
+            <polyline points={line} className="metrics-chart-line" />
+            {series.map((point, index) => {
+              const x = 40 + (index * 530) / Math.max(series.length - 1, 1)
+              const y = 174 - (point.value / max) * 136
+              return <circle key={point.date} cx={x} cy={y} r="3" className="metrics-chart-point"><title>{labelForDate(point.date)}: {formatCost(point.value)}</title></circle>
+            })}
+            <text x="40" y="204" className="metrics-chart-axis">{labelForDate(series[0]?.date ?? '')}</text>
+            <text x="515" y="204" className="metrics-chart-axis">{labelForDate(series.at(-1)?.date ?? '')}</text>
+          </svg>
+          <table className="metrics-chart-data"><caption>AI consumption chart values</caption><thead><tr><th>Date</th><th>Cost</th></tr></thead><tbody>{series.map(point => <tr key={point.date}><td>{point.date}</td><td>{point.value}</td></tr>)}</tbody></table>
+        </div>
+      </section>
+      <section aria-labelledby="metrics-provider-history-heading">
+        <div className="metrics-section-intro"><div><h2 id="metrics-provider-history-heading">By provider</h2><p>The same selected runtime consumption grouped by provider.</p></div></div>
+        <div className="s-card metrics-provider-bars">
+          {providerTotals.length === 0 ? <p className="s-card-desc">No consumption in this range.</p> : providerTotals.map(item => (
+            <div className="metrics-provider-bar-row" key={item.provider}>
+              <div><span>{providerLabel(item.provider)}</span><strong>{formatCost(item.value)}</strong></div>
+              <div className="metrics-provider-bar-track" aria-hidden="true"><span style={{ width: `${Math.max(2, (item.value / providerMax) * 100)}%` }} /></div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  )
+}
+
 export default function SettingsMetrics() {
   const toast = useToast()
   const timeZone = useSyncExternalStore(subscribeToTimeZone, getBrowserTimeZone, () => 'UTC')
@@ -123,6 +251,16 @@ export default function SettingsMetrics() {
   const [showDateFilter, setShowDateFilter] = useState(false)
   const [dateFilter, setDateFilter] = useState<CreatedFilter | null>(null)
   const [costSummary, setCostSummary] = useState<AiCostSummary | null>(null)
+  const [observability, setObservability] = useState<AiObservabilityStatus | null>(null)
+  const [history, setHistory] = useState<AiCostHistory | null>(null)
+  const [historyDays, setHistoryDays] = useState(30)
+  const [historyScope, setHistoryScope] = useState<HistoryScope>('all')
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [activeSection, setActiveSection] = useState<MetricsSection>('status')
+  const [showStatementImport, setShowStatementImport] = useState(false)
+  const [financialRevision, setFinancialRevision] = useState(0)
+  const [fundingCaps, setFundingCaps] = useState<FundingCapDraft>(EMPTY_FUNDING_CAPS)
+  const [savingFundingCaps, setSavingFundingCaps] = useState(false)
   const [rateCards, setRateCards] = useState<EditableRateCard[]>([])
   const [newRateCard, setNewRateCard] = useState<DraftRateCard>(() => emptyNewRateCard())
   const [showRequestLog, setShowRequestLog] = useState(true)
@@ -190,17 +328,30 @@ export default function SettingsMetrics() {
       },
     })
     try {
-      const { summary, settings } = await getAiMetricsBundle({
+      const { summary, settings, observability: loadedObservability, history: loadedHistory } = await getAiMetricsBundle({
         dateMode: aiDateMode,
         from: aiDateFrom || null,
         to: aiDateTo || null,
         month: aiMonth || null,
         modelKey: aiModelKey,
-      })
+      }, timeZone)
       perf.mark('server_actions_completed')
       setCostSummary(summary)
       setRateCards(settings.rateCards)
+      setObservability(loadedObservability)
+      setHistory(loadedHistory)
+      setHistoryDays(loadedHistory.days)
+      const capsByPool = new Map(loadedObservability.runwayPools.map(pool => [pool.poolKey, pool.spendingCapUsd]))
+      setFundingCaps({
+        anthropicApi: capsByPool.get('anthropic_api')?.toString() ?? '',
+        openaiApi: capsByPool.get('openai_api')?.toString() ?? '',
+        mistralApi: capsByPool.get('mistral_api')?.toString() ?? '',
+      })
       markFullLoad('accounting', true)
+      // Current Status is now the initial page surface; the request log and
+      // legacy reconciliation editor mount only when their sections open.
+      markFullLoad('table', true)
+      markFullLoad('reconciliation', true)
       perf.end(true, null, { requestCount: summary.requestCount, rateCards: settings.rateCards.length })
     } catch (error) {
       markFullLoad('accounting', false, error instanceof Error ? error.message : 'ai_accounting_load_failed')
@@ -209,9 +360,72 @@ export default function SettingsMetrics() {
     } finally {
       setAccountingLoading(false)
     }
-  }, [aiDateMode, aiDateFrom, aiDateTo, aiMonth, aiModelKey, toast])
+  }, [aiDateMode, aiDateFrom, aiDateTo, aiMonth, aiModelKey, timeZone, toast])
 
   useEffect(() => { loadAiAccounting() }, [loadAiAccounting])
+
+  async function changeHistoryDays(days: number) {
+    setHistoryDays(days)
+    setHistoryLoading(true)
+    const perf = startInteraction({ focus: 'settings', flow: 'settings-ai-metrics', interaction: 'history_range_change', surface: 'settings-metrics', metadata: { days } })
+    try {
+      const loaded = await getAiCostHistory(days, timeZone)
+      setHistory(loaded)
+      perf.end(true, null, { points: loaded.points.length })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load AI cost history.'
+      toast.error(message)
+      perf.end(false, message)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  function selectSection(section: MetricsSection) {
+    const perf = startInteraction({
+      focus: 'settings',
+      flow: 'settings-ai-metrics',
+      interaction: 'section_change',
+      surface: 'settings-metrics',
+      metadata: { from: activeSection, to: section },
+    })
+    setActiveSection(section)
+    perf.end(true)
+  }
+
+  function openStatementImport() {
+    const perf = startInteraction({ focus: 'settings', flow: 'settings-ai-metrics', interaction: 'statement_import_open', surface: 'settings-metrics' })
+    setShowStatementImport(true)
+    perf.end(true)
+  }
+
+  async function saveFundingCaps() {
+    setSavingFundingCaps(true)
+    const perf = startInteraction({
+      focus: 'settings',
+      flow: 'settings-ai-metrics',
+      interaction: 'funding_caps_save',
+      surface: 'settings-metrics',
+      immediateFlush: true,
+    })
+    try {
+      await saveAiFundingCaps({
+        anthropicApi: fundingCaps.anthropicApi === '' ? null : Number(fundingCaps.anthropicApi),
+        openaiApi: fundingCaps.openaiApi === '' ? null : Number(fundingCaps.openaiApi),
+        mistralApi: fundingCaps.mistralApi === '' ? null : Number(fundingCaps.mistralApi),
+      })
+      perf.mark('server_action_completed')
+      await loadAiAccounting()
+      toast.success('Provider funding caps saved.')
+      perf.end(true)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save provider funding caps.'
+      toast.error(message)
+      perf.end(false, message)
+    } finally {
+      setSavingFundingCaps(false)
+    }
+  }
 
   function patchRateCard(id: string, patch: Partial<EditableRateCard>) {
     setRateCards(cards => cards.map(card => card.id === id ? { ...card, ...patch } : card))
@@ -299,8 +513,123 @@ export default function SettingsMetrics() {
     { label: 'Estimated AI Cost', value: formatCost(costSummary.estimatedLiveCostUsd) },
     { label: 'Requests', value: formatNumber(costSummary.requestCount) },
     ...tokenCards.map(card => ({ label: card.label, value: card.value, tooltip: card.tooltip })),
-    { label: 'Provider Bills', value: formatCost(costSummary.reconciledTotalUsd) },
   ] : []
+
+  const currentStatus = accountingLoading || !observability ? (
+    <div className="metrics-cost-bar">Loading provider runway…</div>
+  ) : (
+    <div className="metrics-observability-stack">
+      <section aria-labelledby="metrics-runway-heading">
+        <div className="metrics-section-intro">
+          <div>
+            <h2 id="metrics-runway-heading">Runway</h2>
+            <p>Remaining provider allowance divided by the more conservative of the recent 7- and 30-day burn rates.</p>
+          </div>
+          <div className="metrics-freshness">
+            <span className="metrics-freshness-dot" aria-hidden="true" />
+            Calculated {formatDateTime(observability.generatedAt, timeZone)}
+          </div>
+        </div>
+        <div className="metrics-runway-grid">
+          {observability.runwayPools.map(pool => {
+            const tone = runwayStatusTone(pool.status)
+            const quotaRemaining = pool.usageLimit !== null && pool.usageValue !== null
+              ? Math.max(pool.usageLimit - pool.usageValue, 0)
+              : null
+            const headline = formatDays(pool.runwayDays)
+              ?? (pool.fundingMode === 'subscription_quota' && quotaRemaining !== null ? formatNumber(Math.round(quotaRemaining)) : null)
+              ?? (pool.spendingCapUsd === null ? 'Cap needed' : 'Not enough data')
+            const source = pool.usageSource === 'provider_reported' ? 'Provider-reported spend'
+              : pool.usageSource === 'provider_quota' ? 'Provider-reported quota'
+                : pool.usageSource === 'ledger_estimate' ? 'Orb ledger estimate' : 'No usage source'
+            return (
+              <article className={`metrics-runway-card metrics-runway-card--${tone}`} key={pool.poolKey}>
+                <div className="metrics-runway-topline">
+                  <h3>{pool.displayName}</h3>
+                  <span className={`metrics-state-pill metrics-state-pill--${tone}`}>{runwayStatusLabel(pool.status)}</span>
+                </div>
+                <p className="metrics-runway-value">{headline}</p>
+                <p className="metrics-runway-caption">{pool.runwayDays !== null ? 'estimated runway' : pool.fundingMode === 'subscription_quota' ? `${pool.usageUnit ?? 'units'} remaining` : 'funding status'}</p>
+                <div className="metrics-runway-facts">
+                  {pool.fundingMode === 'prepaid_credit' ? (
+                    <>
+                      <span>Provider cap {pool.spendingCapUsd === null ? 'not configured' : formatCost(pool.spendingCapUsd)}</span>
+                      <span>Used {pool.usedUsd === null ? 'not available' : formatCost(pool.usedUsd)} · Remaining {pool.remainingUsd === null ? '—' : formatCost(pool.remainingUsd)}</span>
+                      <span>Burn {pool.dailyBurn7d === null ? '—' : `${formatCost(pool.dailyBurn7d)} / day`} (7d) · {pool.dailyBurn30d === null ? '—' : `${formatCost(pool.dailyBurn30d)} / day`} (30d)</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Used {pool.usageValue === null ? '—' : formatNumber(Math.round(pool.usageValue))} of {pool.usageLimit === null ? '—' : formatNumber(Math.round(pool.usageLimit))} {pool.usageUnit ?? 'units'}</span>
+                      <span>{pool.dailyBurn7d === null ? 'Runway needs at least two daily snapshots' : `${formatNumber(Math.round(pool.dailyBurn7d))} ${pool.usageUnit ?? 'units'} / day`}</span>
+                    </>
+                  )}
+                </div>
+                <p className="metrics-runway-note">{source}{pool.dataFreshAt ? ` · Updated ${formatDateTime(pool.dataFreshAt, timeZone)}` : ''}{pool.evalShare7d !== null ? ` · Evals ${formatPercent(pool.evalShare7d)} of 7d use` : ''}</p>
+              </article>
+            )
+          })}
+        </div>
+      </section>
+
+      <SettingsSubscriptions onSaved={loadAiAccounting} />
+    </div>
+  )
+
+  const providersOverview = accountingLoading || !observability ? null : (
+    <section className="metrics-observability-stack" aria-labelledby="metrics-provider-heading">
+      <div className="metrics-section-intro">
+        <div>
+          <h2 id="metrics-provider-heading">Provider consumption</h2>
+          <p>The latest provider snapshot is kept separate from funding and card transactions.</p>
+        </div>
+        <button type="button" className="btn-primary" onClick={openStatementImport}>Import statement</button>
+      </div>
+      <div className="s-card metrics-details-card" role="table" aria-label="Provider consumption sources">
+        {observability.runwayPools.map(pool => (
+          <div className="metrics-details-row" role="row" key={pool.poolKey}>
+            <span className="metrics-details-label" role="cell">{pool.displayName}</span>
+            <span className="metrics-details-value" role="cell">
+              <strong>{pool.usageSource === 'provider_reported' ? `${formatCost(pool.usedUsd ?? 0)} provider spend` : pool.usageSource === 'provider_quota' ? `${formatNumber(Math.round(pool.usageValue ?? 0))} of ${formatNumber(Math.round(pool.usageLimit ?? 0))} ${pool.usageUnit ?? 'units'}` : pool.usedUsd === null ? 'No current consumption data' : `${formatCost(pool.usedUsd)} Orb estimate`}</strong>
+              <small>{pool.dataFreshAt ? `Updated ${formatDateTime(pool.dataFreshAt, timeZone)}` : 'No snapshot yet'}</small>
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+
+  const fundingControls = (
+    <section className="metrics-rate-section" aria-labelledby="metrics-funding-controls-heading">
+      <div className="metrics-section-heading">
+        <h2 id="metrics-funding-controls-heading" className="s-card-title">Provider funding caps</h2>
+        <p className="s-card-desc">The provider-enforced allowance for each prepaid account. Runway is cap minus current spend, divided by recent daily consumption.</p>
+      </div>
+      <div className="s-card metrics-funding-controls">
+        <div className="s-form metrics-rate-form">
+          {([
+            ['Anthropic API', 'anthropicApi'],
+            ['OpenAI API', 'openaiApi'],
+            ['Mistral API', 'mistralApi'],
+          ] as const).map(([label, key]) => (
+            <label key={key}>
+              <span className="label">{label} cap ($)</span>
+              <input
+                type="number"
+                className="input"
+                min="0"
+                step="0.01"
+                value={fundingCaps[key]}
+                onChange={event => setFundingCaps(current => ({ ...current, [key]: event.target.value }))}
+                placeholder="Not configured"
+              />
+            </label>
+          ))}
+        </div>
+        <p className="s-card-desc">ElevenLabs reports its character limit directly, so it has no manually entered cap.</p>
+        <button type="button" className="btn-primary" onClick={saveFundingCaps} disabled={savingFundingCaps}>{savingFundingCaps ? 'Saving…' : 'Save Funding Caps'}</button>
+      </div>
+    </section>
+  )
 
   const aiCostSummary = (
     <div className="metrics-summary" style={{ marginBottom: 'var(--sp-lg)' }}>
@@ -408,12 +737,6 @@ export default function SettingsMetrics() {
                 <span className="metrics-details-label" role="cell">TTS source label</span>
                 <span className="metrics-details-value" role="cell">Voice TTS includes OpenAI and ElevenLabs API speech requests.</span>
               </div>
-              {costSummary.reconciliations.length > 0 && (
-                <div className="metrics-details-row" role="row">
-                  <span className="metrics-details-label" role="cell">Provider bills</span>
-                  <span className="metrics-details-value" role="cell">{costSummary.reconciliations.map(row => `${providerLabel(row.provider)} ${formatCost(row.actualOrbCostUsd)}`).join(' · ')}</span>
-                </div>
-              )}
             </div>
           </div>
         </>
@@ -497,17 +820,57 @@ export default function SettingsMetrics() {
   const settingsHeader = (
     <div className="settings-page s-page-wide">
       <div className="s-header">
-        <div>
-          <h2 className="s-title">AI Metrics</h2>
-        </div>
+        <h1 className="s-title">AI Metrics</h1>
       </div>
-      {aiCostSummary}
-      {rateCardEditor}
-      {requestLogHeader}
-      {!showRequestLog && (
-        <div className="s-card metrics-request-log-collapsed">
-          The request log is hidden. Use Show Log when you need row-level request detail.
-        </div>
+      <nav className="metrics-section-tabs" aria-label="AI Metrics sections">
+        {([
+          ['status', 'Current Status'],
+          ['history', 'History'],
+          ['providers', 'Providers'],
+          ['controls', 'Controls'],
+        ] as const).map(([section, label]) => (
+          <button
+            key={section}
+            type="button"
+            className={`pill ${activeSection === section ? 'pill-active' : ''}`}
+            aria-current={activeSection === section ? 'page' : undefined}
+            onClick={() => selectSection(section)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      {activeSection === 'status' && currentStatus}
+      {activeSection === 'history' && (
+        <>
+          <div className="metrics-history-toolbar" aria-label="History filters">
+            <div className="metrics-pill-group">
+              {([['all', 'All consumption'], ['product', 'Product'], ['eval', 'Evals']] as const).map(([scope, label]) => (
+                <button key={scope} type="button" className={`pill ${historyScope === scope ? 'pill-active' : ''}`} aria-pressed={historyScope === scope} onClick={() => setHistoryScope(scope)}>{label}</button>
+              ))}
+            </div>
+            <div className="metrics-pill-group">
+              {([[7, '7 days'], [30, '30 days'], [90, '90 days'], [365, '1 year']] as const).map(([days, label]) => (
+                <button key={days} type="button" className={`pill ${historyDays === days ? 'pill-active' : ''}`} aria-pressed={historyDays === days} onClick={() => void changeHistoryDays(days)} disabled={historyLoading}>{label}</button>
+              ))}
+            </div>
+          </div>
+          {historyLoading || !history ? <div className="metrics-cost-bar">Loading consumption history…</div> : <CostHistoryCharts history={history} scope={historyScope} />}
+          {aiCostSummary}
+          {requestLogHeader}
+          {!showRequestLog && (
+            <div className="s-card metrics-request-log-collapsed">
+              The request log is hidden. Use Show Log when you need row-level request detail.
+            </div>
+          )}
+        </>
+      )}
+      {activeSection === 'providers' && providersOverview}
+      {activeSection === 'controls' && (
+        <>
+          {fundingControls}
+          {rateCardEditor}
+        </>
       )}
     </div>
   )
@@ -515,7 +878,7 @@ export default function SettingsMetrics() {
   return (
     <>
       {settingsHeader}
-      {showRequestLog && (
+      {activeSection === 'history' && showRequestLog && (
         <SettingsCrudList<AiRequestLogRow, MetricsForm>
           config={{
             title: 'AI Metrics',
@@ -696,7 +1059,16 @@ export default function SettingsMetrics() {
         onClear={() => { setDateFilter(null); setShowDateFilter(false) }}
         currentFilter={dateFilter}
       />
-      <SettingsCostReconciliation onLoaded={(success, error) => markFullLoad('reconciliation', success, error)} onSaved={loadAiAccounting} />
+      {activeSection === 'providers' && (
+        <SettingsCostReconciliation key={financialRevision} onLoaded={(success, error) => markFullLoad('reconciliation', success, error)} onSaved={loadAiAccounting} />
+      )}
+      {showStatementImport && (
+        <StatementImportModal
+          open
+          onClose={() => setShowStatementImport(false)}
+          onImported={() => { setFinancialRevision(value => value + 1); void loadAiAccounting() }}
+        />
+      )}
     </>
   )
 }
