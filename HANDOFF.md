@@ -12,84 +12,81 @@
 
 ## App State
 
-- **Branch:** `codex/orb-373-real-data`; v0.6.280 is the bookkeeping release
-  following the verified v0.6.279 ORB-373 production deployment.
-- **Dev server:** not running when checked during the ORB-373 release close.
+- **Branch:** `codex/orb-373-real-data`; ORB-374 planning is in progress.
+- **Dev server:** not used for the ORB-374 documentation checkpoint.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** **0.6.280** — bookkeeping-only confirmation of the verified
-  ORB-373 production release; no application behavior changed.
+- **Local version:** **0.6.281** — documentation-only ORB-374 planning
+  checkpoint. No push is authorized; production remains at v0.6.280.
 - **Production maintenance:** off.
-- **Database:** ORB-373 Phase 0 and financial-import migrations are applied.
-- **ORB-373:** closed. Knowledge Repository entry
-  `3b2801e3-e9dd-418f-9b06-4e0d03174ff0`.
-- **ORB-342:** closed. Knowledge Repository entry
-  `7a0f52c3-7490-45e6-a984-af4b14c70f96`.
+- **Database:** no ORB-374 database change. The required ORB-374 Knowledge
+  Repository topic search remains pending through an agent with approved egress.
+- **ORB-374:** in planning/review. The plan is not approved and implementation
+  is not authorized.
 
 ---
 
 ## Last Session Completed
 
-**ORB-373 — AI Metrics reviewed and closed — 2026-08-03 (Codex, GPT-5)**
+**ORB-374 — security-hardening plan checkpoint — 2026-08-03 (Codex, GPT-5.6 Sol)**
 
-The production `/settings/metrics` surface now has three reviewed sections:
-Orb, Providers, and Controls. Orb is first and opens by default; it combines
-the real request-ledger history charts, complete AI Request Log, and rate cards.
-Providers retains consumption-source data, heterogeneous statement import, and
-per-item funding/bill maintenance. Controls now contains funding caps only.
+Created `docs/orb-374-ai-tool-local-access-security-plan.md` as a draft policy,
+audit, and implementation plan for AI tools with local-file access. It covers
+least privilege, prompt injection, secret handling, deterministic approvals,
+network egress, transcript retention, supply-chain controls, recoverability,
+and a hardware-aware Tier A/B/C isolation model for the M5/16 GB Mac. It also
+evaluates encrypted external NVMe, HDD, and SDXC storage.
 
-Added two maintenance paths for financial data:
+The verified audit found critical current-state issues: the shared secret file
+and parent directories are readable by other local accounts; the complete file
+contents—all 17 entries—were rendered into an AI transcript; multiple AI tools
+retain world-readable records or broad durable approvals; and no verified
+secret-prevention gate exists locally. No credential or control has yet changed.
 
-- one heterogeneous CSV import with required date/company/cost/type columns,
-  optional model/notes/reference columns, preview classification, exact
-  descriptor learning, duplicate protection, and atomic commit;
-- todo-style New/Edit modals and inline Delete/Cancel for individual funding,
-  bill, and subscription entries.
+Perplexity and Claude Code reviewed the plan through Stan. Their complete
+packets are preserved under `docs/orb-374-reviews/`; Codex remains the single
+document maintainer. Claude identified two Phase 1 structural blockers:
 
-Removed Current Status, including its runway and subscription-management
-assembly. Provider APIs do not expose a reliable live prepaid-credit balance,
-so cap-minus-estimated-use could not honestly answer how close a provider is to
-running out. The durable Knowledge Repository entry records the resulting
-boundary: Orb automates request-level estimated costs, while imported provider
-credits, refunds, bills, and subscriptions remain manual reconciliation context.
+- shared documentation falsely attests that Claude's push permission was
+  removed from a tracked policy file, while Orb's ignored local policy still
+  allows `git push`;
+- canonical Orb/shared agent commands expand secrets into process arguments,
+  while required backlog, Knowledge Repository, migration/health, and eval
+  workflows lack brokered replacements.
 
-Mistral, OpenAI TTS, and ElevenLabs remain present. Verified usage evidence and
-a provider-neutral runtime Model Registry proposal are documented separately;
-runtime model activation is not part of this implementation and requires its
-own approved todo.
+The plan now requires artifact-tested controls, exact worktree boundaries,
+safe audit enumeration, coordinated multi-plane credential rotation, preserved
+mandatory workflows, full reviewer packets, and explicit conflict disposition.
+The Knowledge Repository search failure was corrected from a host-wide claim to
+a Codex-sandbox limitation; Claude offered to run the required topic search.
 
-Used the established Settings/AI Metrics family: `s-page-wide`, catalogued
-`pill` navigation, `SettingsCrudList`, accessible native-SVG charts, standard
-Settings forms, and the existing import and todo-style CRUD assemblies. No new
-UI family or CSS prefix was introduced.
-
-Final validation: TypeScript passed once, focused ESLint passed once, UI catalog
-verification passed once, version consistency passed once, and `git diff
---check` passed. `Eval: not applicable — no conversation surface changed`.
-
-Commit `fc7dea0` was pushed to `origin/main`. Local `HEAD` and `origin/main`
-were verified at the same full commit SHA after the push. Production was then
-independently verified at v0.6.279: `/api/version` returned HTTP 200 with
-maintenance off, and the rendered page carried v0.6.279.
-
-v0.6.280 records that verified release state and closes the temporary
-bookkeeping claim. It contains no application behavior change.
-
-**Database impact:** two migrations applied. They add funding pools, provider
-snapshots, import batches, descriptor rules, financial transactions, and three
-RPCs with wrapped admin RLS and targeted fingerprint/reference/date/pool
-indexes. Post-migration audits found no RLS init-plan issue or material new IO
-regression. No Realtime/WAL reader is used.
+Stan approved this local checkpoint commit only. He has not approved the plan,
+implementation, a push, or activation of the proposed interim operating
+restriction. `Eval: not applicable — documentation only; no Orb-conversation
+surface changed`.
 
 ---
 
 ## Current Uncommitted Changes
 
-*(none after the v0.6.280 bookkeeping release commit)*
+*(none expected after the v0.6.281 local checkpoint commit; ORB-374 remains an
+active planning claim with `WIP.md` intentionally retained)*
 
 ---
 
 ## Active Risks / Unresolved Work
 
+- **ORB-374 plan is not approved.** No implementation may begin until Stan
+  approves the plan and the approved plan plus pertinent comments are written
+  to the Knowledge Repository.
+- **Verified credential exposure remains uncontained.** All 17 environment
+  entries entered an AI transcript; every secret-bearing member requires
+  classification, coordinated consumer updates, rotation, and old-key failure
+  verification after approval.
+- **Interim restriction decision pending.** Stan has not decided whether the
+  proposed freeze on normal AI development takes effect immediately or only
+  when the plan is approved.
+- **Knowledge search pending.** Claude can perform the required ORB-374 topic
+  search through its approved-egress path and return the result packet to Stan.
 - **ORB-367 — seven pre-existing Tier 2 failures.** Address the class and decide
   which guarantees belong in deterministic tests before repairing individual
   cases.
@@ -107,16 +104,29 @@ regression. No Realtime/WAL reader is used.
 
 ## Next Priorities
 
-1. Keep Mistral, OpenAI TTS, and ElevenLabs intact unless Stan separately
-   authorizes retirement.
-2. Create and approve a separate todo before implementing the runtime Model
-   Registry/provider activation plan.
-3. ORB-365 and ORB-367 remain later quality priorities.
+1. Stan decides when the proposed interim ORB-374 operating restriction becomes
+   binding.
+2. Have Claude run section 14.1's required Knowledge Repository topic search;
+   import and reconcile the results through the controlled review process.
+3. Continue review until Stan explicitly approves the plan. Then write the
+   approved plan and all pertinent comments to the Knowledge Repository before
+   beginning Phase 0.
+4. Do not push the v0.6.281 checkpoint without Stan's separate explicit
+   approval.
 
 ---
 
 ## Key Current Decisions
 
+- **ORB-374 is proposed policy, not yet binding policy.** The local checkpoint
+  preserves the review record but does not approve or activate it.
+- **One document maintainer.** Reviewers send complete attributed packets to
+  Stan; Codex preserves them, controls edits, and records dispositions.
+- **Model judgment is not a security boundary.** Enforce safety through OS
+  permissions, deny-read and network policy, scoped credentials, deterministic
+  approval brokers, and independent tests.
+- **Review packets are authoritative.** Summaries in the plan are navigational;
+  full packets live under `docs/orb-374-reviews/` with redactions documented.
 - **Be precise about evidence.** “Ruled out” means tested. A non-deterministic
   result needs three runs before it is called verified; otherwise report the
   sample size.
@@ -145,7 +155,7 @@ regression. No Realtime/WAL reader is used.
 
 ## AI Tool Used Last Session
 
-`2026-08-03 — Codex (GPT-5)`
+`2026-08-03 — Codex (GPT-5.6 Sol)`
 
 ---
 

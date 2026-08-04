@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.281',
+    date: '2026-08-03',
+    changes: [
+      'Checkpointed the unapproved ORB-374 security-hardening plan for AI tools with local-file access. The draft now includes a verified current-state audit, threat model, native/container/VM isolation tiers, hardware and external-storage analysis, phased containment and implementation gates, acceptance tests, rollback, and an append-only controlled review process.',
+      'Preserved the complete Perplexity and Claude Code review packets with attribution and dispositions. Their reviews exposed two Phase 1 blockers: Orb\'s live Claude push permission contradicts the documented enforcement claim, and canonical agent commands expand secrets into process arguments while mandatory workflows still depend on those credentials.',
+      'Documentation-only checkpoint: no security control, credential, application behavior, database state, production deployment, or plan-approval status changed. ORB-374 implementation remains blocked pending Stan\'s approval and the required Knowledge Repository publication.',
+    ],
+  },
+  {
     version: 'v0.6.280',
     date: '2026-08-03',
     changes: [
