@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.279',
+    date: '2026-08-03',
+    changes: [
+      'Simplified AI Metrics after hands-on review: Orb is now the first and default section, followed by Providers and Controls. The temporary Current Status surface and its unreliable runway presentation are removed (ORB-373).',
+      'Orb now keeps its real history charts, request-level AI ledger, and rate cards together. Controls contains provider funding caps only, removing the duplicate rate-card editor while preserving all accounting data and maintenance behavior.',
+    ],
+  },
+  {
     version: 'v0.6.278',
     date: '2026-08-01',
     changes: [

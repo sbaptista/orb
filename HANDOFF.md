@@ -12,13 +12,15 @@
 
 ## App State
 
-- **Branch:** `codex/orb-373-real-data`; v0.6.278 is committed locally pending
-  Stan's review and explicit push approval.
+- **Branch:** `codex/orb-373-real-data`; v0.6.279 closes the reviewed ORB-373
+  AI Metrics rebuild and is approved for production push.
 - **Dev server:** user-started on localhost:3001.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** **0.6.278** — ORB-373 real-data AI Metrics implementation.
+- **Version:** **0.6.279** — final reviewed ORB-373 AI Metrics structure.
 - **Production maintenance:** off.
 - **Database:** ORB-373 Phase 0 and financial-import migrations are applied.
+- **ORB-373:** closed. Knowledge Repository entry
+  `3b2801e3-e9dd-418f-9b06-4e0d03174ff0`.
 - **ORB-342:** closed. Knowledge Repository entry
   `7a0f52c3-7490-45e6-a984-af4b14c70f96`.
 
@@ -26,13 +28,13 @@
 
 ## Last Session Completed
 
-**ORB-373 — AI Metrics real-data implementation — 2026-07-31 (Codex, GPT-5)**
+**ORB-373 — AI Metrics reviewed and closed — 2026-08-03 (Codex, GPT-5)**
 
-Expanded the approved visual prototype into the production `/settings/metrics`
-surface. Current Status and Providers now use persisted provider snapshots and
-funding caps; History uses the real model-request ledger with Product/Evals/All
-scope, 7/30/90/365-day ranges, provider comparison, and an accessible native
-SVG chart.
+The production `/settings/metrics` surface now has three reviewed sections:
+Orb, Providers, and Controls. Orb is first and opens by default; it combines
+the real request-ledger history charts, complete AI Request Log, and rate cards.
+Providers retains consumption-source data, heterogeneous statement import, and
+per-item funding/bill maintenance. Controls now contains funding caps only.
 
 Added two maintenance paths for financial data:
 
@@ -42,26 +44,26 @@ Added two maintenance paths for financial data:
 - todo-style New/Edit modals and inline Delete/Cancel for individual funding,
   bill, and subscription entries.
 
-Phase 0 separates automated provider-consumption snapshots from financial
-transactions. Provider caps persist independently and drive prepaid runway;
-subscriptions remain operating costs without fabricated runway. No Realtime
-subscription was added. Settings-focused performance telemetry covers history,
-import preview/commit, and financial/subscription CRUD.
+Removed Current Status, including its runway and subscription-management
+assembly. Provider APIs do not expose a reliable live prepaid-credit balance,
+so cap-minus-estimated-use could not honestly answer how close a provider is to
+running out. The durable Knowledge Repository entry records the resulting
+boundary: Orb automates request-level estimated costs, while imported provider
+credits, refunds, bills, and subscriptions remain manual reconciliation context.
 
 Mistral, OpenAI TTS, and ElevenLabs remain present. Verified usage evidence and
 a provider-neutral runtime Model Registry proposal are documented separately;
 runtime model activation is not part of this implementation and requires its
 own approved todo.
 
-Used the Settings/AI Metrics catalog family, `modal-center` via `EditorModal`,
-todo `crud-card` lists, catalogued pills, standard inputs, and touch-sized
-actions. Desktop interactions were inspected for all four sections, import,
-New/Edit, and Delete/Cancel. Responsive CSS provides two-column tablet and
-one-column phone layouts; actual iPad/iPhone device review remains with Stan.
+Used the established Settings/AI Metrics family: `s-page-wide`, catalogued
+`pill` navigation, `SettingsCrudList`, accessible native-SVG charts, standard
+Settings forms, and the existing import and todo-style CRUD assemblies. No new
+UI family or CSS prefix was introduced.
 
-Validation after the final import-safety fix: TypeScript passed once, focused
-ESLint passed once, UI catalog verification passed once, and `git diff --check`
-passed. `Eval: not applicable — no conversation surface changed`.
+Final validation: TypeScript passed once, focused ESLint passed once, UI catalog
+verification passed once, version consistency passed once, and `git diff
+--check` passed. `Eval: not applicable — no conversation surface changed`.
 
 **Database impact:** two migrations applied. They add funding pools, provider
 snapshots, import batches, descriptor rules, financial transactions, and three
@@ -73,7 +75,7 @@ regression. No Realtime/WAL reader is used.
 
 ## Current Uncommitted Changes
 
-*(none after the v0.6.278 local release commit)*
+*(none after the v0.6.279 release commit)*
 
 ---
 
@@ -85,9 +87,6 @@ regression. No Realtime/WAL reader is used.
 - **ORB-365 — deterministic code regression tests.** Orb still lacks a
   conventional test framework for due-time math, urgency, reminders, routes,
   auth, RLS, and migrations.
-- **ORB-373 remains open for review.** The production data model and UI are
-  committed locally, but Stan expects further visual/information-architecture
-  adjustments before push or closure.
 - **Runtime provider/model activation is not implemented.** It is a separate
   control-plane project described in `docs/orb-model-registry-plan.md`; imported
   financial metadata must never activate executable runtime configuration.
@@ -99,15 +98,11 @@ regression. No Realtime/WAL reader is used.
 
 ## Next Priorities
 
-1. Stan reviews the real-data `/settings/metrics` page on Mac, iPad, and iPhone
-   and identifies the next visual or information-architecture changes.
-2. Keep Mistral, OpenAI TTS, and ElevenLabs intact unless Stan separately
+1. Keep Mistral, OpenAI TTS, and ElevenLabs intact unless Stan separately
    authorizes retirement.
-3. Create and approve a separate todo before implementing the runtime Model
+2. Create and approve a separate todo before implementing the runtime Model
    Registry/provider activation plan.
-4. Push v0.6.278 only after Stan explicitly approves it; no model eval is
-   required because no conversation surface changed.
-5. ORB-365 and ORB-367 remain later quality priorities.
+3. ORB-365 and ORB-367 remain later quality priorities.
 
 ---
 
@@ -141,7 +136,7 @@ regression. No Realtime/WAL reader is used.
 
 ## AI Tool Used Last Session
 
-`2026-08-01 — Codex (GPT-5)`
+`2026-08-03 — Codex (GPT-5)`
 
 ---
 

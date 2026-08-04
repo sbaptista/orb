@@ -5,7 +5,6 @@ import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
 import DateSearchModal, { type CreatedFilter } from './DateSearchModal'
 import SettingsCostReconciliation from './SettingsCostReconciliation'
-import SettingsSubscriptions from './SettingsSubscriptions'
 import StatementImportModal from './StatementImportModal'
 import { getAiRequestLog, type AiRequestLogRow } from '@/app/actions/get-ai-request-log'
 import {
@@ -15,7 +14,6 @@ import {
   type AiCostHistory,
   type AiCostSummary,
   type AiObservabilityStatus,
-  type AiRunwayPool,
 } from '@/app/actions/get-ai-cost-summary'
 import { saveAiFundingCaps, saveOrbModelRateCard } from '@/app/actions/orb-ai-settings'
 import type { OrbModelRateCard } from '@/lib/orb-model/policy'
@@ -23,7 +21,7 @@ import { useToast } from '@/components/ui/Toast'
 import { startInteraction } from '@/lib/performance/telemetry'
 
 type MetricsForm = Record<string, never>
-type MetricsSection = 'status' | 'history' | 'providers' | 'controls'
+type MetricsSection = 'history' | 'providers' | 'controls'
 type HistoryScope = 'all' | 'product' | 'eval'
 type FundingCapDraft = { anthropicApi: string; openaiApi: string; mistralApi: string }
 type EditableRateCard = OrbModelRateCard & { saving?: boolean }
@@ -88,31 +86,6 @@ function formatNullableCost(value: AiRequestLogRow['estimated_cost_usd']): strin
 function formatMs(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'
   return `${formatNumber(value)}ms`
-}
-
-function formatDays(value: number | null) {
-  if (value === null) return null
-  if (value < 1) return '<1 day'
-  const rounded = Math.floor(value)
-  return `${rounded} ${rounded === 1 ? 'day' : 'days'}`
-}
-
-function formatPercent(value: number | null) {
-  return value === null ? '—' : `${Math.round(value * 100)}%`
-}
-
-function runwayStatusLabel(status: AiRunwayPool['status']) {
-  if (status === 'comfortable') return 'Comfortable'
-  if (status === 'warning') return 'Add funds soon'
-  if (status === 'attention') return 'At limit'
-  if (status === 'needs_setup') return 'Cap needed'
-  return 'No recent use'
-}
-
-function runwayStatusTone(status: AiRunwayPool['status']) {
-  if (status === 'comfortable') return 'good'
-  if (status === 'warning' || status === 'attention') return 'warning'
-  return 'neutral'
 }
 
 function formatModel(provider: string, model: string) {
@@ -256,7 +229,7 @@ export default function SettingsMetrics() {
   const [historyDays, setHistoryDays] = useState(30)
   const [historyScope, setHistoryScope] = useState<HistoryScope>('all')
   const [historyLoading, setHistoryLoading] = useState(false)
-  const [activeSection, setActiveSection] = useState<MetricsSection>('status')
+  const [activeSection, setActiveSection] = useState<MetricsSection>('history')
   const [showStatementImport, setShowStatementImport] = useState(false)
   const [financialRevision, setFinancialRevision] = useState(0)
   const [fundingCaps, setFundingCaps] = useState<FundingCapDraft>(EMPTY_FUNDING_CAPS)
@@ -348,8 +321,8 @@ export default function SettingsMetrics() {
         mistralApi: capsByPool.get('mistral_api')?.toString() ?? '',
       })
       markFullLoad('accounting', true)
-      // Current Status is now the initial page surface; the request log and
-      // legacy reconciliation editor mount only when their sections open.
+      // Orb is the initial page surface; the request log and legacy
+      // reconciliation editor mount only when their sections open.
       markFullLoad('table', true)
       markFullLoad('reconciliation', true)
       perf.end(true, null, { requestCount: summary.requestCount, rateCards: settings.rateCards.length })
@@ -514,66 +487,6 @@ export default function SettingsMetrics() {
     { label: 'Requests', value: formatNumber(costSummary.requestCount) },
     ...tokenCards.map(card => ({ label: card.label, value: card.value, tooltip: card.tooltip })),
   ] : []
-
-  const currentStatus = accountingLoading || !observability ? (
-    <div className="metrics-cost-bar">Loading provider runway…</div>
-  ) : (
-    <div className="metrics-observability-stack">
-      <section aria-labelledby="metrics-runway-heading">
-        <div className="metrics-section-intro">
-          <div>
-            <h2 id="metrics-runway-heading">Runway</h2>
-            <p>Remaining provider allowance divided by the more conservative of the recent 7- and 30-day burn rates.</p>
-          </div>
-          <div className="metrics-freshness">
-            <span className="metrics-freshness-dot" aria-hidden="true" />
-            Calculated {formatDateTime(observability.generatedAt, timeZone)}
-          </div>
-        </div>
-        <div className="metrics-runway-grid">
-          {observability.runwayPools.map(pool => {
-            const tone = runwayStatusTone(pool.status)
-            const quotaRemaining = pool.usageLimit !== null && pool.usageValue !== null
-              ? Math.max(pool.usageLimit - pool.usageValue, 0)
-              : null
-            const headline = formatDays(pool.runwayDays)
-              ?? (pool.fundingMode === 'subscription_quota' && quotaRemaining !== null ? formatNumber(Math.round(quotaRemaining)) : null)
-              ?? (pool.spendingCapUsd === null ? 'Cap needed' : 'Not enough data')
-            const source = pool.usageSource === 'provider_reported' ? 'Provider-reported spend'
-              : pool.usageSource === 'provider_quota' ? 'Provider-reported quota'
-                : pool.usageSource === 'ledger_estimate' ? 'Orb ledger estimate' : 'No usage source'
-            return (
-              <article className={`metrics-runway-card metrics-runway-card--${tone}`} key={pool.poolKey}>
-                <div className="metrics-runway-topline">
-                  <h3>{pool.displayName}</h3>
-                  <span className={`metrics-state-pill metrics-state-pill--${tone}`}>{runwayStatusLabel(pool.status)}</span>
-                </div>
-                <p className="metrics-runway-value">{headline}</p>
-                <p className="metrics-runway-caption">{pool.runwayDays !== null ? 'estimated runway' : pool.fundingMode === 'subscription_quota' ? `${pool.usageUnit ?? 'units'} remaining` : 'funding status'}</p>
-                <div className="metrics-runway-facts">
-                  {pool.fundingMode === 'prepaid_credit' ? (
-                    <>
-                      <span>Provider cap {pool.spendingCapUsd === null ? 'not configured' : formatCost(pool.spendingCapUsd)}</span>
-                      <span>Used {pool.usedUsd === null ? 'not available' : formatCost(pool.usedUsd)} · Remaining {pool.remainingUsd === null ? '—' : formatCost(pool.remainingUsd)}</span>
-                      <span>Burn {pool.dailyBurn7d === null ? '—' : `${formatCost(pool.dailyBurn7d)} / day`} (7d) · {pool.dailyBurn30d === null ? '—' : `${formatCost(pool.dailyBurn30d)} / day`} (30d)</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Used {pool.usageValue === null ? '—' : formatNumber(Math.round(pool.usageValue))} of {pool.usageLimit === null ? '—' : formatNumber(Math.round(pool.usageLimit))} {pool.usageUnit ?? 'units'}</span>
-                      <span>{pool.dailyBurn7d === null ? 'Runway needs at least two daily snapshots' : `${formatNumber(Math.round(pool.dailyBurn7d))} ${pool.usageUnit ?? 'units'} / day`}</span>
-                    </>
-                  )}
-                </div>
-                <p className="metrics-runway-note">{source}{pool.dataFreshAt ? ` · Updated ${formatDateTime(pool.dataFreshAt, timeZone)}` : ''}{pool.evalShare7d !== null ? ` · Evals ${formatPercent(pool.evalShare7d)} of 7d use` : ''}</p>
-              </article>
-            )
-          })}
-        </div>
-      </section>
-
-      <SettingsSubscriptions onSaved={loadAiAccounting} />
-    </div>
-  )
 
   const providersOverview = accountingLoading || !observability ? null : (
     <section className="metrics-observability-stack" aria-labelledby="metrics-provider-heading">
@@ -824,8 +737,7 @@ export default function SettingsMetrics() {
       </div>
       <nav className="metrics-section-tabs" aria-label="AI Metrics sections">
         {([
-          ['status', 'Current Status'],
-          ['history', 'History'],
+          ['history', 'Orb'],
           ['providers', 'Providers'],
           ['controls', 'Controls'],
         ] as const).map(([section, label]) => (
@@ -840,7 +752,6 @@ export default function SettingsMetrics() {
           </button>
         ))}
       </nav>
-      {activeSection === 'status' && currentStatus}
       {activeSection === 'history' && (
         <>
           <div className="metrics-history-toolbar" aria-label="History filters">
@@ -863,15 +774,11 @@ export default function SettingsMetrics() {
               The request log is hidden. Use Show Log when you need row-level request detail.
             </div>
           )}
+          {!showRequestLog && rateCardEditor}
         </>
       )}
       {activeSection === 'providers' && providersOverview}
-      {activeSection === 'controls' && (
-        <>
-          {fundingControls}
-          {rateCardEditor}
-        </>
-      )}
+      {activeSection === 'controls' && fundingControls}
     </div>
   )
 
@@ -1040,6 +947,11 @@ export default function SettingsMetrics() {
             ),
           }}
         />
+      )}
+      {activeSection === 'history' && showRequestLog && (
+        <div className="settings-page s-page-wide">
+          {rateCardEditor}
+        </div>
       )}
 
       <TextSearchModal
