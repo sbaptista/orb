@@ -12,11 +12,12 @@
 
 ## App State
 
-- **Branch:** `codex/orb-373-real-data`; v0.6.279 closes the reviewed ORB-373
-  AI Metrics rebuild and is approved for production push.
-- **Dev server:** user-started on localhost:3001.
+- **Branch:** `codex/orb-373-real-data`; v0.6.280 is the bookkeeping release
+  following the verified v0.6.279 ORB-373 production deployment.
+- **Dev server:** not running when checked during the ORB-373 release close.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Version:** **0.6.279** — final reviewed ORB-373 AI Metrics structure.
+- **Version:** **0.6.280** — bookkeeping-only confirmation of the verified
+  ORB-373 production release; no application behavior changed.
 - **Production maintenance:** off.
 - **Database:** ORB-373 Phase 0 and financial-import migrations are applied.
 - **ORB-373:** closed. Knowledge Repository entry
@@ -65,6 +66,14 @@ Final validation: TypeScript passed once, focused ESLint passed once, UI catalog
 verification passed once, version consistency passed once, and `git diff
 --check` passed. `Eval: not applicable — no conversation surface changed`.
 
+Commit `fc7dea0` was pushed to `origin/main`. Local `HEAD` and `origin/main`
+were verified at the same full commit SHA after the push. Production was then
+independently verified at v0.6.279: `/api/version` returned HTTP 200 with
+maintenance off, and the rendered page carried v0.6.279.
+
+v0.6.280 records that verified release state and closes the temporary
+bookkeeping claim. It contains no application behavior change.
+
 **Database impact:** two migrations applied. They add funding pools, provider
 snapshots, import batches, descriptor rules, financial transactions, and three
 RPCs with wrapped admin RLS and targeted fingerprint/reference/date/pool
@@ -75,7 +84,7 @@ regression. No Realtime/WAL reader is used.
 
 ## Current Uncommitted Changes
 
-*(none after the v0.6.279 release commit)*
+*(none after the v0.6.280 bookkeeping release commit)*
 
 ---
 

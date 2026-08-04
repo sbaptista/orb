@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.280',
+    date: '2026-08-03',
+    changes: [
+      'Bookkeeping-only release: records that v0.6.279 was successfully pushed and independently verified live in production, with ORB-373 closed and its linked Knowledge Repository entry present. No application behavior changed.',
+    ],
+  },
+  {
     version: 'v0.6.279',
     date: '2026-08-03',
     changes: [
