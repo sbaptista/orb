@@ -6,7 +6,8 @@ The complete reviewed ORB-374 plan remains preserved in
 `docs/orb-374-ai-tool-local-access-security-plan.md` and checkpoint commit
 `8984117`. Stan deferred that broad program on 2026-08-04 and authorized only
 the extracted **ORB-375 — Security Hardening Phase 1** scope: development launcher,
-13-credential rotation, and filesystem isolation.
+12 retained credential rotations, ElevenLabs retirement, and filesystem
+isolation.
 
 Tracked Phase 1 implementation is underway:
 
@@ -24,14 +25,15 @@ Tracked Phase 1 implementation is underway:
   launcher on Mac, iPhone, and iPad using localhost, Bonjour, and LAN IP.
 - `orb-secrets-set VARIABLE_NAME` now supports one-at-a-time human rotations
   without recreating the complete plaintext environment on disk.
-- Resend and Mistral replacement keys passed their development checks before
-  revocation. Their Vercel updates, production checks, former-key revocation,
-  and post-revocation checks remain pending. ElevenLabs rotation is paused
-  while Stan decides whether to retire the deployed legacy adapter and monitor.
+- Resend and Mistral replacements were deployed, their former keys were revoked,
+  and both post-revocation checks passed. Stan chose to retire ElevenLabs rather
+  than rotate it; the live TTS, Settings, quota-monitor, new-rate-card, and
+  credential paths are removed while historical records remain visible.
 
-Shell syntax/helper tests and `npx tsc --noEmit` passed. No model eval is
-applicable because no Orb-conversation surface changed. The current dev server
-has not been restarted or disturbed.
+Shell syntax/helper tests, `npx tsc --noEmit`, the production build, scoped
+lint, and UI catalog verification passed. Stan verified Voice Settings, AI
+Metrics, and OpenAI Realtime locally. The updated voice eval fixtures passed
+Tier 1 voice plus smoke 11/11 and Tier 2 voice 6/6.
 
 ## Design decisions
 
@@ -117,8 +119,9 @@ has not been restarted or disturbed.
 1. ORB-374 is deferred and ORB-375 exists as the reduced implementation todo.
 2. `orb-dev` and `orb-secrets-seal` are installed under `~/.local/bin`; external
    directories/files are owner-only and the broken repository symlink is gone.
-3. Stan rotates the 13 credentials in their provider consoles, updates hosted
-   consumers, and uses `orb-secrets-set` for each localhost replacement.
+3. Verify the v0.6.283 production deployment, then remove the retired
+   `ELEVENLABS_API_KEY` from localhost and Vercel, delete both provider keys,
+   and repeat Voice Settings, AI Metrics, and OpenAI Realtime checks.
 4. Coordinate `ORB_API_SECRET` with Helm's equal `TODOS_API_SECRET`; rotate
    VAPID as a key pair and renew browser push subscriptions on all platforms.
 5. Update unsafe `.env.local` and inline-secret instructions in both Orb and

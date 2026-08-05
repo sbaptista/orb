@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const REQUIRED_ENV = ['OPENAI_API_KEY', 'ELEVENLABS_API_KEY'] as const
+const REQUIRED_ENV = ['OPENAI_API_KEY'] as const
 const missing = REQUIRED_ENV.filter(k => !process.env[k])
 if (missing.length > 0) {
   throw new Error(`Missing required environment variables: ${missing.join(', ')}`)

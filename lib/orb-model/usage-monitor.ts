@@ -16,10 +16,9 @@ import type { OrbModelRole } from './catalog'
 // user-facing request path — see docs/orb-353-ai-usage-warning-plan.md for
 // why (latency risk to /api/version, and it must run even when nobody has
 // Orb open). Checks two independent kinds of ceiling per scope: Orb's own
-// internal ledger budget, and — for the three providers whose APIs don't
-// expose a real configured cap — an admin-entered spend cap compared
-// against real queried spend. ElevenLabs is the exception: its API returns
-// the real limit directly.
+// internal ledger budget, and — for the three active providers whose APIs
+// don't expose a real configured cap — an admin-entered spend cap compared
+// against real queried spend.
 
 type ScopeResult = {
   key: string
@@ -109,20 +108,6 @@ async function getOpenAiOrgSpend(): Promise<number | null> {
   }
 }
 
-async function getElevenLabsUsage(): Promise<{ used: number; limit: number } | null> {
-  const key = process.env.ELEVENLABS_API_KEY
-  if (!key) return null
-  try {
-    const res = await fetch('https://api.elevenlabs.io/v1/user/subscription', { headers: { 'xi-api-key': key } })
-    if (!res.ok) { console.error('[usage-monitor] ElevenLabs subscription failed', res.status); return null }
-    const body = await res.json()
-    return { used: Number(body.character_count) || 0, limit: Number(body.character_limit) || 0 }
-  } catch (error) {
-    console.error('[usage-monitor] ElevenLabs subscription exception', error)
-    return null
-  }
-}
-
 const GEMINI_PROJECT_ID = 'gen-lang-client-0911706834'
 const GEMINI_BILLING_TABLE = 'gen-lang-client-0911706834.Shoebill_Software.gcp_billing_export_resource_v1_019FB0_14597B_968D29'
 
@@ -199,14 +184,13 @@ async function collectScopes(admin: ReturnType<typeof createAdminClient>): Promi
   if (policyError) throw policyError
   const policy = mapPolicy(policyRow)
 
-  const [operational, strategic, voice, anthropicSpent, openaiSpent, geminiSpent, elevenLabs] = await Promise.all([
+  const [operational, strategic, voice, anthropicSpent, openaiSpent, geminiSpent] = await Promise.all([
     checkOrbBudget(admin, policy, 'operational'),
     checkOrbBudget(admin, policy, 'strategic'),
     checkOrbBudget(admin, policy, 'voice'),
     getAnthropicOrgSpend(),
     getOpenAiOrgSpend(),
     getGeminiOrgSpend(),
-    getElevenLabsUsage(),
   ])
 
   const scopes: ScopeResult[] = [
@@ -224,10 +208,6 @@ async function collectScopes(admin: ReturnType<typeof createAdminClient>): Promi
   if (geminiSpent != null && policy.geminiSpendCapUsd > 0) {
     scopes.push({ key: 'gemini-org', label: 'Gemini organization spend', usedUsd: geminiSpent, limitUsd: policy.geminiSpendCapUsd, provider: 'google', role: null, reconciliationProvider: 'google' })
   }
-  if (elevenLabs != null && elevenLabs.limit > 0) {
-    scopes.push({ key: 'elevenlabs', label: 'ElevenLabs character usage', usedUsd: elevenLabs.used, limitUsd: elevenLabs.limit, provider: 'elevenlabs', role: null })
-  }
-
   // ORB-373 Phase 0: provider-reported consumption has its own table. The
   // legacy reconciliation table mixed these cumulative snapshots with card
   // purchases and subscriptions, so adding matching rows produced double
@@ -243,11 +223,6 @@ async function collectScopes(admin: ReturnType<typeof createAdminClient>): Promi
       pool_key: 'openai_api', provider: 'openai', period_start: window.startDate,
       period_end: window.endDate, spending_usd: openaiSpent, source: 'provider_api', fetched_at: window.nowIso,
     },
-    elevenLabs == null ? null : {
-      pool_key: 'elevenlabs', provider: 'elevenlabs', period_start: window.startDate,
-      period_end: window.endDate, usage_value: elevenLabs.used, usage_limit: elevenLabs.limit,
-      usage_unit: 'characters', source: 'provider_api', fetched_at: window.nowIso,
-    },
   ].filter((row): row is NonNullable<typeof row> => row !== null)
   if (snapshotRows.length > 0) {
     const { error: snapshotError } = await admin
@@ -262,8 +237,8 @@ async function collectScopes(admin: ReturnType<typeof createAdminClient>): Promi
 // scope.label alone is ambiguous for Orb's own ledger scopes ("Orb
 // operational budget" doesn't say which provider backs the operational
 // role) — those scopes carry a role and their label never names a
-// provider. The provider-org/ElevenLabs scopes already name the provider
-// directly in their label, so leave those as-is.
+// provider. Provider-organization scopes already name the provider directly
+// in their label, so leave those as-is.
 function scopeDisplayLabel(scope: ScopeResult): string {
   if (scope.role && scope.provider) return `${scope.label} (${providerLabel(scope.provider)})`
   return scope.label

@@ -11,7 +11,7 @@
 This phase implements only the controls Stan selected for immediate use:
 
 1. A protected, human-run Orb development launcher.
-2. Rotation of the 13 secret-bearing credentials exposed through the former shared environment file.
+2. Containment of the 13 secret-bearing credentials exposed through the former shared environment file: rotate the 12 retained credentials and retire the unused ElevenLabs dependency instead of issuing another key.
 3. Owner-only filesystem storage outside the repository and removal of the repository `.env.local` path.
 
 The complete native-sandbox, container, VM, removable-media, production-broker, per-tool hardening, supply-chain, retention, and recurring-audit proposals remain preserved in ORB-374 and are deferred.
@@ -49,13 +49,13 @@ The target layout is:
 
 `scripts/security/orb-secrets-seal` is deliberately human-run. It validates the expected credential names without printing values, encrypts the current external plaintext file using AES-256-CBC with PBKDF2, and verifies the encrypted copy before replacing any prior encrypted copy. Plaintext removal requires the explicit `--remove-plaintext` option.
 
-After sealing, `orb-secrets-set VARIABLE_NAME` performs one human-approved rotation without recreating the full plaintext file. It prompts without echo for the encryption passphrase and replacement value, decrypts and re-encrypts through a pipeline, verifies the replacement bundle, and atomically installs it at mode `0600`. Neither the passphrase nor replacement is accepted as a command-line argument.
+After sealing, `orb-secrets-set VARIABLE_NAME` performs one human-approved rotation without recreating the full plaintext file. It prompts without echo for the encryption passphrase and replacement value, decrypts and re-encrypts through a pipeline, verifies the replacement bundle, and atomically installs it at mode `0600`. `orb-secrets-set --remove ELEVENLABS_API_KEY` removes the retired credential through the same verified atomic path. Neither the passphrase nor replacement is accepted as a command-line argument.
 
 Encryption is necessary because `0600/0700` protects against other macOS accounts but not an AI tool running as Stan's own account. An AI may be able to read the encrypted file, but it cannot recover the values without the human-held passphrase. This is a storage boundary, not a complete process-isolation boundary.
 
 ### Credential rotation
 
-The following secret-bearing credentials must be replaced in their authoritative provider consoles and updated in each required development or production consumer:
+The following retained secret-bearing credentials must be replaced in their authoritative provider consoles and updated in each required development or production consumer:
 
 - `SUPABASE_SECRET_KEY`
 - `DATABASE_URL`
@@ -69,7 +69,8 @@ The following secret-bearing credentials must be replaced in their authoritative
 - `MISTRAL_API_KEY`
 - `OPENAI_API_KEY`
 - `OPENAI_ADMIN_API_KEY`
-- `ELEVENLABS_API_KEY`
+
+`ELEVENLABS_API_KEY` is deliberately retired rather than rotated. OpenAI Realtime is the production voice path; ORB-375 removes the legacy ElevenLabs TTS adapter, Voice Settings option, quota poller, new rate-card option, and build/runtime credential requirements while preserving historical provider, request-ledger, and financial records.
 
 Rotation is not automated because each provider has different issuance, overlap, revocation, and deployment semantics. For each credential, Stan updates every required local and hosted consumer, verifies normal operation, revokes the old value, and verifies the old value fails. After all replacements are sealed and tested, the external plaintext `.env.local` is removed.
 
@@ -91,7 +92,6 @@ This source-level inventory identifies where each environment name is consumed. 
 | `MISTRAL_API_KEY` | Mistral model adapter | Yes | Yes while adapter remains deployable |
 | `OPENAI_API_KEY` | Realtime voice sessions, speech-to-text, legacy TTS; use an Orb project service-account key, not a user-owned key | Yes | Yes |
 | `OPENAI_ADMIN_API_KEY` | Provider usage/cost monitoring | Yes | Yes |
-| `ELEVENLABS_API_KEY` | Legacy TTS and provider usage/cost monitoring | Yes | Yes while adapter remains deployable |
 
 “No source evidence” means the repository search found no production application reference; it does not prove that Vercel, Supabase, GitHub, Helm, or an external worker lacks a separately configured consumer. Those external planes must be inspected before the old credential is revoked.
 
@@ -128,9 +128,9 @@ Special cases:
 | `OPENAI_ADMIN_API_KEY` | Replaced | Replaced and redeployed | Revoked | OpenAI AI Metrics consumption passed after revocation |
 | `GEMINI_API_KEY` | Replaced | Replaced and redeployed | Revoked | Strategic Gemini request passed locally and in production after revocation |
 | `GOOGLE_BILLING_CREDENTIALS_JSON_BASE64` | Replaced | Replaced and redeployed | Former service-account key deleted | Google/Gemini AI Metrics consumption passed locally and in production after deletion |
-| `RESEND_API_KEY` | Replaced | Pending replacement and redeploy | Pending | Development email passed with replacement before revocation |
-| `MISTRAL_API_KEY` | Replaced | Pending replacement and redeploy | Pending | Harmless development model request passed with replacement before revocation |
-| `ELEVENLABS_API_KEY` | Unchanged; rotation paused | Unchanged | Not revoked | Stan paused rotation while deciding whether to retire the deployed legacy TTS adapter and usage monitor |
+| `RESEND_API_KEY` | Replaced | Replaced and redeployed | Revoked | Development and production email passed after revocation |
+| `MISTRAL_API_KEY` | Replaced | Replaced in Vercel and redeployed; no active Orb runtime consumer | Revoked | Harmless model request passed after revocation |
+| `ELEVENLABS_API_KEY` | Retirement helper ready; encrypted removal pending | Runtime dependency removed in code; Vercel removal pending deployment | Provider keys pending deletion after deployment | Static checks must show no live API path; Settings, AI Metrics, and OpenAI Realtime acceptance remain |
 | `DATABASE_URL` | Pending | Pending | Pending | Pending |
 | `ORB_API_SECRET` | Pending | Pending with coordinated Helm `TODOS_API_SECRET` update | Pending | Pending |
 | `VAPID_PRIVATE_KEY` + `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Pending as a pair | Pending as a pair | Pending | Pending browser resubscription and push checks on all platforms |
@@ -149,7 +149,7 @@ Deterministic verification:
 - Stan starts the server with `orb-dev` and verifies the printed localhost, Bonjour, and IPv4 URLs on Mac, iPhone, and iPad;
 - after rotation, normal development and production workflows pass and every old credential is rejected.
 
-No application performance instrumentation is added. The change affects a human-run development bootstrap command, not an end-user route, interaction, server action, database query, or production initialization path. Startup performance remains visible directly in the existing Next.js terminal output.
+No application performance instrumentation is added. The launcher work affects a human-run development bootstrap command, while ElevenLabs retirement removes a Settings option, a server action branch, and a scheduled external request without adding a new interaction or latency-bearing path. Existing Settings and voice instrumentation remain sufficient.
 
 ## Operational references
 
@@ -159,4 +159,3 @@ No application performance instrumentation is added. The change affects a human-
 - [Google Cloud: rotate API keys](https://docs.cloud.google.com/docs/authentication/api-keys)
 - [Resend: create scoped API keys](https://resend.com/docs/api-reference/api-keys/create-api-key)
 - [OpenAI: manage organization admin API keys](https://platform.openai.com/docs/api-reference/admin-api-keys)
-- [ElevenLabs: rotate and scope API keys](https://elevenlabs.io/docs/overview/administration/workspaces/api-keys)

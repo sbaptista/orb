@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { synthesizeOpenAI, synthesizeElevenLabs, buildTtsUsage, type TtsProvider } from '@/lib/orb-model/tts'
+import { synthesizeOpenAI, buildTtsUsage, type TtsProvider } from '@/lib/orb-model/tts'
 import { recordOrbModelRequest } from '@/lib/orb-model/record'
 
 export type TtsSynthesizeRequest = {
@@ -22,13 +22,11 @@ export async function synthesizeSpeech(req: TtsSynthesizeRequest): Promise<TtsSy
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  if (req.provider === 'browser') {
-    throw new Error('Browser TTS does not use the server action.')
+  if (req.provider !== 'openai') {
+    throw new Error(req.provider === 'browser' ? 'Browser TTS does not use the server action.' : 'Unsupported TTS provider.')
   }
 
-  const result = req.provider === 'openai'
-    ? await synthesizeOpenAI(req.text, req.model, req.voiceId)
-    : await synthesizeElevenLabs(req.text, req.model, req.voiceId)
+  const result = await synthesizeOpenAI(req.text, req.model, req.voiceId)
 
   // Fire-and-forget usage recording — don't block the audio response
   const admin = createAdminClient()

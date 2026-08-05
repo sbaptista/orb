@@ -12,6 +12,7 @@ export type TtsConfigResult = {
   provider: TtsProvider
   model: string | null
   voiceId: string | null
+  retiredProviderReset?: boolean
 }
 
 export type OrbCostReconciliation = {
@@ -46,10 +47,12 @@ export async function getTtsConfig(): Promise<TtsConfigResult> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { provider: 'browser', model: null, voiceId: null }
   const { data } = await supabase.from('users').select('tts_provider, tts_model, tts_voice_id').eq('id', user.id).single()
+  const provider: TtsProvider = data?.tts_provider === 'openai' ? 'openai' : 'browser'
   return {
-    provider: (data?.tts_provider as TtsProvider) ?? 'browser',
-    model: data?.tts_model ?? null,
-    voiceId: data?.tts_voice_id ?? null,
+    provider,
+    model: provider === 'openai' ? data?.tts_model ?? 'tts-1' : null,
+    voiceId: provider === 'openai' ? data?.tts_voice_id ?? null : null,
+    retiredProviderReset: data?.tts_provider === 'elevenlabs',
   }
 }
 
@@ -57,6 +60,7 @@ export async function saveTtsConfig(config: TtsConfigResult) {
   const supabase = await createAuthClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
+  if (config.provider !== 'browser' && config.provider !== 'openai') throw new Error('Unsupported TTS provider.')
   const { error } = await supabase.from('users').update({
     tts_provider: config.provider,
     tts_model: config.model,
@@ -73,6 +77,7 @@ export async function getOrbAiSettings() {
 
 export async function saveOrbAiPolicy(next: OrbAiPolicy) {
   const ctx = await requireAdmin()
+  if (next.ttsProvider !== 'browser' && next.ttsProvider !== 'openai') throw new Error('Unsupported TTS provider.')
   if (!supportsOrbRole(next.operationalProvider, next.operationalModel, 'operational')) throw new Error('Unsupported operational model.')
   if (!supportsOrbRole(next.strategicProvider, next.strategicModel, 'strategic')) throw new Error('Unsupported strategic model.')
   const monthlyBudgetUsd = toNumber(next.monthlyBudgetUsd, 'Monthly budget')

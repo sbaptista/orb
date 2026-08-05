@@ -538,7 +538,6 @@ export default function SettingsMetrics() {
             </label>
           ))}
         </div>
-        <p className="s-card-desc">ElevenLabs reports its character limit directly, so it has no manually entered cap.</p>
         <button type="button" className="btn-primary" onClick={saveFundingCaps} disabled={savingFundingCaps}>{savingFundingCaps ? 'Saving…' : 'Save Funding Caps'}</button>
       </div>
     </section>
@@ -648,7 +647,7 @@ export default function SettingsMetrics() {
               )}
               <div className="metrics-details-row" role="row">
                 <span className="metrics-details-label" role="cell">TTS source label</span>
-                <span className="metrics-details-value" role="cell">Voice TTS includes OpenAI and ElevenLabs API speech requests.</span>
+                <span className="metrics-details-value" role="cell">Voice TTS includes OpenAI API speech requests. Historical ElevenLabs requests remain in the ledger.</span>
               </div>
             </div>
           </div>
@@ -673,7 +672,7 @@ export default function SettingsMetrics() {
             <span className="label">Provider</span>
             <select value={newRateCard.provider} onChange={event => setNewRateCard(card => ({ ...card, provider: event.target.value }))}>
               <option value="">Select provider</option>
-              {['anthropic', 'google', 'mistral', 'openai', 'elevenlabs'].map(provider => <option key={provider} value={provider}>{providerLabel(provider)}</option>)}
+              {['anthropic', 'google', 'mistral', 'openai'].map(provider => <option key={provider} value={provider}>{providerLabel(provider)}</option>)}
             </select>
           </label>
           <label><span className="label">Model</span><input value={newRateCard.model} onChange={event => setNewRateCard(card => ({ ...card, model: event.target.value }))} placeholder="provider-model-id" /></label>

@@ -7,6 +7,7 @@ import { DEFAULT_ORB_AI_POLICY, type OrbAiPolicy, type OrbModelRateCard } from '
 
 export function mapPolicy(row: any): OrbAiPolicy {
   if (!row) return DEFAULT_ORB_AI_POLICY
+  const ttsProvider = row.tts_provider === 'openai' ? 'openai' : 'browser'
   return {
     routingEnabled: row.routing_enabled,
     strategicReadsEnabled: row.strategic_reads_enabled,
@@ -18,9 +19,9 @@ export function mapPolicy(row: any): OrbAiPolicy {
     strategicBudgetUsd: Number(row.strategic_budget_usd),
     operationalBudgetUsd: Number(row.operational_budget_usd),
     voiceBudgetUsd: Number(row.voice_budget_usd ?? 0),
-    ttsProvider: row.tts_provider ?? 'browser',
-    ttsModel: row.tts_model ?? null,
-    ttsVoiceId: row.tts_voice_id ?? null,
+    ttsProvider,
+    ttsModel: ttsProvider === 'openai' ? row.tts_model ?? 'tts-1' : null,
+    ttsVoiceId: ttsProvider === 'openai' ? row.tts_voice_id ?? null : null,
     warningThresholdPct: Number(row.warning_threshold_pct ?? 80),
     anthropicSpendCapUsd: Number(row.anthropic_spend_cap_usd ?? 0),
     openaiSpendCapUsd: Number(row.openai_spend_cap_usd ?? 0),

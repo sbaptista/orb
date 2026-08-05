@@ -25,8 +25,7 @@ export type OrbAiPolicy = {
   // programmatically (confirmed against Anthropic's and OpenAI's own admin
   // APIs, and the Gemini BigQuery billing export) — admin-entered here. A
   // value of 0 means "not configured" and disables the check for that
-  // provider rather than firing a false-positive warning. ElevenLabs needs
-  // no cap field: its API already returns the real configured limit.
+  // provider rather than firing a false-positive warning.
   anthropicSpendCapUsd: number
   openaiSpendCapUsd: number
   geminiSpendCapUsd: number

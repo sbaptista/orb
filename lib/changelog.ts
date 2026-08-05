@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.283',
+    date: '2026-08-05',
+    changes: [
+      'Retired ElevenLabs from Orb\'s deployed runtime: removed its legacy TTS adapter and Voice Settings option, stopped subscription/usage polling, and removed the credential from build and local-launch requirements. Browser speech and OpenAI TTS remain available, while OpenAI Realtime remains the production voice path.',
+      'Preserved historical ElevenLabs request-ledger, provider-consumption, reconciliation, rate-card, and incident labels so retiring the provider does not erase or misclassify prior financial and operational records. Legacy saved ElevenLabs voice selections now fall back safely to browser speech.',
+      'Extended the encrypted-secret helper with a narrowly scoped, verified removal path for the retired ELEVENLABS_API_KEY. The installed helper now supports removing that one credential after the clean production deployment is accepted.',
+      'Verified locally with the production build, TypeScript, scoped lint, security-launcher tests, UI catalog verification, Voice Settings acceptance, AI Metrics acceptance, and OpenAI Realtime acceptance. Eval: Tier 1 voice plus smoke 11/11; Tier 2 voice 6/6.',
+    ],
+  },
+  {
     version: 'v0.6.282',
     date: '2026-08-05',
     changes: [

@@ -810,12 +810,12 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
     productCode: 'ORB',
     input: 'What voice provider are you using right now?',
     voiceMode: true,
-    ttsProvider: 'elevenlabs',
-    ttsModel: 'eleven_turbo_v2_5',
-    ttsVoiceId: 'Rachel',
+    ttsProvider: 'openai',
+    ttsModel: 'tts-1',
+    ttsVoiceId: 'nova',
     tier: 1,
     expectNoTool: true,
-    speechContains: ['eleven'],
+    speechContains: ['openai'],
   },
 
   {
@@ -1484,11 +1484,11 @@ Helm [code: HELM]:
     productCode: 'ORB',
     input: 'What voices do you have?',
     voiceMode: true,
-    ttsProvider: 'elevenlabs',
-    ttsModel: 'eleven_turbo_v2_5',
-    ttsVoiceId: 'Rachel',
+    ttsProvider: 'openai',
+    ttsModel: 'tts-1',
+    ttsVoiceId: 'nova',
     tier: 2,
-    speechContains: ['voice', 'elevenlabs', 'rachel'],
+    speechContains: ['voice', 'openai', 'nova'],
   },
 
   {

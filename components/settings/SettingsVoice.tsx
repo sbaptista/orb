@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { OPENAI_VOICES, ELEVENLABS_VOICES, type TtsVoiceOption } from '@/lib/orb-model/tts'
+import { OPENAI_VOICES, type TtsVoiceOption } from '@/lib/orb-model/tts'
 import { synthesizeSpeech } from '@/app/actions/orb-tts'
 import { getTtsConfig, saveTtsConfig } from '@/app/actions/orb-ai-settings'
 import { useToast } from '@/components/ui/Toast'
@@ -17,7 +17,7 @@ const LS_RATE_KEY = 'orb_voice_rate'
 const SAMPLE_TEXT = 'Hello. I\'m your Orb — ready when you are.'
 const TTS_CONFIG_CHANGED_EVENT = 'orb:tts-config-changed'
 
-type ModalTarget = 'browser' | 'openai' | 'elevenlabs' | null
+type ModalTarget = 'browser' | 'openai' | null
 
 export default function SettingsVoice() {
   const toast = useToast()
@@ -53,6 +53,11 @@ export default function SettingsVoice() {
 
     getTtsConfig().then(cfg => {
       if (cfg.provider === 'browser') {
+        if (cfg.retiredProviderReset) {
+          localStorage.removeItem(LS_VOICE_KEY)
+          setSelected('')
+          return
+        }
         const savedVoice = localStorage.getItem(LS_VOICE_KEY)
         if (savedVoice) setSelected(savedVoice)
       } else {
@@ -92,7 +97,7 @@ export default function SettingsVoice() {
     speechSynthesis.speak(utterance)
   }
 
-  async function previewApi(voiceId: string, provider: 'openai' | 'elevenlabs') {
+  async function previewApi(voiceId: string) {
     if (activeSourceRef.current) {
       try { activeSourceRef.current.stop() } catch {}
       activeSourceRef.current = null
@@ -107,8 +112,8 @@ export default function SettingsVoice() {
     try {
       const result = await synthesizeSpeech({
         text: SAMPLE_TEXT,
-        provider,
-        model: provider === 'openai' ? 'tts-1' : 'eleven_turbo_v2_5',
+        provider: 'openai',
+        model: 'tts-1',
         voiceId,
       })
       const raw = atob(result.audioBase64)
@@ -158,7 +163,7 @@ export default function SettingsVoice() {
     setShowAllLangs(false)
   }
 
-  function handleModalKeyDown(provider: 'browser' | 'openai' | 'elevenlabs') {
+  function handleModalKeyDown(provider: 'browser' | 'openai') {
     return (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && pendingVoice) {
         e.preventDefault()
@@ -170,15 +175,12 @@ export default function SettingsVoice() {
     }
   }
 
-  async function commitVoice(provider: 'browser' | 'openai' | 'elevenlabs') {
+  async function commitVoice(provider: 'browser' | 'openai') {
     if (!pendingVoice) return false
     const name = pendingVoice
-    const model = provider === 'openai' ? 'tts-1'
-      : provider === 'elevenlabs' ? 'eleven_turbo_v2_5'
-        : null
+    const model = provider === 'openai' ? 'tts-1' : null
     const label = provider === 'browser' ? name
-      : provider === 'openai' ? OPENAI_VOICES.find(v => v.id === name)?.name ?? name
-        : ELEVENLABS_VOICES.find(v => v.id === name)?.name ?? name
+      : OPENAI_VOICES.find(v => v.id === name)?.name ?? name
 
     try {
       await saveTtsConfig({ provider, model, voiceId: provider === 'browser' ? null : name })
@@ -202,7 +204,6 @@ export default function SettingsVoice() {
   function pendingLabel(): string {
     if (!pendingVoice) return ''
     if (modal === 'openai') return OPENAI_VOICES.find(v => v.id === pendingVoice)?.name ?? pendingVoice
-    if (modal === 'elevenlabs') return ELEVENLABS_VOICES.find(v => v.id === pendingVoice)?.name ?? pendingVoice
     return pendingVoice
   }
 
@@ -210,12 +211,10 @@ export default function SettingsVoice() {
     if (!selected) return 'None'
     const ov = OPENAI_VOICES.find(v => v.id === selected)
     if (ov) return `OpenAI · ${ov.name}`
-    const ev = ELEVENLABS_VOICES.find(v => v.id === selected)
-    if (ev) return `ElevenLabs · ${ev.name}`
     return selected
   }
 
-  function renderApiVoiceList(voices: TtsVoiceOption[], provider: 'openai' | 'elevenlabs') {
+  function renderApiVoiceList(voices: TtsVoiceOption[]) {
     return (
       <div className="modal-body" style={{ maxHeight: '60dvh', overflowY: 'auto', padding: 'var(--sp-md) var(--sp-lg)' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -233,7 +232,11 @@ export default function SettingsVoice() {
                 <button
                   type="button"
                   className="selectable-row-action"
-                  onClick={e => { e.stopPropagation(); isPlaying ? stopPreview() : previewApi(v.id, provider) }}
+                  onClick={e => {
+                    e.stopPropagation()
+                    if (isPlaying) stopPreview()
+                    else void previewApi(v.id)
+                  }}
                   aria-label={isPlaying ? 'Stop preview' : `Preview ${v.name}`}
                 >
                   {isPlaying ? '■' : '▶'}
@@ -277,7 +280,11 @@ export default function SettingsVoice() {
                       <button
                         type="button"
                         className="selectable-row-action"
-                        onClick={e => { e.stopPropagation(); isPlaying ? stopPreview() : previewBrowser(v.name) }}
+                        onClick={e => {
+                          e.stopPropagation()
+                          if (isPlaying) stopPreview()
+                          else previewBrowser(v.name)
+                        }}
                         aria-label={isPlaying ? 'Stop preview' : `Preview ${v.name}`}
                       >
                         {isPlaying ? '■' : '▶'}
@@ -348,9 +355,6 @@ export default function SettingsVoice() {
           <button type="button" className="btn-outline" style={{ justifyContent: 'flex-start', width: '100%' }} onClick={() => { setPendingVoice(null); setModal('openai') }}>
             OpenAI TTS
           </button>
-          <button type="button" className="btn-outline" style={{ justifyContent: 'flex-start', width: '100%' }} onClick={() => { setPendingVoice(null); setModal('elevenlabs') }}>
-            ElevenLabs
-          </button>
         </div>
 
         <div>
@@ -417,7 +421,7 @@ export default function SettingsVoice() {
               </button>
             </div>
             <p className="text-sm text-muted" style={{ margin: 0, padding: '0 var(--sp-lg) var(--sp-sm)', lineHeight: 'var(--lh-normal)' }}>Tap ▶ to sample a voice. Tap the name to select it.</p>
-            {renderApiVoiceList(OPENAI_VOICES, 'openai')}
+            {renderApiVoiceList(OPENAI_VOICES)}
             <div className="modal-footer">
               {pendingVoice && <span className="text-sm" style={{ marginRight: 'auto', color: 'var(--text)' }}>{pendingLabel()} selected</span>}
               <button type="button" className="btn-cancel" onClick={closeModal}>Cancel</button>
@@ -427,26 +431,6 @@ export default function SettingsVoice() {
         </>
       )}
 
-      {modal === 'elevenlabs' && (
-        <>
-          <div className="modal-backdrop" onClick={closeModal} />
-          <div className="modal-center modal-sm" role="dialog" aria-modal="true" aria-labelledby="voice-elevenlabs-title" ref={dialogRef} tabIndex={-1} onKeyDown={handleModalKeyDown('elevenlabs')}>
-            <div className="modal-header" style={{ justifyContent: 'space-between' }}>
-              <h3 id="voice-elevenlabs-title" style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>ElevenLabs</h3>
-              <button type="button" className="close-btn" onClick={closeModal} aria-label="Close">
-                <svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-            <p className="text-sm text-muted" style={{ margin: 0, padding: '0 var(--sp-lg) var(--sp-sm)', lineHeight: 'var(--lh-normal)' }}>Tap ▶ to sample a voice. Tap the name to select it.</p>
-            {renderApiVoiceList(ELEVENLABS_VOICES, 'elevenlabs')}
-            <div className="modal-footer">
-              {pendingVoice && <span className="text-sm" style={{ marginRight: 'auto', color: 'var(--text)' }}>{pendingLabel()} selected</span>}
-              <button type="button" className="btn-cancel" onClick={closeModal}>Cancel</button>
-              <button type="button" className="btn-primary" onClick={() => commitVoice('elevenlabs')} disabled={!pendingVoice}>Save</button>
-            </div>
-          </div>
-        </>
-      )}
     </div>
   )
 }

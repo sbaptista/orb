@@ -12,12 +12,13 @@
 
 ## App State
 
-- **Branch:** `main` after the approved v0.6.282 release integration.
+- **Branch:** `codex/orb-375-retire-elevenlabs`; the v0.6.283 release commit and
+  production push were explicitly authorized by Stan on 2026-08-05.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.282** — ORB-375 Security Hardening Phase 1 deployment
-  checkpoint. Stan explicitly authorized the commit and push on 2026-08-05.
+- **Local version:** **0.6.283** — ORB-375 retirement of the deployed ElevenLabs
+  runtime dependency.
 - **Production maintenance:** off.
 - **Database:** no schema change. The ORB-374 Knowledge Repository search is
   complete; ORB-375 remains open until containment and rotation acceptance.
@@ -28,42 +29,40 @@
 
 ## Last Session Completed
 
-**ORB-375 — Security Hardening Phase 1 deployment checkpoint — 2026-08-05 (Codex, GPT-5.6 Sol)**
+**ORB-375 — ElevenLabs runtime retirement — 2026-08-05 (Codex, GPT-5.6 Sol)**
 
-Implemented the approved immediate-containment extraction from deferred ORB-374.
-The installed `orb-dev` launcher unlocks an owner-only encrypted environment,
-creates network-specific TLS material, supplies only the current Bonjour/LAN
-development origins, and starts Next.js without a repository `.env.local`.
-Human-run helpers seal the initial environment and rotate one credential at a
-time without recreating the complete plaintext bundle.
+Removed the obsolete ElevenLabs TTS adapter, Voice Settings option, live usage
+polling, build requirement, and encrypted-launch requirement. Browser speech
+and OpenAI TTS remain available; OpenAI Realtime remains the production voice
+path. Historical ElevenLabs request, consumption, reconciliation, rate-card,
+and incident records remain available for accurate reporting.
 
-Stan verified encrypted-store creation, plaintext removal, launcher preflight,
-and Orb access on Mac, iPhone, and iPad. Launcher checks and TypeScript pass.
-Seven credentials completed localhost/production replacement, former-key
-revocation, and post-revocation checks. Resend and Mistral replacements pass in
-development; Vercel updates, production checks, revocation, and repeated checks
-remain pending. ElevenLabs is paused while Stan decides whether to remove its
-legacy TTS and usage paths instead of rotating the credential.
+The encrypted-secret helper now has a narrow, tested removal operation for
+`ELEVENLABS_API_KEY`; the installed copy matches the repository helper. Stan
+verified that Voice Settings shows only Browser and OpenAI, AI Metrics loads,
+and OpenAI Realtime voice works. The production build, TypeScript, scoped lint,
+security-launcher checks, and UI catalog verification pass. Full lint retains
+pre-existing failures in the untouched development-only voice prototype.
 
-The complete reviewed ORB-374 plan and reviewer packets remain preserved. Eval:
-not applicable — no Orb-conversation surface changed.
+Eval: Tier 1 voice plus smoke **11/11**; Tier 2 voice **6/6**. The eval runner
+must inherit the encrypted environment because `.env.local` was intentionally
+removed by the earlier ORB-375 containment release.
 
 ---
 
 ## Current Uncommitted Changes
 
-*(none expected after the v0.6.282 release commit; `WIP.md` remains tracked
+*(none expected after the v0.6.283 release commit; `WIP.md` remains tracked
 because ORB-375 rotation and acceptance are not complete)*
 
 ---
 
 ## Active Risks / Unresolved Work
 
-- **ORB-375 is incomplete.** Resend and Mistral still need Vercel replacement,
-  production verification, former-key revocation, and repeated checks.
-- **ElevenLabs decision pending.** Its rotation is paused because Realtime uses
-  OpenAI, but the legacy TTS adapter, Voice Settings option, usage monitor, and
-  required environment variable remain deployed.
+- **ORB-375 is incomplete.** Resend and Mistral rotation and post-revocation
+  checks are complete. ElevenLabs still needs the clean v0.6.283 production
+  deployment verified before its Vercel/local variables and two provider keys
+  are removed and post-revocation checks are repeated.
 - **Three rotation groups remain untouched:** `DATABASE_URL`, coordinated
   `ORB_API_SECRET`/Helm `TODOS_API_SECRET`, and the VAPID public/private pair.
 - **Same-user runtime isolation remains unverified.** The launcher removes
@@ -86,13 +85,12 @@ because ORB-375 rotation and acceptance are not complete)*
 
 ## Next Priorities
 
-1. Enter the replacement Resend and Mistral values in Vercel, redeploy, and run
-   their production checks.
-2. Revoke both former provider keys and repeat the production checks.
-3. Decide whether to retire ElevenLabs; rotate it only if the deployed legacy
-   capability is retained.
-4. Rotate `DATABASE_URL`, coordinated Orb/Helm API secret, and the VAPID pair.
-5. Complete ORB-375 acceptance, write resolution notes plus its Knowledge Repo
+1. Verify v0.6.283 in production: Voice Settings exposes only Browser and
+   OpenAI, AI Metrics loads, and OpenAI Realtime voice works.
+2. Delete `ELEVENLABS_API_KEY` from Vercel and the encrypted local environment,
+   delete both ElevenLabs provider keys, then repeat the three checks.
+3. Rotate `DATABASE_URL`, coordinated Orb/Helm API secret, and the VAPID pair.
+4. Complete ORB-375 acceptance, write resolution notes plus its Knowledge Repo
    entry, and remove the active claim with the closing commit.
 
 ---
@@ -119,6 +117,9 @@ because ORB-375 rotation and acceptance are not complete)*
   ORB-342 now enforces this for todo, project, and knowledge mutations.
 - **Realtime voice is the production voice path.** OpenAI server VAD owns turn
   detection and interruption; the client does not send `response.cancel`.
+- **ElevenLabs is retired, not rotated.** No deployed runtime, Settings control,
+  usage poller, or required credential remains; historical accounting and
+  incident records remain intact.
 - **Name-first project identifiers.** Project names are user-facing; codes are
   internal, immutable prefixes for todo addresses.
 - **Todo identity:** UUID is permanent identity; project code + todo number is
