@@ -1,10 +1,10 @@
 # ORB-374 — AI tools with local-file access: security hardening plan
 
-**Status:** Draft for review; implementation is blocked until Stan approves this document
+**Status:** Deferred by Stan on 2026-08-04; preserved as the full long-range security program
 **Plan owner:** Codex
 **Created:** 2026-08-03 17:07 HST
-**Last updated:** 2026-08-03 18:39 HST
-**Scope:** AI coding tools used on the primary Orb development Mac, their access to local files, commands, credentials, networks, source control, deployments, and databases
+**Last updated:** 2026-08-04 11:39 HST
+**Scope:** AI coding tools used on the primary Orb development Mac, plus Orb's own repository/database inspection tools, and their access to local files, commands, credentials, networks, source control, deployments, and databases
 **Out of scope:** Changing Orb's end-user security model except where a local AI-development workflow can affect Orb data or production
 
 ## 1. Decision sought
@@ -17,7 +17,7 @@ Approve a layered security model in which:
 4. Production credentials and production mutations are not directly available to a general-purpose AI shell. They are exposed only through narrow, audited, human-approved broker commands.
 5. The first implementation action is incident containment and credential rotation because sensitive values were rendered into an AI-tool transcript during this audit.
 
-No implementation may begin until Stan approves this plan. After approval, the approved plan and all pertinent comments, reviewer identities, timestamps, dispositions, and resulting revisions must be written to the Knowledge Repository before implementation begins.
+The full program is deferred. Stan approved only the reduced immediate-containment extraction recorded in section 17; that implementation is tracked separately as **ORB-375 — Security Hardening Phase 1**. If the broader program resumes, the approved plan and all pertinent comments, reviewer identities, timestamps, dispositions, and resulting revisions must be written to the Knowledge Repository before its implementation begins.
 
 ## 2. Executive finding
 
@@ -33,7 +33,7 @@ The highest-priority verified findings are:
 
 The target is not “zero prompts” or “put everything in Docker.” It is a usable system where the blast radius is deliberately bounded even when a model is wrong, a prompt is malicious, a dependency is compromised, or a user approves the wrong thing.
 
-**Proposed interim operating restriction:** until Phase 0 is complete and accepted, AI coding-agent use on Orb is limited to plan review in a no-secret/no-mutation context and the controlled Phase 0 containment workflow. Containment permits no unrelated external content, unrestricted network egress, general-purpose production credentials, or work outside the exact steps approved by Stan. A hidden shortcut, temporary permission broadening, or undocumented bypass is a security exception and is recorded with the same discipline as an incident. Because this document is still a draft, the restriction is not self-activating: Stan must decide in section 13 whether it takes effect immediately or when he approves the plan.
+**Active interim operating restriction — activated by Stan on 2026-08-03:** until Phase 0 is complete and accepted, AI coding-agent use on Orb is limited to plan review in a no-secret/no-mutation context and the exact Phase 0 containment work Stan approves. Containment permits no unrelated external content, unrestricted network egress, general-purpose production credentials, or work outside those approved steps. A hidden shortcut, temporary permission broadening, or undocumented bypass is a security exception and is recorded with the same discipline as an incident. This is presently an operating rule rather than a fully enforced technical boundary; that limitation is why Phase 0 remains urgent. The freeze does not approve the plan or authorize Phase 0 implementation by itself.
 
 ## 3. Evidence standard
 
@@ -123,6 +123,7 @@ Prompt injection cannot be reliably solved by a stronger prompt. OWASP documents
 - Default AI access is read-only or workspace-write within one claimed project.
 - Deny reads of secret vaults, `.env*`, key material, browser profiles, AI transcripts, shell histories, other projects, and personal folders unless a narrowly defined task requires one path.
 - Grant network destinations, command families, and additional paths for one task or one run; avoid permanent wildcard approvals.
+- Reuse and strengthen Orb's existing deny-by-default precedents: `query_repository` allowlists roots, extensions, sizes, and result limits while rejecting hidden/traversal/symlink paths; `query_db` allowlists tables, filters, and row counts. Existing controls are evidence and test targets, not proof that every path is safe.
 
 ### BP-2 — Separate identities and credentials
 
@@ -188,6 +189,7 @@ The prompt must be generated from the resolved command or API request and show e
 - Review the control profile at least quarterly.
 - Run the complete ORB-374 audit at least annually and after a major AI-tool or isolation-architecture change; use focused delta audits for ordinary additions and updates.
 - Use NIST's continuous Govern, Map, Measure, Manage cycle rather than treating this plan as a one-time checklist.
+- Stan is the accountable control owner: he approves risk, exceptions, tools, and release gates. The currently assigned security-plan maintainer executes and records each installation/update delta audit under an active claim; no AI tool or material update is enabled before that audit passes. The handoff names the maintainer and next review trigger so responsibility does not depend on one AI identity persisting.
 
 ## 7. Isolation architecture: native sandbox, container, VM, and external media
 
@@ -207,7 +209,7 @@ The prompt must be generated from the resolved command or API request and show e
 
 Use for normal planning, source edits, linting, and inspected local tests.
 
-- Workspace read/write only within the exact claimed worktree root. For the current main workspace that root is `/Users/stanleybaptista/Projects/orb`; every other worktree and project root is denied unless separately claimed and explicitly granted for that task.
+- Workspace read/write only within one exact claimed worktree root. For the current main workspace that root is `/Users/stanleybaptista/Projects/orb`; the secondary worktree is denied by default. Access to a secondary worktree requires its own claim and task-specific approval, and the session's allowed root is replaced with that exact path rather than broadened to include both worktrees. A task that truly needs both roots requires a separately reviewed exception or patch-based transfer.
 - No production credential in the agent environment.
 - Network off by default; narrowly approved reads when needed.
 - No durable approvals for interpreters, deploy, DB, push, or broad file access.
@@ -262,7 +264,7 @@ Before purchasing hardware or choosing a platform, run two short pilots:
 1. **Internal-disk Linux isolation pilot:** compare a minimal Docker Desktop or Lima-based environment against native Orb workflows.
 2. **External-SSD pilot, only if desired:** repeat using an encrypted USB4/Thunderbolt SSD.
 
-Capture peak host memory pressure, CPU, clean dependency-install time, warm build time, file-watch delay, disk use, dev-server response, battery effect, and platform reachability. Use a versioned benchmark script and a small results document that records hardware, OS, isolation tool/version, resource allocation, command, sample count, median, 95th percentile where meaningful, and raw timing output. Choose the simplest tier that meets the security boundary and keeps routine development comfortable.
+Capture peak host memory pressure, CPU, clean dependency-install time, cold Next.js compilation, warm build time, file-watch delay, disk use, dev-server response, battery effect, and platform reachability. Enforce the proposed Tier B memory cap during the pilot and record `vm_stat` plus `sysctl -a vm.swapusage` before, during, and after the cold compilation workload. Use a versioned benchmark script and a small results document that records hardware, OS, isolation tool/version, resource allocation, command, sample count, median, 95th percentile where meaningful, and raw timing output. Choose the simplest tier that meets the security boundary and keeps routine development comfortable.
 
 ## 8. Current-state audit
 
@@ -272,7 +274,7 @@ Capture peak host memory pressure, CPU, clean dependency-install time, warm buil
 |---|---|---|---|
 | A-01 | `.env.local` is a symlink to a shared secret file outside the repository. Its parent directories are `0755` and target is `0644`. | Verified with `readlink` and `stat`. | **Critical:** every local account can traverse and read it. |
 | A-02 | The shared file contains 17 variables spanning model APIs, provider admin access, Supabase service role/database, Orb API, email, push, and billing. | Verified by variable-name-only inventory. | **Critical:** one read compromises unrelated systems and environments. |
-| A-03 | The complete `.env.local` contents were rendered into an AI-tool transcript during this audit: all 17 entries entered the transcript. Some entries may be public identifiers, but every entry must be classified and every secret-bearing credential in that set treated as exposed. | Verified from the tool output; values are not repeated here. | **Critical incident:** rotate every secret-bearing credential in the exposed set; transcript deletion alone is insufficient. |
+| A-03 | In one verified event, Codex rendered the complete `.env.local` contents in one tool output during this audit: all 17 entries entered that session transcript. No second rendering event has been verified, but repetition in other tools/sessions has not been ruled out. Codex uses a hosted model/service and maintains local session records; whether this exact output persists in each local or provider-side retention plane is unverified and must be established without re-reading or reproducing the secret values. Some entries may be public identifiers, but every entry must be classified and every secret-bearing credential treated as exposed. | Verified from the single observed tool output and Codex's local record inventory; exact record propagation/retention remains unverified. Values are not repeated here. | **Critical incident:** rotate every secret-bearing credential in the exposed set; transcript deletion alone is insufficient. |
 | A-04 | Local TLS private key is ignored and `0600`; certificate is `0644`. | Verified with Git ignore and `stat`. | Low for current file permissions; confirm certificate lifecycle. |
 | A-05 | `.gitignore` covers `.env*`, PEMs, common AI/worktree folders, build output, and Vercel state. | Verified in `.gitignore`. | Helpful but not a secret-scanning control. |
 
@@ -280,7 +282,7 @@ Capture peak host memory pressure, CPU, clean dependency-install time, warm buil
 
 | ID | Finding | Evidence/confidence | Risk |
 |---|---|---|---|
-| A-06 | Claude's Orb-local configuration permits wildcard Python, `git add`, `git commit`, `git push`, and broad Downloads reads. Shared `AGENTS.md` simultaneously attests that the push rule was removed from a tracked per-project file, but Orb's file is ignored/untracked and still contains the rule. | Verified in `.claude/settings.local.json`, `.gitignore`, Git index, and shared `AGENTS.md`. Helm's state was not inspected. | **High:** arbitrary interpreter plus source/deploy authority defeats narrow approvals; the false attestation can suppress future audits. |
+| A-06 | Claude's Orb-local configuration permits wildcard Python, `git add`, `git commit`, `git push`, and broad Downloads reads. Orb `AGENTS.md`, shared `AGENTS.md`, and Knowledge entry `fa737536` attest that the push rule was removed from a tracked per-project file, but Orb's file is ignored/untracked and still contains the rule. | Verified in `.claude/settings.local.json`, `.gitignore`, Git index, both instruction surfaces, and Claude's service-role Knowledge search. Helm's state was not inspected. | **High:** arbitrary interpreter plus source/deploy authority defeats narrow approvals; the three-surface false attestation can suppress future audits. |
 | A-07 | Claude representative project transcript is `0600`. | Verified with `stat`; content not read. | Good control; verify all records and retention. |
 | A-08 | Codex user config is `0600`, uses `approval_policy = "untrusted"`, but trusts both Orb and the parent Projects directory. Current runtime can read broadly while writes/network are restricted. | Verified in config and current runtime permission profile. | **Medium/High:** parent trust and broad reads exceed one-project least privilege. |
 | A-09 | Codex `session_index.jsonl` and representative session files are `0644`; parent directories are traversable. | Verified with `find`/`stat`; content not read. | **High confidentiality risk** on a multi-account Mac. |
@@ -288,6 +290,8 @@ Capture peak host memory pressure, CPU, clean dependency-install time, warm buil
 | A-11 | Mistral Vibe has permission bypass disabled, but telemetry, detailed prompt logging, and session logging enabled. Message logs/config/trust files are `0644`; metadata is often `0600`. | Verified from configuration and `stat`. | **High:** detailed records readable by other local accounts; unnecessary retention/telemetry. |
 | A-12 | OpenCode config is `0644` and names a model; no explicit permission policy was found. | Verified locally. | Unverified runtime behavior; audit before further use. |
 | A-13 | Enabled Codex plugins and local/remote tool integrations increase reachable data and supply-chain surface. | Verified from local config. | Medium until necessity, identities, and update policies are reviewed. |
+| A-24 | Orb's localhost `query_repository` reads the live working tree but normalizes and rejects absolute, traversal, and hidden paths before filesystem resolution; only allowlisted roots/extensions are readable; `lstat` rejects symlinks and oversized files. The root `.env.local` symlink therefore cannot enter the reader through the current implementation. | Verified in `lib/repository-reader.ts`, including operation-specific caps of 250 KB, 400 lines, and 100 results. This is a source-path verification, not an adversarial end-to-end test. | Existing useful boundary; Phase 2 must add negative tests so later normalization or allowlist changes cannot expose secrets. |
+| A-25 | Orb's `query_db` allows nine tables, validates filter column names/operators, caps reads at 200 rows, and uses the RLS client for regular users. For admins it intentionally uses the service-role admin client, bypassing RLS. | Verified in `app/actions/orb-converse.ts` and `lib/db-schema.ts`. | **High privileged path:** admin status converts a constrained read helper into broad row visibility across the allowlisted tables; authorization and excluded-table tests are required. |
 
 ### 8.3 Repository, commands, network, and production
 
@@ -303,10 +307,11 @@ Capture peak host memory pressure, CPU, clean dependency-install time, warm buil
 | A-21 | Canonical Orb/shared instructions embed secret values into `curl` and `psql` argument vectors through command substitution, contradicting the proposed no-secret-in-argv control. | Verified by reading both `AGENTS.md` files and shell expansion semantics. Cross-account visibility through `ps` remains untested. | **High/Blocker for Phase 1 acceptance:** mandatory workflows would continue leaking secret values into process arguments. |
 | A-22 | Mandatory workflows depend on high-privilege secrets: backlog/todo API, Knowledge Repository read/write, schema migration/health checks, and the model-eval execution path. | Verified in Orb/shared `AGENTS.md` and package instructions. | **High usability/control conflict:** removing direct access without replacement brokers would break required work and encourage bypasses. |
 | A-23 | Orb has two registered Git worktrees. The main worktree has the external `.env.local` symlink; the secondary `agents-read-agents-data` worktree currently has no `.env.local`. | Verified with `git worktree list` and exact-path checks. | **Medium:** worktree-local ignored configuration and future secret links can escape a project-name-only boundary. |
+| A-26 | No dedicated production read-only database identity exists in the recorded grant design. The migration gives `authenticated` and `service_role` mutation rights on system settings and core user/audit tables, while lookup tables are SELECT-only and `anon` is limited to selected lookup/config reads. | Verified in `scripts/migrations/20260527_explicit_grants.sql`. Knowledge entry `a6fd2877` independently records the missing read-only identity, but Claude's quoted “CRUD on all 17 tables” is not supported by the migration's per-table grants and is not adopted as a finding here. | **High design gap:** Phase 1 requires a migration, explicit grants, and RLS verification—not merely selecting a different existing key. |
 
 ### 8.4 Governance and audit limitations
 
-- The mandatory Knowledge Repository query failed twice from Codex's restricted network path because that sandbox could not resolve the Supabase host. Claude independently reported successful Knowledge Repository and Orb API queries from the same Mac, establishing that the failure is tool-scoped rather than host-scoped. The ORB-374 topic search remains **pending** and may be assigned to an agent with approved egress.
+- Claude completed the mandatory service-role Knowledge Repository search through an approved-egress path using a temporary owner-only curl configuration. Of 276 entries, 51 matched the six search topics. No prior entry covers ORB-374's core local-agent security subject, so ORB-374 will be the first of its class. The adjacent entries and required correction are reconciled in section 14. Codex's earlier DNS failure is established as tool-scoped rather than host-scoped.
 - GitHub branch protection, repository visibility, secret scanning, push protection, Dependabot settings, collaborator list, and deployment protection are **unverified** because local files cannot establish them.
 - Credential misuse, other local user accounts, FileVault state, backups, external-disk inventory, router isolation, and provider audit logs were not inferred from absence of local evidence.
 - This is a configuration and workflow audit, not a penetration test or malware scan.
@@ -327,6 +332,8 @@ Capture peak host memory pressure, CPU, clean dependency-install time, warm buil
 | P2 | Provenance/recovery settings unverified | BP-5, BP-9, BP-10 | Review GitHub rules, commit signing, backups, and restore tests; document accepted residual risk. |
 | P1 | Published control attestations do not match enforced configuration | BP-3, BP-9, BP-10 | Inventory every claimed enforcement mechanism, test it against the live artifact, correct false documentation, and make permission changes reviewable. |
 | P1 | Canonical agent commands expose secrets in process arguments and mandatory workflows lack safe replacements | BP-1, BP-2, BP-3, BP-8 | Replace every documented inline-secret pattern with reviewed brokers; preserve each required workflow and test cross-account process visibility with a harmless canary. |
+| P1 | Orb's own repository/database inspection tools include privileged local and admin paths | BP-1, BP-2, BP-9 | Preserve the current allowlists and limits, add adversarial negative tests, verify role transitions, and treat the `query_db` admin bypass as explicit privileged access. |
+| P1 | The planned production read-only database identity does not exist | BP-2, BP-3 | Create it through a reviewed migration with narrow grants and RLS tests; do not approximate authorization with `NODE_ENV` or reuse a mutation-capable role. |
 
 ## 10. Implementation plan
 
@@ -336,9 +343,11 @@ Every phase starts with a snapshot/backout artifact, uses redacted verification,
 
 **Goal:** reduce present risk before building new infrastructure.
 
-1. Build a secret-name/owner/consumer inventory without outputting values across every credential plane: the local shared environment source, Vercel development/preview/production variables, GitHub repository secrets, provider dashboards, Supabase/database credentials, and any human password/secrets manager.
+Phase 0 itself follows the same no-secret-in-argv and no-agent-readable-secret rule. Before the first rotation, Stan approves a temporary human-controlled delivery method whose harmless-canary test shows that values do not enter process arguments, agent-visible environment, stdin capture, tool/shell logs, temporary files, or improperly permissioned sockets. Containment may not recreate A-21 while trying to fix A-03.
+
+1. Build a secret-name/owner/consumer inventory without outputting values across every credential plane: the local shared environment source, Vercel development/preview/production variables, GitHub repository secrets, provider dashboards, Supabase/database credentials, and any human password/secrets manager. Inventory every consumer across Orb, Helm, and other projects because the Knowledge Repository and Orb API credentials are shared cross-project infrastructure.
 2. Correct secret-vault ownership and permissions (`0700` directories, `0600` files) using exact paths.
-3. Rotate or revoke every secret-bearing credential among the 17 exposed entries in a dependency-safe order. For each credential, identify every consumer, create the replacement, update local and hosted consumers, trigger any required redeploy/restart, verify the new credential, revoke the old credential, and verify the old credential fails. Do not revoke first and strand a deployed consumer on the obsolete value. Public identifiers are classified separately and need not be rotated merely because they appeared in the file.
+3. Rotate or revoke every secret-bearing credential among the 17 exposed entries in a dependency-safe, cross-project order. Before invalidation, record the consumer chain for each credential. The required sequence is: create the replacement → update the secure local vault → update every Orb, Helm, other-project, hosted, background-worker, and automation consumer → deploy/restart each dependent runtime → verify every affected endpoint and mandatory workflow → revoke the legacy credential → verify the legacy credential fails. After revocation, deliberately test missing/invalid credentials so no application, script, broker, or workflow fails silently or falls back to a default, cached, embedded, or legacy credential path. Do not revoke first and strand a deployed or cross-project consumer on the obsolete value. Public identifiers are classified separately and need not be rotated merely because they appeared in the file.
 4. Review provider, Supabase, Vercel, GitHub, and email audit logs where available; document whether evidence of misuse exists.
 5. Purge exposed transcript records only after incident evidence and required handoff details are safely recorded; assume deletion cannot retract data already transmitted.
 
@@ -348,13 +357,13 @@ Every phase starts with a snapshot/backout artifact, uses redacted verification,
 
 ### Phase 1 — Establish credential and authorization boundaries
 
-1. Split local development, production read-only, and production mutation credentials.
+1. Split local development, production read-only, and production mutation credentials. The production read-only database identity does not exist today: create it through a reviewed migration with explicit narrow grants and RLS policies/tests. Verify it cannot `SET ROLE` into a mutation-capable identity, inherit mutation privileges, create/alter roles, or obtain privileges through public/default grants; test effective privileges again after any membership change and fail closed by revoking the credential/role if the invariant changes. This is an identity-and-authorization control, not a key-selection exercise or blanket environment check.
 2. Select a secure store/broker appropriate to a single-user Mac (evaluate macOS Keychain and a dedicated secrets manager). The repository receives only variable names and broker commands.
 3. Remove AI read/write access to the secret vault. Agents receive short-lived, task-specific variables only when necessary.
 4. Replace direct production actions with narrow wrappers that resolve and show target environment, operation, and affected resources before Stan approves. Each broker is small, single-purpose, idempotent where the operation permits it, fail-closed, and independently testable.
 5. Ensure push/deploy, production SQL/DDL, destructive scripts, credential changes, and external messages can never be permanently auto-approved.
 6. Add an early local secret scanner for the working tree and staged diff before general AI development resumes. Use harmless canaries and a reviewed configuration; defer full-history, CI, and server-side integration to Phase 4.
-7. Replace every inline-secret `curl`/`psql` pattern in Orb and shared `AGENTS.md` with the approved broker or secret-store interface in the same change. Use a harmless canary and a second local test account to determine whether process arguments are cross-account visible; record the actual result without exposing a real credential.
+7. Replace every inline-secret `curl`/`psql` pattern in Orb and shared `AGENTS.md` with the approved broker or secret-store interface in the same change. Use a harmless canary and a second local test account to determine whether process arguments are cross-account visible; record the actual result without exposing a real credential. Test every proposed delivery channel—not only argv—for exposure through process environment, inherited child processes, standard-input capture, shell/tool logs, temporary files, and socket permissions. Environment variables, stdin, and local sockets are candidates, not inherently safe controls; standardize only a channel whose implementation keeps the secret outside the agent-readable boundary.
 8. Create a mandatory-workflow migration inventory and replacement acceptance test for: backlog read and todo create/update/close; Knowledge Repository read/write; schema migration and required pre/post health queries; and the human-run model-eval/dev-server path. The eval runner remains Stan-run, but its credential must be supplied without becoming agent-readable.
 
 **Acceptance:** a routine AI session cannot read production secrets, query production through a general shell, push, or deploy; an approved broker action succeeds and leaves a redacted audit record; the local scanner blocks harmless canary credentials in both the working tree and staged diff; both `AGENTS.md` files contain no inline secret expansion; and every mandatory workflow in step 8 still succeeds through its replacement path.
@@ -370,19 +379,21 @@ Every phase starts with a snapshot/backout artifact, uses redacted verification,
 5. OpenCode and every future AI tool: block use until permission, sandbox, log, network, plugin, and credential behavior is documented against this baseline and its log/session files are verified owner-only by default.
 6. Add a safe local security audit that reports paths, modes, policy categories, and pass/fail without reading or printing secrets.
 7. Convert every published control attestation into an executable or artifact-backed check. At minimum, verify Claude's push gate, tracked/ignored status of its policy file, Codex trust/permission scope, Gemini durable approvals, transcript modes, and each active worktree. Correct shared documentation when a claim is false; do not mark a control present because instructions say it is present.
+8. Add deterministic negative tests for Orb's own `query_repository` and `query_db` boundaries. Test root and nested `.env*` paths, hidden segments, traversal, absolute paths, symlinks within allowlisted trees, disallowed extensions, size/line/result caps, regular-user RLS, admin bypass, excluded tables, invalid filters, row caps, and local-versus-production source selection.
 
-**Acceptance:** automated audit passes; negative tests prove each tool cannot read the secret vault or other projects and cannot perform a protected action without the trusted approval path.
+**Acceptance:** automated audit passes; negative tests prove each coding tool cannot read the secret vault or other projects and cannot perform a protected action without the trusted approval path; Orb's repository and database inspection tools preserve their documented allowlists, limits, role boundaries, and secret/symlink denials.
 
 **Rollback:** restore versioned configuration from an owner-only backup; do not restore broad wildcard approvals.
 
 ### Phase 3 — Pilot and adopt isolation tiers
 
-1. Choose a minimal Apple-silicon Linux isolation implementation after comparing Docker Desktop and a lighter Lima/Colima alternative for security features, maintenance, licensing, and performance.
-2. Create a pinned, reproducible Tier B environment with non-root user, minimal capabilities, no host socket, no secrets, limited mounts, and controlled egress.
-3. Benchmark native versus isolated Orb workflows using the hardware metrics in section 7.4.
-4. Create a Tier C disposable VM profile only if the documented threat scenarios justify the additional overhead.
-5. Optionally pilot an encrypted external NVMe SSD. Do not purchase or standardize external media before the internal-disk baseline is measured.
-6. Document patch-based change export, environment reset, backup, restore, and emergency shutdown.
+1. Create the versioned isolation benchmark harness and result schema before the first pilot. Proposed location: `scripts/security/benchmark-isolation.sh` plus a dated redacted result under `docs/security-results/`; confirm the final path during implementation rather than treating this proposal as an existing script.
+2. Choose a minimal Apple-silicon Linux isolation implementation after comparing Docker Desktop and a lighter Lima/Colima alternative for security features, maintenance, licensing, and performance.
+3. Create a pinned, reproducible Tier B environment with non-root user, minimal capabilities, no host socket, no secrets, limited mounts, and controlled egress.
+4. Benchmark native versus isolated Orb workflows using the hardware metrics in section 7.4.
+5. Create a Tier C disposable VM profile only if the documented threat scenarios justify the additional overhead.
+6. Optionally pilot an encrypted external NVMe SSD. Do not purchase or standardize external media before the internal-disk baseline is measured.
+7. Document patch-based change export, environment reset, backup, restore, and emergency shutdown.
 
 **Acceptance:** isolation negative tests pass; expected workflows meet agreed performance thresholds; deleting the environment removes all workspace state; no host secret or unrelated path is visible inside it.
 
@@ -395,6 +406,7 @@ Every phase starts with a snapshot/backout artifact, uses redacted verification,
 3. Add dependency and vulnerability review, lockfile integrity checks, pinned GitHub Actions, and controlled package lifecycle execution.
 4. Harden destructive scripts with environment assertions, dry-run default, explicit identifiers/counts, and confirmation at the final mutation boundary.
 5. Review GitHub repository visibility, collaborators, rulesets/branch protection, signed commits, deployment protection, Actions permissions, and audit logging.
+6. Complete or re-verify explicit grants and migration defaults before Supabase's published 2026-10-30 rollout to existing projects; keep RLS verification separate because grants govern API reachability while RLS governs rows.
 
 **Acceptance:** harmless canary secrets are blocked locally and by the selected server gate; false-positive bypass requires a documented human decision; destructive-script tests cannot target production by default.
 
@@ -418,9 +430,11 @@ Every phase starts with a snapshot/backout artifact, uses redacted verification,
 | Workspace scope | Agent edits a file beneath its exact claimed worktree root | Agent cannot read/write another registered Orb worktree, other project, home config, `.git`, or host settings | Claimed root, enumerated worktrees, resolved target, and denial |
 | Network | Approved docs/provider endpoint works | Arbitrary domain, local subnet, and upload endpoint fail | Domain and decision, no payload |
 | Consequential approval | Stan-approved dry-run then mutation succeeds | Model-generated approval wording cannot authorize push/deploy/DB/delete | Resolved operation/target/actor |
-| Transcript privacy | Current user can resume session | Other local test account cannot traverse/read records | Modes/ACLs, not content |
+| Transcript privacy and secret absence | Current user can resume a harmless-canary session and the security audit can locate/redact the canary without exposing unrelated content | Other local test account cannot traverse/read records; unique harmless canaries do not appear outside the deliberately seeded test record in transcripts, logs, caches, crash/feedback artifacts, or telemetry | Modes/ACLs and canary locations/counts, never real secret values or unrelated transcript content |
 | Container/VM boundary | Build and tests complete | No host secrets, socket, home, other project, clipboard, or broad mount visible | Mount/network/process inventory |
 | Secret scanning | Harmless canary blocked | Known exclusions do not hide real patterns | Scanner version/config/result |
+| Orb repository reader | Allowlisted source read succeeds within caps | `.env.local`, hidden/traversal/absolute paths, in-tree symlinks, disallowed extensions, and over-limit reads fail | Resolved path class, source, policy result; no secret content |
+| Orb database reader | Regular user reads an allowed RLS-visible row; approved admin reads an allowed broader set and produces a durable audit event | Excluded tables, invalid filters, over-200 limits, non-admin cross-user rows, and every non-admin attempt to reach the admin-client path fail | Actor role, table, requested/effective limit, result count, client path, and audit-event ID; no row contents |
 | Recovery | Clean environment recreated and backup restored | Deleting sandbox cannot delete host source/backups | Timings and checksums |
 
 Security tests with variable outcomes must be run at least three times before being called verified. A single pass is recorded as “passed once.”
@@ -429,9 +443,12 @@ Security tests with variable outcomes must be run at least three times before be
 
 The security solution fails if it is so slow or awkward that broad permissions are routinely restored.
 
+Environment is context, not authorization. Orb previously found that a blanket `NODE_ENV === 'production'` write gate blocked legitimate admin work and encouraged workarounds (Knowledge entry `2bd5f167`). Phase 1 therefore separates authority through database identities, grants, RLS, and deterministic brokers; it must not recreate the rejected environment-only gate.
+
 Proposed pilot thresholds, subject to Stan's approval after baseline measurement:
 
 - Host remains responsive with no sustained memory-pressure warning during ordinary editing/builds.
+- Tier B stays within its configured memory cap; repeated cold compilations do not produce sustained memory-pressure warnings or monotonically increasing swap use.
 - Warm isolated build is no more than 25% slower than native; clean dependency install no more than 40% slower.
 - File change reaches the dev server within 1 second at the 95th percentile.
 - Local page response is not materially changed after compilation.
@@ -445,22 +462,27 @@ Performance evidence is collected by the versioned benchmark script and results 
 
 ## 13. Decisions required before implementation
 
+Phase 0 cannot start until Stan approves the plan and decision 1 below. Decisions 2–5 must be resolved before their corresponding later phase is implemented; they are not all prerequisites to begin Phase 0 after its actual gates are approved.
+
 1. Approve immediate rotation of every credential confirmed rendered to an AI transcript, even if no misuse is visible.
 2. Choose the preferred human-controlled secret store for the pilot: macOS Keychain or an existing dedicated password/secrets manager.
 3. Decide whether Vibe telemetry and detailed session logging provide value worth retaining.
 4. Approve evaluation—not yet purchase—of an external USB4/Thunderbolt NVMe SSD after the internal-disk isolation benchmark.
 5. Approve the Tier A/B/C model and the principle that production mutation credentials are never present in a general-purpose agent shell.
-6. Decide when the proposed interim operating restriction in section 2 becomes binding: immediately, or when this plan is approved.
+6. **Decided 2026-08-03 19:00 HST:** Stan activated the interim operating restriction immediately. Only no-secret/no-mutation plan review and exact Stan-approved Phase 0 containment are permitted until Phase 0 passes. This does not approve the plan or authorize implementation.
 7. **Decided 2026-08-03 18:39 HST:** Stan approved a local checkpoint commit of the planning document, WIP, claim, and preserved review packets before further review. This records the draft; it does not approve the plan, authorize implementation, or authorize a push.
 
 ## 14. Knowledge Repository publication after approval
 
 Before implementation:
 
-If the Knowledge Repository remains unavailable, implementation is deferred. An outage is not permission to begin with an unrecorded plan or to backfill governance later.
+If the Knowledge Repository becomes unavailable for the required write, implementation is deferred. An outage is not permission to begin with an unrecorded plan or to backfill governance later.
 
-1. Assign an agent/tool with approved egress to run the mandatory service-role Knowledge Repository search for local-file security, agent permissions, secret handling, prompt injection, sandboxing, and ORB-374. Codex's sandbox DNS failure does not require waiting for the host network to recover.
-2. Reconcile prior entries: link or supersede; do not assume older guidance remains correct.
+1. **Completed 2026-08-03 by Claude Code:** service-role search of 276 entries through an approved-egress path; 51 matched local-file security, agent permissions, secret handling, prompt injection, sandboxing, and ORB-374 terms. No entry covers ORB-374's core subject.
+2. Reconciliation for the post-approval write:
+   - supersede Knowledge entry short ID `fa737536` because its claim that Claude's Git push allowlist rule was removed in all projects is verified false for Orb; retain its original content beneath the required superseded banner and do not claim Helm was checked;
+   - link `99a3f5e1` (`query_repository`), `8c3bfdf4` (`query_db`), `a6fd2877` (explicit grants/current role capabilities), `18b4b90a` (cross-project shared resources), and `2bd5f167` (role-based authorization rather than environment gates);
+   - resolve and record the full UUID for every short ID before any database write.
 3. Create the ORB-374 entry with the approved threat model, best practices, verified audit, risk decisions, implementation phases, acceptance/rollback criteria, sources, and residual risks.
 4. Include all pertinent Comments content: commenter tool/model, original timestamp/timezone, round, comment IDs, dispositions, document revisions, and unresolved objections. Preserve attribution; do not flatten comments into unattributed prose.
 5. Link the entry to ORB-374's todo ID and record the Knowledge entry ID in the handoff and eventual resolution notes.
@@ -489,6 +511,7 @@ Authoritative guidance reviewed 2026-08-03:
 - [Docker Desktop resource and disk-image settings](https://docs.docker.com/desktop/settings-and-maintenance/settings/)
 - [Apple encrypted removable storage](https://support.apple.com/guide/disk-utility/encrypt-protect-a-storage-device-password-dskutl35612/22.7/mac/26)
 - [Apple SD/SDXC support](https://support.apple.com/en-us/102352)
+- [Supabase breaking change: explicit Data API grants for new tables](https://github.com/orgs/supabase/discussions/45329)
 
 ## 16. Comments
 
@@ -517,6 +540,8 @@ Preserved packets:
 
 - [Perplexity Round 1](orb-374-reviews/perplexity-r1.md) — temporary signed attachment URLs redacted; source attachment hash retained.
 - [Claude Code Round 1](orb-374-reviews/claude-code-r1.md) — substantive packet preserved verbatim with normalized Markdown formatting.
+- [Gemini Round 1](orb-374-reviews/gemini-r1.md) — substantive packet preserved verbatim with normalized Markdown formatting.
+- [Mistral Vibe Round 1](orb-374-reviews/mistral-vibe-r1.md) — substantive packet preserved verbatim with normalized Markdown formatting; supplied timestamp/commit inconsistencies are noted without rewriting reviewer metadata.
 
 ### Comment dispositions
 
@@ -543,7 +568,7 @@ Preserved packets:
 | perplexity-R1-C15 | Incorporated | Codex / 2026-08-03 18:08 HST | 10 | Brokers must be small, single-purpose, fail-closed, testable, and idempotent where possible. |
 | perplexity-R1-C16 | Incorporated | Codex / 2026-08-03 18:08 HST | 6, 10 | Added annual full-audit and change-triggered delta-audit cadence. |
 | perplexity-R1-C17 | Incorporated | Codex / 2026-08-03 18:08 HST | 16 | Conflicting reviews are recorded; Stan decides unresolved tradeoffs. |
-| codex-R1-C3 | Reclassified | Codex / 2026-08-03 18:31 HST | 8, 14, 16 | Codex DNS failure is tool-scoped; the required topic search is pending but assignable to an approved-egress agent. |
+| codex-R1-C3 | Completed | Codex / 2026-08-03 19:00 HST | 8, 14, 16 | Codex DNS failure was tool-scoped; Claude completed and reconciled the required topic search through an approved-egress path. The separate post-approval Knowledge write remains gated. |
 | claude-R1-C1 | Incorporated | Codex / 2026-08-03 18:31 HST | 8, 9, 10 | Added control-attestation failure and executable enforcement verification. |
 | claude-R1-C2 | Incorporated | Codex / 2026-08-03 18:31 HST | 8, 14, 16 | Corrected host-versus-tool network attribution and reclassified the prior blocker. |
 | claude-R1-C3 | Blocker accepted | Codex / 2026-08-03 18:31 HST | 8, 9, 10 | Phase 1 must replace every documented inline-secret command and test harmless canary visibility. |
@@ -554,8 +579,27 @@ Preserved packets:
 | claude-R1-C8 | Incorporated | Codex / 2026-08-03 18:31 HST | 16, review artifacts | Full review packets are preserved; summaries remain navigational. |
 | claude-R1-C9 | Incorporated | Codex / 2026-08-03 18:31 HST | 7, 8, 11 | Tier A and tests use exact claimed worktree roots; two current worktrees were inventoried. |
 | claude-R1-C10 | Incorporated | Codex / 2026-08-03 18:31 HST | 3 | Added value-suppressing audit/evidence rules and safe name-only enumeration. |
-| claude-R1-C11 | Pending Stan | — | 2, 13 | Stan must choose immediate or approval-time activation of the proposed interim restriction. |
+| claude-R1-C11 | Activated | Codex / 2026-08-03 19:00 HST | 2, 13 | Stan activated the interim freeze immediately; it remains an operating rule until Phase 0 passes and does not itself authorize implementation. |
 | claude-R1-C12 | Approved | Codex / 2026-08-03 18:39 HST | 13, release bookkeeping | Stan authorized a local checkpoint commit only; no plan approval, implementation authority, or push authority was granted. |
+| claude-R1-C13 | Incorporated / correction queued | Codex / 2026-08-03 19:00 HST | 8, 9, 14 | Recorded the three-surface false attestation; Knowledge entry `fa737536` must be superseded after plan approval. Helm remains unverified. |
+| claude-R1-C14 | Incorporated and question answered | Codex / 2026-08-03 19:00 HST | 1, 6, 8, 9, 10, 11 | Added Orb's own inspection tools. Source verification confirms hidden/traversal paths are rejected before resolution and symlinks are rejected with `lstat`; end-to-end negative tests remain required. |
+| claude-R1-C15 | Modified | Codex / 2026-08-03 19:00 HST | 8–10, 15 | The missing read-only identity, migration requirement, and deadline are accepted. The quoted “CRUD on all 17 tables” is not: the migration makes lookup tables SELECT-only while granting mutation rights on system/user/audit tables. |
+| claude-R1-C16 | Incorporated | Codex / 2026-08-03 19:00 HST | 10, 14 | Phase 0 now inventories and coordinates shared credential consumers across Orb, Helm, and other projects. |
+| claude-R1-C17 | Incorporated | Codex / 2026-08-03 19:00 HST | 6, 12, 14 | Cited Orb's deny-by-default prior art and made identity/role—not environment—the authorization plane. |
+| gemini-R1-C1 | Incorporated with refinement | Codex / 2026-08-03 19:13 HST | 10 | Retained the second-account argv canary and required exposure tests for environment, child inheritance, stdin capture, logs, temp files, and socket permissions. No delivery channel is presumed safe. |
+| gemini-R1-C2 | Incorporated | Codex / 2026-08-03 19:13 HST | 7, 12 | The Tier B pilot now enforces its memory cap and records `vm_stat` and swap usage around cold Next.js compilation. |
+| gemini-R1-C3 | Incorporated | Codex / 2026-08-03 19:13 HST | 10 | Made the cross-project consumer dependency chain and deploy/verify/revoke order explicit. |
+| gemini-R1-C4 | Blocker acknowledged / scope corrected | Codex / 2026-08-03 19:13 HST | 1, 13, 14 | Plan approval and decision 1 gate Phase 0. Decisions 2–5 gate their corresponding later phases rather than all blocking Phase 0. The Knowledge write remains post-approval and pre-implementation. |
+| mistral-R1-C1 | Incorporated with evidence limits | Codex / 2026-08-03 19:29 HST | 2, 8 | One Codex tool-output event in one session is verified. No repeat event is verified, but repetition and exact local/provider retention of this output remain unverified. |
+| mistral-R1-C2 | Incorporated / citation corrected | Codex / 2026-08-03 19:29 HST | 10 | Added a canary-tested Phase 0 delivery gate. The process-argument finding is A-21, not A-22. |
+| mistral-R1-C3 | Already satisfied | Codex / 2026-08-03 19:29 HST | 5, 6 | Section 5.4 already states that model-influenced approval dialogs can be forged and BP-3 already requires trusted code to display the resolved action and targets. |
+| mistral-R1-C4 | Incorporated | Codex / 2026-08-03 19:29 HST | 10, 11 | Added effective-privilege, `SET ROLE`, membership-inheritance, role-management, and fail-closed revocation tests for the read-only identity. |
+| mistral-R1-C5 | Incorporated refinement | Codex / 2026-08-03 19:29 HST | 7, 11 | Tier A permits one exact worktree root per session; secondary access replaces the root under a separate claim rather than adding both. |
+| mistral-R1-C6 | Incorporated | Codex / 2026-08-03 19:29 HST | 10 | Added missing/invalid-credential tests for silent failure and default, cached, embedded, or legacy fallback paths. |
+| mistral-R1-C7 | Answered | Codex / 2026-08-03 19:29 HST | 7, 10, 12 | Phase 3 now creates a versioned benchmark harness/results schema before the first pilot; the proposed path is not represented as existing. |
+| mistral-R1-C8 | Incorporated | Codex / 2026-08-03 19:29 HST | 11 | Transcript verification now uses unique harmless canaries across transcripts, logs, caches, crash/feedback artifacts, and telemetry. |
+| mistral-R1-C9 | Incorporated | Codex / 2026-08-03 19:29 HST | 6 | Stan owns risk/tool decisions; the assigned security maintainer executes claimed delta audits and records the next trigger in the handoff. |
+| mistral-R1-C10 | Incorporated | Codex / 2026-08-03 19:29 HST | 11 | The database-reader matrix now denies every non-admin admin-client path and requires a durable audit event for approved admin reads. |
 
 ### Codex (GPT-5.6 Sol) — 2026-08-03 17:18 HST — Round 1
 
@@ -649,3 +693,107 @@ Preserved packets:
 - **claude-R1-C11 — Pending Stan:** Codex explained the proposed interim restriction; Stan has not yet activated it or selected approval-time activation.
 - **claude-R1-C12 — Approved:** Stan authorized a local checkpoint commit of the draft and review record. The authorization explicitly excludes plan approval, implementation, and push.
 - **claude-R1-C2 — Follow-up available:** Claude offered to run the section 14.1 Knowledge Repository search through its approved-egress path. Codex recommends accepting that offer now; the result packet can close the outstanding topic-search task.
+
+### Codex (GPT-5.6 Sol) — 2026-08-03 19:00 HST — Round 7
+
+**Revision reviewed:** Stan's freeze decision and Claude's Round 1 Knowledge Repository addendum against checkpoint commit `8984117` / document Last updated 2026-08-03 18:39 HST.
+**Document updated:** 2026-08-03 19:00 HST.
+
+- **Interim restriction activated:** Stan approved the temporary freeze immediately. Ordinary AI feature work is suspended until Phase 0 passes; plan review and exact Stan-approved containment remain allowed. The rule is active even though the plan itself is not yet approved.
+- **Knowledge search complete:** Claude searched 276 entries through its approved-egress path; 51 matched the six named topics. ORB-374 is first-of-class for local AI-tool security. The search leg of `codex-R1-C3` is closed; the post-approval Knowledge write remains gated.
+- **Required correction:** Entry `fa737536` repeats the false Claude push-gate attestation and must be superseded when the approved plan is published. The original text will remain under the required banner; Helm is not represented as checked.
+- **Orb brought into scope:** `query_repository` and `query_db` are useful deny-by-default precedents and security surfaces. Codex verified the current reader's pre-resolution hidden/traversal rejection and `lstat` symlink rejection, plus the database tool's allowlists, 200-row cap, regular-user RLS, and explicit admin bypass. Phase 2 now requires deterministic negative tests.
+- **Read-only role clarified:** The present grant migration contains no dedicated production read-only identity. Creating one requires a migration, narrow grants, and RLS tests; environment alone is never authorization. Claude's quoted “CRUD on all 17 tables” was not adopted because the migration makes lookup tables SELECT-only while granting mutation rights on system/user/audit tables.
+- **Cross-project rotation:** Shared Knowledge Repository and Orb API credentials require coordinated consumer updates across Orb, Helm, and other projects before revocation.
+
+### Gemini (Gemini 1.5 Pro / 2026-08-03 Engine) — 2026-08-03 19:11 HST — Round 1
+
+**Revision reviewed:** working-tree draft; document Last updated 2026-08-03 19:00 HST.
+**Imported by:** Codex (GPT-5.6 Sol), 2026-08-03 19:13 HST.
+**Metadata note:** Reviewer/model description is recorded exactly as Gemini supplied it.
+**Authoritative packet:** [Gemini Round 1](orb-374-reviews/gemini-r1.md).
+
+- **gemini-R1-C1 — Verified finding:** Canonical inline secret expansion places credential values in process arguments; cross-account visibility depends on the host and requires the planned canary test.
+- **gemini-R1-C2 — Recommendation:** Measure memory pressure and swap during capped Tier B cold compilation on the 16 GB Mac.
+- **gemini-R1-C3 — Recommendation:** Record and execute the full cross-project consumer dependency chain before revoking shared credentials.
+- **gemini-R1-C4 — Blocker / policy decision:** Keep implementation and the post-approval Knowledge write blocked until Stan explicitly approves the plan.
+
+### Codex (GPT-5.6 Sol) — 2026-08-03 19:13 HST — Round 8
+
+**Revision reviewed:** Gemini Round 1 against working-tree document Last updated 2026-08-03 19:00 HST.
+**Document updated:** 2026-08-03 19:13 HST.
+
+- **Review disposition:** C2 and C3 were incorporated. C1 was incorporated with a stronger channel-neutral test requirement. C4's core blocker was retained, but its claim that decisions 1–5 all gate Phase 0 was narrowed to match each decision's actual phase.
+- **Secret delivery refinement:** Moving a secret out of argv does not by itself make environment variables, stdin, local sockets, temporary files, or broker logs safe. The selected implementation must prove the secret remains outside the agent-readable boundary.
+- **Performance refinement:** The benchmark now samples `vm_stat` and `vm.swapusage` before, during, and after capped cold compilation.
+- **Rotation refinement:** Each shared credential gets an explicit consumer chain: create replacement, update local and deployed consumers, redeploy/restart, verify endpoints/workflows, revoke legacy credential, then verify legacy failure.
+- **Approval boundary:** The plan remains unapproved. Phase 0 requires plan approval plus decision 1. Decisions 2–5 are resolved before their applicable later phases, and the Knowledge Repository write still occurs after plan approval but before implementation.
+
+### Mistral Vibe (mistral-medium-3.5) — 2026-08-03 20:15 HST — Round 1
+
+**Revision reviewed:** working-tree draft; document Last updated 2026-08-03 19:13 HST; reviewer also cited checkpoint commit `8984117`.
+**Imported by:** Codex (GPT-5.6 Sol), 2026-08-03 19:29 HST.
+**Metadata note:** Mistral's supplied review timestamp is 46 minutes later than the importing system clock. Commit `8984117` predates the uncommitted 19:13 draft. Both inconsistencies are preserved and not silently corrected.
+**Authoritative packet:** [Mistral Vibe Round 1](orb-374-reviews/mistral-vibe-r1.md).
+
+- **mistral-R1-C1 — Recommendation:** Identify the tool, event count, and known/unknown transcript storage planes for A-03.
+- **mistral-R1-C2 — Verified finding:** Phase 0 needs a secure temporary delivery method so rotation does not reproduce inline-secret exposure.
+- **mistral-R1-C3 — Recommendation:** Make approval-forgery guidance and trusted resolved-action rendering explicit.
+- **mistral-R1-C4 — Verified finding:** Test the new read-only identity against role escalation and inherited privileges.
+- **mistral-R1-C5 — Inference:** Clarify whether Tier A grants one or both current worktrees.
+- **mistral-R1-C6 — Recommendation:** Test for silent failure and fallback to default/legacy credentials after rotation.
+- **mistral-R1-C7 — Question:** Identify or require creation of the versioned benchmark harness.
+- **mistral-R1-C8 — Recommendation:** Use harmless canaries to test transcripts, logs, and caches for secret retention.
+- **mistral-R1-C9 — Inference:** Assign re-audit ownership and triggers.
+- **mistral-R1-C10 — Verified finding:** Test non-admin denial of the admin database path and audit approved admin use.
+
+### Codex (GPT-5.6 Sol) — 2026-08-03 19:29 HST — Round 9
+
+**Revision reviewed:** Mistral Vibe Round 1 against working-tree document Last updated 2026-08-03 19:13 HST.
+**Document updated:** 2026-08-03 19:29 HST.
+
+- **C1 evidence boundary:** One Codex rendering event in one session is verified. No repeat is verified; exact propagation to local and provider retention planes is unverified and will not be investigated by searching for real secret values.
+- **C2 containment rule:** Phase 0 now requires a harmless-canary-tested human delivery mechanism before the first rotation. Mistral referenced A-22, but the inline-argument finding is A-21.
+- **C3 already explicit:** Section 5.4 already says model-influenced approval dialogs may be forged, and BP-3 already requires trusted code to display the resolved executable action and targets. No duplicate policy text was added.
+- **C4/C10 privilege verification:** The read-only role gets effective-privilege and escalation tests; Orb's admin database-reader path must be denied to non-admins and emit a durable audit event when used by an admin.
+- **C5 worktree scope:** A Tier A session receives one exact root. A secondary-worktree task substitutes that separately claimed root; it does not widen the session to both.
+- **C6 fallback verification:** Rotation acceptance now includes missing/invalid-key tests to detect silent failure or use of cached, embedded, default, or legacy credentials.
+- **C7 benchmark answer:** Phase 3 creates the versioned harness before the pilot; `scripts/security/benchmark-isolation.sh` and `docs/security-results/` are proposed paths, not existing artifacts.
+- **C8/C9 governance:** Unique harmless canaries cover transcript/log/cache retention. Stan owns risk and tool enablement; the assigned claimed maintainer performs and records each triggered audit.
+
+## 17. Deferred scope and reduced Phase 1 extraction
+
+### Deferral decision
+
+On 2026-08-04, Stan deferred the full ORB-374 program. Deferral does not reject or delete any proposal in this document. The following remain preserved for possible later implementation:
+
+- restricted native Tier A policy across every AI tool;
+- disposable Linux container Tier B;
+- disposable Linux VM Tier C;
+- external SSD/HDD/SDXC storage and custody options;
+- dedicated production read-only database identity and narrow mutation brokers;
+- tool-specific permission, transcript, telemetry, and retention hardening;
+- Orb `query_repository` and `query_db` negative/security tests;
+- repository and supply-chain gates, secret scanning, and GitHub controls;
+- sandbox benchmarks, performance acceptance, incident drills, and recurring audits; and
+- the complete verification matrix and Knowledge Repository publication/correction work.
+
+### Approved reduced scope
+
+Stan explicitly approved **ORB-375 — Security Hardening Phase 1** containing only:
+
+1. **Development launcher:** a protected, human-run `orb-dev` command that loads no repository plaintext secret file, detects the current Mac network, maintains local TLS, binds Orb to port 3001, and prints stable Bonjour plus current-IP URLs for Mac/iPhone/iPad testing.
+2. **Credential rotation:** replace all 13 secret-bearing credentials, update only the development or production consumers that require each replacement, verify operation, revoke each former credential, and verify the former value fails.
+3. **Filesystem changes:** keep replacements outside the repository in owner-only storage, encrypt the at-rest development bundle behind a human-entered passphrase, apply `0700` directory and `0600` file permissions, and remove the repository `.env.local` file/symlink path.
+
+The implementation record and bounded limitations live in `docs/security-hardening-phase-1.md`. The reduced phase does not claim a VM/container boundary, same-user process isolation, production broker architecture, or complete per-tool hardening.
+
+### Codex (GPT-5.6 Sol) — 2026-08-04 11:39 HST — Round 10
+
+**Revision reviewed:** Stan's reduced-scope and deferral decision against working-tree document Last updated 2026-08-03 19:29 HST.
+**Document updated:** 2026-08-04 11:39 HST.
+
+- Preserved the complete reviewed plan rather than deleting unselected controls.
+- Recorded Stan's deferral of the broad program.
+- Extracted the exact approved launcher, rotation, and filesystem work into a separate implementation record.
+- Strengthened the reduced filesystem design from plaintext-outside-workspace to encrypted-at-rest storage because owner-only Unix modes do not deny the same macOS user under which local AI tools run.

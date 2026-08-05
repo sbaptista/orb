@@ -2,6 +2,7 @@
 
 **Preservation:** Verbatim substantive review packet relayed by Stan. Formatting was normalized to repository Markdown; no substantive comment was omitted or rewritten.
 **Imported by:** Codex (GPT-5.6 Sol), 2026-08-03 18:31 HST.
+**Knowledge search addendum imported by:** Codex (GPT-5.6 Sol), 2026-08-03 19:00 HST.
 
 **Reviewer:** Claude Code (Opus 5 — model ID `claude-opus-5`)
 **Review date-time:** 2026-08-03 18:20 HST
@@ -60,3 +61,52 @@ Neither was consequential, and both were self-contradicted within the same messa
 ---
 
 **Supplement relayed by Stan:** "Happy to run the §14.1 Knowledge Repository search now if you want C2 closed out before Codex imports this."
+
+## Knowledge Repository search addendum
+
+Running the §14.1 search. Using a `0600` curl config file rather than the documented inline-`$( )` pattern, so the key never enters process argv — the practice claude-R1-C3 recommends.
+
+51 of 276 entries matched. Reading the ones that bear directly on ORB-374's subject matter.
+
+§14.1 search complete. Method: service-role key via a `0600` curl config, removed after use — no secret entered argv. 276 entries total, 51 matched the six named topics.
+
+**Reconciliation outcome (§14.2): nothing to supersede on ORB-374's core subject — and one prior entry that must be corrected.**
+
+No entry in 276 covers AI-tool local file access, sandboxing, containers, prompt injection, transcript retention, secret-file permissions, or agent OS-level permissions. The ORB-374 entry will be the first of its class. What matched is adjacent: app-layer auth/RLS, and agent-authority rules.
+
+Five additional comments follow from the search. They belong to the same round.
+
+### Review packet addendum — Claude Code (Opus 5), 2026-08-03 18:20 HST, Round 1
+
+**claude-R1-C13 — Verified finding. Knowledge entry `fa737536` asserts the control that claude-R1-C1 found absent, and must be superseded.**
+
+Entry *"Git push is NEVER automatic — structural enforcement across all projects"* (2026-06-02) states: *"`Bash(git push *)` has been removed from `.claude/settings.local.json` in ALL projects (Orb and Helm). Any git push attempt now triggers a permission prompt that Stan must manually approve. This is a hard gate — no behavioral instruction can override it."* It closes: *"If you see git push in any allowlist, remove it and flag it."*
+
+Verified false for Orb as of today — the entry is present at line 12.
+
+This escalates C1 from a documentation slip to a **three-surface attestation failure**: `AGENTS.md`, shared `AGENTS.md`, and the Knowledge Repository each independently assert a hard gate that does not exist. The entry's own claim that "no behavioral instruction can override it" is the reason it matters — the control was designed as the last line, and its absence was invisible precisely because three records agreed it was there. Recommend: supersede `fa737536` with a corrected entry per rule #12 (banner, original text retained), and add to the plan the principle that an attested control is unverified until tested. Helm remains **unverified** — I did not inspect it, and the entry's "ALL projects" claim now has a known counterexample.
+
+**claude-R1-C14 — Verified finding. The plan's scope omits an AI with local read access: Orb itself.**
+
+Entry `99a3f5e1` (ORB-252) documents Orb's `query_repository` tool, which reads the **live working tree** on localhost, with a security boundary of allowlisted directories, text extensions only, and blocks on hidden paths, traversal (`..`), symlinks, and `.env` files.
+
+§7 audits Claude, Codex, Gemini, Vibe, and OpenCode. It does not audit Orb, which is an AI coding-adjacent agent with local filesystem read access and its own allowlist implementation. Two consequences:
+
+- **Scope gap:** add Orb's `query_repository` and `query_db` (`8c3bfdf4`: table allowlist, column regex, RLS-scoped, 200-row cap, **admin bypass**) to the §8.2 tool audit. The admin bypass is an existing privileged path the plan does not account for.
+- **Specific verification for Phase 2, currently untested:** A-01 establishes that `.env.local` is a *symlink* to a secret file outside the repo, and ORB-252's boundary blocks both symlinks and `.env` files. Whether the check runs before or after path normalization determines whether the block holds. I did not read the implementation — this is a **Question**, not a finding, and it is cheap to settle.
+
+**claude-R1-C15 — Verified finding. Phase 1's "production read-only" identity does not exist yet and cannot be created by key selection alone.**
+
+Entry `a6fd2877` records the current grant state after migration `20260527_explicit_grants.sql`: `anon` has SELECT on lookup tables only; **`authenticated` and `service_role` both hold SELECT/INSERT/UPDATE/DELETE on all 17 tables**. There is no read-only database role. Phase 1 step 1 therefore requires new role creation plus grants plus RLS review — a migration, not a credential swap. Recommend Phase 1 say so explicitly, since the current wording ("split local development, production read-only, and production mutation credentials") reads as a key-management task.
+
+The same entry records a hard external deadline: **2026-10-30**, when Supabase applies explicit-grant defaults to all existing projects. Phase 4 should be sequenced against it.
+
+**claude-R1-C16 — Verified finding, confirming claude-R1-C5.** Entry `18b4b90a` establishes that the Knowledge Repo and Orb API are *cross-project shared resources* spanning Helm and future products, deliberately not owned by Orb. Rotating `ORB_API_SECRET` or `SUPABASE_SECRET_KEY` therefore breaks other projects' agent workflows, not just Orb's. Phase 0 step 3 must be coordinated across projects, and the step 1 inventory must include consumers outside this repository.
+
+**claude-R1-C17 — Recommendation. Cite existing in-repo prior art rather than deriving BP-1 fresh.** `query_db` and `query_repository` are working implementations of exactly the deny-by-default pattern BP-1 proposes — allowlists, extension and size limits, traversal and symlink blocks, row caps. The plan is stronger citing them as precedent than presenting the approach as new.
+
+Separately, link `2bd5f167` ("Role-Based Write Access Over Environment-Based Read-Only Modes") to §12. Its lesson — a blanket `NODE_ENV === 'production'` gate blocked legitimate admin work and drove users to workarounds; *"environment is context, not authorization"* — is the documented in-house instance of the failure §12 exists to prevent. Worth stating that the Phase 1 split operates at the credential/identity plane and is not a reintroduction of the environment gate that was already tried and rejected.
+
+---
+
+**Status of codex-R1-C3:** the search leg is now done and this addendum is its reconciliation record. The §14.3 entry write remains pending Stan's approval of the plan — that gate is untouched. Claude did not write anything to the Knowledge Repository and did not edit the plan document.

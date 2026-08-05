@@ -12,81 +12,63 @@
 
 ## App State
 
-- **Branch:** `codex/orb-373-real-data`; ORB-374 planning is in progress.
-- **Dev server:** not used for the ORB-374 documentation checkpoint.
+- **Branch:** `main` after the approved v0.6.282 release integration.
+- **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
+  Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.281** — documentation-only ORB-374 planning
-  checkpoint. No push is authorized; production remains at v0.6.280.
+- **Local version:** **0.6.282** — ORB-375 Security Hardening Phase 1 deployment
+  checkpoint. Stan explicitly authorized the commit and push on 2026-08-05.
 - **Production maintenance:** off.
-- **Database:** no ORB-374 database change. The required ORB-374 Knowledge
-  Repository topic search remains pending through an agent with approved egress.
-- **ORB-374:** in planning/review. The plan is not approved and implementation
-  is not authorized.
+- **Database:** no schema change. The ORB-374 Knowledge Repository search is
+  complete; ORB-375 remains open until containment and rotation acceptance.
+- **ORB-374:** deferred. Its complete reviewed long-range plan is preserved.
+- **ORB-375:** implementation and credential rotation are in progress.
 
 ---
 
 ## Last Session Completed
 
-**ORB-374 — security-hardening plan checkpoint — 2026-08-03 (Codex, GPT-5.6 Sol)**
+**ORB-375 — Security Hardening Phase 1 deployment checkpoint — 2026-08-05 (Codex, GPT-5.6 Sol)**
 
-Created `docs/orb-374-ai-tool-local-access-security-plan.md` as a draft policy,
-audit, and implementation plan for AI tools with local-file access. It covers
-least privilege, prompt injection, secret handling, deterministic approvals,
-network egress, transcript retention, supply-chain controls, recoverability,
-and a hardware-aware Tier A/B/C isolation model for the M5/16 GB Mac. It also
-evaluates encrypted external NVMe, HDD, and SDXC storage.
+Implemented the approved immediate-containment extraction from deferred ORB-374.
+The installed `orb-dev` launcher unlocks an owner-only encrypted environment,
+creates network-specific TLS material, supplies only the current Bonjour/LAN
+development origins, and starts Next.js without a repository `.env.local`.
+Human-run helpers seal the initial environment and rotate one credential at a
+time without recreating the complete plaintext bundle.
 
-The verified audit found critical current-state issues: the shared secret file
-and parent directories are readable by other local accounts; the complete file
-contents—all 17 entries—were rendered into an AI transcript; multiple AI tools
-retain world-readable records or broad durable approvals; and no verified
-secret-prevention gate exists locally. No credential or control has yet changed.
+Stan verified encrypted-store creation, plaintext removal, launcher preflight,
+and Orb access on Mac, iPhone, and iPad. Launcher checks and TypeScript pass.
+Seven credentials completed localhost/production replacement, former-key
+revocation, and post-revocation checks. Resend and Mistral replacements pass in
+development; Vercel updates, production checks, revocation, and repeated checks
+remain pending. ElevenLabs is paused while Stan decides whether to remove its
+legacy TTS and usage paths instead of rotating the credential.
 
-Perplexity and Claude Code reviewed the plan through Stan. Their complete
-packets are preserved under `docs/orb-374-reviews/`; Codex remains the single
-document maintainer. Claude identified two Phase 1 structural blockers:
-
-- shared documentation falsely attests that Claude's push permission was
-  removed from a tracked policy file, while Orb's ignored local policy still
-  allows `git push`;
-- canonical Orb/shared agent commands expand secrets into process arguments,
-  while required backlog, Knowledge Repository, migration/health, and eval
-  workflows lack brokered replacements.
-
-The plan now requires artifact-tested controls, exact worktree boundaries,
-safe audit enumeration, coordinated multi-plane credential rotation, preserved
-mandatory workflows, full reviewer packets, and explicit conflict disposition.
-The Knowledge Repository search failure was corrected from a host-wide claim to
-a Codex-sandbox limitation; Claude offered to run the required topic search.
-
-Stan approved this local checkpoint commit only. He has not approved the plan,
-implementation, a push, or activation of the proposed interim operating
-restriction. `Eval: not applicable — documentation only; no Orb-conversation
-surface changed`.
+The complete reviewed ORB-374 plan and reviewer packets remain preserved. Eval:
+not applicable — no Orb-conversation surface changed.
 
 ---
 
 ## Current Uncommitted Changes
 
-*(none expected after the v0.6.281 local checkpoint commit; ORB-374 remains an
-active planning claim with `WIP.md` intentionally retained)*
+*(none expected after the v0.6.282 release commit; `WIP.md` remains tracked
+because ORB-375 rotation and acceptance are not complete)*
 
 ---
 
 ## Active Risks / Unresolved Work
 
-- **ORB-374 plan is not approved.** No implementation may begin until Stan
-  approves the plan and the approved plan plus pertinent comments are written
-  to the Knowledge Repository.
-- **Verified credential exposure remains uncontained.** All 17 environment
-  entries entered an AI transcript; every secret-bearing member requires
-  classification, coordinated consumer updates, rotation, and old-key failure
-  verification after approval.
-- **Interim restriction decision pending.** Stan has not decided whether the
-  proposed freeze on normal AI development takes effect immediately or only
-  when the plan is approved.
-- **Knowledge search pending.** Claude can perform the required ORB-374 topic
-  search through its approved-egress path and return the result packet to Stan.
+- **ORB-375 is incomplete.** Resend and Mistral still need Vercel replacement,
+  production verification, former-key revocation, and repeated checks.
+- **ElevenLabs decision pending.** Its rotation is paused because Realtime uses
+  OpenAI, but the legacy TTS adapter, Voice Settings option, usage monitor, and
+  required environment variable remain deployed.
+- **Three rotation groups remain untouched:** `DATABASE_URL`, coordinated
+  `ORB_API_SECRET`/Helm `TODOS_API_SECRET`, and the VAPID public/private pair.
+- **Same-user runtime isolation remains unverified.** The launcher removes
+  plaintext-at-rest exposure but required secrets exist in the Next.js process
+  environment after unlock.
 - **ORB-367 — seven pre-existing Tier 2 failures.** Address the class and decide
   which guarantees belong in deterministic tests before repairing individual
   cases.
@@ -104,22 +86,21 @@ active planning claim with `WIP.md` intentionally retained)*
 
 ## Next Priorities
 
-1. Stan decides when the proposed interim ORB-374 operating restriction becomes
-   binding.
-2. Have Claude run section 14.1's required Knowledge Repository topic search;
-   import and reconcile the results through the controlled review process.
-3. Continue review until Stan explicitly approves the plan. Then write the
-   approved plan and all pertinent comments to the Knowledge Repository before
-   beginning Phase 0.
-4. Do not push the v0.6.281 checkpoint without Stan's separate explicit
-   approval.
+1. Enter the replacement Resend and Mistral values in Vercel, redeploy, and run
+   their production checks.
+2. Revoke both former provider keys and repeat the production checks.
+3. Decide whether to retire ElevenLabs; rotate it only if the deployed legacy
+   capability is retained.
+4. Rotate `DATABASE_URL`, coordinated Orb/Helm API secret, and the VAPID pair.
+5. Complete ORB-375 acceptance, write resolution notes plus its Knowledge Repo
+   entry, and remove the active claim with the closing commit.
 
 ---
 
 ## Key Current Decisions
 
-- **ORB-374 is proposed policy, not yet binding policy.** The local checkpoint
-  preserves the review record but does not approve or activate it.
+- **ORB-374 is deferred.** Its preserved long-range plan is not authority to
+  implement work beyond the explicit ORB-375 containment scope.
 - **One document maintainer.** Reviewers send complete attributed packets to
   Stan; Codex preserves them, controls edits, and records dispositions.
 - **Model judgment is not a security boundary.** Enforce safety through OS
@@ -155,7 +136,7 @@ active planning claim with `WIP.md` intentionally retained)*
 
 ## AI Tool Used Last Session
 
-`2026-08-03 — Codex (GPT-5.6 Sol)`
+`2026-08-05 — Codex (GPT-5.6 Sol)`
 
 ---
 

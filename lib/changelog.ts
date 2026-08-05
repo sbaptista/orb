@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.282',
+    date: '2026-08-05',
+    changes: [
+      'Implemented ORB-375 Security Hardening Phase 1: Orb development now starts through a fixed-purpose human launcher that unlocks an owner-only encrypted environment, supplies TLS paths without repository secret files, and constrains cross-origin development access to the Mac\'s current Bonjour hostname and LAN address.',
+      'Added human-run sealing and one-credential rotation helpers with encrypted-copy verification, atomic replacement, restrictive filesystem modes, and deterministic launcher checks. The repository no longer needs a plaintext or symlinked .env.local credential source.',
+      'Preserved the complete reviewed ORB-374 long-range security program while recording Stan\'s decision to defer it and extract only immediate containment into ORB-375. Seven provider credentials have completed rotation and post-revocation verification; Resend and Mistral replacements pass development checks but still require Vercel replacement, production verification, former-key revocation, and repeated checks. ElevenLabs rotation is paused pending a decision on retiring its legacy deployed paths.',
+      'Eval: not applicable — no Orb-conversation surface changed.',
+    ],
+  },
+  {
     version: 'v0.6.281',
     date: '2026-08-03',
     changes: [

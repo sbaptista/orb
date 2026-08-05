@@ -1,0 +1,191 @@
+#!/bin/bash
+
+set -euo pipefail
+set +x
+umask 077
+
+readonly ORB_PROJECT_ROOT="/Users/stanleybaptista/Projects/orb"
+readonly ORB_SECRET_ROOT="/Users/stanleybaptista/Project-secrets"
+readonly ORB_SECRET_DIR="$ORB_SECRET_ROOT/orb-secrets"
+readonly ORB_SECRET_FILE="$ORB_SECRET_DIR/orb.env.enc"
+readonly ORB_TLS_DIR="$ORB_SECRET_DIR/tls"
+readonly ORB_TLS_CERT="$ORB_TLS_DIR/orb-dev.pem"
+readonly ORB_TLS_KEY="$ORB_TLS_DIR/orb-dev-key.pem"
+readonly ORB_TLS_HOSTS="$ORB_TLS_DIR/hosts.txt"
+readonly ORB_PORT="3001"
+
+required_environment=(
+  NEXT_PUBLIC_SUPABASE_URL
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  SUPABASE_SECRET_KEY
+  DATABASE_URL
+  ANTHROPIC_API_KEY
+  ANTHROPIC_ADMIN_API_KEY
+  ORB_API_SECRET
+  RESEND_API_KEY
+  VAPID_PRIVATE_KEY
+  GEMINI_API_KEY
+  GOOGLE_BILLING_CREDENTIALS_JSON_BASE64
+  MISTRAL_API_KEY
+  OPENAI_API_KEY
+  OPENAI_ADMIN_API_KEY
+  ELEVENLABS_API_KEY
+)
+
+fail() {
+  printf 'orb-dev: %s\n' "$*" >&2
+  exit 1
+}
+
+mode_of() {
+  /usr/bin/stat -f '%Lp' "$1"
+}
+
+owner_of() {
+  /usr/bin/stat -f '%Su' "$1"
+}
+
+require_owner_only() {
+  local path="$1"
+  local expected_mode="$2"
+  local kind="$3"
+
+  [[ -e "$path" ]] || fail "$kind is missing: $path"
+  [[ "$(owner_of "$path")" == "$(/usr/bin/id -un)" ]] || fail "$kind is not owned by the current user: $path"
+  [[ "$(mode_of "$path")" == "$expected_mode" ]] || fail "$kind must have mode $expected_mode: $path"
+}
+
+detect_network() {
+  local interface=""
+  local address=""
+  local local_hostname=""
+
+  interface="$(/sbin/route -n get default 2>/dev/null | /usr/bin/awk '/interface:/{print $2; exit}')"
+  if [[ -n "$interface" ]]; then
+    address="$(/usr/sbin/ipconfig getifaddr "$interface" 2>/dev/null || true)"
+  fi
+
+  local_hostname="$(/usr/sbin/scutil --get LocalHostName 2>/dev/null || true)"
+  [[ -n "$local_hostname" ]] || local_hostname="localhost"
+  local_hostname="$(printf '%s' "$local_hostname" | /usr/bin/tr '[:upper:]' '[:lower:]')"
+
+  [[ "$local_hostname" =~ ^[a-z0-9][a-z0-9-]*$ ]] || fail "macOS LocalHostName contains unsupported characters"
+  if [[ -n "$address" && ! "$address" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    fail "detected an invalid IPv4 address"
+  fi
+
+  ORB_DEV_INTERFACE="$interface"
+  ORB_DEV_IP="$address"
+  ORB_DEV_MDNS_HOST="$local_hostname.local"
+}
+
+print_urls() {
+  printf '\nOrb development URLs\n'
+  printf '  Mac:       https://localhost:%s/\n' "$ORB_PORT"
+  printf '  Preferred: https://%s:%s/\n' "$ORB_DEV_MDNS_HOST" "$ORB_PORT"
+  if [[ -n "$ORB_DEV_IP" ]]; then
+    printf '  Fallback:  https://%s:%s/\n' "$ORB_DEV_IP" "$ORB_PORT"
+  else
+    printf '  Fallback:  unavailable (no active IPv4 address detected)\n'
+  fi
+  printf '\n'
+}
+
+ensure_tls_certificate() {
+  local mkcert_bin="/opt/homebrew/bin/mkcert"
+  local expected_hosts=""
+  local current_hosts=""
+  local hosts=("localhost" "127.0.0.1" "::1" "$ORB_DEV_MDNS_HOST")
+
+  [[ -x "$mkcert_bin" ]] || fail "mkcert is required at $mkcert_bin"
+  [[ -x "/opt/homebrew/bin/openssl" ]] || fail "OpenSSL is required at /opt/homebrew/bin/openssl"
+
+  if [[ -n "$ORB_DEV_IP" ]]; then
+    hosts+=("$ORB_DEV_IP")
+  fi
+
+  /bin/mkdir -p "$ORB_TLS_DIR"
+  /bin/chmod 700 "$ORB_TLS_DIR"
+
+  expected_hosts="$(printf '%s\n' "${hosts[@]}")"
+  if [[ -f "$ORB_TLS_HOSTS" ]]; then
+    current_hosts="$(<"$ORB_TLS_HOSTS")"
+  fi
+
+  if [[ ! -f "$ORB_TLS_CERT" || ! -f "$ORB_TLS_KEY" || "$current_hosts" != "$expected_hosts" ]] || \
+     ! /opt/homebrew/bin/openssl x509 -checkend 604800 -noout -in "$ORB_TLS_CERT" >/dev/null 2>&1; then
+    printf 'orb-dev: creating a local TLS certificate for this network...\n'
+    "$mkcert_bin" -cert-file "$ORB_TLS_CERT" -key-file "$ORB_TLS_KEY" "${hosts[@]}"
+    printf '%s\n' "${hosts[@]}" > "$ORB_TLS_HOSTS"
+  fi
+
+  /bin/chmod 600 "$ORB_TLS_CERT" "$ORB_TLS_KEY" "$ORB_TLS_HOSTS"
+}
+
+load_encrypted_environment() {
+  local line=""
+  local name=""
+  local value=""
+  local missing=()
+
+  printf 'orb-dev: unlock the encrypted Orb development environment.\n'
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    [[ "$line" == *=* ]] || fail "encrypted environment contains a malformed line"
+    name="${line%%=*}"
+    value="${line#*=}"
+    [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fail "encrypted environment contains an invalid variable name"
+    export "$name=$value"
+  done < <(/opt/homebrew/bin/openssl enc -d -aes-256-cbc -pbkdf2 -iter 210000 -in "$ORB_SECRET_FILE")
+
+  for name in "${required_environment[@]}"; do
+    [[ -n "${!name:-}" ]] || missing+=("$name")
+  done
+  if (( ${#missing[@]} > 0 )); then
+    fail "encrypted environment is missing required names: ${missing[*]}"
+  fi
+}
+
+preflight() {
+  [[ -d "$ORB_PROJECT_ROOT" ]] || fail "project directory is missing: $ORB_PROJECT_ROOT"
+  [[ ! -e "$ORB_PROJECT_ROOT/.env.local" && ! -L "$ORB_PROJECT_ROOT/.env.local" ]] || fail "repository .env.local exposure still exists"
+  require_owner_only "$ORB_SECRET_ROOT" 700 "secret root"
+  require_owner_only "$ORB_SECRET_DIR" 700 "Orb secret directory"
+  require_owner_only "$ORB_SECRET_FILE" 600 "encrypted Orb environment"
+  detect_network
+}
+
+main() {
+  local command="${1:-run}"
+
+  case "$command" in
+    run|--check)
+      ;;
+    *)
+      fail "usage: orb-dev [--check]"
+      ;;
+  esac
+
+  preflight
+  print_urls
+
+  if [[ "$command" == "--check" ]]; then
+    printf 'orb-dev: filesystem, encrypted-store, and network preflight passed.\n'
+    return 0
+  fi
+
+  ensure_tls_certificate
+  load_encrypted_environment
+
+  export ORB_DEV_CERT="$ORB_TLS_CERT"
+  export ORB_DEV_KEY="$ORB_TLS_KEY"
+  export ORB_DEV_ALLOWED_ORIGINS="$ORB_DEV_MDNS_HOST${ORB_DEV_IP:+,$ORB_DEV_IP}"
+
+  cd "$ORB_PROJECT_ROOT"
+  exec /usr/bin/env npm run dev
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

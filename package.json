@@ -1,17 +1,18 @@
 {
   "name": "orb",
-  "version": "0.6.281",
+  "version": "0.6.282",
   "private": true,
   "scripts": {
     "prebuild": "node scripts/generate-repository-bundle.mjs",
-    "dev": "rm -rf .next && NODE_TLS_REJECT_UNAUTHORIZED=0 next dev --experimental-https --experimental-https-cert localhost+1.pem --experimental-https-key localhost+1-key.pem -H 0.0.0.0 -p 3001",
+    "dev": "rm -rf .next && test -n \"$ORB_DEV_CERT\" -a -n \"$ORB_DEV_KEY\" || { echo 'Use orb-dev to start the development server.' >&2; exit 1; }; NODE_TLS_REJECT_UNAUTHORIZED=0 next dev --experimental-https --experimental-https-cert \"$ORB_DEV_CERT\" --experimental-https-key \"$ORB_DEV_KEY\" -H 0.0.0.0 -p 3001",
     "build": "next build",
     "start": "next start",
     "lint": "eslint && node scripts/verify-ui-catalog.js",
     "generate-contract": "ts-node scripts/generate-orb-contract.ts",
     "eval": "NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts",
     "eval:t1": "NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts --tier 1",
-    "eval:t2": "NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts --tier 2"
+    "eval:t2": "NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts --tier 2",
+    "test:security-launcher": "bash scripts/security/test-orb-launcher.sh"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.1.9",
