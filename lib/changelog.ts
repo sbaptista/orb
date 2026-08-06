@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.285',
+    date: '2026-08-05',
+    changes: [
+      'Restored the AI usage threshold check, which had silently stopped running. It was triggered by a GitHub Actions workflow every 15 minutes, and those runs were being cancelled — so the warning that watches AI spend against its limits had not been firing at all. This surfaced only because GitHub sent an email about the cancelled runs.',
+      'Moved the check to a daily Vercel Cron and deleted the GitHub Actions workflow. The workflow existed only because a 15-minute interval is unavailable on this Vercel plan; at a daily cadence that reason disappears, which also removes the Actions usage exposure that was cancelling the runs, the duplicated cron secret held as a GitHub repository secret, and the split of cron configuration across two systems.',
+      'The reduced cadence matches how the account is actually used: every consumer of these provider keys is interactive — Orb sessions, the eval suite, and development tools — so no spend accrues while nobody is working, and the old schedule polled an idle system roughly 96 times a day. The accepted trade-off is that a breach is now reported up to a day later rather than within 15 minutes; warnings still arrive by push, email, in-app banner, and ticket exactly as before.',
+      'Eval: not applicable — no Orb-conversation surface changed.',
+    ],
+  },
+  {
     version: 'v0.6.284',
     date: '2026-08-05',
     changes: [

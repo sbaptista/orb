@@ -22,8 +22,9 @@
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.284** — push-gate hardening and the
-  `knowledge_repo.updated_at` trigger. (v0.6.283 was the ORB-375 retirement of
+- **Local version:** **0.6.285** — AI usage check restored and moved to a daily
+  Vercel Cron. (v0.6.284 was push-gate hardening plus the
+  `knowledge_repo.updated_at` trigger; v0.6.283 was the ORB-375 retirement of
   the deployed ElevenLabs runtime dependency.)
 - **Production maintenance:** off.
 - **Database:** one schema change this session — a `BEFORE UPDATE` trigger on
@@ -87,6 +88,20 @@ Knowledge Repo: entry `7b4247ee` records the full model; a SUPERSEDED banner
 was added to `fa737536` preserving its original text, since its *rule* stands
 and only its enforcement description was obsolete.
 
+**AI usage check restored (v0.6.285).** A GitHub email ("Orb usage check: All
+jobs were cancelled") revealed the ORB-353 spend-threshold check had **silently
+stopped running** — its `*/15` GitHub Actions workflow was having its runs
+cancelled. Moved to a daily Vercel Cron in `vercel.json` and **deleted**
+`.github/workflows/usage-check.yml`. The workflow only ever existed because
+sub-daily cron is unavailable on this Vercel plan; at daily cadence that reason
+disappears, which also removes the Actions-minutes exposure, the duplicated
+`CRON_SECRET` GitHub repository secret, and cron config split across two
+systems. Verified before moving: `reminders` and `usage-check` have
+byte-identical `Bearer ${CRON_SECRET}` auth and `reminders` already ran under
+Vercel Cron. Accepted regression: a breach is reported up to ~24h later rather
+than ~15 minutes — acceptable because every consumer of these provider keys is
+interactive, so nothing accrues while nobody is working.
+
 **Prior session (Codex, GPT-5.6 Sol) — ORB-375 ElevenLabs runtime retirement**
 shipped as v0.6.283: adapter, Voice Settings option, usage polling, and
 encrypted-launch requirement removed; historical records intact; Stan verified
@@ -105,6 +120,12 @@ complete)*
 
 ## Active Risks / Unresolved Work
 
+- **Stan action: delete the now-unused `CRON_SECRET` GitHub repository secret.**
+  The usage-check workflow that used it is gone. The Vercel production env var
+  must stay — Vercel Cron sends it, and both cron endpoints check it.
+- **Verify after the v0.6.285 deploy that the daily usage-check cron actually
+  fires.** It replaced a trigger that had failed silently for an unknown
+  period; do not assume the replacement works because the config looks right.
 - **The eval runner must inherit the encrypted environment** — `.env.local` was
   intentionally removed by the ORB-375 containment release, so agents cannot
   read secrets directly and must hand Stan the `orb-dev`/`openssl` command.

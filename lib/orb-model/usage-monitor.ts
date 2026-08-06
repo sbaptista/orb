@@ -11,14 +11,21 @@ import { providerLabel, providerConsoleUrl } from './incidents'
 import type { OrbModelProviderId } from './types'
 import type { OrbModelRole } from './catalog'
 
-// ORB-353: proactive "approaching limit" warning. Runs from a dedicated
-// 15-minute Vercel Cron (app/api/cron/usage-check/route.ts), never from a
+// ORB-353: proactive "approaching limit" warning. Runs from a daily Vercel
+// Cron (vercel.json -> app/api/cron/usage-check/route.ts), never from a
 // user-facing request path — see docs/orb-353-ai-usage-warning-plan.md for
-// why (latency risk to /api/version, and it must run even when nobody has
-// Orb open). Checks two independent kinds of ceiling per scope: Orb's own
-// internal ledger budget, and — for the three active providers whose APIs
-// don't expose a real configured cap — an admin-entered spend cap compared
-// against real queried spend.
+// why (latency risk to /api/version, and the warning must be able to reach
+// Stan by push/email without him opening the app). Checks two independent
+// kinds of ceiling per scope: Orb's own internal ledger budget, and — for the
+// three active providers whose APIs don't expose a real configured cap — an
+// admin-entered spend cap compared against real queried spend.
+//
+// Cadence reduced from 15 minutes to daily on 2026-08-05. The sub-daily
+// schedule required a GitHub Actions workflow (Vercel's plan allows daily
+// cron only); that workflow's runs were being cancelled, so the check had
+// silently stopped. Every consumer of these provider keys is interactive
+// (Orb sessions, the eval suite, Claude Code, Codex), so no spend accrues
+// while nobody is working and a daily check matches real usage.
 
 type ScopeResult = {
   key: string
@@ -318,7 +325,7 @@ async function writeAutoBroadcast(
   // including "nothing" if it was manually cleared. The notification for
   // every currently-over-threshold scope already fired when it first
   // crossed; the banner is a dismissible ambient reminder, not something
-  // that should fight a manual clear every 15 minutes.
+  // that should fight a manual clear on every cron run.
   if (freshlyWarned.length === 0) return
 
   // Compose from every currently-over-threshold scope (not just the fresh
