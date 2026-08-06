@@ -16,13 +16,15 @@
   `codex/orb-375-retire-elevenlabs`; the working tree has been on `main`
   since at least this session's start.) The v0.6.283 release commit and
   production push were explicitly authorized by Stan on 2026-08-05.
-- **Unpushed:** three commits on `main` — `17071de`, `5b9b136`, `9a9a944`
-  (push gate + knowledge_repo trigger). Not pushed; awaiting Stan.
+- **Unpushed:** the v0.6.284 range on `main` (`git log origin/main..main`) —
+  push gate, `knowledge_repo` trigger, handoff, and release bookkeeping.
+  Verified to contain no other agent's commits. Awaiting Stan's push.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.283** — ORB-375 retirement of the deployed ElevenLabs
-  runtime dependency.
+- **Local version:** **0.6.284** — push-gate hardening and the
+  `knowledge_repo.updated_at` trigger. (v0.6.283 was the ORB-375 retirement of
+  the deployed ElevenLabs runtime dependency.)
 - **Production maintenance:** off.
 - **Database:** one schema change this session — a `BEFORE UPDATE` trigger on
   `knowledge_repo` so `updated_at` tracks edits (migration
@@ -39,8 +41,9 @@
 **Push gate hardening + `knowledge_repo.updated_at` — 2026-08-05 (Claude Code,
 Opus 5)**
 
-No version bump (Stan's call: agent tooling and a trigger, neither shipping app
-code). **Eval: not applicable — no conversation surface changed.**
+Released as **v0.6.284**. **Eval: not applicable — no conversation surface
+changed.** (Stan initially chose no bump; reversed before the push so v0.6.283
+would not map to two different commits, per the 2026-07-29 ambiguity lesson.)
 
 The documented Claude Code push gate was wrong in both file and mechanism. It
 named `.claude/settings.local.json` as "tracked in repo" — that file is
@@ -94,9 +97,9 @@ Voice Settings, AI Metrics, and Realtime voice. Eval: Tier 1 voice + smoke
 
 ## Current Uncommitted Changes
 
-*(none — this session's work is committed in `17071de`, `5b9b136`, `9a9a944`,
-all unpushed. `WIP.md` remains tracked because ORB-375 rotation and acceptance
-are not complete)*
+*(none — this session's work is committed and released as v0.6.284, unpushed.
+`WIP.md` remains tracked because ORB-375 rotation and acceptance are not
+complete)*
 
 ---
 

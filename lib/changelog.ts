@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.284',
+    date: '2026-08-05',
+    changes: [
+      'Hardened the Claude Code push gate into a structural control. The rule now lives as a permissions.deny entry in a tracked .claude/settings.json, rather than as a mere absence from the machine-written, auto-gitignored .claude/settings.local.json. Deny is evaluated before allow across every settings scope, so the gate cannot be silently undone by a later "always allow" click, and it now survives a fresh clone. This closes the Phase 1 blocker recorded in v0.6.281, where Orb\'s live Claude push permission contradicted the documented enforcement claim: the permission had in fact reappeared in the allowlist with no commit or diff, and went unnoticed for roughly two months.',
+      'Corrected the shared agent documentation, which named the wrong file and described a permission prompt as a hard gate. Added the requirement that deny patterns be anchored at the start of the command — a mid-wildcard pattern matches any git command whose arguments merely contain the word "push", including commit messages, which silently blocked three legitimate commits before controlled testing isolated the cause. Also recorded the gate\'s known limits, so it is treated as defence in depth rather than an absolute barrier.',
+      'Fixed knowledge_repo.updated_at, which had never advanced because the table was created without the trigger its peer tables carry. Every hand-edited entry, including supersede banners, previously appeared untouched since creation, and anything sorting by recent change was reading a column that never changed. Seven other tables share the gap and were left unchanged by explicit decision, which is now recorded in the migration itself so the omission is not later misread as an oversight.',
+      'Eval: not applicable — no Orb-conversation surface changed.',
+    ],
+  },
+  {
     version: 'v0.6.283',
     date: '2026-08-05',
     changes: [
