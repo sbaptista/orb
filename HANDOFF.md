@@ -108,11 +108,14 @@ complete)*
 - **The eval runner must inherit the encrypted environment** — `.env.local` was
   intentionally removed by the ORB-375 containment release, so agents cannot
   read secrets directly and must hand Stan the `orb-dev`/`openssl` command.
-- **Helm's push gate is committed but unverified.** Project settings load from
-  the *session's* project, so it cannot be tested from an Orb session; a block
-  observed there is Orb's rule firing. Verify from a Helm session with
-  `git push --dry-run origin main` — a **silent** block means the rule fired, a
-  dialog means it did not match.
+- **Helm's push gate is unverified — accepted by Stan on 2026-08-05. This is a
+  closed decision, not pending work; do not reopen it as a task.** The rule is
+  committed and byte-identical to Orb's, which was verified firing. What was
+  never observed is it firing in a *Helm-rooted* session: project settings load
+  from the session's own project, so a block seen from an Orb session is Orb's
+  rule and proves nothing. If it ever becomes worth closing, run
+  `git push --dry-run origin main` from a Helm session — a **silent** block
+  means the rule fired; a dialog means it did not match.
 - **ORB-375 is incomplete.** Resend and Mistral rotation and post-revocation
   checks are complete. ElevenLabs still needs the clean v0.6.283 production
   deployment verified before its Vercel/local variables and two provider keys
