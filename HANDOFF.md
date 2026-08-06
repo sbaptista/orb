@@ -12,16 +12,23 @@
 
 ## App State
 
-- **Branch:** `codex/orb-375-retire-elevenlabs`; the v0.6.283 release commit and
+- **Branch:** `main`. (The prior entry named
+  `codex/orb-375-retire-elevenlabs`; the working tree has been on `main`
+  since at least this session's start.) The v0.6.283 release commit and
   production push were explicitly authorized by Stan on 2026-08-05.
+- **Unpushed:** three commits on `main` — `17071de`, `5b9b136`, `9a9a944`
+  (push gate + knowledge_repo trigger). Not pushed; awaiting Stan.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
 - **Local version:** **0.6.283** — ORB-375 retirement of the deployed ElevenLabs
   runtime dependency.
 - **Production maintenance:** off.
-- **Database:** no schema change. The ORB-374 Knowledge Repository search is
-  complete; ORB-375 remains open until containment and rotation acceptance.
+- **Database:** one schema change this session — a `BEFORE UPDATE` trigger on
+  `knowledge_repo` so `updated_at` tracks edits (migration
+  `scripts/migrations/20260805_knowledge_repo_updated_at.sql`, applied and
+  verified). The ORB-374 Knowledge Repository search is complete; ORB-375
+  remains open until containment and rotation acceptance.
 - **ORB-374:** deferred. Its complete reviewed long-range plan is preserved.
 - **ORB-375:** implementation and credential rotation are in progress.
 
@@ -29,36 +36,80 @@
 
 ## Last Session Completed
 
-**ORB-375 — ElevenLabs runtime retirement — 2026-08-05 (Codex, GPT-5.6 Sol)**
+**Push gate hardening + `knowledge_repo.updated_at` — 2026-08-05 (Claude Code,
+Opus 5)**
 
-Removed the obsolete ElevenLabs TTS adapter, Voice Settings option, live usage
-polling, build requirement, and encrypted-launch requirement. Browser speech
-and OpenAI TTS remain available; OpenAI Realtime remains the production voice
-path. Historical ElevenLabs request, consumption, reconciliation, rate-card,
-and incident records remain available for accurate reporting.
+No version bump (Stan's call: agent tooling and a trigger, neither shipping app
+code). **Eval: not applicable — no conversation surface changed.**
 
-The encrypted-secret helper now has a narrow, tested removal operation for
-`ELEVENLABS_API_KEY`; the installed copy matches the repository helper. Stan
-verified that Voice Settings shows only Browser and OpenAI, AI Metrics loads,
-and OpenAI Realtime voice works. The production build, TypeScript, scoped lint,
-security-launcher checks, and UI catalog verification pass. Full lint retains
-pre-existing failures in the untouched development-only voice prototype.
+The documented Claude Code push gate was wrong in both file and mechanism. It
+named `.claude/settings.local.json` as "tracked in repo" — that file is
+auto-added to the user's *global* git excludes and is rewritten by Claude Code
+on every "always allow" click, so it is neither tracked nor trustworthy. The
+mechanism was mere absence from an allowlist, which yields a *prompt*, not a
+gate. Evidence it failed: `Bash(git push *)` was found back in Orb's allowlist,
+re-added with no commit or diff after a 2026-06-01 entry recorded its removal —
+undetected for ~2 months.
 
-Eval: Tier 1 voice plus smoke **11/11**; Tier 2 voice **6/6**. The eval runner
-must inherit the encrypted environment because `.env.local` was intentionally
-removed by the earlier ORB-375 containment release.
+Now enforced as a `permissions.deny` rule in a **tracked** `.claude/settings.json`
+in both Orb (`17071de`) and Helm (`73783b1`), with `.gitignore` reworked to
+`.claude/*` + `!.claude/settings.json` (a negation cannot re-include a file
+under an excluded *directory*). Deny is evaluated before allow across every
+settings scope, so it overrides any allow that drifts back into the local file.
+Orb's gate is **verified**: `git push --dry-run` blocked silently, no dialog —
+distinguished from a declined prompt, which looks identical in tool output.
+
+**The gate initially blocked three of its own commits.** `Bash(git * push *)`
+matched `git commit -m "…push gate…"`, because Claude Code's `*` spans argument
+boundaries including inside quoted strings. Isolated by controlled test (two
+`git commit --dry-run` calls differing only in whether the message contained
+"push"), fixed by anchoring to `Bash(git push)` / `Bash(git push *)` only
+(`5b9b136`, Helm `2f4a3b6`). Cost: `git -C <path> push` now prompts instead of
+hard-blocking. **Never reintroduce mid-wildcard deny patterns.**
+
+`shared/AGENTS.md` corrected — enforcement row, session-start check, the
+anchoring rule, and an honest known-gap note (wrapper stripping does not cover
+`npx`, `docker exec`, `devbox run`, etc., so the gate is defence in depth, not
+an absolute barrier).
+
+`knowledge_repo.updated_at` never advanced — the table was created without the
+trigger its peers carry, so `updated_at` was a copy of `created_at` and every
+hand-edited entry looked untouched. Fixed and verified firing (`9a9a944`).
+Seven other tables share the gap (`orb_ai_funding_pools`, `orb_ai_policy`,
+`orb_financial_descriptor_rules`, `orb_financial_transactions`, `orb_memory`,
+`orb_preferences`, `system_settings`) — **left alone by Stan's explicit
+decision, not oversight.**
+
+Knowledge Repo: entry `7b4247ee` records the full model; a SUPERSEDED banner
+was added to `fa737536` preserving its original text, since its *rule* stands
+and only its enforcement description was obsolete.
+
+**Prior session (Codex, GPT-5.6 Sol) — ORB-375 ElevenLabs runtime retirement**
+shipped as v0.6.283: adapter, Voice Settings option, usage polling, and
+encrypted-launch requirement removed; historical records intact; Stan verified
+Voice Settings, AI Metrics, and Realtime voice. Eval: Tier 1 voice + smoke
+**11/11**, Tier 2 voice **6/6**.
 
 ---
 
 ## Current Uncommitted Changes
 
-*(none expected after the v0.6.283 release commit; `WIP.md` remains tracked
-because ORB-375 rotation and acceptance are not complete)*
+*(none — this session's work is committed in `17071de`, `5b9b136`, `9a9a944`,
+all unpushed. `WIP.md` remains tracked because ORB-375 rotation and acceptance
+are not complete)*
 
 ---
 
 ## Active Risks / Unresolved Work
 
+- **The eval runner must inherit the encrypted environment** — `.env.local` was
+  intentionally removed by the ORB-375 containment release, so agents cannot
+  read secrets directly and must hand Stan the `orb-dev`/`openssl` command.
+- **Helm's push gate is committed but unverified.** Project settings load from
+  the *session's* project, so it cannot be tested from an Orb session; a block
+  observed there is Orb's rule firing. Verify from a Helm session with
+  `git push --dry-run origin main` — a **silent** block means the rule fired, a
+  dialog means it did not match.
 - **ORB-375 is incomplete.** Resend and Mistral rotation and post-revocation
   checks are complete. ElevenLabs still needs the clean v0.6.283 production
   deployment verified before its Vercel/local variables and two provider keys
@@ -130,14 +181,20 @@ because ORB-375 rotation and acceptance are not complete)*
 - **Release bookkeeping is exclusive.** Hold the mandatory claim, reread the
   canonical files immediately before choosing a version, and verify the entire
   `origin/main..main` range before every push.
-- **Git push always requires Stan's explicit in-chat approval.**
+- **Git push always requires Stan's explicit in-chat approval.** Structurally
+  enforced by a `permissions.deny` rule in the tracked `.claude/settings.json`.
+  Deny patterns must be **anchored at the start of the command**; mid-wildcard
+  forms like `Bash(git * push *)` match any git command whose arguments merely
+  contain "push", including commit messages.
+- **A safety rule cannot live in a file the agent writes to.** That is why the
+  gate moved out of `.claude/settings.local.json`.
 - **Orb identity:** Brownie temperament, butler intelligence.
 
 ---
 
 ## AI Tool Used Last Session
 
-`2026-08-05 — Codex (GPT-5.6 Sol)`
+`2026-08-05 — Claude Code (Opus 5)`
 
 ---
 
