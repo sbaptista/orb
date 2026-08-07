@@ -124,6 +124,12 @@ environment-conditional bypass (e.g. "skip auth outside production") was
 deliberately *not* added: a conditional inside an auth guard is precisely what
 caused the original problem.
 
+Verified against production after deploy — **no auth 401, wrong token 401,
+valid token 200 with `{"checked":7,"warned":[]}`**. Both the deny and the allow
+path were exercised: three 401s alone would not have distinguished a working
+guard from one rejecting everything, including Vercel's own scheduler. The
+now-unused `CRON_SECRET` GitHub repository secret was deleted by Stan.
+
 **Prior session (Codex, GPT-5.6 Sol) — ORB-375 ElevenLabs runtime retirement**
 shipped as v0.6.283: adapter, Voice Settings option, usage polling, and
 encrypted-launch requirement removed; historical records intact; Stan verified
@@ -142,13 +148,12 @@ complete)*
 
 ## Active Risks / Unresolved Work
 
-- **Stan action: delete the now-unused `CRON_SECRET` GitHub repository secret.**
-  The usage-check workflow that used it is gone. The Vercel production env var
-  must stay — Vercel Cron sends it, and both cron endpoints check it.
-- **Verify that the daily usage-check cron actually fires** (first run 12:00
-  UTC after the v0.6.285 deploy). It replaced a trigger that had failed
-  silently for an unknown period; do not assume the replacement works because
-  the config looks right. Registration in `vercel.json` is not execution.
+- **Confirm the daily usage-check cron actually fires** (first scheduled run
+  12:00 UTC, Vercel project -> Cron Jobs). This is the only item from the cron
+  work not yet observed. Everything either side of it is verified: the endpoint
+  returns 200 for a valid token and 401 for none or a wrong one, and Vercel
+  Cron sends that header itself — but registration in `vercel.json` is not
+  execution, and the trigger it replaced failed silently for an unknown period.
 - **Local dev note (from the v0.6.286 fail-closed change):** both cron routes
   now return 401 when `CRON_SECRET` is unset, and it is *not* in the encrypted
   local environment. To exercise `/api/cron/reminders` or `/api/cron/usage-check`
@@ -241,6 +246,13 @@ complete)*
 - **Release bookkeeping is exclusive.** Hold the mandatory claim, reread the
   canonical files immediately before choosing a version, and verify the entire
   `origin/main..main` range before every push.
+- **Security controls fail closed, never open.** No conditional inside an auth
+  guard — a missing secret must refuse service, not skip the check. Applies
+  beyond cron: if absence of configuration is indistinguishable from success,
+  the control is decorative.
+- **Verify both directions.** A control that rejects bad input is only half
+  tested; exercise the accept path too, or "rejects everything" passes as
+  "works".
 - **A "Done" line in a plan doc is not evidence.** `docs/orb-353-…` recorded
   `CRON_SECRET` as set in Vercel on 2026-07-22; it was not, and both cron
   endpoints stayed open. Verify controls by exercising them, not by reading
