@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.286',
+    date: '2026-08-05',
+    changes: [
+      'Hardened authentication on both scheduled-job endpoints so that a missing secret now blocks every request instead of silently disabling the check. Previously the guard only verified the caller when the secret happened to be configured, which meant a misconfigured deployment served those endpoints to anyone rather than failing — the exact condition found in production earlier today, where the reminders endpoint could have been triggered by a stranger to send push notifications and email to real users.',
+      'The practical effect is that a forgotten secret now breaks the scheduled job loudly and harmlessly, rather than quietly opening a door. This was the underlying flaw that let the earlier exposure pass a security review: reading the code, the authentication check looks present, and nothing reveals that it was inactive in production.',
+      'Eval: not applicable — no Orb-conversation surface changed.',
+    ],
+  },
+  {
     version: 'v0.6.285',
     date: '2026-08-05',
     changes: [

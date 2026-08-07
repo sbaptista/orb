@@ -22,8 +22,9 @@
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.285** — AI usage check restored and moved to a daily
-  Vercel Cron. (v0.6.284 was push-gate hardening plus the
+- **Local version:** **0.6.286** — cron endpoint auth now fails closed.
+  (v0.6.285 restored the AI usage check on a daily Vercel Cron; v0.6.284 was
+  push-gate hardening plus the
   `knowledge_repo.updated_at` trigger; v0.6.283 was the ORB-375 retirement of
   the deployed ElevenLabs runtime dependency.)
 - **Production maintenance:** off.
@@ -113,6 +114,16 @@ lost during ORB-375 is **untested**. The manual run also returned
 `{"checked":7,"warned":[]}` — so despite the monitor being down for an unknown
 period, no threshold had been crossed unreported.
 
+**Cron auth now fails closed (v0.6.286).** Both routes previously used
+`if (process.env.CRON_SECRET && ...)`, so a missing variable skipped
+authentication entirely instead of refusing to serve — the flaw that let the
+exposure above pass an ORB-374 security review, since the code *looks* like it
+authenticates. Now `if (!secret || authHeader !== ...)`: a missing secret
+breaks the cron loudly rather than opening the endpoint quietly. An
+environment-conditional bypass (e.g. "skip auth outside production") was
+deliberately *not* added: a conditional inside an auth guard is precisely what
+caused the original problem.
+
 **Prior session (Codex, GPT-5.6 Sol) — ORB-375 ElevenLabs runtime retirement**
 shipped as v0.6.283: adapter, Voice Settings option, usage polling, and
 encrypted-launch requirement removed; historical records intact; Stan verified
@@ -138,11 +149,13 @@ complete)*
   UTC after the v0.6.285 deploy). It replaced a trigger that had failed
   silently for an unknown period; do not assume the replacement works because
   the config looks right. Registration in `vercel.json` is not execution.
-- **The cron auth guard fails open.** `if (process.env.CRON_SECRET && ...)` in
-  both cron routes silently disables authentication when the variable is
-  missing, rather than refusing to serve. That is exactly why the open
-  endpoints survived a security review that read the code. Change it to fail
-  closed (401 when unconfigured) in a session where that is the agenda.
+- **Local dev note (from the v0.6.286 fail-closed change):** both cron routes
+  now return 401 when `CRON_SECRET` is unset, and it is *not* in the encrypted
+  local environment. To exercise `/api/cron/reminders` or `/api/cron/usage-check`
+  locally, add `CRON_SECRET` to the encrypted env and pass a matching
+  `Authorization: Bearer` header. A strict guard was chosen over an
+  environment-conditional bypass deliberately — a conditional in an auth guard
+  is what caused the original exposure.
 - **`ELEVENLABS_API_KEY` is gone from the encrypted local environment**
   (confirmed 2026-08-05 by listing variable names). The Vercel half of that
   ORB-375 step was not checked.
