@@ -22,7 +22,8 @@
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.287** — Account restored to the nav on Settings.
+- **Local version:** **0.6.288** — AI capability-broker proposal checkpoint.
+  v0.6.287 restored Account to the nav on Settings.
   Earlier this session: v0.6.286 made cron endpoint auth fail closed; v0.6.285
   restored the AI usage check on a daily Vercel Cron; v0.6.284 was push-gate
   hardening plus the `knowledge_repo.updated_at` trigger. v0.6.283 was the
@@ -39,6 +40,29 @@
 ---
 
 ## Last Session Completed
+
+**AI capability broker proposal checkpoint — 2026-08-07 (Codex, GPT-5.6 Sol)**
+
+Released locally as **v0.6.288**. **Eval: not applicable — no conversation
+surface changed.** Added `docs/orb-ai-capability-broker-plan.md` as the
+controlled draft and decision record for restoring safe AI access to todo and
+Knowledge Repository operations without restoring agent-readable secrets.
+The draft recommends a transport-neutral Orb Capability Service with a hosted
+MCP adapter, distinct Codex and Claude Code identities, least-privilege scopes,
+idempotent receipts, fail-closed authorization, audit, revocation, staged
+read-only-to-mutation rollout, and human fallback. It explicitly blocks
+implementation until Stan records the applicable final decisions and marks the
+document approved.
+
+The first planned acceptance workflow is durable and independently verified:
+Codex creates and reads one ORB todo, closes it through the atomic resolution
+notes + Knowledge entry path, updates and rereads that entry, and Claude Code
+verifies the resulting todo, Knowledge, and audit records through its own
+identity. No todo was created during this planning session; the earlier browser
+attempt found no authenticated production session. No broker, database, API,
+credential, or application behavior was changed.
+
+**Prior session:**
 
 **Push gate hardening + `knowledge_repo.updated_at` — 2026-08-05 (Claude Code,
 Opus 5)**
@@ -135,6 +159,14 @@ Settings-specific one eleven lines below; the catalog is now updated to record
 Stan's decision to change it. Settings itself remains a non-link current-page
 item while in it — confirmed with Stan as intended, not part of the change.
 
+**Cron execution verified 2026-08-07.** Vercel's Cron Jobs view lists both
+`/api/cron/reminders` and `/api/cron/usage-check` at `0 12 * * *`, and a
+Vercel-initiated run of `usage-check` returned **GET 200**. That closes the last
+open item from the cron work: scheduler -> auth header -> check now verified end
+to end, rather than inferred from a correct-looking config. Note the 12:00 is
+UTC (~05:00 local), and that Vercel's log-search window must bracket the run
+time — a 30-minute evening window shows no cron requests and proves nothing.
+
 Verified against production after deploy — **no auth 401, wrong token 401,
 valid token 200 with `{"checked":7,"warned":[]}`**. Both the deny and the allow
 path were exercised: three 401s alone would not have distinguished a working
@@ -151,20 +183,18 @@ Voice Settings, AI Metrics, and Realtime voice. Eval: Tier 1 voice + smoke
 
 ## Current Uncommitted Changes
 
-*(none — this session's work is committed and released as v0.6.284, unpushed.
-`WIP.md` remains tracked because ORB-375 rotation and acceptance are not
-complete)*
+*(none after the v0.6.288 proposal checkpoint commit. The long-running
+capability-broker planning claim remains tracked during review, and `WIP.md`
+remains tracked because ORB-375 rotation and acceptance are not complete.)*
 
 ---
 
 ## Active Risks / Unresolved Work
 
-- **Confirm the daily usage-check cron actually fires** (first scheduled run
-  12:00 UTC, Vercel project -> Cron Jobs). This is the only item from the cron
-  work not yet observed. Everything either side of it is verified: the endpoint
-  returns 200 for a valid token and 401 for none or a wrong one, and Vercel
-  Cron sends that header itself — but registration in `vercel.json` is not
-  execution, and the trigger it replaced failed silently for an unknown period.
+- *(closed 2026-08-07 — the cron-execution item is resolved; see Last Session
+  Completed. Both jobs are registered and a Vercel-initiated invocation of
+  `/api/cron/usage-check` returned **GET 200**, so scheduler, auth, and check
+  are verified end to end.)*
 - **Local dev note (from the v0.6.286 fail-closed change):** both cron routes
   now return 401 when `CRON_SECRET` is unset, and it is *not* in the encrypted
   local environment. To exercise `/api/cron/reminders` or `/api/cron/usage-check`
@@ -212,18 +242,29 @@ complete)*
 
 ## Next Priorities
 
-1. Verify v0.6.283 in production: Voice Settings exposes only Browser and
+1. Have Claude Code review `docs/orb-ai-capability-broker-plan.md`; preserve its
+   complete attributed packet, record dispositions, and leave final decisions
+   to Stan in the document's decision register.
+2. Do not implement the capability broker until Stan marks the applicable
+   decisions Decided and the document Approved.
+3. Verify v0.6.283 in production: Voice Settings exposes only Browser and
    OpenAI, AI Metrics loads, and OpenAI Realtime voice works.
-2. Delete `ELEVENLABS_API_KEY` from Vercel and the encrypted local environment,
+4. Delete `ELEVENLABS_API_KEY` from Vercel and the encrypted local environment,
    delete both ElevenLabs provider keys, then repeat the three checks.
-3. Rotate `DATABASE_URL`, coordinated Orb/Helm API secret, and the VAPID pair.
-4. Complete ORB-375 acceptance, write resolution notes plus its Knowledge Repo
+5. Rotate `DATABASE_URL`, coordinated Orb/Helm API secret, and the VAPID pair.
+6. Complete ORB-375 acceptance, write resolution notes plus its Knowledge Repo
    entry, and remove the active claim with the closing commit.
 
 ---
 
 ## Key Current Decisions
 
+- **Capability-broker work is planning-only.** Codex maintains the controlled
+  draft and imports attributed review packets; Claude Code reviews; Stan makes
+  and records every final decision. No implementation is authorized yet.
+- **Capabilities, not credentials.** The current proposal preserves ORB-375
+  containment by putting bounded todo and Knowledge operations behind trusted
+  server-side authorization instead of restoring environment access.
 - **ORB-374 is deferred.** Its preserved long-range plan is not authority to
   implement work beyond the explicit ORB-375 containment scope.
 - **One document maintainer.** Reviewers send complete attributed packets to
@@ -281,7 +322,7 @@ complete)*
 
 ## AI Tool Used Last Session
 
-`2026-08-05 — Claude Code (Opus 5)`
+`2026-08-07 — Codex (GPT-5.6 Sol)`
 
 ---
 

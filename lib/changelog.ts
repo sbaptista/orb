@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.288',
+    date: '2026-08-07',
+    changes: [
+      'Added the controlled draft plan for an Orb AI capability broker so Codex and Claude Code can perform bounded todo and Knowledge Repository operations without receiving production credentials. The proposal defines the threat model, transport-neutral service boundary, recommended MCP adapter, per-client scopes and revocation, domain-owned authorization, idempotent receipts, audit and error rules, performance instrumentation, phased rollout, rollback, and an append-only review and decision process owned by Stan.',
+      'Specified the first end-to-end acceptance workflow: Codex creates and verifies one ORB todo, closes it through an atomic resolution-notes and Knowledge-entry transaction, updates and verifies that entry, and Claude Code independently verifies the durable records through its own identity. No broker, credential, database, API, or application behavior was implemented by this documentation-only checkpoint.',
+      'Eval: not applicable — no conversation surface changed.',
+    ],
+  },
+  {
     version: 'v0.6.287',
     date: '2026-08-05',
     changes: [
