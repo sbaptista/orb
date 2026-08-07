@@ -6,6 +6,13 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.287',
+    date: '2026-08-05',
+    changes: [
+      'Restored the Account button in the top navigation bar on Settings pages, where it had been hidden. Because the Settings sidebar has no Account entry either, reaching your account from anywhere in Settings meant first returning to the Dashboard. Settings itself continues to show as the current page while you are in it, and Account behaves the same way when you are on it.',
+    ],
+  },
+  {
     version: 'v0.6.286',
     date: '2026-08-05',
     changes: [

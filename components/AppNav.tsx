@@ -83,7 +83,7 @@ export default function AppNav({ printContext, userInitial = '?', userName, orbT
             <span className="appnav-btn-icon">{IconCommands}</span>
             <span className="appnav-btn-label">Commands</span>
           </button>
-          {!onSettings && (onAccount ? (
+          {onAccount ? (
             <span className="appnav-btn appnav-current" aria-current="page">
               <span className="appnav-btn-icon"><span className="nav-avatar">{userInitial}</span></span>
               <span className="appnav-btn-label">Account</span>
@@ -93,7 +93,7 @@ export default function AppNav({ printContext, userInitial = '?', userName, orbT
               <span className="appnav-btn-icon"><span className="nav-avatar">{userInitial}</span></span>
               <span className="appnav-btn-label">Account</span>
             </Link>
-          ))}
+          )}
         </div>
 
         <div className="appnav-side appnav-side--right">

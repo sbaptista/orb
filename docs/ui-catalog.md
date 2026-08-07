@@ -193,7 +193,9 @@ Centered auth card over the calm `MuralCanvas`, matching the dashboard/account w
 - **Projects bar** — Change Project and + Project are right-aligned in the List pane above its toolbar, on every viewport where the List pane is active
 - **Developer Panel Toggle:** Dev-only toggle button at the bottom-right corner of the viewport (visible in dev mode only).
 
-**Settings layout:** Dashboard at the far left; current/disabled Settings plus Commands centered; no Account item.
+**Settings layout:** Dashboard at the far left; current/disabled Settings, Commands, and Account centered — the same three items as every other page.
+
+> **Changed 2026-08-05 (Stan):** Settings previously omitted the Account item deliberately. It was restored because the Settings sidebar has no Account entry either, so the account page was unreachable from anywhere in Settings without first returning to the Dashboard. Settings itself remains a non-link current-page item while in it; only Account changed.
 
 **Other non-dashboard layout:** Dashboard at the far left; Settings, Commands, and Account centered. The current destination is disabled.
 

@@ -22,11 +22,11 @@
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.286** — cron endpoint auth now fails closed.
-  (v0.6.285 restored the AI usage check on a daily Vercel Cron; v0.6.284 was
-  push-gate hardening plus the
-  `knowledge_repo.updated_at` trigger; v0.6.283 was the ORB-375 retirement of
-  the deployed ElevenLabs runtime dependency.)
+- **Local version:** **0.6.287** — Account restored to the nav on Settings.
+  Earlier this session: v0.6.286 made cron endpoint auth fail closed; v0.6.285
+  restored the AI usage check on a daily Vercel Cron; v0.6.284 was push-gate
+  hardening plus the `knowledge_repo.updated_at` trigger. v0.6.283 was the
+  ORB-375 retirement of the deployed ElevenLabs runtime dependency.
 - **Production maintenance:** off.
 - **Database:** one schema change this session — a `BEFORE UPDATE` trigger on
   `knowledge_repo` so `updated_at` tracks edits (migration
@@ -123,6 +123,17 @@ breaks the cron loudly rather than opening the endpoint quietly. An
 environment-conditional bypass (e.g. "skip auth outside production") was
 deliberately *not* added: a conditional inside an auth guard is precisely what
 caused the original problem.
+
+**Account restored to the nav on Settings (v0.6.287).** `AppNav.tsx` wrapped
+the Account item in `!onSettings`, hiding it on every `/settings*` route. The
+Settings sidebar has no Account entry either, so from anywhere in Settings the
+account page was unreachable without returning to the Dashboard first.
+**The omission was deliberate and documented** — `docs/ui-catalog.md` said of
+the Settings layout: "no Account item". Claude Code initially reported the
+opposite, having read the general "every page" line and missed the
+Settings-specific one eleven lines below; the catalog is now updated to record
+Stan's decision to change it. Settings itself remains a non-link current-page
+item while in it — confirmed with Stan as intended, not part of the change.
 
 Verified against production after deploy — **no auth 401, wrong token 401,
 valid token 200 with `{"checked":7,"warned":[]}`**. Both the deny and the allow
