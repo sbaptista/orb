@@ -102,6 +102,17 @@ Vercel Cron. Accepted regression: a breach is reported up to ~24h later rather
 than ~15 minutes — acceptable because every consumer of these provider keys is
 interactive, so nothing accrues while nobody is working.
 
+**Both cron endpoints were unauthenticated in production — now closed.** While
+looking for `CRON_SECRET` to trigger the check manually, an unauthenticated
+`GET /api/cron/usage-check` returned **HTTP 200**, proving the variable was not
+set in Vercel despite `docs/orb-353-ai-usage-warning-plan.md` recording it as
+done on 2026-07-22. `/api/cron/reminders` was the sharper exposure — it sends
+push and email to users. Stan set `CRON_SECRET` in Vercel; the same request now
+returns **HTTP 401**, verified after redeploy. Whether it was never set or was
+lost during ORB-375 is **untested**. The manual run also returned
+`{"checked":7,"warned":[]}` — so despite the monitor being down for an unknown
+period, no threshold had been crossed unreported.
+
 **Prior session (Codex, GPT-5.6 Sol) — ORB-375 ElevenLabs runtime retirement**
 shipped as v0.6.283: adapter, Voice Settings option, usage polling, and
 encrypted-launch requirement removed; historical records intact; Stan verified
@@ -123,9 +134,18 @@ complete)*
 - **Stan action: delete the now-unused `CRON_SECRET` GitHub repository secret.**
   The usage-check workflow that used it is gone. The Vercel production env var
   must stay — Vercel Cron sends it, and both cron endpoints check it.
-- **Verify after the v0.6.285 deploy that the daily usage-check cron actually
-  fires.** It replaced a trigger that had failed silently for an unknown
-  period; do not assume the replacement works because the config looks right.
+- **Verify that the daily usage-check cron actually fires** (first run 12:00
+  UTC after the v0.6.285 deploy). It replaced a trigger that had failed
+  silently for an unknown period; do not assume the replacement works because
+  the config looks right. Registration in `vercel.json` is not execution.
+- **The cron auth guard fails open.** `if (process.env.CRON_SECRET && ...)` in
+  both cron routes silently disables authentication when the variable is
+  missing, rather than refusing to serve. That is exactly why the open
+  endpoints survived a security review that read the code. Change it to fail
+  closed (401 when unconfigured) in a session where that is the agenda.
+- **`ELEVENLABS_API_KEY` is gone from the encrypted local environment**
+  (confirmed 2026-08-05 by listing variable names). The Vercel half of that
+  ORB-375 step was not checked.
 - **The eval runner must inherit the encrypted environment** — `.env.local` was
   intentionally removed by the ORB-375 containment release, so agents cannot
   read secrets directly and must hand Stan the `orb-dev`/`openssl` command.
@@ -208,6 +228,10 @@ complete)*
 - **Release bookkeeping is exclusive.** Hold the mandatory claim, reread the
   canonical files immediately before choosing a version, and verify the entire
   `origin/main..main` range before every push.
+- **A "Done" line in a plan doc is not evidence.** `docs/orb-353-…` recorded
+  `CRON_SECRET` as set in Vercel on 2026-07-22; it was not, and both cron
+  endpoints stayed open. Verify controls by exercising them, not by reading
+  what a document claims about them.
 - **Git push always requires Stan's explicit in-chat approval.** Structurally
   enforced by a `permissions.deny` rule in the tracked `.claude/settings.json`.
   Deny patterns must be **anchored at the start of the command**; mid-wildcard

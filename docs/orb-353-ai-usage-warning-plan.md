@@ -36,6 +36,19 @@
 
 **Trigger mechanism corrected (2026-07-22):** the original build used a Vercel Cron entry in `vercel.json`, but Stan confirmed his Vercel plan only permits daily cron intervals — 15 minutes isn't available there. Rather than degrade to daily (a real regression — a spike could go unnoticed up to 24h) or require a paid plan upgrade, the check is triggered by a **GitHub Actions scheduled workflow** (`.github/workflows/usage-check.yml`, `*/15 * * * *`) calling the same `/api/cron/usage-check` production endpoint with `CRON_SECRET` as a GitHub Actions secret. The Vercel Cron entry was removed from `vercel.json`. **Done (2026-07-22):** `CRON_SECRET` set as both a Vercel production env var and a GitHub repository secret — this closes a real pre-existing gap, since it had never been set at all and both cron endpoints (`reminders` and `usage-check`) were unauthenticated in production until now. Takes effect on next deploy.
 
+> **CORRECTION (2026-08-05): the "Done (2026-07-22)" claim above was false for
+> Vercel.** An unauthenticated `GET /api/cron/usage-check` against production
+> returned **HTTP 200**, proving `CRON_SECRET` was not set there — so *both*
+> cron endpoints were still open to anyone with the URL, including
+> `/api/cron/reminders`, which sends push notifications and email to users.
+> Whether it was never set or was lost during the ORB-375 secret work is
+> **untested and unknown**. Stan set it on 2026-08-05 and the same request now
+> returns **HTTP 401**, verified. Two lessons: a "Done" line in a plan doc is
+> not evidence, and the guard `if (process.env.CRON_SECRET && ...)` **fails
+> open** — a missing variable silently disables authentication instead of
+> refusing to serve, which is why this survived a security review that read the
+> code. Making it fail closed is open work.
+
 **Cadence reduced to daily, GitHub Actions retired (Stan, 2026-08-05):** the `*/15` workflow's runs were being cancelled by GitHub ("Orb usage check: All jobs were cancelled"), so the check had **silently stopped running** — discovered only because GitHub emailed about it. The 2026-07-22 reasoning above rested on a premise that does not hold in practice: it assumed spend could grow org-wide "from any source" while unattended. In reality every consumer of these provider keys is interactive — Orb sessions, the eval suite, Claude Code, Codex — so nothing accrues while Stan is not working, and the 15-minute cadence was polling an idle system ~96 times a day. The real value of the cron is *delivery* (reaching Stan by push/email without him opening the app), not catching unattended accrual.
 
 Daily is exactly what Vercel's plan permits, so the workaround's reason for existing disappeared with the cadence. `usage-check` moved back into `vercel.json` (`"0 12 * * *"`, alongside `reminders`) and `.github/workflows/usage-check.yml` was **deleted**. This removes the Actions-minutes exposure, the duplicated `CRON_SECRET` GitHub repository secret, and the split of cron config across two systems. Verified safe before the move: `reminders` and `usage-check` have byte-identical `Bearer ${CRON_SECRET}` auth, and `reminders` already ran under Vercel Cron.
