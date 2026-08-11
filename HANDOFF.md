@@ -12,17 +12,14 @@
 
 ## App State
 
-- **Branch:** `main`. (The prior entry named
-  `codex/orb-375-retire-elevenlabs`; the working tree has been on `main`
-  since at least this session's start.) The v0.6.283 release commit and
-  production push were explicitly authorized by Stan on 2026-08-05.
-- **Unpushed:** the v0.6.284 range on `main` (`git log origin/main..main`) —
-  push gate, `knowledge_repo` trigger, handoff, and release bookkeeping.
-  Verified to contain no other agent's commits. Awaiting Stan's push.
+- **Branch:** `main`.
+- **Unpushed before this checkpoint:** commit `789d282` (v0.6.288). The
+  v0.6.289 documentation checkpoint is also local only. Nothing was pushed.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.288** — AI capability-broker proposal checkpoint.
+- **Local version:** **0.6.289** — AI access and instruction-architecture
+  planning checkpoint.
   v0.6.287 restored Account to the nav on Settings.
   Earlier this session: v0.6.286 made cron endpoint auth fail closed; v0.6.285
   restored the AI usage check on a daily Vercel Cron; v0.6.284 was push-gate
@@ -40,6 +37,31 @@
 ---
 
 ## Last Session Completed
+
+**AI access + instruction architecture planning checkpoint — 2026-08-11
+(Codex, GPT-5.6 Sol)**
+
+Released locally as **v0.6.289**. Preserved Claude Code's complete three-round
+review of the capability-broker proposal and its dispositions, plus Stan's
+initial responses in the decision worksheet. Added
+`docs/orb-ai-local-unlock-plan.md` as a smaller draft replacement direction: a
+password-unlocked local Unix-socket service and fixed-purpose command surface
+shared by shell-capable AI tools. It records the weaker shared identity and
+same-user isolation boundary explicitly. No implementation is authorized.
+
+Added `docs/orb-instruction-architecture-proposal.md`, a separate draft for
+consolidating developer and runtime guidance into constitutions, capability
+contracts, conditional playbooks, live context, deterministic enforcement, and
+reference/history layers. It includes rule-admission tests, an auditable
+crosswalk, migration phases, success measures, and a controlled review process.
+No active instructions changed.
+
+**Performance instrumentation: not applicable — documentation-only planning
+checkpoint. Eval: not applicable — no conversation surface changed.** No
+application code, credentials, database state, API behavior, dev-server state,
+or production configuration changed.
+
+**Prior session:**
 
 **AI capability broker proposal checkpoint — 2026-08-07 (Codex, GPT-5.6 Sol)**
 
@@ -183,9 +205,8 @@ Voice Settings, AI Metrics, and Realtime voice. Eval: Tier 1 voice + smoke
 
 ## Current Uncommitted Changes
 
-*(none after the v0.6.288 proposal checkpoint commit. The long-running
-capability-broker planning claim remains tracked during review, and `WIP.md`
-remains tracked because ORB-375 rotation and acceptance are not complete.)*
+*(none after the v0.6.289 documentation checkpoint commit. The two planning
+claims remain tracked because neither draft is approved or complete.)*
 
 ---
 
@@ -242,26 +263,28 @@ remains tracked because ORB-375 rotation and acceptance are not complete.)*
 
 ## Next Priorities
 
-1. Have Claude Code review `docs/orb-ai-capability-broker-plan.md`; preserve its
-   complete attributed packet, record dispositions, and leave final decisions
-   to Stan in the document's decision register.
-2. Do not implement the capability broker until Stan marks the applicable
-   decisions Decided and the document Approved.
-3. Verify v0.6.283 in production: Voice Settings exposes only Browser and
+1. Have Stan decide whether `docs/orb-ai-local-unlock-plan.md` supersedes the
+   larger capability-broker direction and answer its five remaining decisions.
+2. Review `docs/orb-instruction-architecture-proposal.md` with Orb and Claude
+   Code; preserve complete attributed packets and leave all final decisions to
+   Stan. Do not change active instructions before its gates are satisfied.
+3. Do not implement either planning track until Stan explicitly approves it.
+4. Verify v0.6.283 in production: Voice Settings exposes only Browser and
    OpenAI, AI Metrics loads, and OpenAI Realtime voice works.
-4. Delete `ELEVENLABS_API_KEY` from Vercel and the encrypted local environment,
+5. Delete `ELEVENLABS_API_KEY` from Vercel and the encrypted local environment,
    delete both ElevenLabs provider keys, then repeat the three checks.
-5. Rotate `DATABASE_URL`, coordinated Orb/Helm API secret, and the VAPID pair.
-6. Complete ORB-375 acceptance, write resolution notes plus its Knowledge Repo
+6. Rotate `DATABASE_URL`, coordinated Orb/Helm API secret, and the VAPID pair.
+7. Complete ORB-375 acceptance, write resolution notes plus its Knowledge Repo
    entry, and remove the active claim with the closing commit.
 
 ---
 
 ## Key Current Decisions
 
-- **Capability-broker work is planning-only.** Codex maintains the controlled
-  draft and imports attributed review packets; Claude Code reviews; Stan makes
-  and records every final decision. No implementation is authorized yet.
+- **AI operational access remains planning-only.** The lightweight local-unlock
+  draft is the proposed replacement direction, but Stan has not approved its
+  decisions or implementation. The larger broker plan and its complete review
+  record remain preserved as evidence.
 - **Capabilities, not credentials.** The current proposal preserves ORB-375
   containment by putting bounded todo and Knowledge operations behind trusted
   server-side authorization instead of restoring environment access.
@@ -322,7 +345,7 @@ remains tracked because ORB-375 rotation and acceptance are not complete.)*
 
 ## AI Tool Used Last Session
 
-`2026-08-07 — Codex (GPT-5.6 Sol)`
+`2026-08-11 — Codex (GPT-5.6 Sol)`
 
 ---
 

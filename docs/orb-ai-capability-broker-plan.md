@@ -4,7 +4,7 @@
 **Document owner and final decision-maker:** Stan
 **Current document maintainer:** Codex
 **Created:** 2026-08-07
-**Last updated:** 2026-08-07 10:54 HST
+**Last updated:** 2026-08-07 11:45 HST — Claude Code Round 3 import
 **Related:** `docs/orb-374-ai-tool-local-access-security-plan.md`, `docs/security-hardening-phase-1.md`
 
 ## 1. Decision sought
@@ -58,7 +58,9 @@ is a focused continuation of that security design, not a replacement for it.
 - Orb's Realtime and production server can still use their server-side secrets;
   the access failure is in external AI-tool workflows, not Orb's deployed
   application runtime.
-- The existing REST task API authenticates with a shared `ORB_API_SECRET`.
+- The existing REST task API authenticates with a shared `ORB_API_SECRET` and
+  currently fails closed when that variable is absent: its unconditional
+  comparison returns 401 rather than skipping authentication.
 - Mandatory Knowledge Repository instructions require the Supabase service-role
   key so reads bypass RLS and see the complete cross-project repository.
 - Existing instructions expand secrets into command arguments for `curl` and
@@ -69,6 +71,15 @@ is a focused continuation of that security design, not a replacement for it.
 - During the triggering session, Codex could not create the requested todo:
   the production in-app browser was unauthenticated and the agent did not have
   the Orb API credential. No todo was created.
+- Claude Code's shell can reach the encrypted secret bundle as a file but could
+  not decrypt it without Stan entering the passphrase interactively. Variable
+  names were listable without exposing values. This is narrow evidence that
+  ORB-375 containment behaved as intended for Claude Code.
+- Claude Code can write its tracked `.claude/settings.json`, including its own
+  permission rules, when Stan authorizes that edit. Agent-writable client
+  configuration is therefore not a trusted authorization source.
+- `gh` is not installed on this Mac, so no GitHub CLI credential path was
+  present in Claude Code's reviewed environment.
 
 ### Inferred
 
@@ -79,8 +90,9 @@ is a focused continuation of that security design, not a replacement for it.
 
 ### Not yet verified
 
-- Which current Codex and Claude Code credential stores are inaccessible to
-  their general-purpose shells on this Mac.
+- Which Codex credential stores are inaccessible to its general-purpose shell,
+  and which Claude Code stores exist beyond the encrypted bundle evidence
+  recorded above.
 - Whether both clients can use the same remote MCP authentication mechanism
   without exposing bearer material to the model or shell.
 - Whether a local broker or remote MCP adapter provides the best balance of
@@ -113,6 +125,9 @@ is a focused continuation of that security design, not a replacement for it.
 - Treating a prompt instruction as a security boundary.
 - Letting a capability caller supply an arbitrary destination, table, query, or
   executable command.
+- Ticket operations in the initial broker scope. Tickets are reporter-facing
+  and remain a candidate for a later explicitly approved scope after the
+  todo/Knowledge pilot; D17 records this proposed boundary for Stan's decision.
 
 ## 5. Threat model
 
@@ -130,6 +145,8 @@ Defend against:
 - A model or untrusted document asking the agent to reveal or transmit a key.
 - A client shell reading a credential store, environment, process argument,
   temporary file, log, or inherited child environment.
+- A client modifying its own local authorization, enrollment, MCP, or
+  permission configuration to claim authority the server did not grant.
 - A compromised client using a broad credential outside Orb.
 - A confused agent widening project scope or mutating the wrong record.
 - Replay, duplicate submission, stale-state mutation, and false success.
@@ -180,7 +197,9 @@ This recommendation remains pending until client authentication and credential
 storage are verified on both Codex and Claude Code. If either client exposes
 its MCP credential to the general shell, that credential must still be narrowly
 scoped, short-lived where practical, and unable to call anything outside the
-Capability Service.
+Capability Service. The route must fail closed when required authentication
+configuration is absent; a missing secret or verifier may never register or
+serve an unauthenticated capability surface.
 
 ### 6.3 Local broker alternative
 
@@ -220,6 +239,10 @@ The service records both:
 Model name/version is supplied as attribution metadata and recorded, but is not
 trusted for authorization.
 
+Authenticated client identity and audit attribution derive only from the
+verified credential/grant. Conflicting payload fields are rejected. A client
+cannot select another client identity, scopes, owner, or enrollment record.
+
 ### 7.2 Proposed scopes
 
 | Scope | Operations |
@@ -240,15 +263,28 @@ credential operations.
 
 - Authorization derives from authenticated identity and scopes, never
   `NODE_ENV`, client-supplied role names, or model claims.
+- The server's stored grant is authoritative. Client-side configuration cannot
+  add a scope, change an owner, or alter the identity written to audit.
 - Project names/codes are resolved server-side to exact permitted rows.
 - Ambiguity fails closed and returns candidates only when safe.
 - All list/search operations have server-set limits and pagination.
 - Todo close uses the canonical transactional dispatcher so resolution notes,
   status, audit, and Knowledge Repository creation succeed atomically or not at
   all.
+- That atomicity currently depends on todos, audit, and Knowledge sharing one
+  database. If Knowledge moves, close becomes a durable pending workflow backed
+  by a transactional outbox: Orb must not report closure complete until the
+  Knowledge write has its own persisted receipt, and retries/reconciliation
+  must repair partial delivery without duplicating either record. The plan must
+  not continue calling a separated-store workflow one transaction.
 - Knowledge update resolves an exact stored entry and preserves attribution.
 - Every mutation accepts an idempotency key and returns the stored receipt on
   replay.
+- Server-side duplicate detection supplements client keys. Within a short,
+  measured window, the same client/capability/normalized target-and-change
+  tuple under a different key returns the existing receipt when equivalence is
+  certain, otherwise a typed `duplicate_suspected` result requiring deliberate
+  review. This is especially important for creates after a client restart.
 - Stale target versions fail rather than silently overwriting newer work.
 
 ### 7.4 Consequential-action approval
@@ -272,15 +308,22 @@ go-between friction the project is intended to remove.
 ## 8. Initial capability contract
 
 The names below describe the intended semantic contract; exact MCP naming is
-decided during schema review.
+decided during schema review. Pending D16, the proposed contract remains an
+external-agent declaration mapped explicitly to canonical domain commands,
+while `lib/orb-contract.ts` remains the conversational Orb declaration. They
+may share domain schemas and services but may not silently diverge on domain
+invariants such as closure.
 
 ### `knowledge_search`
 
-Input: topic query, optional product code, limit/cursor.
-Output: bounded entry summaries with stable IDs, titles, product, timestamps,
-tags, and content only when requested.
+Input: topic query, optional product code, explicit `include_content`,
+limit/cursor.
+Output: bounded entry metadata with stable IDs, titles, product, timestamps,
+and tags. Content is omitted by default and returned only when explicitly
+requested.
 Rules: uses the trusted server path needed for complete authorized results;
-never exposes a service-role credential or generic table query.
+never exposes a service-role credential or generic table query. The server
+applies a low default limit even when the caller omits one.
 
 ### `knowledge_read`
 
@@ -325,8 +368,12 @@ Rules: cannot set closed status; immutable fields remain immutable.
 Input: UUID or exact code, resolution notes, Knowledge title/content/tags,
 expected version, idempotency key, attribution metadata.
 Output: closed todo receipt plus created Knowledge entry receipt.
-Rules: one transaction; first line attribution is added by trusted code; no
-client can bypass the Knowledge entry.
+Rules: while todos, audit, and Knowledge are co-resident, one transaction
+persists all three. If Knowledge moves to another store, the operation becomes
+a durable pending close backed by a transactional outbox and independent
+receipts. In either topology, closure is never reported complete before the
+todo, audit, and Knowledge receipts persist. First-line attribution is added by
+trusted code; no client can bypass the Knowledge entry.
 
 ## 9. Data, audit, and error behavior
 
@@ -344,9 +391,11 @@ Do not record raw credentials, authorization headers, full prompts, unrelated
 conversation history, or secret-bearing environment values.
 
 Errors are typed: unauthenticated, unauthorized scope, invalid input,
-ambiguous target, not found, stale target, rate limited, unavailable, and
-internal failure. Internal database/provider text is logged only in the trusted
-server plane and is sanitized before returning to the client.
+ambiguous target, not found, stale target, `duplicate_suspected`, rate limited,
+unavailable, and internal failure. `duplicate_suspected` is not retryable
+without deliberate human review. Internal database/provider text is logged
+only in the trusted server plane and is sanitized before returning to the
+client.
 
 The client must never infer success from HTTP/MCP transport success. A mutation
 is successful only when the response contains the canonical persisted receipt.
@@ -358,6 +407,8 @@ is successful only when the response contains the canonical persisted receipt.
 - Credential material is shown only once during human enrollment and stored by
   an approved client credential mechanism, not in the repository.
 - Server stores only a verifier/hash or OAuth grant state.
+- Server-stored identity and scopes are authoritative; local client
+  configuration is untrusted input and cannot widen them.
 - Grants expire or are periodically renewed; Stan can revoke one client.
 - Rotation overlaps old/new grants only for a bounded migration window.
 - Revoked credentials are tested to fail; active credentials are tested to
@@ -365,12 +416,20 @@ is successful only when the response contains the canonical persisted receipt.
 - No capability credential grants direct Supabase, Vercel, provider, or generic
   Orb REST access.
 
+The existing `ORB_API_SECRET` task route is outside the new credential model
+and cannot remain an undocumented bypass. D15 requires a coordinated Orb/Helm
+decision identifying any legitimate non-AI consumers, then retaining with
+narrower scope or deprecating it on an approved schedule after the broker
+pilot. The broker rollout alone does not retire that shared-secret surface.
+
 ## 11. Performance and reliability
 
 Instrumentation is required because this adds authenticated network operations
 and server/database paths. Record per-capability latency, outcome, client,
 environment, and result count without argument contents. Update Part 2 of
-`docs/object-capability-matrix.md` with the new agent-operation flow.
+`docs/object-capability-matrix.md` with the new agent-operation flow and Part 1
+with the new access-surface coverage for every affected object, initially
+todos, Knowledge, and projects.
 
 Proposed initial service targets, subject to measured baseline:
 
@@ -383,14 +442,37 @@ Proposed initial service targets, subject to measured baseline:
 
 ## 12. Implementation phases
 
-Implementation is blocked until Stan marks the relevant decisions in section
-16 as decided and changes this document's status to approved.
+Phases A–E are implementation and remain blocked until Stan marks the relevant
+decisions in section 16 as decided and changes this document's status to
+approved. Phase 0 is bounded evidence gathering, not implementation; Stan may
+authorize it before approval solely to resolve an evidence-blocked decision.
+It may use a human-approved, non-production canary enrollment when read-only
+inspection cannot prove the boundary, but it creates no Orb product capability.
+
+### Phase 0 — Pre-approval client evidence
+
+- Inspect the authentication and credential-storage mechanisms actually
+  available to Codex and Claude Code without exposing a production credential.
+- Use read-only inspection where sufficient. Any harmless canary enrollment
+  must be explicitly approved by Stan, contain no production authority, and be
+  removed after testing. Test whether the general shell can read, write,
+  export, inherit, log, or impersonate the proposed client identity.
+- Determine whether both clients can authenticate to a remote MCP endpoint
+  under the containment requirements in sections 5, 7, and 10.
+- Record verified results in section 3, then return D2 to Stan for decision and
+  refine D9's implementation mechanism without changing its decided principle.
+- Do not freeze a schema, add application code or routes, issue a production
+  credential, mutate the database, change client guardrails, or alter
+  production state.
 
 ### Phase A — Contract and security harness
 
-- Freeze initial capabilities and schemas.
-- Decide primary transport and authentication after verifying both clients.
+- Implement the approved transport and authentication choice and freeze the
+  initial capabilities and schemas.
 - Define agent identities, scopes, idempotency, receipts, and audit schema.
+- Add a structural fail-closed authentication gate: absent verifier/issuer/key
+  configuration prevents the capability route from serving, and an accept-path
+  test proves the guard does not merely reject everything.
 - Add harmless-canary tests for credential exposure through config, argv,
   environment, logs, temp files, child processes, and local sockets where
   applicable.
@@ -452,9 +534,9 @@ than a fake success response.
    verify the stored title, project, status, and attribution.
 3. Codex calls `todo_close` with accurate resolution notes describing the
    successful create/read test and with a useful Knowledge entry title/content.
-4. The server atomically closes the todo, stores trusted first-line
-   attribution, creates the linked Knowledge entry, writes audit events, and
-   returns both receipts.
+4. In the current co-resident deployment, the server atomically closes the
+   todo, stores trusted first-line attribution, creates the linked Knowledge
+   entry, writes audit events, and returns both receipts.
 5. Codex queries the todo and Knowledge entry independently and verifies the
    persisted closed state, resolution notes, entry content, linkage, and
    attribution.
@@ -465,8 +547,12 @@ than a fake success response.
 8. Claude Code independently reads the same todo, Knowledge entry, and audit
    evidence through its own identity. It does not reuse Codex's credential or
    accept Codex's reported result as proof.
-9. Stan reviews the durable records and decides whether mutation access remains
-   enabled.
+9. Stan verifies the persisted todo row, Knowledge row, linkage, and audit
+   events through an independent trusted database path such as the Supabase
+   dashboard or a human-run bounded `psql` query. This verification does not
+   traverse the Capability Service.
+10. Stan reviews the durable records and decides whether mutation access remains
+    enabled.
 
 ### Required negative tests
 
@@ -480,6 +566,11 @@ than a fake success response.
 - Stale expected versions fail.
 - Replaying each mutation idempotency key returns the original receipt and does
   not create a duplicate todo, audit event, or Knowledge entry.
+- Repeating the same logical create under a different idempotency key inside
+  the duplicate-detection window does not create a second todo.
+- A client-side configuration edit cannot grant a server scope.
+- A `codex` credential cannot produce `claude_code` audit attribution, access
+  Claude Code's enrollment record, or honor a conflicting payload identity.
 - Raw SQL, arbitrary tables, caller-supplied URLs, todo delete, Knowledge
   delete, project mutation, push, deploy, and secret access are structurally
   absent.
@@ -537,6 +628,11 @@ Stan's explicit in-chat approval.
 - Trusted execution still depends on Orb's server-side service credentials.
 - A same-user local broker is not a strong boundary if the general shell can
   inspect or modify its process, socket, binary, or credential store.
+- The Capability Service constrains only operations routed through it.
+  Client-local guardrails such as git-push deny rules, filesystem permissions,
+  and tool allowlists remain outside its authority and require separate
+  structural enforcement; server-authoritative broker scopes do not solve that
+  broader self-configuration risk.
 - Manual fallback remains slower; an outage must not silently weaken security.
 - Adding too many operations recreates excessive agency. New capabilities
   require explicit threat review and Stan approval.
@@ -544,24 +640,31 @@ Stan's explicit in-chat approval.
 ## 16. Decision register
 
 Only Stan changes a row to **Decided**. Reviewer recommendations are recorded
-in section 17 and do not become authority by repetition or consensus.
+in section 17 and do not become authority by repetition or consensus. A row
+marked **Blocked on evidence** may be discussed, but it is not safely decidable
+until the named verification succeeds and is recorded in section 3. Other
+dependencies constrain implementation details without preventing Stan from
+deciding the stated policy.
 
-| ID | Decision | Proposed choice | Status | Stan's final decision / rationale |
-|---|---|---|---|---|
-| D1 | Proceed with a capability broker rather than restoring AI-readable secrets or permanent manual relay | Yes | Pending | |
-| D2 | Primary transport | Orb-hosted remote MCP backed by a transport-neutral Capability Service | Pending | |
-| D3 | Local broker role | Recovery/pilot fallback only; never decrypt into an agent-controlled command | Pending | |
-| D4 | Initial clients | Codex and Claude Code, separately enrolled and revocable | Pending | |
-| D5 | Initial read scopes | Knowledge, todo, and project reads | Pending | |
-| D6 | Initial mutation scopes | Todo create/update/close and Knowledge create/update; no delete or project mutation | Pending | |
-| D7 | Mutation approval policy | Explicit user instruction in the client is sufficient for initial allowed operations; trusted receipts and audit required | Pending | |
-| D8 | Todo-close invariant | Atomic resolution notes + Knowledge entry + audit through canonical dispatcher | Pending | |
-| D9 | Credential model | Per-client, scoped, revocable grant stored outside repositories; never shared `ORB_API_SECRET` | Pending | |
-| D10 | Complete Knowledge access | Permit complete owner-authorized cross-project search through bounded tools | Pending | |
-| D11 | Initial acceptance | Codex creates, verifies, closes one ORB todo, then updates and verifies its Knowledge entry; Claude independently verifies | Pending | |
-| D12 | Manual fallback | Retain a documented Stan-operated path for outages/revocation only | Pending | |
-| D13 | Production rollout | Read-only pilot first, then capabilities enabled one at a time | Pending | |
-| D14 | Final implementation gate | No build until all applicable decisions are Decided and document status is Approved | Pending | |
+| ID | Decision | Proposed choice | Evidence / implementation dependency | Status | Stan's final decision / rationale |
+|---|---|---|---|---|---|
+| D1 | Proceed with a capability broker rather than restoring AI-readable secrets or permanent manual relay | Yes | — | Pending | |
+| D2 | Primary transport | Orb-hosted remote MCP backed by a transport-neutral Capability Service | Verify Codex and Claude Code authentication and credential containment described in §3 | Blocked on evidence | |
+| D3 | Local broker role | Recovery/pilot fallback only; never decrypt into an agent-controlled command | — | Pending | |
+| D4 | Initial clients | Codex and Claude Code, separately enrolled and revocable | — | Pending | |
+| D5 | Initial read scopes | Knowledge, todo, and project reads | — | Pending | |
+| D6 | Initial mutation scopes | Todo create/update/close and Knowledge create/update; no delete or project mutation | — | Pending | |
+| D7 | Mutation approval policy | Explicit user instruction in the client is sufficient for initial allowed operations; trusted receipts and audit required | — | Pending | |
+| D8 | Todo-close invariant | Atomic resolution notes + Knowledge entry + audit while co-resident; if stores separate, durable pending close/outbox with no completion claim before both receipts | — | Pending | |
+| D9 | Credential model | Per-client, scoped, revocable grant stored outside repositories; never shared `ORB_API_SECRET` | Client-storage verification is required before selecting the implementation mechanism, not before deciding the principle | Pending | |
+| D10 | Complete Knowledge access | Permit complete owner-authorized cross-project search through bounded tools | — | Pending | |
+| D11 | Initial acceptance | Codex creates, verifies, closes one ORB todo, then updates and verifies its Knowledge entry; Claude independently verifies | — | Pending | |
+| D12 | Manual fallback | Retain a documented Stan-operated path for outages/revocation only | — | Pending | |
+| D13 | Production rollout | Read-only pilot first, then capabilities enabled one at a time | — | Pending | |
+| D14 | Final implementation gate | No build in Phases A–E until all applicable decisions are Decided and document status is Approved; Stan may separately authorize bounded Phase 0 evidence work that creates no Orb product capability or production authority | — | Pending | |
+| D15 | Existing shared-secret REST task surface | Coordinate with Helm; retain only for identified non-AI integrations, otherwise scope or deprecate on an approved schedule after the broker pilot | Identify legitimate Helm/non-AI consumers before finalizing the implementation schedule, not before deciding the policy | Pending | |
+| D16 | Contract source of truth | Keep separate conversational and external-agent declarations with an explicit mapping over shared canonical domain services and invariants | — | Pending | |
+| D17 | Ticket capability scope | Exclude tickets from the initial broker; reconsider only after the todo/Knowledge pilot and a separate reporter-safety review | — | Pending | |
 
 ## 17. Controlled review record
 
@@ -590,8 +693,55 @@ in section 17 and do not become authority by repetition or consensus.
 
 | Comment ID | Reviewer | Disposition | Sections changed | Maintainer note |
 |---|---|---|---|---|
-| *(none yet)* | | | | |
+| claude-R1-C1 | Claude Code (Opus 5) | Incorporated; blocker accepted | 3, 5, 7, 10, 13 | Server grants are authoritative; added self-configuration threat and negative test. |
+| claude-R1-C2 | Claude Code (Opus 5) | Incorporated | 3, 6, 12 | Recorded REST fail-closed evidence and required a structural broker auth gate plus accept test. |
+| claude-R1-C3 | Claude Code (Opus 5) | Incorporated as pending decision D15 | 10, 16 | Legacy REST disposition is cross-project because Helm shares the coordinated secret. |
+| claude-R1-C4 | Claude Code (Opus 5) | Incorporated | 13 | Added Stan's independent database-plane verification after both client checks. |
+| claude-R1-C5 | Claude Code (Opus 5) | Incorporated with proposed future-store behavior | 7, 16 | Named current co-location dependency; proposes outbox/pending-close reconciliation if stores separate. D8 remains Stan's. |
+| claude-R1-C6 | Claude Code (Opus 5) | Incorporated | 7, 13 | Added server semantic duplicate detection and different-key duplicate test. |
+| claude-R1-C7 | Claude Code (Opus 5) | Incorporated | 7, 13 | Credential-derived identity/audit and cross-client impersonation tests added. |
+| claude-R1-C8 | Claude Code (Opus 5) | Incorporated as pending decision D16 | 8, 16 | Proposes separate mapped contracts over one canonical domain layer. Existing §4 domain-service goal and §14 eval reasoning already supported the choice and were not edited. |
+| claude-R1-C9 | Claude Code (Opus 5) | Incorporated | 8 | Knowledge search is metadata-only by default with explicit content and low server limit. |
+| claude-R1-C10 | Claude Code (Opus 5) | Incorporated as bounded evidence | 3 | Recorded only verified Claude facts; Codex credential-store behavior remains unverified. |
+| claude-R2-C1 | Claude Code (Opus 5) | Incorporated; D8 blocker reconciled | 8, 13 | Contract and acceptance now match §7.3: atomic while co-resident, durable pending close if stores separate, never complete before all receipts persist. |
+| claude-R2-C2 | Claude Code (Opus 5) | Incorporated as residual limitation | 15 | Broker authority does not protect client-only controls such as push gates or tool allowlists. |
+| claude-R2-C3 | Claude Code (Opus 5) | Incorporated | 16 | D2 is explicitly blocked pending client verification; D9 records the same evidence as an implementation-mechanism dependency while its principle remains decidable. |
+| claude-R2-C4 | Claude Code (Opus 5) | Incorporated | 9 | Added non-retryable `duplicate_suspected` to the typed taxonomy. |
+| claude-R2-C5 | Claude Code (Opus 5) | Incorporated; audit record corrected | 17 | Corrected R1-C8 sections from 4, 8, 14, 16 to 8, 16 and explained the unchanged supporting sections. |
+| claude-R2-C6 | Claude Code (Opus 5) | Incorporated | 11 | Matrix maintenance now explicitly covers Part 1 object surfaces and Part 2 performance flows. |
+| claude-R2-C7 | Claude Code (Opus 5) | Incorporated as pending decision D17 | 4, 16 | Tickets are proposed out of initial scope, not silently omitted; Stan retains the decision. |
+| claude-R2-C8 | Claude Code (Opus 5) | Incorporated | 13 | Corrected the two-digit list continuation indent. |
+| claude-R3-C1 | Claude Code (Opus 5) | Incorporated; procedural deadlock removed | 12, 16 | Added a non-implementing Phase 0 for explicitly authorized client evidence, bounded any canary enrollment to non-production authority, kept Phases A–E behind the absolute build gate, and moved D2 selection before Phase A. |
 
 ### Review rounds
 
-*(none yet)*
+#### Claude Code (Opus 5; model ID `claude-opus-5`) — 2026-08-07 11:05 HST — Round 1
+
+Reviewed the 2026-08-07 10:54 HST draft. Recommended D1 = Yes, identified
+one blocker and nine findings/recommendations/questions, and did not approve
+implementation or decide D1–D16. Complete authoritative packet:
+`docs/orb-ai-capability-broker-reviews/claude-R1-2026-08-07.md`.
+
+#### Claude Code (Opus 5; model ID `claude-opus-5`) — 2026-08-07 11:25 HST — Round 2
+
+Reviewed the staged 2026-08-07 11:07 HST revision. Verified all ten Round 1
+comments were addressed in substance, identified one D8 wording blocker and
+seven further findings/recommendations/questions, and assessed D1 and D3–D16
+as mature for Stan's judgment after reconciling D8. D2 remains evidence-gated;
+D9 records credential-store verification as an implementation dependency. The
+ticket-scope question produced the new pending D17 rather than an inferred
+decision. Complete authoritative
+packet: `docs/orb-ai-capability-broker-reviews/claude-R2-2026-08-07.md`.
+
+#### Claude Code (Opus 5; model ID `claude-opus-5`) — 2026-08-07 11:45 HST — Round 3 (final)
+
+Verified all eight Round 2 dispositions against the staged text and corrected
+its own earlier assessment of D9: the principle is decidable now even though
+its storage mechanism remains evidence-dependent. Identified one procedural
+deadlock between D2, D14, and Phase A. The plan resolves it with Claude's
+recommended Phase 0: bounded evidence work with no Orb product capability or
+production authority may be separately authorized before approval, while all
+implementation remains in gated Phases A–E. Claude assessed the plan as ready
+for Stan's decisions, with D2 still
+blocked until Phase 0 evidence exists. Complete authoritative packet:
+`docs/orb-ai-capability-broker-reviews/claude-R3-2026-08-07.md`.

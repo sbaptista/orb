@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.289',
+    date: '2026-08-11',
+    changes: [
+      'Preserved the complete three-round Claude Code review of the AI capability-broker proposal, incorporated every review disposition, and added Stan\'s initial decision worksheet responses without authorizing implementation.',
+      'Added a smaller local-unlock draft that proposes one password-unlocked, Unix-socket service and fixed-purpose command surface for bounded todo, project, and Knowledge Repository operations by shell-capable AI tools. The draft explicitly records its shared-identity and same-user isolation limits and remains subject to Stan\'s decisions before any build.',
+      'Added the draft Orb instruction-architecture proposal: a layered constitution, capability contracts, conditional playbooks, live context, deterministic enforcement, rule-admission tests, crosswalk requirements, staged migration, and controlled multi-AI review. No active instruction, application behavior, credential, database state, or production configuration changed.',
+      'Performance instrumentation: not applicable — documentation-only planning checkpoint. Eval: not applicable — no conversation surface changed.',
+    ],
+  },
+  {
     version: 'v0.6.288',
     date: '2026-08-07',
     changes: [
