@@ -13,13 +13,13 @@
 ## App State
 
 - **Branch:** `main`.
-- **Unpushed before this checkpoint:** commit `789d282` (v0.6.288). The
-  v0.6.289 documentation checkpoint is also local only. Nothing was pushed.
+- **Unpushed:** `789d282` (v0.6.288), `652e766` (v0.6.289), and the v0.6.290
+  handoff-refresh commit. Nothing was pushed.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.289** — AI access and instruction-architecture
-  planning checkpoint.
+- **Local version:** **0.6.290** — handoff refresh after the AI access and
+  instruction-architecture planning checkpoint.
   v0.6.287 restored Account to the nav on Settings.
   Earlier this session: v0.6.286 made cron endpoint auth fail closed; v0.6.285
   restored the AI usage check on a daily Vercel Cron; v0.6.284 was push-gate
@@ -38,10 +38,12 @@
 
 ## Last Session Completed
 
-**AI access + instruction architecture planning checkpoint — 2026-08-11
+**AI access + instruction architecture planning checkpoint committed and
+handoff refreshed — 2026-08-11
 (Codex, GPT-5.6 Sol)**
 
-Released locally as **v0.6.289**. Preserved Claude Code's complete three-round
+Committed locally as **v0.6.289** in `652e766`; nothing was pushed. Preserved
+Claude Code's complete three-round
 review of the capability-broker proposal and its dispositions, plus Stan's
 initial responses in the decision worksheet. Added
 `docs/orb-ai-local-unlock-plan.md` as a smaller draft replacement direction: a
@@ -56,8 +58,10 @@ reference/history layers. It includes rule-admission tests, an auditable
 crosswalk, migration phases, success measures, and a controlled review process.
 No active instructions changed.
 
-**Performance instrumentation: not applicable — documentation-only planning
-checkpoint. Eval: not applicable — no conversation surface changed.** No
+The handoff refresh and release bookkeeping are committed as **v0.6.290**.
+**Performance instrumentation: not applicable —
+documentation-only planning checkpoint. Eval: not applicable — no conversation
+surface changed.** No
 application code, credentials, database state, API behavior, dev-server state,
 or production configuration changed.
 
@@ -205,8 +209,8 @@ Voice Settings, AI Metrics, and Realtime voice. Eval: Tier 1 voice + smoke
 
 ## Current Uncommitted Changes
 
-*(none after the v0.6.289 documentation checkpoint commit. The two planning
-claims remain tracked because neither draft is approved or complete.)*
+*(none after the v0.6.290 handoff-refresh commit. The two planning claims
+remain tracked because neither draft is approved or complete.)*
 
 ---
 

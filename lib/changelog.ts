@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.290',
+    date: '2026-08-11',
+    changes: [
+      'Refreshed the session handoff after committing the v0.6.289 AI-access and instruction-architecture planning checkpoint. Recorded the exact local commit and unpushed range; no application, conversation, credential, database, or production behavior changed.',
+      'Performance instrumentation: not applicable — handoff and release bookkeeping only. Eval: not applicable — no conversation surface changed.',
+    ],
+  },
+  {
     version: 'v0.6.289',
     date: '2026-08-11',
     changes: [
