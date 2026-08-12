@@ -6,6 +6,24 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.292',
+    date: '2026-08-12',
+    changes: [
+      'Put the non-admin development-account migration plan on hold. Stan has stopped work on the whole class of environment-isolation approaches for AI tooling — separate macOS accounts, Docker, and virtual machines alike — so the plan is marked On Hold, its decision list needs no answers, and no follow-up review is required.',
+      'Recorded the completed Claude Code Round 1 review inside the plan document, including the live verification of its baseline claims and fifteen findings with severity, evidence classification, risk, and recommendation. Added a short section isolating the findings that remain true regardless of the migration, so nothing useful is lost when the plan is shelved.',
+      'Performance instrumentation: not applicable — documentation-only. Eval: not applicable — no conversation surface changed. No account, application, permission, credential, GitHub, Vercel, database, dev-server, or production state changed.',
+    ],
+  },
+  {
+    version: 'v0.6.291',
+    date: '2026-08-11',
+    changes: [
+      'Added a controlled, implementation-blocked migration plan for moving routine Orb development into the Standard macOS account Dev E. Loper (`developer`). The plan covers verified baseline evidence, personal-account isolation, administrator-owned enforcement, independent Git checkout and release authority, fresh Codex and Claude authentication, local Safari/Chrome/Edge profiles, encrypted launcher and TLS migration, Mac/iPhone/iPad acceptance, rollback, and eventual disposition of the old administrator-account clone.',
+      'Included a complete Claude Code Round 1 review protocol and copy/paste prompt focused on privilege escalation, personal-data leakage, user-writable policy mistaken for enforcement, secret exposure, unsafe installers and updates, browser synchronization, push/deploy bypasses, recovery, and evidence quality. No account, application, permission, credential, GitHub, database, dev-server, or production state changed.',
+      'Performance instrumentation: not applicable — documentation-only planning checkpoint. Eval: not applicable — no conversation surface changed.',
+    ],
+  },
+  {
     version: 'v0.6.290',
     date: '2026-08-11',
     changes: [

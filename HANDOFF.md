@@ -13,13 +13,13 @@
 ## App State
 
 - **Branch:** `main`.
-- **Unpushed:** `789d282` (v0.6.288), `652e766` (v0.6.289), and the v0.6.290
-  handoff-refresh commit. Nothing was pushed.
+- **Unpushed:** none before the current v0.6.291 planning work; `origin/main`
+  was verified at `8aac1dd` on 2026-08-11. Nothing was pushed this session.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.290** — handoff refresh after the AI access and
-  instruction-architecture planning checkpoint.
+- **Local version:** **0.6.292** — non-admin development-account plan reviewed
+  and put **on hold**; v0.6.291 drafted that plan for review.
   v0.6.287 restored Account to the nav on Settings.
   Earlier this session: v0.6.286 made cron endpoint auth fail closed; v0.6.285
   restored the AI usage check on a daily Vercel Cron; v0.6.284 was push-gate
@@ -37,6 +37,86 @@
 ---
 
 ## Last Session Completed
+
+**Non-admin development-account plan reviewed and put on hold — 2026-08-12
+(Claude Code, Opus 5)**
+
+Released locally as **v0.6.292**. **Performance instrumentation: not applicable
+— documentation-only. Eval: not applicable — no conversation surface changed.**
+
+**Stan has stopped work on the whole class of environment-isolation approaches
+for AI tooling — non-admin macOS accounts, Docker, and VMs alike.**
+`docs/orb-non-admin-development-account-plan.md` is marked **ON HOLD as of
+2026-08-12** with a hold notice at the top. Sections 1–23 are preserved
+unchanged as the historical record. **None of its section 6 decisions need
+answers, and no Round 2 review is wanted — do not reopen it as a task.**
+
+The completed Claude Code Round 1 review is recorded *inside* the plan as
+section 24 rather than as a separate file under
+`docs/orb-non-admin-development-account-reviews/`, at Stan's direction, so the
+direction is wrapped up in one document. The deviation from the plan's own
+section 21 is noted in the document.
+
+**The review's baseline claims were verified against the live machine rather
+than reasoned about, and that changed the outcome.** The plan's central security
+claim was false as configured: `/Users/stanleybaptista` is `0750` group `staff`,
+macOS gives new local accounts `staff` as their primary group, and `~/Projects`,
+`~/.claude`, and `~/.codex` are `0755` beneath it — so a new Standard account
+would have read nearly all of Stan's project work and both AI tools' histories
+by default. Fifteen findings were recorded with severity, evidence
+classification, risk, and recommendation; the verdict was *Re-review required*,
+now moot.
+
+**Section 25 isolates the five findings that outlive the plan** — read that
+section, not the phase structure, if isolation work is ever revived. Two are
+worth acting on independently of any migration: tightening
+`/Users/stanleybaptista` to `0700` (one command, no second account exists yet),
+and the observation that the push gate is policy string-matching rather than
+capability denial, with a read-only credential the unused structural control.
+
+Also verified in passing: **FileVault is On** (`fdesetup status`, no elevation
+needed) — section 4 had recorded it unverified because one tool's sandbox
+blocked the check, which is a tool limitation recorded as a property of the
+system.
+
+No account, application, permission, credential, GitHub, Vercel, database,
+dev-server, or production state changed at any point.
+
+**Concurrency note:** Codex's claims on the plan document and on Release
+bookkeeping were dated 2026-08-11, `Long-running: no`, and therefore stale. The
+§2 confirmation step did *not* pass cleanly — those files carried Codex's
+uncommitted v0.6.291 work — so the edits were deliberately additive: the plan
+was appended to, a **new** v0.6.292 changelog entry was added above Codex's
+untouched v0.6.291 entry, and `ACTIVE_WORK/codex.md` was not modified. A stale
+claim notice is recorded in `ACTIVE_WORK/claude-code.md`. Proceeding was Stan's
+explicit in-chat direction.
+
+**Prior session:**
+
+**Non-admin development-account migration plan — 2026-08-11 (Codex, GPT-5.6
+Sol)**
+
+Prepared `docs/orb-non-admin-development-account-plan.md` as a controlled,
+implementation-blocked plan for moving routine Orb development into the
+Standard macOS identity **Dev E. Loper**, short name `developer`, home
+`/Users/developer`. It covers recovery, FileVault, verified account isolation,
+administrator-owned Codex and Claude enforcement, independent Git/release
+boundaries, fresh AI authentication, local Safari/Chrome/Edge profiles,
+encrypted launcher and TLS migration, Mac/iPhone/iPad acceptance, rollback,
+and the final disposition of the administrator-account clone.
+
+The plan contains a complete Claude Code Round 1 review protocol and exact
+copy/paste prompt. Implementation remains blocked until Claude's packet is
+preserved, comments are dispositioned, Stan decides the open questions, the
+plan is marked Approved, exact managed-policy/launcher/TLS/Git/secret/deletion
+procedures are reviewed, and Stan authorizes the first phase.
+
+**Performance instrumentation: not applicable — documentation-only planning
+checkpoint. Eval: not applicable — no conversation surface changed.** No
+account, software, permission, credential, GitHub, database, dev-server, or
+production state changed.
+
+**Prior session:**
 
 **AI access + instruction architecture planning checkpoint committed and
 handoff refreshed — 2026-08-11
@@ -209,8 +289,19 @@ Voice Settings, AI Metrics, and Realtime voice. Eval: Tier 1 voice + smoke
 
 ## Current Uncommitted Changes
 
-*(none after the v0.6.290 handoff-refresh commit. The two planning claims
-remain tracked because neither draft is approved or complete.)*
+- `docs/orb-non-admin-development-account-plan.md` — Codex's complete draft
+  (sections 1–23, unchanged), now carrying a **hold notice**, the Claude Code
+  Round 1 review (section 24), and the findings that outlive the plan
+  (section 25). On hold; not pending work.
+- `package.json` — canonical version `0.6.292`.
+- `lib/version.ts` — display version `v0.6.292`.
+- `lib/changelog.ts` — v0.6.292 hold + review record, above Codex's untouched
+  v0.6.291 entry.
+- `HANDOFF.md` — this session's work, the hold, and the concurrency note.
+- `ACTIVE_WORK/codex.md` — Codex's stale claims, **left untouched** (another
+  agent's file is never edited).
+- `ACTIVE_WORK/claude-code.md` — this session's two claims plus a stale claim
+  notice; both claims are removed by the commit that completes this work.
 
 ---
 
@@ -267,8 +358,17 @@ remain tracked because neither draft is approved or complete.)*
 
 ## Next Priorities
 
+0. **Nothing is owed on the non-admin account plan.** It is on hold as of
+   2026-08-12 and is not a task. Two of its findings are separable and can be
+   acted on any time Stan wants, independently of it: tighten
+   `/Users/stanleybaptista` from `0750` to `0700`, and consider a read-only Git
+   credential as the structural complement to the policy-based push gate.
+   Neither is scheduled.
 1. Have Stan decide whether `docs/orb-ai-local-unlock-plan.md` supersedes the
    larger capability-broker direction and answer its five remaining decisions.
+   **Not covered by the 2026-08-12 hold** — the hold is on separate accounts,
+   Docker, and VMs; the local-unlock draft is a same-account service. Do not
+   conflate them.
 2. Review `docs/orb-instruction-architecture-proposal.md` with Orb and Claude
    Code; preserve complete attributed packets and leave all final decisions to
    Stan. Do not change active instructions before its gates are satisfied.
@@ -285,6 +385,16 @@ remain tracked because neither draft is approved or complete.)*
 
 ## Key Current Decisions
 
+- **Environment-isolation approaches for AI tooling are on hold (2026-08-12).**
+  No further work on non-admin macOS accounts, Docker, or VMs. This is a
+  direction decision, not a gate further review can satisfy. It does not affect
+  ORB-375 containment, the existing push gate, or the same-account local-unlock
+  draft.
+- **Verify baselines; don't reason about them.** The non-admin plan's central
+  security claim was false as configured, and four commands showed it. A
+  separate row in that plan recorded FileVault as "unverified" when the command
+  needs no elevation and one tool's sandbox was the only obstacle — a tool
+  limitation written down as a property of the system.
 - **AI operational access remains planning-only.** The lightweight local-unlock
   draft is the proposed replacement direction, but Stan has not approved its
   decisions or implementation. The larger broker plan and its complete review
@@ -349,7 +459,7 @@ remain tracked because neither draft is approved or complete.)*
 
 ## AI Tool Used Last Session
 
-`2026-08-11 — Codex (GPT-5.6 Sol)`
+`2026-08-12 — Claude Code (Opus 5)`
 
 ---
 
