@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.293',
+    date: '2026-08-12',
+    changes: [
+      'Corrected the session handoff to the clean post-commit state: recorded the exact unpushed commit range, replaced the stale uncommitted-file list with the verified clean working tree, and noted that Stan created the Knowledge Repository entry for the home-permissions finding (no entry ID was available to record). The non-admin account, Docker, and VM hold stands unchanged and the held plan was not revised.',
+      'Cleared the completed Claude Code claims and the now-resolved stale-claim notice from the active-work ledger, returning both agents to no outstanding claims apart from Codex\'s two long-running planning claims.',
+      'Performance instrumentation: not applicable — bookkeeping only. Eval: not applicable — no conversation surface changed.',
+    ],
+  },
+  {
     version: 'v0.6.292',
     date: '2026-08-12',
     changes: [

@@ -13,13 +13,34 @@
 ## App State
 
 - **Branch:** `main`.
-- **Unpushed:** none before the current v0.6.291 planning work; `origin/main`
-  was verified at `8aac1dd` on 2026-08-11. Nothing was pushed this session.
+- **Unpushed:** `origin/main` is at `8aac1dd`. **Three** local commits await
+  Stan's unified push, oldest first:
+  1. `8d1c2b5` — non-admin plan on hold (v0.6.292) + Codex's v0.6.291 plan draft
+  2. `96ae0fe` — Codex clears its completed claims
+  3. **tip** — `chore: v0.6.293 bookkeeping correction — clean handoff state,
+     cleared claims`. Its hash is deliberately not written here: a commit cannot
+     contain its own hash, and any value printed before the commit is created is
+     invalidated by writing it down.
+
+  **Re-derive the exact range instead of trusting a copied hash** — the base is
+  stable even when the tip is amended or rebased:
+
+  ```bash
+  git log --oneline 8aac1dd..main
+  ```
+
+  Expect exactly three commits ending in the v0.6.293 subject above; anything
+  else means the range changed and must be reread before pushing (protocol §3
+  step 4 — read the range every time, it is frequently not just your own work).
+
+  Nothing has been pushed. **Codex performs the unified push** when Stan
+  approves it.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.292** — non-admin development-account plan reviewed
-  and put **on hold**; v0.6.291 drafted that plan for review.
+- **Local version:** **0.6.293** — bookkeeping correction. v0.6.292 reviewed the
+  non-admin development-account plan and put it **on hold**; v0.6.291 drafted
+  that plan for review.
   v0.6.287 restored Account to the nav on Settings.
   Earlier this session: v0.6.286 made cron endpoint auth fail closed; v0.6.285
   restored the AI usage check on a daily Vercel Cron; v0.6.284 was push-gate
@@ -78,6 +99,15 @@ Also verified in passing: **FileVault is On** (`fdesetup status`, no elevation
 needed) — section 4 had recorded it unverified because one tool's sandbox
 blocked the check, which is a tool limitation recorded as a property of the
 system.
+
+**Knowledge Repository:** Stan created the entry himself on 2026-08-12 from
+content supplied in session — *"macOS home is group-readable: any second local
+account sees every project by default"*, covering the `0750`/`staff` finding,
+the remediation if a second account is ever created, and the `test ! -r`
+false-pass trap. **No entry ID was captured in this session** — the agent could
+not write to or read back the repo (`.env.local` is absent by ORB-375
+containment), so no ID is recorded here rather than inventing one. Look it up by
+title if it is needed later.
 
 No account, application, permission, credential, GitHub, Vercel, database,
 dev-server, or production state changed at any point.
@@ -289,19 +319,15 @@ Voice Settings, AI Metrics, and Realtime voice. Eval: Tier 1 voice + smoke
 
 ## Current Uncommitted Changes
 
-- `docs/orb-non-admin-development-account-plan.md` — Codex's complete draft
-  (sections 1–23, unchanged), now carrying a **hold notice**, the Claude Code
-  Round 1 review (section 24), and the findings that outlive the plan
-  (section 25). On hold; not pending work.
-- `package.json` — canonical version `0.6.292`.
-- `lib/version.ts` — display version `v0.6.292`.
-- `lib/changelog.ts` — v0.6.292 hold + review record, above Codex's untouched
-  v0.6.291 entry.
-- `HANDOFF.md` — this session's work, the hold, and the concurrency note.
-- `ACTIVE_WORK/codex.md` — Codex's stale claims, **left untouched** (another
-  agent's file is never edited).
-- `ACTIVE_WORK/claude-code.md` — this session's two claims plus a stale claim
-  notice; both claims are removed by the commit that completes this work.
+**None — the working tree is clean.** Everything from the v0.6.291–v0.6.293 span
+is committed and awaiting Stan's approval for Codex's unified push (see App
+State for the exact range).
+
+Both agents' ledgers are back to `*(none)*`: Codex cleared its completed claims
+in `96ae0fe`, and this commit removes the Claude Code claims that covered the
+hold, the review, and this correction. Codex's two `Long-running: yes` planning
+claims (capability broker, instruction architecture) remain open and are
+unaffected — they do not overlap the release files.
 
 ---
 
