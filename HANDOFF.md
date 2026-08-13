@@ -13,34 +13,15 @@
 ## App State
 
 - **Branch:** `main`.
-- **Unpushed:** `origin/main` is at `8aac1dd`. **Three** local commits await
-  Stan's unified push, oldest first:
-  1. `8d1c2b5` — non-admin plan on hold (v0.6.292) + Codex's v0.6.291 plan draft
-  2. `96ae0fe` — Codex clears its completed claims
-  3. **tip** — `chore: v0.6.293 bookkeeping correction — clean handoff state,
-     cleared claims`. Its hash is deliberately not written here: a commit cannot
-     contain its own hash, and any value printed before the commit is created is
-     invalidated by writing it down.
-
-  **Re-derive the exact range instead of trusting a copied hash** — the base is
-  stable even when the tip is amended or rebased:
-
-  ```bash
-  git log --oneline 8aac1dd..main
-  ```
-
-  Expect exactly three commits ending in the v0.6.293 subject above; anything
-  else means the range changed and must be reread before pushing (protocol §3
-  step 4 — read the range every time, it is frequently not just your own work).
-
-  Nothing has been pushed. **Codex performs the unified push** when Stan
-  approves it.
+- **Unpushed:** the forthcoming v0.6.294 manual clipboard transfer commit only.
+  `origin/main` and local `main` were both at `679f942` immediately before this
+  work. Nothing has been pushed from this session.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.293** — bookkeeping correction. v0.6.292 reviewed the
-  non-admin development-account plan and put it **on hold**; v0.6.291 drafted
-  that plan for review.
+- **Local version:** **0.6.294** — manual clipboard transfer for Todo, Project,
+  and Knowledge editors plus current manual-mode agent instructions. v0.6.293
+  was the bookkeeping correction; v0.6.292 put the non-admin plan on hold.
   v0.6.287 restored Account to the nav on Settings.
   Earlier this session: v0.6.286 made cron endpoint auth fail closed; v0.6.285
   restored the AI usage check on a daily Vercel Cron; v0.6.284 was push-gate
@@ -58,6 +39,70 @@
 ---
 
 ## Last Session Completed
+
+**Manual Todo/Project/Knowledge transfer bridge — 2026-08-12
+(Codex, GPT-5.6 Sol)**
+
+Released locally as **v0.6.294**. TodoEditor, Settings Projects, Settings
+Knowledge, and the Unified Dashboard List pane's Project modal now provide
+field-level **Copy** controls and **Copy All** formatted output. Copy All uses
+the form's current values, so unsaved edits are included; edit records add the
+stable identifiers available to that surface. After Stan's first acceptance
+pass, Copy All moved into each modal header beside Close, field Copy controls
+adopted the compact `btn-sm` modifier, and failed first Clipboard API writes now
+fall back to a hidden textarea before reporting an error.
+
+All catalogued centered modals are now movable by dragging the non-interactive
+part of their headers with mouse, pen, or touch. Movement is constrained to an
+8px viewport margin, header controls remain clickable, and reopening a modal
+starts it centered rather than persisting an old position.
+
+Orb's tracked `AGENTS.md` and the machine-shared
+`/Users/stanleybaptista/Projects/shared/AGENTS.md` now define manual
+data-transfer mode. Agent shells do not receive encrypted credentials and do
+not attempt direct todo, project, Knowledge, Supabase, `psql`, or Orb API CRUD.
+Stan supplies copied records; agents return paste-ready fenced field blocks and
+wait for Stan to confirm that writes were saved. Todo closure content includes
+separate attributed Resolution notes and Knowledge Title, Content, Tags, and
+Project blocks.
+
+Settings → Knowledge also supports the former multi-entry research workflow.
+Space-separated literal terms use a visible **All terms** (default) or **Any
+term** choice; `AND` and `OR` remain ordinary searchable words. The mode applies
+identically to the table and **Copy Results**. Copy Results re-runs the search
+and exports the 10 newest complete matches with query, mode, and explicit
+`Copied N of total` coverage. Agent instructions tell tools to request this
+packet for topic research and never imply that matches beyond the reported
+bound were reviewed. Because this action re-runs a server search, it records
+Settings performance telemetry for latency, match mode, term count,
+copied/total coverage, and failure outcome.
+
+Stan created **ORB-378** from the first paste-ready Todo field blocks. It
+describes the manual clipboard bridge and remains open pending Stan's final
+live verification and manual closure. Codex prepared the required Resolution
+notes and Knowledge fields in chat; do not report either database write as
+complete until Stan confirms saving them.
+
+**Verification:** `npx tsc --noEmit` passed; UI catalog verification passed;
+focused ESLint had no errors (two pre-existing TodoEditor unused-variable
+warnings). The literal-term helper passed 6/6 deterministic checks, including
+cross-field All, Any, and ordinary-word `AND` / `OR` cases. Full `npm run lint`
+still fails only on the six pre-existing `app/prototype/voice/page.tsx` errors.
+Authenticated visual verification remains blocked: the latest in-app browser
+attempt reached Orb's Maintenance Mode sign-in screen, and an earlier attempt
+hit a local certificate-name error after switching DEV users. Stan's first live
+pass identified the initial clipboard failure and layout sizing issues; the
+corrections compile and await his follow-up live check. Movable-modal behavior,
+All/Any Knowledge search, and the bounded Copy Results packet are also awaiting
+Stan's live Mac/iPad/iPhone check. No production state was changed.
+
+Used the existing `EditorModal` / `modal-center`, `pf-*` / Settings input,
+`flex-row`, `btn-outline`, and `btn-sm` patterns. **Performance instrumentation:
+local field/record copy and pointer movement require none; multi-entry Knowledge
+Copy Results records its server-search timing and outcome. Eval: not applicable
+— no Orb-conversation surface changed.**
+
+**Prior session:**
 
 **Non-admin development-account plan reviewed and put on hold — 2026-08-12
 (Claude Code, Opus 5)**
@@ -390,15 +435,17 @@ unaffected — they do not overlap the release files.
    `/Users/stanleybaptista` from `0750` to `0700`, and consider a read-only Git
    credential as the structural complement to the policy-based push gate.
    Neither is scheduled.
-1. Have Stan decide whether `docs/orb-ai-local-unlock-plan.md` supersedes the
-   larger capability-broker direction and answer its five remaining decisions.
-   **Not covered by the 2026-08-12 hold** — the hold is on separate accounts,
-   Docker, and VMs; the local-unlock draft is a same-account service. Do not
-   conflate them.
+1. Stan chose manual clipboard CRUD for now. Test Copy/Copy All on Mac, iPad,
+   and iPhone across Todo, Settings Projects, Settings Knowledge, and the
+   dashboard List project modal. In Settings Knowledge, also verify `Claude
+   security` with both All terms and Any term, plus the bounded 10-entry Copy
+   Results packet. The local-unlock and larger broker documents remain
+   historical planning, not active implementation priorities.
 2. Review `docs/orb-instruction-architecture-proposal.md` with Orb and Claude
    Code; preserve complete attributed packets and leave all final decisions to
    Stan. Do not change active instructions before its gates are satisfied.
-3. Do not implement either planning track until Stan explicitly approves it.
+3. Do not implement the instruction-architecture planning track until Stan
+   explicitly approves it.
 4. Verify v0.6.283 in production: Voice Settings exposes only Browser and
    OpenAI, AI Metrics loads, and OpenAI Realtime voice works.
 5. Delete `ELEVENLABS_API_KEY` from Vercel and the encrypted local environment,
@@ -421,13 +468,10 @@ unaffected — they do not overlap the release files.
   separate row in that plan recorded FileVault as "unverified" when the command
   needs no elevation and one tool's sandbox was the only obstacle — a tool
   limitation written down as a property of the system.
-- **AI operational access remains planning-only.** The lightweight local-unlock
-  draft is the proposed replacement direction, but Stan has not approved its
-  decisions or implementation. The larger broker plan and its complete review
-  record remain preserved as evidence.
-- **Capabilities, not credentials.** The current proposal preserves ORB-375
-  containment by putting bounded todo and Knowledge operations behind trusted
-  server-side authorization instead of restoring environment access.
+- **AI operational access is manual for now.** Stan transfers Todo, Project,
+  and Knowledge content through visible clipboard controls and performs every
+  database mutation himself. Agent shells remain credential-free. The
+  local-unlock and larger broker plans are preserved as history, not scheduled.
 - **ORB-374 is deferred.** Its preserved long-range plan is not authority to
   implement work beyond the explicit ORB-375 containment scope.
 - **One document maintainer.** Reviewers send complete attributed packets to
@@ -485,7 +529,7 @@ unaffected — they do not overlap the release files.
 
 ## AI Tool Used Last Session
 
-`2026-08-12 — Claude Code (Opus 5)`
+`2026-08-12 — Codex (GPT-5.6 Sol)`
 
 ---
 

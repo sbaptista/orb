@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
+import CopyButton, { formatClipboardRecord } from '@/components/ui/CopyButton'
 import { getAdminProjects, getUserProjects, createProject, deleteProject, deleteProjects, updateProject } from '@/app/actions/manage-project'
 import { listUsers } from '@/app/actions/list-users'
 
@@ -25,6 +26,23 @@ type ProjectForm = {
 
 const EMPTY_FORM: ProjectForm = { name: '', description: '', is_dormant: false, ownerId: '' }
 const PAGE_SIZE = 25
+
+function projectClipboard(form: ProjectForm, item: Project | null, extra: any, isAdmin: boolean, mode: 'add' | 'edit') {
+  const owner = extra.users?.find((user: any) => user.id === form.ownerId)
+  const ownerName = owner
+    ? [owner.first_name, owner.last_name].filter(Boolean).join(' ') || owner.email
+    : form.ownerId ? form.ownerId : 'Current user'
+  return formatClipboardRecord(mode === 'edit' ? 'Project' : 'Project draft', [
+    ...(item ? [
+      { label: 'ID', value: item.id },
+      { label: 'Code', value: item.code },
+    ] : []),
+    { label: 'Name', value: form.name },
+    { label: 'Description', value: form.description },
+    ...(isAdmin ? [{ label: 'Owner', value: ownerName }] : []),
+    { label: 'Status', value: form.is_dormant ? 'Dormant' : 'Active' },
+  ])
+}
 
 export default function SettingsProjects({ isAdmin = false }: { isAdmin?: boolean }) {
   const [showTextSearch, setShowTextSearch] = useState(false)
@@ -146,11 +164,28 @@ export default function SettingsProjects({ isAdmin = false }: { isAdmin?: boolea
           },
         },
 
+        renderHeaderEnd: ({ form, extra, mode, item }) => (
+          <CopyButton
+            value={projectClipboard(form, item, extra, isAdmin, mode)}
+            fieldLabel="project"
+            label="Copy All"
+            compact={false}
+          />
+        ),
+
         renderForm: ({ form, onChange, extra }) => {
+          const owner = extra.users?.find((user: any) => user.id === form.ownerId)
+          const ownerName = owner
+            ? [owner.first_name, owner.last_name].filter(Boolean).join(' ') || owner.email
+            : form.ownerId ? form.ownerId : 'Current user'
+          const status = form.is_dormant ? 'Dormant' : 'Active'
           return (
           <>
             <div className="mb-md">
-              <label className="label">Name *</label>
+              <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+                <label className="label" style={{ marginBottom: 0 }}>Name *</label>
+                <CopyButton value={form.name} fieldLabel="name" />
+              </div>
               <input
                 className="input"
                 value={form.name}
@@ -160,7 +195,10 @@ export default function SettingsProjects({ isAdmin = false }: { isAdmin?: boolea
               />
             </div>
             <div className="mb-md">
-              <label className="label">Description</label>
+              <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+                <label className="label" style={{ marginBottom: 0 }}>Description</label>
+                <CopyButton value={form.description} fieldLabel="description" />
+              </div>
               <input
                 className="input"
                 value={form.description}
@@ -170,7 +208,10 @@ export default function SettingsProjects({ isAdmin = false }: { isAdmin?: boolea
             </div>
             {isAdmin && (
               <div className="mb-md">
-                <label className="label">Owner</label>
+                <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+                  <label className="label" style={{ marginBottom: 0 }}>Owner</label>
+                  <CopyButton value={ownerName} fieldLabel="owner" />
+                </div>
                 <select
                   className="input"
                   style={{ width: '100%', padding: '6px var(--sp-sm)', height: '40px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}
@@ -186,17 +227,20 @@ export default function SettingsProjects({ isAdmin = false }: { isAdmin?: boolea
                 </select>
               </div>
             )}
-            <div className="mb-lg" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <input
-                type="checkbox"
-                id="proj-is-dormant"
-                checked={form.is_dormant}
-                onChange={e => onChange({ ...form, is_dormant: e.target.checked })}
-                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-              />
-              <label htmlFor="proj-is-dormant" className="label" style={{ margin: 0, cursor: 'pointer' }}>
-                Dormant — hidden from project strip and insights
-              </label>
+            <div className="mb-lg flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+              <div className="flex-row" style={{ alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="checkbox"
+                  id="proj-is-dormant"
+                  checked={form.is_dormant}
+                  onChange={e => onChange({ ...form, is_dormant: e.target.checked })}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                />
+                <label htmlFor="proj-is-dormant" className="label" style={{ margin: 0, cursor: 'pointer' }}>
+                  Dormant — hidden from project strip and insights
+                </label>
+              </div>
+              <CopyButton value={status} fieldLabel="status" />
             </div>
           </>
           )

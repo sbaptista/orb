@@ -1,6 +1,7 @@
 'use server'
 
 import { requireAdmin } from '@/lib/auth'
+import { matchesKnowledgeSearch, type KnowledgeSearchMode } from '@/lib/knowledge-search'
 
 type KnowledgeSortKey = 'project' | 'title'
 
@@ -20,6 +21,7 @@ export async function getKnowledgeEntries(options: {
   page?: number
   pageSize?: number
   search?: string
+  searchMode?: KnowledgeSearchMode
   sortKey?: string | null
   sortDir?: 'asc' | 'desc'
 } = {}) {
@@ -27,6 +29,7 @@ export async function getKnowledgeEntries(options: {
   const page = Math.max(0, options.page ?? 0)
   const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 25))
   const search = options.search?.trim().toLowerCase() ?? ''
+  const searchMode: KnowledgeSearchMode = options.searchMode === 'any' ? 'any' : 'all'
   const sortKey: KnowledgeSortKey | null = options.sortKey === 'project' || options.sortKey === 'title'
     ? options.sortKey
     : null
@@ -90,7 +93,7 @@ export async function getKnowledgeEntries(options: {
           entry.projects?.name,
           ...(entry.tags ?? []),
         ]
-        return searchable.some(value => value?.toLowerCase().includes(search))
+        return matchesKnowledgeSearch(searchable, search, searchMode)
       })
     }
 

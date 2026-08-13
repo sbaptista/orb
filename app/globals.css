@@ -2915,7 +2915,11 @@ mark.crud-highlight {
   align-items: center;
   justify-content: space-between;
   padding: var(--sp-sm) var(--sp-sm) 0 var(--sp-lg);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
+.search-modal-header :is(button, a, input, textarea, select, [role="button"], [contenteditable="true"]) { cursor: pointer; }
 .search-modal-title {
   font-family: var(--font-ui);
   font-size: var(--fs-lg);
@@ -5228,7 +5232,14 @@ mark.crud-highlight {
   padding: var(--sp-lg) var(--sp-xl);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
+.modal-header :is(button, a, input, textarea, select, [role="button"], [contenteditable="true"]) {
+  cursor: pointer;
+}
+.modal--dragging :is(.modal-header, .search-modal-header) { cursor: grabbing; }
 
 .modal-body {
   overflow-y: auto;

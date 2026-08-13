@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useModalScrollLock } from '@/lib/hooks/useModalScrollLock'
+
+type TextSearchMatchMode = 'all' | 'any'
 
 export function SendIcon({ size = 14, strokeWidth = 2.5 }: { size?: number; strokeWidth?: number }) {
   return (
@@ -12,35 +14,38 @@ export function SendIcon({ size = 14, strokeWidth = 2.5 }: { size?: number; stro
   )
 }
 
-export default function TextSearchModal({
-  open,
+type TextSearchModalProps = {
+  open: boolean
+  onClose: () => void
+  onApply: (term: string, matchMode?: TextSearchMatchMode) => void
+  onClear: () => void
+  currentTerm: string
+  currentMatchMode?: TextSearchMatchMode
+  placeholder?: string
+  ariaLabel?: string
+}
+
+export default function TextSearchModal(props: TextSearchModalProps) {
+  useModalScrollLock(props.open)
+  if (!props.open) return null
+
+  return <TextSearchDialog {...props} />
+}
+
+function TextSearchDialog({
   onClose,
   onApply,
   onClear,
   currentTerm,
+  currentMatchMode,
   placeholder = 'Search then press',
   ariaLabel = 'Search',
-}: {
-  open: boolean
-  onClose: () => void
-  onApply: (term: string) => void
-  onClear: () => void
-  currentTerm: string
-  placeholder?: string
-  ariaLabel?: string
-}) {
-  useModalScrollLock(open)
-  const [draft, setDraft] = useState('')
-
-  useEffect(() => {
-    if (open) setDraft(currentTerm)
-  }, [open, currentTerm])
-
-  if (!open) return null
+}: TextSearchModalProps) {
+  const [draft, setDraft] = useState(currentTerm)
+  const [draftMatchMode, setDraftMatchMode] = useState<TextSearchMatchMode>(currentMatchMode ?? 'all')
 
   function apply() {
-    const term = draft.trim()
-    onApply(term)
+    onApply(draft.trim(), currentMatchMode ? draftMatchMode : undefined)
   }
 
   return (
@@ -53,7 +58,7 @@ export default function TextSearchModal({
         aria-labelledby="text-search-modal-title"
         style={{ maxWidth: '520px' }}
       >
-        <form onSubmit={e => { e.preventDefault(); apply() }}>
+        <form onSubmit={event => { event.preventDefault(); apply() }}>
           <div className="modal-header" style={{ justifyContent: 'space-between' }}>
             <h3 id="text-search-modal-title" style={{ margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
               Search by Text
@@ -65,7 +70,7 @@ export default function TextSearchModal({
               <input
                 type="text"
                 value={draft}
-                onChange={e => setDraft(e.target.value)}
+                onChange={event => setDraft(event.target.value)}
                 placeholder=""
                 aria-label={ariaLabel}
                 className="crud-search-input"
@@ -85,6 +90,31 @@ export default function TextSearchModal({
                 </span>
               )}
             </div>
+            {currentMatchMode && (
+              <fieldset style={{ border: 0, padding: 0, margin: 'var(--sp-lg) 0 0' }}>
+                <legend className="label" style={{ marginBottom: 'var(--sp-sm)' }}>Match</legend>
+                <div className="flex-row" style={{ gap: 'var(--sp-sm)', flexWrap: 'wrap' }}>
+                  {([
+                    ['all', 'All terms'],
+                    ['any', 'Any term'],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`pill ${draftMatchMode === value ? 'pill-active' : ''}`}
+                      aria-pressed={draftMatchMode === value}
+                      onClick={() => setDraftMatchMode(value)}
+                      style={{ minHeight: '44px' }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ margin: 'var(--sp-sm) 0 0', color: 'var(--muted)', fontSize: 'var(--fs-sm)', lineHeight: 'var(--lh-normal)' }}>
+                  Separate terms with spaces. AND and OR are searched as ordinary words.
+                </p>
+              </fieldset>
+            )}
           </div>
           <div className="modal-footer">
             {currentTerm && <button type="button" className="text-btn" style={{ marginRight: 'auto' }} onClick={onClear}>Clear</button>}

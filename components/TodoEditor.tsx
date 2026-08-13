@@ -10,6 +10,7 @@ import { collectSystemInfo } from '@/lib/system-info'
 import type { Todo, Product, Priority, StatusDef } from '@/lib/todo-types'
 import { useDirtyForm } from '@/lib/hooks/useDirtyForm'
 import EditorModal from '@/components/ui/EditorModal'
+import CopyButton, { formatClipboardRecord } from '@/components/ui/CopyButton'
 import { startInteraction } from '@/lib/performance/telemetry'
 import { dueAtToInstant, duePlaceLabel, instantToWallClock, listCityZones, zoneDisplayLabel, validateReminderLead, type ReminderLeadUnit } from '@/lib/due-time'
 import { ensureCityZones, cityZonesReady, searchCities } from '@/lib/city-zones'
@@ -219,6 +220,42 @@ export default function TodoEditor({
         return code && todo!.todo_number != null ? `${code}-${todo!.todo_number}` : null
       })()
     : null
+  const selectedProduct = products.find(product => product.id === form.product_id)
+  const projectLabel = selectedProduct
+    ? `${selectedProduct.name}${selectedProduct.code && selectedProduct.code !== selectedProduct.name ? ` (${selectedProduct.code})` : ''}`
+    : form.product_id
+  const priorityLabel = priorities.find(priority => priority.value === form.priority_value)?.label ?? 'None'
+  const reminderLabel = form.reminder_lead_value === null || form.reminder_lead_unit === null
+    ? 'None'
+    : form.reminder_lead_value === 0
+      ? 'At time due'
+      : `${form.reminder_lead_value} ${form.reminder_lead_unit} before`
+  const dueLabel = form.due_at
+    ? `${form.due_at}${form.due_timezone ? ` (${duePlaceLabel(form.due_city, form.due_timezone)} — ${form.due_timezone})` : ''}`
+    : ''
+  const copyAll = formatClipboardRecord(isEditMode ? 'Todo' : 'Todo draft', [
+    ...(isEditMode ? [
+      { label: 'Reference', value: todoRef },
+      { label: 'ID', value: todo!.id },
+    ] : []),
+    { label: 'Project', value: projectLabel },
+    { label: 'Title', value: form.title },
+    { label: 'Description', value: form.description },
+    { label: 'Status', value: form.status },
+    { label: 'Priority', value: priorityLabel },
+    { label: 'Group', value: isEditMode ? todo!.groups?.name : null },
+    { label: 'Category', value: isEditMode ? todo!.categories?.name : null },
+    { label: 'Due Date', value: dueLabel },
+    { label: 'Reminder', value: reminderLabel },
+    { label: 'Resolution Notes', value: form.resolution_notes },
+    { label: 'URLs', value: urlInput },
+    ...(isEditMode ? [
+      { label: 'Ticket ID', value: todo!.ticket_id },
+      { label: 'Created', value: todo!.created_at },
+      { label: 'Closed', value: todo!.closed_at },
+      { label: 'Reminder Sent', value: todo!.reminded_at },
+    ] : []),
+  ])
 
   async function handleSave(): Promise<boolean> {
     const measurement = startInteraction({
@@ -424,6 +461,7 @@ export default function TodoEditor({
         isSaving={saving}
         onSave={handleSave}
         onClose={onClose}
+        headerEnd={<CopyButton value={copyAll} fieldLabel="todo" label="Copy All" compact={false} />}
         headerStart={isEditMode && todoRef ? (
           <button
             type="button"
@@ -462,7 +500,10 @@ export default function TodoEditor({
 
           {/* Title */}
           <div className={`pf-field ${getFieldClass('title')}`}>
-            <label htmlFor="te-title" className="pf-label">Title *</label>
+            <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+              <label htmlFor="te-title" className="pf-label">Title *</label>
+              <CopyButton value={form.title} fieldLabel="title" />
+            </div>
             <input
               id="te-title"
               className="pf-input"
@@ -478,7 +519,10 @@ export default function TodoEditor({
 
           {/* Description */}
           <div className="pf-field">
-            <label htmlFor="te-description" className="pf-label">Description</label>
+            <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+              <label htmlFor="te-description" className="pf-label">Description</label>
+              <CopyButton value={form.description ?? ''} fieldLabel="description" />
+            </div>
             <textarea
               id="te-description"
               className="pf-textarea"
@@ -494,7 +538,10 @@ export default function TodoEditor({
               invisible in the editor and could not be corrected by hand. */}
           {statuses.find(st => st.name === form.status)?.is_closed && (
             <div className="pf-field">
-              <label htmlFor="te-resolution" className="pf-label">Resolution notes</label>
+              <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+                <label htmlFor="te-resolution" className="pf-label">Resolution notes</label>
+                <CopyButton value={form.resolution_notes ?? ''} fieldLabel="resolution notes" />
+              </div>
               <textarea
                 id="te-resolution"
                 className="pf-textarea"
@@ -508,7 +555,10 @@ export default function TodoEditor({
           {/* Status + Priority */}
           <div className="grid-2col">
             <div className="pf-field">
-              <label htmlFor="te-status" className="pf-label">Status</label>
+              <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+                <label htmlFor="te-status" className="pf-label">Status</label>
+                <CopyButton value={form.status} fieldLabel="status" />
+              </div>
               <select
                 id="te-status"
                 className="pf-select"
@@ -521,7 +571,10 @@ export default function TodoEditor({
               </select>
             </div>
             <div className="pf-field">
-              <label htmlFor="te-priority" className="pf-label">Priority</label>
+              <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+                <label htmlFor="te-priority" className="pf-label">Priority</label>
+                <CopyButton value={priorityLabel} fieldLabel="priority" />
+              </div>
               <select
                 id="te-priority"
                 className="pf-select"
@@ -537,7 +590,10 @@ export default function TodoEditor({
           {/* Product — only show when multiple projects */}
           {products.length > 1 && (
             <div className="pf-field">
-              <label htmlFor="te-product" className="pf-label">Project</label>
+              <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+                <label htmlFor="te-product" className="pf-label">Project</label>
+                <CopyButton value={projectLabel} fieldLabel="project" />
+              </div>
               <select
                 id="te-product"
                 className="pf-select"
@@ -551,18 +607,21 @@ export default function TodoEditor({
 
           {/* Due Date */}
           <div className="pf-field">
-            <div className="flex-row flex-center" style={{ justifyContent: 'space-between', marginBottom: '4px' }}>
+            <div className="flex-row flex-center" style={{ justifyContent: 'space-between', gap: 'var(--sp-sm)', marginBottom: '4px' }}>
               <label htmlFor="te-due-at" className="pf-label" style={{ margin: 0 }}>Due Date</label>
-              {form.due_at && (
-                <button
-                  type="button"
-                  onClick={() => { setForm(f => ({ ...f, due_at: null, due_timezone: null, due_city: null, reminder_lead_value: null, reminder_lead_unit: null })); setReminderCustom(false); setZoneQuery(''); setZoneOpen(false) }}
-                  className="text-btn"
-                  style={{ fontSize: 'var(--fs-version)', color: 'var(--error)', padding: 0 }}
-                >
-                  Clear
-                </button>
-              )}
+              <div className="flex-row" style={{ alignItems: 'center', gap: 'var(--sp-sm)' }}>
+                <CopyButton value={dueLabel} fieldLabel="due date" />
+                {form.due_at && (
+                  <button
+                    type="button"
+                    onClick={() => { setForm(f => ({ ...f, due_at: null, due_timezone: null, due_city: null, reminder_lead_value: null, reminder_lead_unit: null })); setReminderCustom(false); setZoneQuery(''); setZoneOpen(false) }}
+                    className="text-btn"
+                    style={{ fontSize: 'var(--fs-version)', color: 'var(--error)', padding: 0, minHeight: '44px' }}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
             <input
               id="te-due-at"
@@ -589,7 +648,10 @@ export default function TodoEditor({
           {/* Timezone (ORB-361) — city-name picker, Apple Reminders style */}
           {form.due_at && (
             <div className="pf-field">
-              <label htmlFor="te-due-zone" className="pf-label">Timezone</label>
+              <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+                <label htmlFor="te-due-zone" className="pf-label">Timezone</label>
+                <CopyButton value={form.due_timezone ?? ''} fieldLabel="timezone" />
+              </div>
               <div className="admin-search-wrap">
                 <input
                   id="te-due-zone"
@@ -635,7 +697,10 @@ export default function TodoEditor({
           {/* Reminder (ORB-361) — opt-in, never affects the orb's mood */}
           {form.due_at && (
             <div className="pf-field">
-              <label htmlFor="te-reminder" className="pf-label">Reminder</label>
+              <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+                <label htmlFor="te-reminder" className="pf-label">Reminder</label>
+                <CopyButton value={reminderLabel} fieldLabel="reminder" />
+              </div>
               <select
                 id="te-reminder"
                 className="pf-select"

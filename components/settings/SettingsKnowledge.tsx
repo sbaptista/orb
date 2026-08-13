@@ -4,9 +4,12 @@ import { useRef, useState } from 'react'
 import SettingsCrudList from './SettingsCrudList'
 import TextSearchModal from './TextSearchModal'
 import SearchMatchIndicator from '@/components/ui/SearchMatchIndicator'
+import CopyButton, { formatClipboardRecord } from '@/components/ui/CopyButton'
 import { getKnowledgeEntries } from '@/app/actions/get-knowledge-entries'
 import { logAudit } from '@/app/actions/log-audit'
 import { collectSystemInfo } from '@/lib/system-info'
+import { startInteraction } from '@/lib/performance/telemetry'
+import { knowledgeSearchTerms, matchingKnowledgeTerms, type KnowledgeSearchMode } from '@/lib/knowledge-search'
 
 type KnowledgeEntry = {
   id: string
@@ -29,11 +32,95 @@ type KnowledgeForm = {
 
 const EMPTY_FORM: KnowledgeForm = { title: '', content: '', tags: '', product_id: '' }
 const PAGE_SIZE = 25
+const COPY_RESULTS_LIMIT = 10
+
+function knowledgeClipboard(form: KnowledgeForm, item: KnowledgeEntry | null, extra: any, mode: 'add' | 'edit') {
+  const project = extra.projects?.find((candidate: any) => candidate.id === form.product_id)
+  const projectName = project
+    ? `${project.name}${project.code && project.code !== project.name ? ` (${project.code})` : ''}`
+    : form.product_id
+  return formatClipboardRecord(mode === 'edit' ? 'Knowledge entry' : 'Knowledge entry draft', [
+    ...(item ? [
+      { label: 'ID', value: item.id },
+      { label: 'Origin Todo ID', value: item.origin_todo_id },
+    ] : []),
+    { label: 'Project', value: projectName },
+    { label: 'Title', value: form.title },
+    { label: 'Content', value: form.content },
+    { label: 'Tags', value: form.tags },
+    ...(item ? [
+      { label: 'Created', value: item.created_at },
+      { label: 'Updated', value: item.updated_at },
+    ] : []),
+  ])
+}
+
+function knowledgeEntryClipboard(item: KnowledgeEntry) {
+  const projectName = item.projects
+    ? `${item.projects.name}${item.projects.code && item.projects.code !== item.projects.name ? ` (${item.projects.code})` : ''}`
+    : item.product_id
+  return formatClipboardRecord('Knowledge entry', [
+    { label: 'ID', value: item.id },
+    { label: 'Origin Todo ID', value: item.origin_todo_id },
+    { label: 'Project', value: projectName },
+    { label: 'Title', value: item.title },
+    { label: 'Content', value: item.content },
+    { label: 'Tags', value: item.tags?.join(', ') },
+    { label: 'Created', value: item.created_at },
+    { label: 'Updated', value: item.updated_at },
+  ])
+}
 
 export default function SettingsKnowledge() {
   const [showTextSearch, setShowTextSearch] = useState(false)
   const [textSearchTerm, setTextSearchTerm] = useState('')
+  const [textSearchMode, setTextSearchMode] = useState<KnowledgeSearchMode>('all')
   const placeTitleCaretAtStart = useRef(false)
+
+  async function copySearchResults() {
+    const measurement = startInteraction({
+      focus: 'settings',
+      flow: 'settings-knowledge_repo',
+      interaction: 'copy_search_results',
+      surface: 'Knowledge Repository',
+      immediateFlush: true,
+      metadata: { limit: COPY_RESULTS_LIMIT, matchMode: textSearchMode, termCount: knowledgeSearchTerms(textSearchTerm).length },
+    })
+    try {
+      const result = await getKnowledgeEntries({
+        page: 0,
+        pageSize: COPY_RESULTS_LIMIT,
+        search: textSearchTerm,
+        searchMode: textSearchMode,
+      })
+      measurement.mark('search_results_loaded')
+      if (result.error) throw new Error(result.error)
+      const entries = (result.data ?? []) as KnowledgeEntry[]
+      const total = result.count ?? entries.length
+      measurement.end(true, null, { copiedCount: entries.length, totalCount: total })
+      return [
+        'KNOWLEDGE SEARCH RESULTS',
+        '',
+        'Query:',
+        textSearchTerm,
+        '',
+        'Match:',
+        textSearchMode === 'all' ? 'All terms' : 'Any term',
+        '',
+        'Copied:',
+        `${entries.length} of ${total} matching entries${total > COPY_RESULTS_LIMIT ? ` (limited to ${COPY_RESULTS_LIMIT})` : ''}`,
+        '',
+        ...entries.flatMap((entry, index) => [
+          index === 0 ? '' : '---',
+          knowledgeEntryClipboard(entry),
+          '',
+        ]),
+      ].join('\n').trim()
+    } catch (error) {
+      measurement.end(false, 'copy_results_failed', { error: error instanceof Error ? error.message : String(error) })
+      throw error
+    }
+  }
 
   return (
     <>
@@ -56,12 +143,18 @@ export default function SettingsKnowledge() {
           return `Entries ${start}–${end} of ${total}.`
         },
         externalSearchTerm: textSearchTerm,
+        externalFilterKey: `knowledge-match:${textSearchMode}`,
         searchCaption: 'Actions',
-        onResetFilters: () => setTextSearchTerm(''),
+        onResetFilters: () => { setTextSearchTerm(''); setTextSearchMode('all') },
         toolbarExtra: (
-          <button type="button" className={textSearchTerm ? 'btn-primary btn-primary-clamped' : 'btn-primary'} onClick={() => setShowTextSearch(true)}>
-            {textSearchTerm || 'Search by Text'}
-          </button>
+          <>
+            <button type="button" className={textSearchTerm ? 'btn-primary btn-primary-clamped' : 'btn-primary'} onClick={() => setShowTextSearch(true)}>
+              {textSearchTerm || 'Search by Text'}
+            </button>
+            {textSearchTerm && (
+              <CopyButton value={copySearchResults} fieldLabel="knowledge search results" label="Copy Results" compact={false} />
+            )}
+          </>
         ),
         tableColumns: [
           { label: 'Project', width: '170px', sortKey: 'project', sortValue: (e: KnowledgeEntry) => e.projects?.code ?? '' },
@@ -76,6 +169,7 @@ export default function SettingsKnowledge() {
             page: pagination?.page,
             pageSize: pagination?.pageSize,
             search: pagination?.search,
+            searchMode: textSearchMode,
             sortKey: pagination?.sortKey,
             sortDir: pagination?.sortDir,
           })
@@ -111,12 +205,13 @@ export default function SettingsKnowledge() {
         },
 
         searchMatchFields: (form, term) => {
-          const normalizedTerm = term.toLowerCase()
+          const terms = knowledgeSearchTerms(term)
           return [
             { label: 'Title', value: form.title },
             { label: 'Content', value: form.content },
             { label: 'Tags', value: form.tags },
-          ].filter(field => field.value.toLowerCase().includes(normalizedTerm))
+          ].map(field => ({ ...field, terms: matchingKnowledgeTerms([field.value], term) }))
+            .filter(field => field.terms.length > 0 || terms.length === 0)
         },
 
         getId: (item) => item.id,
@@ -153,15 +248,31 @@ export default function SettingsKnowledge() {
           },
         },
 
+        renderHeaderEnd: ({ form, extra, mode, item }) => (
+          <CopyButton
+            value={knowledgeClipboard(form, item, extra, mode)}
+            fieldLabel="knowledge entry"
+            label="Copy All"
+            compact={false}
+          />
+        ),
+
         renderForm: ({ form, onChange, extra, searchMatches, onOpenSearchMatch }) => {
           const titleMatch = searchMatches.find(match => match.label === 'Title')
           const contentMatch = searchMatches.find(match => match.label === 'Content')
           const tagsMatch = searchMatches.find(match => match.label === 'Tags')
+          const project = extra.projects?.find((candidate: any) => candidate.id === form.product_id)
+          const projectName = project
+            ? `${project.name}${project.code && project.code !== project.name ? ` (${project.code})` : ''}`
+            : form.product_id
           return (
           <>
             <div className="grid-2col mb-md">
               <div>
-                <label className="label field-label-with-match">Title * {titleMatch && <SearchMatchIndicator fieldLabel="Title" onOpen={() => onOpenSearchMatch(titleMatch)} />}</label>
+                <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+                  <label className="label field-label-with-match" style={{ marginBottom: 0 }}>Title * {titleMatch && <SearchMatchIndicator fieldLabel="Title" onOpen={() => onOpenSearchMatch(titleMatch)} />}</label>
+                  <CopyButton value={form.title} fieldLabel="title" />
+                </div>
                 <input
                   ref={input => {
                     if (!input || !placeTitleCaretAtStart.current) return
@@ -179,7 +290,10 @@ export default function SettingsKnowledge() {
                 />
               </div>
               <div>
-                <label className="label">Project *</label>
+                <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+                  <label className="label" style={{ marginBottom: 0 }}>Project *</label>
+                  <CopyButton value={projectName} fieldLabel="project" />
+                </div>
                 <select
                   className="input"
                   style={{ width: '100%', padding: '6px var(--sp-sm)', height: '40px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}
@@ -194,7 +308,10 @@ export default function SettingsKnowledge() {
               </div>
             </div>
             <div className="mb-md">
-              <label className="label field-label-with-match">Content * {contentMatch && <SearchMatchIndicator fieldLabel="Content" onOpen={() => onOpenSearchMatch(contentMatch)} />}</label>
+              <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+                <label className="label field-label-with-match" style={{ marginBottom: 0 }}>Content * {contentMatch && <SearchMatchIndicator fieldLabel="Content" onOpen={() => onOpenSearchMatch(contentMatch)} />}</label>
+                <CopyButton value={form.content} fieldLabel="content" />
+              </div>
               <textarea
                 className="input"
                 value={form.content}
@@ -205,7 +322,10 @@ export default function SettingsKnowledge() {
               />
             </div>
             <div className="mb-lg">
-              <label className="label field-label-with-match">Tags {tagsMatch && <SearchMatchIndicator fieldLabel="Tags" onOpen={() => onOpenSearchMatch(tagsMatch)} />}</label>
+              <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+                <label className="label field-label-with-match" style={{ marginBottom: 0 }}>Tags {tagsMatch && <SearchMatchIndicator fieldLabel="Tags" onOpen={() => onOpenSearchMatch(tagsMatch)} />}</label>
+                <CopyButton value={form.tags} fieldLabel="tags" />
+              </div>
               <input
                 className="input"
                 value={form.tags}
@@ -220,7 +340,11 @@ export default function SettingsKnowledge() {
         renderRow: ({ item, onEdit, onDelete, checkbox }) => {
           let contentSnippet: string = item.content
           if (textSearchTerm) {
-            const idx = item.content.toLowerCase().indexOf(textSearchTerm.toLowerCase())
+            const lowerContent = item.content.toLowerCase()
+            const idx = knowledgeSearchTerms(textSearchTerm)
+              .map(term => lowerContent.indexOf(term))
+              .filter(index => index >= 0)
+              .sort((a, b) => a - b)[0] ?? -1
             if (idx > 15) {
               contentSnippet = '…' + item.content.slice(idx - 8)
             }
@@ -274,9 +398,14 @@ export default function SettingsKnowledge() {
     <TextSearchModal
       open={showTextSearch}
       onClose={() => setShowTextSearch(false)}
-      onApply={term => { setTextSearchTerm(term); setShowTextSearch(false) }}
-      onClear={() => { setTextSearchTerm(''); setShowTextSearch(false) }}
+      onApply={(term, matchMode) => {
+        setTextSearchTerm(term)
+        setTextSearchMode(matchMode ?? 'all')
+        setShowTextSearch(false)
+      }}
+      onClear={() => { setTextSearchTerm(''); setTextSearchMode('all'); setShowTextSearch(false) }}
       currentTerm={textSearchTerm}
+      currentMatchMode={textSearchMode}
       placeholder="Search entries then press"
       ariaLabel="Search knowledge entries"
     />

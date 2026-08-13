@@ -21,6 +21,7 @@ type EditorModalProps = {
   /** Raises a detail view above its originating modal. */
   stacked?: boolean
   headerStart?: ReactNode
+  headerEnd?: ReactNode
   footerStart?: ReactNode
   destructiveConfirmation?: {
     description: ReactNode
@@ -47,6 +48,7 @@ export default function EditorModal({
   showCloseFooter = false,
   stacked = false,
   headerStart,
+  headerEnd,
   footerStart,
   destructiveConfirmation,
   lockSettingsScroll = false,
@@ -138,6 +140,7 @@ export default function EditorModal({
           <h3 id={titleId} style={{ flex: 1, margin: 0, fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-semibold)' }}>
             {title}
           </h3>
+          {headerEnd}
           <button type="button" className="close-btn" onClick={requestClose} aria-label="Close">
             <svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>

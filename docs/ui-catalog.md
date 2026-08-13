@@ -297,6 +297,32 @@ Transparent background, bordered. Used alongside primary buttons.
 ### Outline (`btn-outline`)
 Bordered, transparent. General-purpose secondary action.
 
+### Clipboard Transfer Controls
+**File:** `components/ui/CopyButton.tsx`
+
+Todo, Project, and Knowledge editors use the existing `btn-outline` treatment
+for field-level **Copy** controls and one **Copy All** control. Field controls
+sit beside their labels and combine `btn-outline btn-sm`; **Copy All** sits in
+the modal header immediately before Close and retains the full 44px touch
+target. Both change briefly to **Copied** after success. **Copy All** serializes
+the editor's current values (including unsaved edits) as stable labeled plain
+text; edit records also carry their available stable identifiers. A hidden
+textarea fallback covers browsers that reject the first Clipboard API write.
+The pattern is used by `TodoEditor`, the dashboard List pane's
+`AddProductModal`, and Settings Projects/Knowledge forms. It is a manual
+clipboard boundary, not an automatic database or AI integration.
+
+**Knowledge multi-entry search:** Settings → Knowledge extends the canonical
+text-search modal with the existing `pill` selector for **All terms** (default)
+or **Any term**. Whitespace separates literal terms, so `Claude security`
+works without punctuation and `AND` / `OR` keep their ordinary text meaning.
+The selected mode applies identically to the paginated table and **Copy
+Results**. Copy Results re-runs the search and exports the 10 newest complete
+matches with the query, mode, and `Copied N of total`, then separates labeled
+records with dividers. The 10-entry bound must remain visible when more matches
+exist; refine the search rather than implying that uncopied matches were
+reviewed.
+
 ### Danger Outline (`btn-danger-outline`)
 Red border, red text, transparent background. Hover fills red with white text. For destructive actions in toolbars and bulk bars where filled `btn-danger` would be too heavy. Used by CrudList bulk delete.
 
@@ -549,6 +575,14 @@ Do not use a gear icon for item-level actions. Do not use a kebab for page navig
 | `compose-body` | Two-column grid body (form left, preview right). Stacks to single column on mobile |
 | `close-btn` | Standard close button — 28px font, 44×44px hit target, hover state |
 
+**Movable behavior:** `ModalDragController` makes every `modal-center` /
+`modal-header` and `search-modal` / `search-modal-header` pair draggable by its
+non-interactive header area using mouse, pen, or touch. Movement is clamped to
+an 8px viewport margin so the dialog cannot be lost off-screen. Buttons and
+other interactive header controls remain ordinary click/tap targets. Each
+newly opened modal starts centered; movement is local to that open instance and
+is not persisted.
+
 **Use for:** Todo edit, new project form, distill modal, any focused editing task.  
 **Use `modal-compose` for:** Compose/edit workflows with a live preview (e.g. ticket email editing).
 **Canonical examples:** `components/AddProductModal.tsx`, `components/TodoEditor.tsx`, `components/DistillModal.tsx`.
@@ -559,6 +593,7 @@ Behavioral owner for focused editor dialogs. It composes the existing `modal-cen
 
 - `useDirtyForm` holds the opening baseline and compares a normalized form value. Call `markSaved()` with normalized saved data after a successful persistence operation.
 - `EditorModal` owns backdrop/X/Escape dismissal requests, Shift+Return save-and-close, a single dirty-dismiss confirmation, focus placement, and default Save/Cancel footer behavior. `readOnly` supports inspection views; pair it with `showCloseFooter` for an X plus one Close command, and `stacked` when it opens above another modal.
+- `headerEnd` holds a compact domain action immediately before Close; Clipboard Transfer **Copy All** is the canonical use. `headerStart` remains for leading identity such as the Todo reference.
 - Standard editor contract: untouched form = Save disabled; a changed form = Save enabled; reverted or successfully saved form = Save disabled.
 - Use `headerStart`, `footerStart`, and `destructiveConfirmation` only for domain controls such as TodoEditor's task reference and delete action. Do not replace the save/close lifecycle with arbitrary footer code.
 - Search, filter, confirmation, and command dialogs are separate modal families and do not inherit Shift+Return.
@@ -586,6 +621,11 @@ Selected state: `aria-selected="true"` → bg3 background, medium font weight. M
 ### Todo Editor Modal
 **File:** `components/TodoEditor.tsx`
 Unified component handling both create and edit modes. Uses the `EditorModal` pattern with `modal-lg`, `modal-header`, `modal-body`, and `modal-footer`. The body uses `pf-field` labels, a larger title input, a responsive two-column metadata grid for Status and Priority, and the native `pf-select` pattern for Status, Priority, and Project. Status field is always visible. Category and URLs are hidden from the editor UI but retained in the database; existing category assignments are preserved when other fields are edited, and new todos default to no category. Do not reintroduce standalone `.tf-*` modal shells.
+
+The editor also carries the catalogued Clipboard Transfer Controls: one
+field-level **Copy** action per visible value and a formatted **Copy All** action
+for manual transfer to development AI tools. Create mode labels the output as a
+draft; edit mode includes the todo reference, UUID, and persisted timestamps.
 
 **Resolution notes:** a `pf-textarea` that appears only when the selected status is one whose `is_closed` is true. It was plumbed through form state and save from the start but never rendered, so notes written on close — including those the Orb writes — were invisible and uneditable. Conditional on the *selected* status, not the saved one, so it appears the moment you choose a closing status rather than after saving.
 

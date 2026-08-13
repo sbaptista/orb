@@ -6,6 +6,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.294',
+    date: '2026-08-12',
+    changes: [
+      'Added a human-mediated clipboard bridge for working with development AI tools while Orb credentials remain encrypted. Todo, Project, and Knowledge add/edit surfaces now provide field-level Copy controls and a formatted Copy All action that captures the editor\'s current values, including unsaved edits and available stable identifiers.',
+      'Covered both Project editing locations: Settings → Projects and the Unified Dashboard List pane. Settings → Knowledge uses the same shared copy control, and the Settings CRUD editor now supplies the current record to domain forms so formatted edit output can include IDs and timestamps without duplicating modal behavior.',
+      'Polished the controls after live acceptance: Copy All now sits beside Close in every modal header, field-level Copy uses the compact btn-sm modifier, and a hidden-textarea fallback handles browsers that reject the first modern Clipboard API write so the initial click no longer fails while later clicks succeed.',
+      'Made the shared centered-modal family movable so a dialog can be dragged by its header when it obscures underlying context. Mouse, pen, and touch movement is clamped to an 8px viewport margin; header buttons remain clickable, positions are not persisted, and each newly opened modal begins centered.',
+      'Closed the multi-entry research gap in manual mode: Settings → Knowledge accepts space-separated literal terms with an explicit All terms (default) or Any term choice, without reserving AND, OR, or punctuation as operators. The same match mode drives the paginated table and Copy Results. Copy Results re-runs the search and exports the 10 newest complete matches with the query, mode, and honest Copied N of total coverage; the network-backed action records settings / knowledge copy-search latency and success/failure coverage.',
+      'Updated Orb and shared agent instructions for manual data-transfer mode: agents do not attempt direct todo, project, Knowledge, Supabase, or Orb API CRUD; Stan supplies copied records; agents return paste-ready field blocks and wait for Stan to confirm writes. Todo closure output must include separately attributed Resolution notes and Knowledge fields.',
+      'Used the existing EditorModal/modal-center, form-field, flex, btn-outline, and btn-sm catalog patterns. Performance instrumentation: local field/record copy and pointer movement require none; the network-backed multi-entry Knowledge export records settings / knowledge copy-search timing and outcome. Eval: not applicable — no Orb-conversation surface changed.',
+    ],
+  },
+  {
     version: 'v0.6.293',
     date: '2026-08-12',
     changes: [

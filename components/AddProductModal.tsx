@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useToast } from '@/components/ui/Toast'
 import { createProject, updateProject, deleteProject } from '@/app/actions/manage-project'
 import { startInteraction } from '@/lib/performance/telemetry'
+import CopyButton, { formatClipboardRecord } from '@/components/ui/CopyButton'
 
 type Project = { id: string; name: string; code: string | null; description: string | null; created_by: string }
 
@@ -29,6 +30,14 @@ export default function AddProductModal({
   const [saving, setSaving]         = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError]           = useState('')
+  const copyAll = formatClipboardRecord(isEdit ? 'Project' : 'Project draft', [
+    ...(project ? [
+      { label: 'ID', value: project.id },
+      { label: 'Code', value: project.code },
+    ] : []),
+    { label: 'Name', value: name },
+    { label: 'Description', value: description },
+  ])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -103,12 +112,18 @@ export default function AddProductModal({
           <h2 id="add-project-title" style={{ margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 'var(--fw-bold)' }}>
             {isEdit ? 'Edit project' : 'New project'}
           </h2>
-          <button onClick={onClose} className="close-btn" aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          <div className="flex-row" style={{ alignItems: 'center', gap: 'var(--sp-sm)' }}>
+            <CopyButton value={copyAll} fieldLabel="project" label="Copy All" compact={false} />
+            <button onClick={onClose} className="close-btn" aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="modal-body" style={{ padding: 'var(--sp-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-lg)' }}>
           <div>
-            <label htmlFor="apm-name" className="pf-label" style={{ marginBottom: 'var(--sp-xs)' }}>Name *</label>
+            <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+              <label htmlFor="apm-name" className="pf-label">Name *</label>
+              <CopyButton value={name} fieldLabel="name" />
+            </div>
             <input
               id="apm-name"
               className="pf-input"
@@ -120,7 +135,10 @@ export default function AddProductModal({
           </div>
 
           <div>
-            <label htmlFor="apm-desc" className="pf-label" style={{ marginBottom: 'var(--sp-xs)' }}>Description</label>
+            <div className="flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+              <label htmlFor="apm-desc" className="pf-label">Description</label>
+              <CopyButton value={description} fieldLabel="description" />
+            </div>
             <textarea
               id="apm-desc"
               rows={3}

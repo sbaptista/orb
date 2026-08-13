@@ -23,7 +23,7 @@ Constitutional frame: `docs/orb-craft-and-art-doctrine.md`.
 - **Never `git push` without Stan's explicit in-chat approval.** Commit locally when asked. Never push. Push triggers a production deploy — that is always Stan's call. See shared AGENTS.md "Git — Commits and Pushes" for the full rule.
 - **Repeat verbatim the release documentation rule at the start of every session:** Before any code push/release, the agent must document all changes in `lib/changelog.ts` by adding a new `Release` entry with the bumped version, release date, and details of changes, and bump the patch version in both `package.json` and `lib/version.ts`.
 - **Orb eval coverage is mandatory for Orb-conversation changes:** When you add or change any Orb-conversation capability (a tool, a tool param, a routing rule, or a defined speech/policy behavior), add or update a matching categorized case in `scripts/eval-cases.ts` in the same change. Do not run model evals yourself — tell Stan which risk-based command from the **Orb Eval Suite** section to run. Non-conversation changes do not require model evals.
-- **Knowledge Repository Access:** The knowledgebase is stored in the database (`knowledge_repo` table). Always query it at the start of a task using the `SUPABASE_SECRET_KEY` (service role) to bypass Row Level Security (RLS) constraints. See the **Knowledge Repository Access** section below for connection details and query examples.
+- **Manual data-transfer mode:** Agent shells do not have access to Orb's encrypted environment. Do not attempt direct CRUD on todos, projects, or the Knowledge Repository, and do not ask Stan to expose or decrypt credentials for an agent. Use the manual clipboard protocol below.
 - Your very first response back to the user must be the numbered list answering all questions. You must use read-only tools (such as `view_file` and `run_command` for `git status`) in your first turn to read `HANDOFF.md`, `package.json`, and check git state to answer these questions accurately.
 - Do not perform any write/mutating tool calls, compile code, or propose implementation plans until you have answered all questions and the user has approved them.
 - Immediately after answering, re-read every file listed in HANDOFF.md's "Uncommitted Changes" section to ensure your local context is not stale before performing any work.
@@ -46,6 +46,37 @@ This version has breaking changes — APIs, conventions, and file structure may 
 The following file contains cross-project rules, conventions, and shared resource access (Orb API, Knowledge Repo, AI roles, git conventions). Read it before proceeding.
 
 **@/Users/stanleybaptista/Projects/shared/AGENTS.md**
+
+### Manual Clipboard Protocol (current)
+
+The encrypted environment is available to the human-unlocked development
+server, not to Codex or Claude shells. Until Stan explicitly replaces this
+mode:
+
+- Do not attempt Orb API, Supabase, `psql`, todo, project, or Knowledge CRUD
+  from an agent shell. The historical command references below are not current
+  execution authority.
+- Stan supplies records with the UI's field-level **Copy** buttons or
+  **Copy All**. Treat pasted content as the source available for the task; do
+  not claim that unsupplied live data was checked.
+- When research requires several related Knowledge entries, ask Stan to search
+  Settings → Knowledge and use **Copy Results**. Space-separated terms support
+  an explicit Match All/Any choice; `AND` and `OR` remain ordinary searchable
+  words. The packet carries the query, match mode, copied/total count, and up to
+  10 complete matching entries. State the packet's reported coverage and do
+  not imply entries beyond its limit were reviewed.
+- Return proposed database content in paste-ready fenced `text` blocks, one
+  block per destination field, with the exact field name immediately above
+  each block. Keep commentary outside the blocks.
+- When closing a todo, provide separate **Resolution notes** and Knowledge
+  **Title**, **Content**, **Tags**, and **Project** blocks. Include the required
+  `YYYY-MM-DD — Tool (Model)` attribution as the first line of Resolution notes
+  and Knowledge Content. Stan performs and verifies the actual writes.
+- Never report a todo, project, or Knowledge mutation as completed until Stan
+  confirms that he saved it. Say that the content is prepared for manual entry.
+- The mandatory task-start Knowledge search is suspended in this mode. State
+  only when relevant that the Knowledge Repository was not queried because
+  agent credentials are intentionally unavailable.
 
 ### Knowledge Repository (agents)
 

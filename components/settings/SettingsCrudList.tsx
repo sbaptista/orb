@@ -12,7 +12,7 @@ import PaginationController from '@/components/ui/PaginationController'
 import SearchController from '@/components/ui/SearchController'
 import { startInteraction } from '@/lib/performance/telemetry'
 
-export type EditorSearchMatch = { label: string; value: string }
+export type EditorSearchMatch = { label: string; value: string; terms?: string[] }
 
 const PILL_THRESHOLD = 4
 
@@ -52,25 +52,21 @@ function crudMetadata<T, F>(config: CrudConfig<T, F>, extras: Record<string, str
   return metadata
 }
 
-export function highlightText(node: React.ReactNode, term: string): React.ReactNode {
-  if (!term) return node
+export function highlightText(node: React.ReactNode, term: string | string[]): React.ReactNode {
+  const terms = Array.isArray(term) ? term.filter(Boolean) : [term].filter(Boolean)
+  if (terms.length === 0) return node
   if (typeof node === 'string') {
-    const lower = node.toLowerCase()
-    const tLower = term.toLowerCase()
-    const idx = lower.indexOf(tLower)
-    if (idx === -1) return node
-    const parts: React.ReactNode[] = []
-    let last = 0
-    let pos = idx
-    let key = 0
-    while (pos !== -1) {
-      if (pos > last) parts.push(node.slice(last, pos))
-      parts.push(<mark key={key++} className="crud-highlight">{node.slice(pos, pos + term.length)}</mark>)
-      last = pos + term.length
-      pos = lower.indexOf(tLower, last)
-    }
-    if (last < node.length) parts.push(node.slice(last))
-    return <>{parts}</>
+    const pattern = [...terms]
+      .sort((a, b) => b.length - a.length)
+      .map(value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|')
+    if (!pattern) return node
+    const matcher = new RegExp(`(${pattern})`, 'gi')
+    const parts = node.split(matcher)
+    if (parts.length === 1) return node
+    return <>{parts.map((part, index) => index % 2 === 1
+      ? <mark key={index} className="crud-highlight">{part}</mark>
+      : part)}</>
   }
   if (typeof node === 'number') {
     return highlightText(String(node), term)
@@ -137,6 +133,16 @@ type PaginationRequest = {
   sortKey: string | null
   sortDir: 'asc' | 'desc'
   cursor?: string | null
+}
+
+type CrudEditorRenderProps<T, F> = {
+  form: F
+  onChange: (f: F) => void
+  extra: any
+  mode: 'add' | 'edit'
+  item: T | null
+  searchMatches: EditorSearchMatch[]
+  onOpenSearchMatch: (match: EditorSearchMatch) => void
 }
 
 type CrudConfig<T, F> = {
@@ -222,14 +228,9 @@ type CrudConfig<T, F> = {
   onClose?: () => void
 
   /** When omitted, no Add button or Edit modal is shown (read-only table). */
-  renderForm?: (props: {
-    form: F
-    onChange: (f: F) => void
-    extra: any
-    mode: 'add' | 'edit'
-    searchMatches: EditorSearchMatch[]
-    onOpenSearchMatch: (match: EditorSearchMatch) => void
-  }) => ReactNode
+  renderForm?: (props: CrudEditorRenderProps<T, F>) => ReactNode
+  /** Optional domain action rendered immediately before the editor close button. */
+  renderHeaderEnd?: (props: CrudEditorRenderProps<T, F>) => ReactNode
 
   renderRow: (props: {
     item: T
@@ -1226,15 +1227,19 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
   const modalSearchMatches = modalOpen && modalMode === 'edit' && modalSearchTerm && config.searchMatchFields
     ? config.searchMatchFields(modalForm, modalSearchTerm)
     : []
+  const modalItem = editingId ? items.find(item => config.getId(item) === editingId) ?? null : null
 
-  const modalFormNode = modalOpen && config.renderForm ? config.renderForm({
+  const modalRenderProps: CrudEditorRenderProps<T, F> = {
     form: modalForm,
     onChange: setModalForm,
     extra,
     mode: modalMode!,
+    item: modalItem,
     searchMatches: modalSearchMatches,
     onOpenSearchMatch: setOpenSearchMatch,
-  }) : null
+  }
+  const modalFormNode = modalOpen && config.renderForm ? config.renderForm(modalRenderProps) : null
+  const modalHeaderEnd = modalOpen && config.renderHeaderEnd ? config.renderHeaderEnd(modalRenderProps) : null
 
   return (
     <div className={config.pageClass ?? 'settings-page s-page'}>
@@ -1589,6 +1594,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
           saveLabel={modalSubmitLabel}
           onSave={modalSubmit}
           onClose={closeModal}
+          headerEnd={modalHeaderEnd}
           lockSettingsScroll
         >
           <div className="modal-body" style={{ padding: 'var(--sp-lg) var(--sp-xl)' }}>
@@ -1616,7 +1622,7 @@ export default function SettingsCrudList<T, F>({ config }: { config: CrudConfig<
         >
           <div className="modal-body" style={{ padding: 'var(--sp-lg) var(--sp-xl)' }}>
             <div className="search-match-detail">
-              {highlightText(openSearchMatch.value, modalSearchTerm)}
+              {highlightText(openSearchMatch.value, openSearchMatch.terms ?? modalSearchTerm)}
             </div>
           </div>
         </EditorModal>
