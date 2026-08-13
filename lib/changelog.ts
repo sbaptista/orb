@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.295',
+    date: '2026-08-13',
+    changes: [
+      'Investigated ORB-359, the reported loss of voice confirmations, and recorded the diagnosis and a layered remediation plan in docs/orb-359-realtime-confirmation-integrity-plan.md. No application behavior changed; implementation is not authorized.',
+      'Documentation-only planning checkpoint. Performance instrumentation: not applicable — no code path changed. Eval: not applicable — no Orb-conversation surface changed.',
+    ],
+  },
+  {
     version: 'v0.6.294',
     date: '2026-08-12',
     changes: [

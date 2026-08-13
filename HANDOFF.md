@@ -13,13 +13,16 @@
 ## App State
 
 - **Branch:** `main`.
-- **Unpushed:** the forthcoming v0.6.294 manual clipboard transfer commit only.
-  `origin/main` and local `main` were both at `679f942` immediately before this
-  work. Nothing has been pushed from this session.
+- **Unpushed:** the v0.6.295 ORB-359 plan commit only. **Correction:** the prior
+  handoff described v0.6.294 as unpushed; `git log origin/main -1` shows
+  `origin/main` at `a426042`, so v0.6.294 *was* pushed. Verified 2026-08-13 with
+  `git log --oneline origin/main..main`, which was empty before this commit.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.294** — manual clipboard transfer for Todo, Project,
+- **Local version:** **0.6.295** — ORB-359 diagnosis and remediation plan
+  (documentation only). v0.6.294 was the
+  manual clipboard transfer for Todo, Project,
   and Knowledge editors plus current manual-mode agent instructions. v0.6.293
   was the bookkeeping correction; v0.6.292 put the non-admin plan on hold.
   v0.6.287 restored Account to the nav on Settings.
@@ -39,6 +42,81 @@
 ---
 
 ## Last Session Completed
+
+**ORB-359 Realtime confirmation integrity — diagnosis and plan — 2026-08-13
+(Claude Code, Opus 5)**
+
+Released locally as **v0.6.295**. **Documentation only — no application code,
+database, credential, dev-server, or production state changed. Performance
+instrumentation: not applicable, no code path changed. Eval: not applicable — no
+Orb-conversation surface changed.**
+
+`docs/orb-359-realtime-confirmation-integrity-plan.md` records the diagnosis of
+ORB-359 ("Voice interaction seems to lose track of confirmation") and a layered
+remediation plan. **Implementation is not authorized**; §7 holds the four
+decisions Stan must make and §11 is an unchecked approval gate.
+
+**Two compounding defects, both verified by reading code, neither reproduced.**
+
+*Defect A — the transcription prompt is emitted as user speech.*
+`app/api/orb-realtime/session/route.ts:59` sets a vocabulary hint,
+`'Orb. Confirmed. Confirm. Yes. Cancel. Stop. Todo. Project.'`, which is
+**verbatim** the phantom utterance appearing seven times in the reported
+transcript. For this model family `prompt` is prior-context conditioning text,
+not an instruction; on non-speech audio the audio cross-attention contributes
+nothing and the decoder reproduces its own context. The `Dziękuję` line is the
+same artifact drawn from the training prior instead. Nothing filters it:
+`useRealtimeVoiceSpike.ts:774` accepts any non-empty transcript as genuine user
+speech, and it becomes the `trustedUtterance` sent to the server as the
+authorization utterance.
+
+*Defect B — a committed mutation is silently unreported.* `confirm_todo_mutation`
+is correctly exempt from the tool abort controller, but when it resolves after
+the user has started a new turn, `useRealtimeVoiceSpike.ts:638` discards the
+canonical receipt text while `onMutation()` has already refreshed the dashboard.
+The write commits and Orb never says so. Because barge-in is an intentional
+feature, turn abandonment is a normal event, not an edge case — the code treats
+it as "discard everything in flight," which is right for a read and wrong for a
+completed write.
+
+**The most important finding is a sequencing hazard (§3).** Narrowing the hint to
+remove `Cancel. Stop.` would convert a loud failure into a **silent unauthorized
+mutation**: with the negation words gone, `failsMutationApprovalGuards` passes
+and `MUTATION_APPROVAL_ACT` matches `\bconfirm\b`, so the phantom would
+authorize whatever proposal is pending. `Cancel. Stop.` inside the hint is
+currently the only reason phantom confirmations fail loudly rather than
+committing — load-bearing by accident. Dropping the hint entirely is safe in any
+order; narrowing it before the boundary rejection lands is not.
+
+**Constraint recorded from Stan:** Realtime and barge-in were deliberate choices
+to make voice feel conversational. No remediation may trade them away, so
+reverting to the half-duplex `useVoiceMode` path is out of scope. The plan notes
+the two hooks are not drop-in alternatives anyway — `useVoiceMode` feeds the
+serial `orb-converse` tool set, not the typed Realtime contract.
+
+**One claim was withdrawn.** An earlier inference that the reported session's
+missing project number proved Defect B fired that day is **unverifiable** — the
+"Cook Dinner" project belonged to a deleted test user and was hard-deleted with
+it. Defect B remains verified as a reachable code path; the evidence that it
+actually fired is gone.
+
+**Also found and recorded:** `app/api/orb-realtime/session/route.ts:21` already
+requests `include: ['item.input_audio_transcription.logprobs']` and **no code
+reads them** — the discriminator for hallucinated transcripts is on the wire and
+discarded. The logprobs gate (A3) is deliberately left unspecified because the
+payload shape has never been observed; designing a threshold against an assumed
+shape would risk rejecting real speech.
+
+`docs/orb-325-realtime-voice-flow.md` accurately describes the **DEV prototype**
+it was written about. That prototype was promoted in place — same file, same
+`useRealtimeVoiceSpike` name — and `handleOrbTap`
+(`components/UnifiedDashboard.tsx:718`) now calls it unconditionally with no
+user allowlist left in the session route. Its §9 risk acceptance
+("worst case is a stray word, not a dead session") became a production risk
+acceptance without being re-decided. Whether to correct that document is
+decision §7.4.
+
+**Prior session:**
 
 **Manual Todo/Project/Knowledge transfer bridge — 2026-08-12
 (Codex, GPT-5.6 Sol)**
@@ -364,15 +442,18 @@ Voice Settings, AI Metrics, and Realtime voice. Eval: Tier 1 voice + smoke
 
 ## Current Uncommitted Changes
 
-**None — the working tree is clean.** Everything from the v0.6.291–v0.6.293 span
-is committed and awaiting Stan's approval for Codex's unified push (see App
-State for the exact range).
+**None — the working tree is clean.** The v0.6.295 commit carries the new plan
+document plus release bookkeeping, and removes both Claude Code claims (the
+ORB-359 plan claim and the exclusive Release bookkeeping claim) in the same
+commit, per §2 of the concurrency protocol.
 
-Both agents' ledgers are back to `*(none)*`: Codex cleared its completed claims
-in `96ae0fe`, and this commit removes the Claude Code claims that covered the
-hold, the review, and this correction. Codex's two `Long-running: yes` planning
-claims (capability broker, instruction architecture) remain open and are
-unaffected — they do not overlap the release files.
+`ACTIVE_WORK/claude-code.md` is back to `*(none)*`. **Codex's ledger was not
+touched.** It holds one `Long-running: yes` planning claim (instruction
+architecture proposal, 2026-08-11 12:24 HST) which does not overlap any file in
+this release. That claim is **stale by the §2 refresh rule** — a long-running
+claim needs its timestamp refreshed within 2 hours and this one is two days old
+— but no stale-claim notice was required, because no work here entered its
+surface.
 
 ---
 
@@ -435,23 +516,31 @@ unaffected — they do not overlap the release files.
    `/Users/stanleybaptista` from `0750` to `0700`, and consider a read-only Git
    credential as the structural complement to the policy-based push gate.
    Neither is scheduled.
-1. Stan chose manual clipboard CRUD for now. Test Copy/Copy All on Mac, iPad,
+1. **ORB-359 — make the four §7 decisions** in
+   `docs/orb-359-realtime-confirmation-integrity-plan.md`. Recommended first
+   move is **B1** (never silently swallow a committed mutation): it has no
+   dependencies, needs no provider evidence, and fixes the half of the reported
+   experience that actually reads as "lost track." **Do not narrow the
+   transcription prompt before the boundary rejection lands — see §3.** A3
+   (logprobs gate) stays unspecified until a raw payload is captured, which
+   itself needs Stan's approval for temporary instrumentation (§10).
+2. Stan chose manual clipboard CRUD for now. Test Copy/Copy All on Mac, iPad,
    and iPhone across Todo, Settings Projects, Settings Knowledge, and the
    dashboard List project modal. In Settings Knowledge, also verify `Claude
    security` with both All terms and Any term, plus the bounded 10-entry Copy
    Results packet. The local-unlock and larger broker documents remain
    historical planning, not active implementation priorities.
-2. Review `docs/orb-instruction-architecture-proposal.md` with Orb and Claude
+3. Review `docs/orb-instruction-architecture-proposal.md` with Orb and Claude
    Code; preserve complete attributed packets and leave all final decisions to
    Stan. Do not change active instructions before its gates are satisfied.
-3. Do not implement the instruction-architecture planning track until Stan
+4. Do not implement the instruction-architecture planning track until Stan
    explicitly approves it.
-4. Verify v0.6.283 in production: Voice Settings exposes only Browser and
+5. Verify v0.6.283 in production: Voice Settings exposes only Browser and
    OpenAI, AI Metrics loads, and OpenAI Realtime voice works.
-5. Delete `ELEVENLABS_API_KEY` from Vercel and the encrypted local environment,
+6. Delete `ELEVENLABS_API_KEY` from Vercel and the encrypted local environment,
    delete both ElevenLabs provider keys, then repeat the three checks.
-6. Rotate `DATABASE_URL`, coordinated Orb/Helm API secret, and the VAPID pair.
-7. Complete ORB-375 acceptance, write resolution notes plus its Knowledge Repo
+7. Rotate `DATABASE_URL`, coordinated Orb/Helm API secret, and the VAPID pair.
+8. Complete ORB-375 acceptance, write resolution notes plus its Knowledge Repo
    entry, and remove the active claim with the closing commit.
 
 ---
@@ -529,7 +618,7 @@ unaffected — they do not overlap the release files.
 
 ## AI Tool Used Last Session
 
-`2026-08-12 — Codex (GPT-5.6 Sol)`
+`2026-08-13 — Claude Code (Opus 5)`
 
 ---
 
