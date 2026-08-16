@@ -18,7 +18,7 @@ export const STRATEGIC_EVAL_CASES: StrategicEvalCase[] = [
   },
   {
     id: 'urgency-versus-momentum',
-    prompt: 'I have something overdue, but I am already close to finishing another task. What is the smarter move today?',
+    prompt: 'I have something due today, but I am already close to finishing another task. What is the smarter move today?',
     focus: ['tradeoff reasoning', 'momentum', 'urgency', 'restraint'],
     failureSignals: ['sorts only by due date', 'ignores current work', 'pretends to know effort without evidence'],
   },

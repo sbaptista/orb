@@ -14,7 +14,6 @@ import { EVAL_CASES, EVAL_CATEGORIES, EVAL_SUITES, type EvalCase, type EvalCateg
 import * as dotenv from 'dotenv'
 import * as path from 'path'
 import type { OrbModelUsage } from '../lib/orb-model/types'
-import { ORB_EVAL_DEFAULT_MODEL, ORB_EVAL_DEFAULT_PROVIDER } from '../lib/orb-model/eval-defaults'
 
 // dotenv/BASE_URL are computed up front (before --help/--list) so the usage
 // text below can reference the real target instead of a hardcoded guess that
@@ -68,8 +67,8 @@ Case ids come from scripts/eval-cases.ts (the "id" field on each case) — run
 
 Requires the dev server reachable at ${BASE_URL} (override via EVAL_BASE_URL
 in .env.local). --help and --list make no network calls and need no server.
-Default evaluator: ${ORB_EVAL_DEFAULT_PROVIDER}/${ORB_EVAL_DEFAULT_MODEL}
-(override explicitly with EVAL_PROVIDER and EVAL_MODEL).
+Default evaluator: the Evaluation Model selected in Settings → AI Settings.
+Override one run by supplying EVAL_PROVIDER and EVAL_MODEL together.
 
 Direct npx invocation (skips the npm wrapper) needs the TLS bypass BASE_URL
 requires as a self-signed-HTTPS target, added manually:
@@ -117,8 +116,8 @@ if (BASE_URL.startsWith('https://') && process.env.NODE_TLS_REJECT_UNAUTHORIZED 
 }
 
 const API_SECRET = process.env.ORB_API_SECRET
-const EVAL_PROVIDER = process.env.EVAL_PROVIDER ?? ORB_EVAL_DEFAULT_PROVIDER
-const EVAL_MODEL = process.env.EVAL_MODEL ?? ORB_EVAL_DEFAULT_MODEL
+const EVAL_PROVIDER = process.env.EVAL_PROVIDER
+const EVAL_MODEL = process.env.EVAL_MODEL
 const EVAL_USER_EMAIL = process.env.EVAL_USER_EMAIL
 const EVAL_CONTEXT_PACKET_ID = process.env.EVAL_CONTEXT_PACKET_ID
 const EVAL_HISTORY_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -132,6 +131,11 @@ let activeEvalRunId: string | null = null
 
 if (!API_SECRET) {
   console.error('❌ ORB_API_SECRET not found in .env.local')
+  process.exit(1)
+}
+
+if (Boolean(EVAL_PROVIDER) !== Boolean(EVAL_MODEL)) {
+  console.error('❌ EVAL_PROVIDER and EVAL_MODEL must be supplied together.')
   process.exit(1)
 }
 
@@ -167,15 +171,16 @@ type TestResult = {
 
 // ── API Call ────────────────────────────────────────────────────────────────
 
-// Keep model requests under the established 10-calls-per-minute ceiling.
-// ORB-364 paces only cases that can call a provider; deterministic server
-// checks should not pay an artificial 6.5-second delay.
-const INTER_REQUEST_DELAY_MS = 6500
+// Start under the established 10-calls-per-minute ceiling. If any provider
+// reports a stricter limit, the generic 429 handler below slows the remaining
+// run adaptively. Deterministic server checks pay no artificial delay.
+const BASE_INTER_REQUEST_DELAY_MS = 6500
+let interRequestDelayMs = BASE_INTER_REQUEST_DELAY_MS
 let lastExpectedModelCallAt = 0
 
 async function paceExpectedModelCall(testCase: EvalCase): Promise<void> {
   if (!testCase.modelCallExpected) return
-  const remaining = INTER_REQUEST_DELAY_MS - (Date.now() - lastExpectedModelCallAt)
+  const remaining = interRequestDelayMs - (Date.now() - lastExpectedModelCallAt)
   if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining))
   lastExpectedModelCallAt = Date.now()
 }
@@ -231,6 +236,27 @@ function isTemporaryProviderCapacityError(msg: string): boolean {
   return /Gemini API 503|currently experiencing high demand|overloaded/i.test(msg)
 }
 
+function isProviderRateLimitError(msg: string): boolean {
+  return /\b429\b|rate.?limit|reached organization max RPM/i.test(msg)
+}
+
+// Providers commonly include either a retry interval, an RPM ceiling, or both
+// in a 429 response. Derive a conservative delay from whichever facts are
+// present, without baking a provider/model exception into the eval runner.
+function providerRateLimitDelayMs(msg: string, fallbackMs: number): number {
+  const retryMatch = msg.match(/try again after\s+([\d.]+)\s*(milliseconds?|ms|seconds?|s)/i)
+  const retryValue = retryMatch ? Number(retryMatch[1]) : 0
+  const retryMs = retryMatch
+    ? retryValue * (/^m/i.test(retryMatch[2]) ? 1 : 1000)
+    : 0
+
+  const rpmMatch = msg.match(/max RPM\s*:\s*(\d+)/i)
+  const rpm = rpmMatch ? Number(rpmMatch[1]) : 0
+  const rpmIntervalMs = rpm > 0 ? Math.ceil(60_000 / rpm) + 500 : 0
+
+  return Math.max(fallbackMs, retryMs, rpmIntervalMs)
+}
+
 type TimedEvalError = Error & { evalDurationMs?: number }
 
 async function callOrbWithRetry(
@@ -252,15 +278,27 @@ async function callOrbWithRetry(
       requestDurationMs += Date.now() - requestStart
       const timedError = err as TimedEvalError
       const message = timedError.message ?? ''
-      const retryable = isNetworkError(message) || isTemporaryProviderCapacityError(message)
+      const rateLimited = isProviderRateLimitError(message)
+      const retryable = isNetworkError(message) || isTemporaryProviderCapacityError(message) || rateLimited
       if (retryable && attempt < retries - 1) {
-        const reason = isTemporaryProviderCapacityError(message) ? 'Provider capacity error' : 'Cannot reach the dev server'
+        if (rateLimited) {
+          const providerIntervalMs = providerRateLimitDelayMs(message, 1000)
+          interRequestDelayMs = Math.max(interRequestDelayMs, providerIntervalMs)
+          delay = Math.max(delay, providerIntervalMs)
+        }
+        const reason = rateLimited
+          ? 'Provider rate limit'
+          : isTemporaryProviderCapacityError(message)
+            ? 'Provider capacity error'
+            : 'Cannot reach the dev server'
         // Naming the target matters: the default used to be a hardcoded LAN
         // IP, so a DHCP change made every request fail with "Network error"
         // while the dev server sat healthy and silent — nothing reached it,
         // so nothing was logged. The message must point at the host, not at
         // the internet.
-        const where = isTemporaryProviderCapacityError(message) ? '' : ` at ${BASE_URL} (override with EVAL_BASE_URL)`
+        const where = isTemporaryProviderCapacityError(message) || rateLimited
+          ? ''
+          : ` at ${BASE_URL} (override with EVAL_BASE_URL)`
         process.stderr.write(`\n  ⚠️  ${reason} on ${testCase.id}${where} — retrying in ${delay}ms...\n`)
         await new Promise(r => setTimeout(r, delay))
         delay *= 2
@@ -484,6 +522,9 @@ async function beginEvalHistory(options: {
       metadata: {
         categories: options.categories ?? [],
         case_ids: options.cases.map(testCase => testCase.id),
+        evaluator_override: EVAL_PROVIDER && EVAL_MODEL
+          ? { provider: EVAL_PROVIDER, model: EVAL_MODEL }
+          : null,
       },
     })
     .select('id')
@@ -628,7 +669,7 @@ async function main() {
   console.log(`\n🔮 Orb Eval — ${cases.length} cases, ${totalRuns} total runs\n`)
   console.log(`   Started: ${formatDateTime(startedAt)}`)
   console.log(`   Target: ${BASE_URL}`)
-  console.log(`   Evaluator: ${EVAL_PROVIDER}/${EVAL_MODEL}`)
+  console.log(`   Evaluator: ${EVAL_PROVIDER && EVAL_MODEL ? `${EVAL_PROVIDER}/${EVAL_MODEL} (environment override)` : 'Settings → AI Settings selection'}`)
   console.log(`   Selection: ${selection}`)
   console.log(`   Tier 1 (single-shot tool contract): ${cases.filter(c => c.tier === 1).length} cases`)
   console.log(`   Tier 2 (behavioral, 3× each): ${cases.filter(c => c.tier === 2).length} cases`)

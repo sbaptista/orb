@@ -13,6 +13,7 @@ source "$repo_root/scripts/security/orb-secrets-set"
 
 [[ "$(mode_of "$repo_root/package.json")" =~ ^[0-7]{3,4}$ ]]
 [[ "$(printf 'ALPHA=old\nBETA=keep\n' | replace_value ALPHA new)" == $'ALPHA=new\nBETA=keep' ]]
+[[ "$(printf 'ALPHA=keep\n' | replace_value MOONSHOT_API_KEY new)" == $'ALPHA=keep\nMOONSHOT_API_KEY=new' ]]
 [[ "$(printf 'ALPHA=old\nBETA=keep\n' | remove_value ALPHA)" == 'BETA=keep' ]]
 is_removable_name ELEVENLABS_API_KEY
 ! is_allowed_name ELEVENLABS_API_KEY

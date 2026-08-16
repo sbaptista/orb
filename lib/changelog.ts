@@ -6,6 +6,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.296',
+    date: '2026-08-15',
+    changes: [
+      'Added Moonshot Kimi K3 as an explicitly Experimental, development-only candidate for Orb\'s Operational, Strategic, and Evaluation roles. The provider-neutral adapter preserves K3 reasoning content across tool turns, applies role-appropriate reasoning effort, normalizes token/cache/latency accounting, and keeps the encrypted MOONSHOT_API_KEY server-only. Production continues to reject the experimental selection and use the accepted Haiku/Gemini policy until a separate promotion decision.',
+      'Added an independent Evaluation Model selector to Settings → AI Settings. Routine eval commands now resolve that persisted setting while a complete EVAL_PROVIDER/EVAL_MODEL pair remains an explicit one-run override. The applied 20260815 migration adds the two policy columns without changing Operational or Strategic selections.',
+      'Extended AI Metrics and cost reconciliation for Moonshot funding caps, rate cards, request labels, and billing comparisons. Strategic Kimi testing completed 27/27 tool-free strategic calls plus 3/3 correct operational controls at $0.2162 total strategic cost ($0.0080 average, $0.0175 maximum); provider billing reconciled within $0.00024 (0.013%) of Kimi\'s reported spend.',
+      'Made both eval runners provider-neutral and adaptively paced: any provider 429 can supply a retry interval or RPM ceiling, and the remaining run slows accordingly without a Kimi-specific exception. Kimi completed full Tier 1 twice at 63/65; the two failures moved between runs, all four unchanged assertions remain valid, and Stan accepted that evidence for experimental use without weakening the suite.',
+      'Fixed active-model identity reporting. Direct questions such as “What AI model are you?” are now answered deterministically from the current environment\'s server-read policy before conversation history or a provider can contaminate the answer. Provider-routing cases cover both Kimi and Haiku and reject false cross-provider identities; Stan\'s required Tier 1 provider-routing plus smoke gate passed 13/13.',
+      'Used the existing AI Settings s-card/s-form/select and AI Metrics patterns, updated the UI catalog and object capability matrix, and verified the selectors on desktop and a 390×844 mobile viewport. Performance instrumentation reuses the existing Settings load/save and AI accounting measurements; no new telemetry family was required.',
+    ],
+  },
+  {
     version: 'v0.6.295',
     date: '2026-08-13',
     changes: [

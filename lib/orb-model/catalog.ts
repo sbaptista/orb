@@ -1,25 +1,27 @@
 import type { OrbModelProviderId } from './types'
 
 export type OrbModelRole = 'operational' | 'strategic' | 'voice'
+export type OrbModelCatalogRole = OrbModelRole | 'evaluation'
 
 export type OrbModelDefinition = {
   provider: OrbModelProviderId
   model: string
   label: string
-  roles: readonly OrbModelRole[]
+  roles: readonly OrbModelCatalogRole[]
   toolCapable: boolean
+  experimental?: boolean
 }
 
-// This is a catalog of models that have a production adapter, normalized
-// telemetry, and a completed evaluation decision. Additions belong here only
-// after those three conditions are true; Settings must never expose a model
-// that Orb cannot safely run.
+// Production entries have a production adapter, normalized telemetry, and a
+// completed evaluation decision. An explicitly experimental entry may appear
+// in local development while those gates are being run, but is filtered out of
+// production Settings and policy validation until promoted.
 export const ORB_MODEL_CATALOG: readonly OrbModelDefinition[] = [
   {
     provider: 'anthropic',
     model: 'claude-haiku-4-5',
     label: 'Claude Haiku 4.5',
-    roles: ['operational', 'strategic'],
+    roles: ['operational', 'strategic', 'evaluation'],
     toolCapable: true,
   },
   {
@@ -29,16 +31,29 @@ export const ORB_MODEL_CATALOG: readonly OrbModelDefinition[] = [
     roles: ['strategic'],
     toolCapable: false,
   },
+  {
+    provider: 'moonshot',
+    model: 'kimi-k3',
+    label: 'Kimi K3 — Experimental',
+    roles: ['operational', 'strategic', 'evaluation'],
+    toolCapable: true,
+    experimental: true,
+  },
 ]
 
-export function getOrbModelOptions(role: OrbModelRole): readonly OrbModelDefinition[] {
-  return ORB_MODEL_CATALOG.filter(model => model.roles.includes(role))
+function isAvailable(model: OrbModelDefinition): boolean {
+  return !model.experimental || process.env.NODE_ENV !== 'production'
+}
+
+export function getOrbModelOptions(role: OrbModelCatalogRole): readonly OrbModelDefinition[] {
+  return ORB_MODEL_CATALOG.filter(model => isAvailable(model) && model.roles.includes(role))
 }
 
 export function getOrbModelDefinition(provider: string, model: string): OrbModelDefinition | undefined {
   return ORB_MODEL_CATALOG.find(candidate => candidate.provider === provider && candidate.model === model)
 }
 
-export function supportsOrbRole(provider: string, model: string, role: OrbModelRole): boolean {
-  return getOrbModelDefinition(provider, model)?.roles.includes(role) ?? false
+export function supportsOrbRole(provider: string, model: string, role: OrbModelCatalogRole): boolean {
+  const definition = getOrbModelDefinition(provider, model)
+  return definition ? isAvailable(definition) && definition.roles.includes(role) : false
 }

@@ -1,4 +1,4 @@
-export type OrbModelProviderId = 'anthropic' | 'openai' | 'google' | 'mistral' | 'elevenlabs' | 'local'
+export type OrbModelProviderId = 'anthropic' | 'openai' | 'google' | 'mistral' | 'moonshot' | 'elevenlabs' | 'local'
 
 export type OrbModelInvocationSource =
   | 'conversation'

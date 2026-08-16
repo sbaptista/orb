@@ -159,10 +159,10 @@ main() {
   local command="${1:-run}"
 
   case "$command" in
-    run|--check)
+    run|--check|--eval|--eval-t1|--eval-t2|--strategic-eval)
       ;;
     *)
-      fail "usage: orb-dev [--check]"
+      fail "usage: orb-dev [--check|--eval|--eval-t1|--eval-t2|--strategic-eval] [eval arguments]"
       ;;
   esac
 
@@ -174,14 +174,36 @@ main() {
     return 0
   fi
 
-  ensure_tls_certificate
   load_encrypted_environment
+
+  cd "$ORB_PROJECT_ROOT"
+
+  case "$command" in
+    --eval)
+      shift
+      exec /usr/bin/env npm run eval -- "$@"
+      ;;
+    --eval-t1)
+      shift
+      exec /usr/bin/env npm run eval:t1 -- "$@"
+      ;;
+    --eval-t2)
+      shift
+      exec /usr/bin/env npm run eval:t2 -- "$@"
+      ;;
+    --strategic-eval)
+      shift
+      export NODE_TLS_REJECT_UNAUTHORIZED=0
+      exec /usr/bin/env npx tsx scripts/run-strategic-eval.ts "$@"
+      ;;
+  esac
+
+  ensure_tls_certificate
 
   export ORB_DEV_CERT="$ORB_TLS_CERT"
   export ORB_DEV_KEY="$ORB_TLS_KEY"
   export ORB_DEV_ALLOWED_ORIGINS="$ORB_DEV_MDNS_HOST${ORB_DEV_IP:+,$ORB_DEV_IP}"
 
-  cd "$ORB_PROJECT_ROOT"
   exec /usr/bin/env npm run dev
 }
 

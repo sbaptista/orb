@@ -25,7 +25,7 @@ function configuredCost(usage: OrbModelUsage, rateCard: any): OrbModelUsage {
   // Gemini reports cached input inside promptTokenCount; Anthropic reports it
   // separately. Preserve each provider's accounting semantics when applying
   // the configurable rate card.
-  const billableInputTokens = usage.provider === 'google'
+  const billableInputTokens = usage.provider === 'google' || usage.provider === 'moonshot'
     ? Math.max(0, usage.inputTokens - (usage.cachedInputTokens ?? 0))
     : usage.inputTokens
   const estimatedCostUsd =

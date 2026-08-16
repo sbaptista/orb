@@ -23,7 +23,7 @@ import { startInteraction } from '@/lib/performance/telemetry'
 type MetricsForm = Record<string, never>
 type MetricsSection = 'history' | 'providers' | 'controls'
 type HistoryScope = 'all' | 'product' | 'eval'
-type FundingCapDraft = { anthropicApi: string; openaiApi: string; mistralApi: string }
+type FundingCapDraft = { anthropicApi: string; openaiApi: string; mistralApi: string; moonshotApi: string }
 type EditableRateCard = OrbModelRateCard & { saving?: boolean }
 type DraftRateCard = {
   provider: string
@@ -39,7 +39,7 @@ type DraftRateCard = {
 
 const EMPTY_FORM: MetricsForm = {}
 const PAGE_SIZE = 50
-const EMPTY_FUNDING_CAPS: FundingCapDraft = { anthropicApi: '', openaiApi: '', mistralApi: '' }
+const EMPTY_FUNDING_CAPS: FundingCapDraft = { anthropicApi: '', openaiApi: '', mistralApi: '', moonshotApi: '' }
 const todayDate = () => new Date().toISOString().slice(0, 10)
 const emptyNewRateCard = (): DraftRateCard => ({
   provider: '',
@@ -92,6 +92,7 @@ function formatModel(provider: string, model: string) {
   if (provider === 'anthropic' && model === 'claude-haiku-4-5') return 'Claude Haiku 4.5'
   if (provider === 'google' && model === 'gemini-3.1-pro-preview') return 'Gemini 3.1 Pro Preview'
   if (provider === 'mistral' && model === 'mistral-medium-latest') return 'Mistral Medium'
+  if (provider === 'moonshot' && model === 'kimi-k3') return 'Kimi K3'
   if (provider === 'openai' && model === 'tts-1') return 'OpenAI tts-1'
   if (provider === 'openai' && model === 'tts-1-hd') return 'OpenAI tts-1 HD'
   if (provider === 'elevenlabs' && model === 'eleven_turbo_v2_5') return 'ElevenLabs Turbo v2.5'
@@ -102,7 +103,8 @@ function providerLabel(provider: string) {
   return provider === 'anthropic' ? 'Anthropic'
     : provider === 'google' ? 'Google'
       : provider === 'mistral' ? 'Mistral'
-        : provider === 'openai' ? 'OpenAI'
+        : provider === 'moonshot' ? 'Moonshot'
+          : provider === 'openai' ? 'OpenAI'
           : provider === 'elevenlabs' ? 'ElevenLabs'
             : provider
 }
@@ -319,6 +321,7 @@ export default function SettingsMetrics() {
         anthropicApi: capsByPool.get('anthropic_api')?.toString() ?? '',
         openaiApi: capsByPool.get('openai_api')?.toString() ?? '',
         mistralApi: capsByPool.get('mistral_api')?.toString() ?? '',
+        moonshotApi: capsByPool.get('moonshot_api')?.toString() ?? '',
       })
       markFullLoad('accounting', true)
       // Orb is the initial page surface; the request log and legacy
@@ -386,6 +389,7 @@ export default function SettingsMetrics() {
         anthropicApi: fundingCaps.anthropicApi === '' ? null : Number(fundingCaps.anthropicApi),
         openaiApi: fundingCaps.openaiApi === '' ? null : Number(fundingCaps.openaiApi),
         mistralApi: fundingCaps.mistralApi === '' ? null : Number(fundingCaps.mistralApi),
+        moonshotApi: fundingCaps.moonshotApi === '' ? null : Number(fundingCaps.moonshotApi),
       })
       perf.mark('server_action_completed')
       await loadAiAccounting()
@@ -523,6 +527,7 @@ export default function SettingsMetrics() {
             ['Anthropic API', 'anthropicApi'],
             ['OpenAI API', 'openaiApi'],
             ['Mistral API', 'mistralApi'],
+            ['Moonshot API', 'moonshotApi'],
           ] as const).map(([label, key]) => (
             <label key={key}>
               <span className="label">{label} cap ($)</span>
@@ -672,7 +677,7 @@ export default function SettingsMetrics() {
             <span className="label">Provider</span>
             <select value={newRateCard.provider} onChange={event => setNewRateCard(card => ({ ...card, provider: event.target.value }))}>
               <option value="">Select provider</option>
-              {['anthropic', 'google', 'mistral', 'openai'].map(provider => <option key={provider} value={provider}>{providerLabel(provider)}</option>)}
+              {['anthropic', 'google', 'mistral', 'moonshot', 'openai'].map(provider => <option key={provider} value={provider}>{providerLabel(provider)}</option>)}
             </select>
           </label>
           <label><span className="label">Model</span><input value={newRateCard.model} onChange={event => setNewRateCard(card => ({ ...card, model: event.target.value }))} placeholder="provider-model-id" /></label>

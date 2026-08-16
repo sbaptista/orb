@@ -11,13 +11,16 @@ import {
   ORB_MODEL_OPTIONS,
   type OrbAiPolicy,
 } from '@/lib/orb-model/policy'
+import { startInteraction } from '@/lib/performance/telemetry'
 
-function applyModel(role: 'operational' | 'strategic', value: string, setPolicy: Dispatch<SetStateAction<OrbAiPolicy>>) {
+function applyModel(role: 'operational' | 'strategic' | 'evaluation', value: string, setPolicy: Dispatch<SetStateAction<OrbAiPolicy>>) {
   const [provider, ...modelParts] = value.split(':')
   const model = modelParts.join(':')
-  setPolicy(current => role === 'operational'
-    ? { ...current, operationalProvider: provider as OrbAiPolicy['operationalProvider'], operationalModel: model }
-    : { ...current, strategicProvider: provider as OrbAiPolicy['strategicProvider'], strategicModel: model })
+  setPolicy(current => {
+    if (role === 'operational') return { ...current, operationalProvider: provider as OrbAiPolicy['operationalProvider'], operationalModel: model }
+    if (role === 'strategic') return { ...current, strategicProvider: provider as OrbAiPolicy['strategicProvider'], strategicModel: model }
+    return { ...current, evaluationProvider: provider as OrbAiPolicy['evaluationProvider'], evaluationModel: model }
+  })
 }
 
 export default function SettingsAI() {
@@ -43,13 +46,32 @@ export default function SettingsAI() {
 
   async function savePolicy() {
     if (budgetError) return
+    const perf = startInteraction({
+      focus: 'settings',
+      flow: 'settings-ai-policy',
+      interaction: 'policy_save',
+      surface: 'settings-ai',
+      immediateFlush: true,
+      metadata: {
+        operationalProvider: policy.operationalProvider,
+        operationalModel: policy.operationalModel,
+        strategicProvider: policy.strategicProvider,
+        strategicModel: policy.strategicModel,
+        evaluationProvider: policy.evaluationProvider,
+        evaluationModel: policy.evaluationModel,
+      },
+    })
     setSavingPolicy(true)
     try {
       await saveOrbAiPolicy(policy)
+      perf.mark('server_action_completed')
       setSavedPolicy(policy)
       toast.success('AI settings saved.')
+      perf.end(true)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save AI settings.')
+      const message = error instanceof Error ? error.message : 'Failed to save AI settings.'
+      toast.error(message)
+      perf.end(false, message)
     } finally {
       setSavingPolicy(false)
     }
@@ -66,7 +88,7 @@ export default function SettingsAI() {
       <div className="s-card flex-col gap-lg">
         <div>
           <h2 className="s-card-title">Model Roles</h2>
-          <p className="s-card-desc">Operational handles task management and queries. Strategic handles prioritization and guidance. Realtime voice uses its own model (gpt-realtime) and does not route through Strategic.</p>
+          <p className="s-card-desc">Operational handles task management and queries. Strategic handles prioritization and guidance. Evaluation runs the routine Orb eval suite. Realtime voice uses its own model (gpt-realtime) and does not route through Strategic.</p>
         </div>
 
         <div className="s-form" style={{ display: 'grid', gap: 'var(--sp-lg)' }}>
@@ -78,7 +100,7 @@ export default function SettingsAI() {
               value={`${policy.operationalProvider}:${policy.operationalModel}`}
               onChange={event => applyModel('operational', event.target.value, setPolicy)}
             >
-              {ORB_MODEL_OPTIONS.operational.map(option => <option key={option.model} value={`${option.provider}:${option.model}`}>{option.label}</option>)}
+              {ORB_MODEL_OPTIONS.operational.map(option => <option key={`${option.provider}:${option.model}`} value={`${option.provider}:${option.model}`}>{option.label}</option>)}
             </select>
           </label>
           <label>
@@ -89,9 +111,26 @@ export default function SettingsAI() {
               value={`${policy.strategicProvider}:${policy.strategicModel}`}
               onChange={event => applyModel('strategic', event.target.value, setPolicy)}
             >
-              {ORB_MODEL_OPTIONS.strategic.map(option => <option key={option.model} value={`${option.provider}:${option.model}`}>{option.label}</option>)}
+              {ORB_MODEL_OPTIONS.strategic.map(option => <option key={`${option.provider}:${option.model}`} value={`${option.provider}:${option.model}`}>{option.label}</option>)}
             </select>
           </label>
+          <label>
+            <span className="label">Evaluation Model</span>
+            <select
+              className="select"
+              style={{ minHeight: 'var(--touch)', appearance: 'auto', WebkitAppearance: 'menulist' }}
+              value={`${policy.evaluationProvider}:${policy.evaluationModel}`}
+              onChange={event => applyModel('evaluation', event.target.value, setPolicy)}
+            >
+              {ORB_MODEL_OPTIONS.evaluation.map(option => <option key={`${option.provider}:${option.model}`} value={`${option.provider}:${option.model}`}>{option.label}</option>)}
+            </select>
+            <span className="s-card-desc">Used by routine local eval commands. An explicit EVAL_PROVIDER/EVAL_MODEL pair overrides this selection for one run.</span>
+          </label>
+          {(policy.operationalProvider === 'moonshot' || policy.strategicProvider === 'moonshot' || policy.evaluationProvider === 'moonshot') && (
+            <p className="s-card-desc" style={{ margin: 0 }}>
+              Kimi K3 is an experimental local candidate. Operational uses low reasoning effort; Strategic uses high. Production keeps the accepted models until Kimi completes its eval gates.
+            </p>
+          )}
           <label className="flex-center gap-md" style={{ cursor: 'pointer' }}>
             <input
               type="checkbox"

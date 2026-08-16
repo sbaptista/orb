@@ -26,6 +26,7 @@ import { CHANGELOG } from '@/lib/changelog'
 import { queryRepository } from '@/lib/repository-reader'
 import { normalizeAnthropicUsage } from '@/lib/orb-model/anthropic'
 import { completeGeminiEvaluation } from '@/lib/orb-model/gemini'
+import { completeMoonshot, normalizeMoonshotUsage } from '@/lib/orb-model/moonshot'
 import { recordOrbModelRequest } from '@/lib/orb-model/record'
 import { getRuntimeOrbAiPolicy } from '@/lib/orb-model/runtime-policy'
 import { routeOrbRequest, type OrbRouteRole } from '@/lib/orb-model/routing'
@@ -36,6 +37,7 @@ import { extractCitedCodes, isFalseCompletionClaim } from '@/lib/orb-model/false
 import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, pendingTodoUndercount, resolveActionSetReference, todoCode } from '@/lib/orb-model/context'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
 import { authorizesPendingMutation, buildPendingMutationConfirmationInstruction, grantsUpfrontMutationPermission, isBareMutationDecline } from '@/lib/orb-model/mutation-authorization'
+import { activeModelIdentitySpeech, isActiveModelIdentityQuestion } from '@/lib/orb-model/model-identity'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -163,7 +165,11 @@ async function inferConfirmedDeleteOpsFromHistory(
 }
 
 function extractInsight(rawSpeech: string): { speech: string; insight?: OrbInsight } {
-  const insightPattern = /\[INSIGHT:(observation|coaching|strategic)\]([\s\S]*?)\[\/INSIGHT\]/i
+  // The documented closer is [/INSIGHT]. Tolerate the equally unambiguous
+  // matching typed closer some providers emit (for example
+  // [/INSIGHT:strategic]) so internal control markers never leak into speech.
+  // The backreference deliberately rejects mismatched marker types.
+  const insightPattern = /\[INSIGHT:(observation|coaching|strategic)\]([\s\S]*?)\[\/INSIGHT(?::\1)?\]/i
   const match = rawSpeech.match(insightPattern)
   if (!match) return { speech: sanitizeUserFacingSpeech(rawSpeech) }
 
@@ -324,17 +330,29 @@ export async function orbConverse(req: OrbRequest) {
     function recordModelRequest(responseText: string) {
       if (!metricUserId || requestRecorded) return
       requestRecorded = true
-      const usage = normalizeAnthropicUsage({
-        input_tokens: metricInputTokens,
-        output_tokens: metricOutputTokens,
-        cache_creation_input_tokens: metricCacheCreationTokens,
-        cache_read_input_tokens: metricCacheReadTokens,
-      } as any, {
-        model: metricModel,
-        source: 'conversation',
-        latencyMs: Date.now() - requestStartedAt,
-        clientToolCalls: metricToolCalls,
-      })
+      const usage = metricProvider === 'moonshot'
+        ? normalizeMoonshotUsage({
+            prompt_tokens: metricInputTokens,
+            completion_tokens: metricOutputTokens,
+            cached_tokens: metricCacheReadTokens,
+            total_tokens: metricInputTokens + metricOutputTokens,
+          }, {
+            model: metricModel,
+            source: 'conversation',
+            latencyMs: Date.now() - requestStartedAt,
+            clientToolCalls: metricToolCalls,
+          })
+        : normalizeAnthropicUsage({
+            input_tokens: metricInputTokens,
+            output_tokens: metricOutputTokens,
+            cache_creation_input_tokens: metricCacheCreationTokens,
+            cache_read_input_tokens: metricCacheReadTokens,
+          } as any, {
+            model: metricModel,
+            source: 'conversation',
+            latencyMs: Date.now() - requestStartedAt,
+            clientToolCalls: metricToolCalls,
+          })
       recordOrbModelRequest(createAdminClient(), {
         userId: metricUserId,
         usage,
@@ -362,6 +380,23 @@ export async function orbConverse(req: OrbRequest) {
         }
       }
 
+      const aiPolicy = await getRuntimeOrbAiPolicy()
+      const identityRouteRole = routeOrbRequest(req.input, aiPolicy.routingEnabled, aiPolicy.strategicReadsEnabled)
+      if (isActiveModelIdentityQuestion(req.input)) {
+        metricRouteRole = identityRouteRole
+        metricProvider = identityRouteRole === 'strategic' ? aiPolicy.strategicProvider : aiPolicy.operationalProvider
+        metricModel = identityRouteRole === 'strategic' ? aiPolicy.strategicModel : aiPolicy.operationalModel
+        const speech = activeModelIdentitySpeech({
+          provider: metricProvider,
+          model: metricModel,
+          role: metricRouteRole,
+          environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+        })
+        recordMetrics(speech.length)
+        stream.done({ speech, isStreaming: false })
+        return
+      }
+
       const supabase = auth.supabase
       const ctx = await buildOrbContext(supabase, auth, { currentProductId: req.productId })
 
@@ -384,7 +419,6 @@ export async function orbConverse(req: OrbRequest) {
           })
       }
 
-      const aiPolicy = await getRuntimeOrbAiPolicy()
       // ORB-361: zone for dated tool calls — live client zone first (§4.2).
       const requestZone = req.clientTimeZone || ctx.userTimeZone
 
@@ -845,67 +879,149 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           return
         }
 
-        providerInvocationStarted = true
-        const response = await anthropic.messages.create({
-          model: metricModel,
-          max_tokens: 4096,
-          system: [
-            { type: 'text' as const, text: stablePrompt, cache_control: { type: 'ephemeral' as const } },
-            { type: 'text' as const, text: dynamicPrompt },
-          ],
-          messages,
-          tools: routeRole === 'strategic'
-            ? []
-            : [
-                ...availableOrbTools.filter(tool => tool.name !== 'confirm_mutation' || projectConfirmationAllowed),
-                ...ORB_PREFERENCE_TOOLS,
-                ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []),
-                ORB_CAPABILITIES_TOOL,
-                ORB_DEV_CHANNEL_TOOL,
-                ORB_ADAPTATION_TOOL,
-              ],
-          stream: true,
-        }, { timeout: 60_000 })
+        if (turnCount === 1 && routeRole === 'strategic' && metricProvider === 'moonshot') {
+          stream.update({ speech: '', thought: 'Preparing strategic read...', isStreaming: true })
 
+          providerInvocationStarted = true
+          const strategicResult = await completeMoonshot({
+            model: aiPolicy.strategicModel,
+            source: 'strategic_review',
+            systemPrompt: [
+              stablePrompt,
+              dynamicPrompt,
+              `STRATEGIC READ MODE: The user explicitly asked for strategic guidance. You have no tools and cannot create, update, delete, or otherwise change anything. Base your recommendations only on the supplied context. State uncertainty when the evidence is incomplete. Give a clear recommendation and briefly explain the trade-off. Wrap the core recommendation in [INSIGHT:strategic]...[/INSIGHT].`,
+            ].join('\n\n'),
+            messages,
+            tools: [],
+            reasoningEffort: 'high',
+            promptCacheKey: 'orb-live-strategic-v1',
+          })
+
+          if (strategicResult.toolCalls.length > 0) {
+            throw new Error('Strategic adviser attempted a tool call despite a no-tools route.')
+          }
+
+          metricInputTokens = strategicResult.modelUsage.inputTokens
+          metricOutputTokens = strategicResult.modelUsage.outputTokens
+          metricCacheCreationTokens = strategicResult.modelUsage.cacheWriteTokens ?? 0
+          metricCacheReadTokens = strategicResult.modelUsage.cachedInputTokens ?? 0
+          const parsed = extractInsight(strategicResult.speech)
+          const insight = parsed.insight ?? { type: 'strategic' as const, summary: parsed.speech }
+
+          requestRecorded = true
+          recordOrbModelRequest(createAdminClient(), {
+            userId: auth.user.id,
+            usage: strategicResult.modelUsage,
+            routeRole: 'strategic',
+            promptVersion: 'orb-system-v0.6.49',
+            contextPacketVersion: 'live-context-v1',
+            responseText: parsed.speech,
+          }).catch(error => console.error('[orbConverse] Model request ledger insert failed:', error))
+          recordMetrics(parsed.speech.length)
+          stream.done({ speech: parsed.speech, insight, isStreaming: false })
+          return
+        }
+
+        providerInvocationStarted = true
         let currentTurnSpeech = ''
         let currentInsight: OrbInsight | undefined
         // Separate this turn's speech from any prior turn's (e.g. proposal text before
         // a tool call, then narration after) so they don't run together: "now.Done".
         const baseSpeech = accumulatedSpeech && !/\s$/.test(accumulatedSpeech) ? accumulatedSpeech + ' ' : accumulatedSpeech
         const toolCalls: any[] = []
+        const turnTools = routeRole === 'strategic'
+          ? []
+          : [
+              ...availableOrbTools.filter(tool => tool.name !== 'confirm_mutation' || projectConfirmationAllowed),
+              ...ORB_PREFERENCE_TOOLS,
+              ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []),
+              ORB_CAPABILITIES_TOOL,
+              ORB_DEV_CHANNEL_TOOL,
+              ORB_ADAPTATION_TOOL,
+            ]
+        let assistantMessage: any
 
-        for await (const chunk of response) {
-          if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-            currentTurnSpeech += chunk.delta.text
-            const parsed = extractInsight(baseSpeech + currentTurnSpeech)
-            accumulatedSpeech = parsed.speech
-            currentInsight = parsed.insight
-            stream.update({ speech: accumulatedSpeech, insight: currentInsight, isStreaming: true })
-          } else if (chunk.type === 'content_block_start' && chunk.content_block.type === 'tool_use') {
-             const label = ORB_TOOL_LABELS[chunk.content_block.name] || 'Thinking...'
-             if (chunk.content_block.name !== 'client_action') {
-               stream.update({ speech: accumulatedSpeech, thought: label, isStreaming: true })
-             }
-             toolCalls.push({ id: chunk.content_block.id, name: chunk.content_block.name, input: '' })
-          } else if (chunk.type === 'content_block_delta' && chunk.delta.type === 'input_json_delta') {
-             toolCalls[toolCalls.length - 1].input += chunk.delta.partial_json
-          } else if (chunk.type === 'message_start' && chunk.message?.usage) {
-            metricInputTokens += chunk.message.usage.input_tokens ?? 0
-            metricCacheCreationTokens += (chunk.message.usage as any).cache_creation_input_tokens ?? 0
-            metricCacheReadTokens += (chunk.message.usage as any).cache_read_input_tokens ?? 0
-          } else if (chunk.type === 'message_delta' && (chunk as any).usage) {
-            metricOutputTokens += (chunk as any).usage.output_tokens ?? 0
+        if (metricProvider === 'moonshot') {
+          const result = await completeMoonshot({
+            model: metricModel,
+            source: 'conversation',
+            systemPrompt: [stablePrompt, dynamicPrompt].join('\n\n'),
+            messages,
+            tools: turnTools,
+            reasoningEffort: 'low',
+            promptCacheKey: 'orb-live-operational-v1',
+          })
+          currentTurnSpeech = result.speech
+          const parsed = extractInsight(baseSpeech + currentTurnSpeech)
+          accumulatedSpeech = parsed.speech
+          currentInsight = parsed.insight
+          stream.update({ speech: accumulatedSpeech, insight: currentInsight, isStreaming: true })
+          for (const toolCall of result.toolCalls) {
+            if (toolCall.name !== 'client_action') {
+              stream.update({
+                speech: accumulatedSpeech,
+                thought: ORB_TOOL_LABELS[toolCall.name] || 'Thinking...',
+                isStreaming: true,
+              })
+            }
+            toolCalls.push({
+              id: toolCall.id,
+              name: toolCall.name,
+              input: JSON.stringify(toolCall.params),
+            })
           }
+          metricInputTokens += result.modelUsage.inputTokens
+          metricOutputTokens += result.modelUsage.outputTokens
+          metricCacheReadTokens += result.modelUsage.cachedInputTokens ?? 0
+          assistantMessage = result.assistantMessage
+        } else {
+          const response = await anthropic.messages.create({
+            model: metricModel,
+            max_tokens: 4096,
+            system: [
+              { type: 'text' as const, text: stablePrompt, cache_control: { type: 'ephemeral' as const } },
+              { type: 'text' as const, text: dynamicPrompt },
+            ],
+            messages,
+            tools: turnTools,
+            stream: true,
+          }, { timeout: 60_000 })
+
+          for await (const chunk of response) {
+            if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+              currentTurnSpeech += chunk.delta.text
+              const parsed = extractInsight(baseSpeech + currentTurnSpeech)
+              accumulatedSpeech = parsed.speech
+              currentInsight = parsed.insight
+              stream.update({ speech: accumulatedSpeech, insight: currentInsight, isStreaming: true })
+            } else if (chunk.type === 'content_block_start' && chunk.content_block.type === 'tool_use') {
+               const label = ORB_TOOL_LABELS[chunk.content_block.name] || 'Thinking...'
+               if (chunk.content_block.name !== 'client_action') {
+                 stream.update({ speech: accumulatedSpeech, thought: label, isStreaming: true })
+               }
+               toolCalls.push({ id: chunk.content_block.id, name: chunk.content_block.name, input: '' })
+            } else if (chunk.type === 'content_block_delta' && chunk.delta.type === 'input_json_delta') {
+               toolCalls[toolCalls.length - 1].input += chunk.delta.partial_json
+            } else if (chunk.type === 'message_start' && chunk.message?.usage) {
+              metricInputTokens += chunk.message.usage.input_tokens ?? 0
+              metricCacheCreationTokens += (chunk.message.usage as any).cache_creation_input_tokens ?? 0
+              metricCacheReadTokens += (chunk.message.usage as any).cache_read_input_tokens ?? 0
+            } else if (chunk.type === 'message_delta' && (chunk as any).usage) {
+              metricOutputTokens += (chunk as any).usage.output_tokens ?? 0
+            }
+          }
+
+          const assistantContent: any[] = []
+          if (currentTurnSpeech) assistantContent.push({ type: 'text', text: currentTurnSpeech })
+          for (const tc of toolCalls) {
+            let parsed: any; try { parsed = JSON.parse(tc.input || '{}') } catch { parsed = {} }
+            assistantContent.push({ type: 'tool_use', id: tc.id, name: tc.name, input: parsed })
+          }
+          assistantMessage = { role: 'assistant', content: assistantContent }
         }
 
         metricToolCalls += toolCalls.length
-        const assistantContent: any[] = []
-        if (currentTurnSpeech) assistantContent.push({ type: 'text', text: currentTurnSpeech })
-        for (const tc of toolCalls) {
-          let parsed: any; try { parsed = JSON.parse(tc.input || '{}') } catch { parsed = {} }
-          assistantContent.push({ type: 'tool_use', id: tc.id, name: tc.name, input: parsed })
-        }
-        messages.push({ role: 'assistant', content: assistantContent })
+        messages.push(assistantMessage)
 
         if (toolCalls.length === 0) {
           if (pendingMutation && hasProjectOrKnowledgePending) {

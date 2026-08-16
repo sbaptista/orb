@@ -13,35 +13,86 @@
 ## App State
 
 - **Branch:** `main`.
-- **Unpushed:** the v0.6.295 ORB-359 plan commit only. **Correction:** the prior
-  handoff described v0.6.294 as unpushed; `git log origin/main -1` shows
-  `origin/main` at `a426042`, so v0.6.294 *was* pushed. Verified 2026-08-13 with
-  `git log --oneline origin/main..main`, which was empty before this commit.
+- **Unpushed:** none after the authorized v0.6.296 push.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.295** — ORB-359 diagnosis and remediation plan
-  (documentation only). v0.6.294 was the
-  manual clipboard transfer for Todo, Project,
-  and Knowledge editors plus current manual-mode agent instructions. v0.6.293
-  was the bookkeeping correction; v0.6.292 put the non-admin plan on hold.
-  v0.6.287 restored Account to the nav on Settings.
-  Earlier this session: v0.6.286 made cron endpoint auth fail closed; v0.6.285
-  restored the AI usage check on a daily Vercel Cron; v0.6.284 was push-gate
-  hardening plus the `knowledge_repo.updated_at` trigger. v0.6.283 was the
-  ORB-375 retirement of the deployed ElevenLabs runtime dependency.
+- **Local version:** **0.6.296** — experimental Kimi K3 provider integration,
+  independent Evaluation model selection, provider-neutral eval pacing and
+  accounting, and deterministic active-model identity reporting.
 - **Production maintenance:** off.
-- **Database:** one schema change this session — a `BEFORE UPDATE` trigger on
-  `knowledge_repo` so `updated_at` tracks edits (migration
-  `scripts/migrations/20260805_knowledge_repo_updated_at.sql`, applied and
-  verified). The ORB-374 Knowledge Repository search is complete; ORB-375
-  remains open until containment and rotation acceptance.
+- **Database:** Stan applied
+  `scripts/migrations/20260815_orb_evaluation_model_policy.sql`; it adds the
+  independent Evaluation provider/model policy columns. Kimi is selected for
+  Evaluation locally. No production model promotion was made.
 - **ORB-374:** deferred. Its complete reviewed long-range plan is preserved.
 - **ORB-375:** implementation and credential rotation are in progress.
 
 ---
 
 ## Last Session Completed
+
+**Experimental Moonshot Kimi K3 integration and model-truth fix — 2026-08-15
+(Codex, GPT-5.6 Sol)**
+
+Released as **v0.6.296**. Orb now has a provider-neutral Moonshot adapter for
+`moonshot/kimi-k3`, including preserved reasoning content across tool turns,
+normalized usage and cache accounting, Operational tool execution, and
+tool-free Strategic reads. Kimi remains explicitly **Experimental** and is
+available only in development; production filters it from Settings and policy
+validation and continues to use the accepted Haiku/Gemini configuration until
+Stan separately approves promotion and installs a production credential.
+
+Settings → AI Settings now persists **Evaluation Model** independently of the
+Operational and Strategic choices. Stan applied the migration, selected Kimi
+through the UI, reloaded the page, and verified that a no-override eval used
+`moonshot/kimi-k3`. The selectors reuse the existing `s-card`, `s-form`, and
+`.select` family and were verified locally on desktop and a 390×844 viewport.
+AI Metrics now recognizes Moonshot funding caps, rate cards, request labels,
+and reconciliations. Existing Settings and accounting instrumentation covers
+the changed load/save paths; no new telemetry family was required.
+
+Both eval runners now handle provider rate limits generically. A 429 can supply
+either a retry interval or an RPM ceiling; the runner derives a conservative
+delay and slows the remaining run without any Kimi-specific behavioral
+exception. Kimi completed the full Tier 1 suite twice at **63/65**. The two
+failures moved between runs: the first missed a precise Knowledge read and an
+approved todo update; the second repeated `add_knowledge` instead of calling
+`confirm_mutation` and omitted `source: local` from `query_repository`. The
+unchanged focused pair then passed three consecutive Kimi runs. Stan accepted
+63/65 for experimental use and explicitly declined provider-specific assertion
+exceptions.
+
+The 30-run Strategic assessment produced **27/27 tool-free strategic calls**
+and **3/3 correct Operational controls**. Strategic-only cost was $0.2162 total,
+$0.0080 average, and $0.0175 maximum, projecting to about $2.40 for 300 monthly
+interactions against the $24 role budget. Kimi's reported cumulative spend of
+$1.81641 reconciled to Orb's displayed run estimates within approximately
+$0.00024 (0.013%). Recurring quality weaknesses are unsupported effort or
+dependency extrapolations and inconsistent insight closers; the live parser now
+accepts an unambiguous matching typed closer while raw eval output remains
+unmodified for review.
+
+Live use exposed a separate integrity defect: once Claude had identified itself
+in conversation history, Kimi repeated that it was Claude despite the request
+ledger proving Moonshot handled the later turns. Direct active-model questions
+are now intercepted before context assembly or provider invocation and answered
+from the current environment's server-read policy. The answer names the active
+role, model, provider, and development/production environment. Local browser
+verification reported the selected Kimi configuration correctly. Two model-free
+Tier 1 cases cover Kimi and Haiku and reject the opposite identity.
+
+**Verification:** TypeScript passed; changed-file ESLint had no errors (two
+pre-existing unused-import warnings remain in `app/api/orb-eval/route.ts`);
+`git diff --check`, deterministic Moonshot adapter checks, encrypted-launcher
+checks, and UI-catalog verification passed. Stan ran the required Tier 1
+provider-routing plus smoke gate: **13/13 passed**. The broad build reached the
+intentional encrypted-environment guard in the agent shell because it cannot
+access `OPENAI_API_KEY`; the user-run evals exercised the unlocked application
+path. Full lint remains blocked only by six pre-existing errors in
+`app/prototype/voice/page.tsx`.
+
+**Prior session:**
 
 **ORB-359 Realtime confirmation integrity — diagnosis and plan — 2026-08-13
 (Claude Code, Opus 5)**
@@ -442,23 +493,23 @@ Voice Settings, AI Metrics, and Realtime voice. Eval: Tier 1 voice + smoke
 
 ## Current Uncommitted Changes
 
-**None — the working tree is clean.** The v0.6.295 commit carries the new plan
-document plus release bookkeeping, and removes both Claude Code claims (the
-ORB-359 plan claim and the exclusive Release bookkeeping claim) in the same
-commit, per §2 of the concurrency protocol.
+**None after the v0.6.296 release commit.** The completed Kimi, active-model
+identity, and Release bookkeeping claims are removed in that commit.
 
-`ACTIVE_WORK/claude-code.md` is back to `*(none)*`. **Codex's ledger was not
-touched.** It holds one `Long-running: yes` planning claim (instruction
-architecture proposal, 2026-08-11 12:24 HST) which does not overlap any file in
-this release. That claim is **stale by the §2 refresh rule** — a long-running
-claim needs its timestamp refreshed within 2 hours and this one is two days old
-— but no stale-claim notice was required, because no work here entered its
-surface.
+`ACTIVE_WORK/claude-code.md` remains `*(none)*`. Codex's separate long-running
+instruction-architecture proposal claim remains stale and unchanged; its stale
+notice remains in Codex's ledger because this release does not complete or
+enter that surface.
 
 ---
 
 ## Active Risks / Unresolved Work
 
+- **Kimi K3 is experimental and development-only.** It passed the accepted
+  evidence above but did not achieve deterministic 65/65 Tier 1 behavior.
+  Production promotion, a Vercel `MOONSHOT_API_KEY`, and changing any production
+  model default require a separate explicit decision. Do not infer promotion
+  from the presence of the adapter or catalog entry.
 - *(closed 2026-08-07 — the cron-execution item is resolved; see Last Session
   Completed. Both jobs are registered and a Vercel-initiated invocation of
   `/api/cron/usage-check` returned **GET 200**, so scheduler, auth, and check
@@ -516,7 +567,10 @@ surface.
    `/Users/stanleybaptista` from `0750` to `0700`, and consider a read-only Git
    credential as the structural complement to the policy-based push gate.
    Neither is scheduled.
-1. **ORB-359 — make the four §7 decisions** in
+1. Use Kimi experimentally in the Operational, Strategic, and Evaluation roles;
+   compare live quality, latency, and AI Metrics cost before deciding whether
+   to promote it beyond development.
+2. **ORB-359 — make the four §7 decisions** in
    `docs/orb-359-realtime-confirmation-integrity-plan.md`. Recommended first
    move is **B1** (never silently swallow a committed mutation): it has no
    dependencies, needs no provider evidence, and fixes the half of the reported
@@ -524,29 +578,36 @@ surface.
    transcription prompt before the boundary rejection lands — see §3.** A3
    (logprobs gate) stays unspecified until a raw payload is captured, which
    itself needs Stan's approval for temporary instrumentation (§10).
-2. Stan chose manual clipboard CRUD for now. Test Copy/Copy All on Mac, iPad,
+3. Stan chose manual clipboard CRUD for now. Test Copy/Copy All on Mac, iPad,
    and iPhone across Todo, Settings Projects, Settings Knowledge, and the
    dashboard List project modal. In Settings Knowledge, also verify `Claude
    security` with both All terms and Any term, plus the bounded 10-entry Copy
    Results packet. The local-unlock and larger broker documents remain
    historical planning, not active implementation priorities.
-3. Review `docs/orb-instruction-architecture-proposal.md` with Orb and Claude
+4. Review `docs/orb-instruction-architecture-proposal.md` with Orb and Claude
    Code; preserve complete attributed packets and leave all final decisions to
    Stan. Do not change active instructions before its gates are satisfied.
-4. Do not implement the instruction-architecture planning track until Stan
+5. Do not implement the instruction-architecture planning track until Stan
    explicitly approves it.
-5. Verify v0.6.283 in production: Voice Settings exposes only Browser and
+6. Verify v0.6.283 in production: Voice Settings exposes only Browser and
    OpenAI, AI Metrics loads, and OpenAI Realtime voice works.
-6. Delete `ELEVENLABS_API_KEY` from Vercel and the encrypted local environment,
+7. Delete `ELEVENLABS_API_KEY` from Vercel and the encrypted local environment,
    delete both ElevenLabs provider keys, then repeat the three checks.
-7. Rotate `DATABASE_URL`, coordinated Orb/Helm API secret, and the VAPID pair.
-8. Complete ORB-375 acceptance, write resolution notes plus its Knowledge Repo
+8. Rotate `DATABASE_URL`, coordinated Orb/Helm API secret, and the VAPID pair.
+9. Complete ORB-375 acceptance, write resolution notes plus its Knowledge Repo
    entry, and remove the active claim with the closing commit.
 
 ---
 
 ## Key Current Decisions
 
+- **Kimi K3 is an experimental development candidate, not a production
+  promotion.** Its Operational evidence is accepted at 63/65 twice without
+  weakening provider-neutral assertions. Evaluation selection is independent
+  from live Operational and Strategic selection.
+- **Model identity is server-stamped.** Orb must report the current
+  environment's selected model from policy, never rely on a provider's
+  self-identification or contaminated conversation history.
 - **Environment-isolation approaches for AI tooling are on hold (2026-08-12).**
   No further work on non-admin macOS accounts, Docker, or VMs. This is a
   direction decision, not a gate further review can satisfy. It does not affect
@@ -618,7 +679,7 @@ surface.
 
 ## AI Tool Used Last Session
 
-`2026-08-13 — Claude Code (Opus 5)`
+`2026-08-15 — Codex (GPT-5.6 Sol)`
 
 ---
 

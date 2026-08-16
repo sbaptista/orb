@@ -1,13 +1,15 @@
 import { STRATEGIC_EVAL_CASES } from './strategic-eval-cases'
 import { GEMINI_STRATEGIC_EVAL_MODEL } from '../lib/orb-model/gemini'
+import { MOONSHOT_KIMI_K3_MODEL } from '../lib/orb-model/moonshot'
 
 export const STRATEGIC_EVAL_MANIFEST = {
-  id: 'orb-334-gemini-default-2026-07-13',
-  createdAt: '2026-07-13',
+  id: 'orb-kimi-k3-candidate-r2-2026-08-15',
+  createdAt: '2026-08-15',
   contextPacketVersion: 'pending-frozen-packets-v1',
   promptVersion: 'orb-system-v0.6.40',
   candidates: [
     { provider: 'google', model: GEMINI_STRATEGIC_EVAL_MODEL, role: 'reference' },
+    { provider: 'moonshot', model: MOONSHOT_KIMI_K3_MODEL, role: 'candidate' },
   ],
   scenarioIds: [
     'urgent-next-step',

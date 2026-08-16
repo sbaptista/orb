@@ -222,7 +222,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "query_todos",
-    "description": "[Confidence: well-tested] Find todos matching criteria. Use code for single-todo lookup (e.g. \"ORB-73\"). Otherwise filters by status, product, priority, category, or text. Returns all statuses by default — pass status to narrow. Use category to find todos tagged with a specific category (e.g. \"Bug\") — a general bug-count question (\"how many bugs do I have\") should filter by category=\"Bug\", not guess from title text_match.",
+    "description": "[Confidence: well-tested] Find todos matching criteria and return full task details when present, including description, resolution notes, due date, URLs, owner, group, and category. Prefer this first-class tool over query_db whenever its filters and returned fields can answer the request. Use code for single-todo lookup (e.g. \"ORB-73\"). Otherwise filters by status, product, priority, category, or text. Returns all statuses by default — pass status to narrow. Use category to find todos tagged with a specific category (e.g. \"Bug\") — a general bug-count question (\"how many bugs do I have\") should filter by category=\"Bug\", not guess from title text_match.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -312,7 +312,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "query_db",
-    "description": "[Confidence: well-tested] Run a bounded read-only structural query through the Supabase query builder. Use for date ranges, URL/array filters, cross-table lookups, and columns not exposed by a first-class read tool. Never raw SQL. Always provide the allowlisted table explicitly.",
+    "description": "[Confidence: well-tested] Run a bounded read-only structural query through the Supabase query builder. Use only for date ranges, URL/array filters, cross-table lookups, and columns or filters not exposed by a first-class read tool. Never use it merely to retrieve full todo descriptions or resolution notes; query_todos returns those fields. Never raw SQL. Always provide the allowlisted table explicitly.",
     "input_schema": {
       "type": "object",
       "additionalProperties": false,

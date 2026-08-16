@@ -27,15 +27,44 @@ type Result = {
   toolCalls: Array<{ name: string; params: Record<string, unknown> }>
 }
 
+let interRequestDelayMs = 0
+let lastRequestAt = 0
+
+async function paceProviderRequest() {
+  const remaining = interRequestDelayMs - (Date.now() - lastRequestAt)
+  if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining))
+  lastRequestAt = Date.now()
+}
+
+function providerRateLimitDelayMs(message: string, fallbackMs: number) {
+  const retryMatch = message.match(/try again after\s+([\d.]+)\s*(milliseconds?|ms|seconds?|s)/i)
+  const retryValue = retryMatch ? Number(retryMatch[1]) : 0
+  const retryMs = retryMatch
+    ? retryValue * (/^m/i.test(retryMatch[2]) ? 1 : 1000)
+    : 0
+  const rpmMatch = message.match(/max RPM\s*:\s*(\d+)/i)
+  const rpm = rpmMatch ? Number(rpmMatch[1]) : 0
+  const rpmIntervalMs = rpm > 0 ? Math.ceil(60_000 / rpm) + 500 : 0
+  return Math.max(fallbackMs, retryMs, rpmIntervalMs)
+}
+
 async function runWithRetry(request: () => Promise<Response>, label: string): Promise<Response> {
+  let retryDelayMs = 2_000
   for (let attempt = 1; attempt <= 4; attempt++) {
+    await paceProviderRequest()
     const response = await request()
     const errorBody = response.ok ? '' : await response.clone().text()
-    const providerBusy = [429, 503].includes(response.status) || /API 429:|rate limit exceeded/i.test(errorBody)
+    const rateLimited = response.status === 429 || /API 429:|rate.?limit|reached organization max RPM/i.test(errorBody)
+    const providerBusy = rateLimited || response.status === 503
     if (response.ok || !providerBusy || attempt === 4) return response
-    const delayMs = 2_000 * 2 ** (attempt - 1)
-    console.log(`${label}: provider busy (${response.status}); retrying in ${delayMs / 1_000}s`)
-    await new Promise(resolve => setTimeout(resolve, delayMs))
+    if (rateLimited) {
+      const providerIntervalMs = providerRateLimitDelayMs(errorBody, 1_000)
+      interRequestDelayMs = Math.max(interRequestDelayMs, providerIntervalMs)
+      retryDelayMs = Math.max(retryDelayMs, providerIntervalMs)
+    }
+    console.log(`${label}: provider busy (${response.status}); retrying in ${retryDelayMs / 1_000}s`)
+    await new Promise(resolve => setTimeout(resolve, retryDelayMs))
+    retryDelayMs *= 2
   }
   throw new Error(`${label}: retry loop exhausted`)
 }

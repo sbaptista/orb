@@ -22,6 +22,7 @@ const PROVIDER_LABELS: Record<OrbModelProviderId, string> = {
   anthropic: 'Anthropic',
   google: 'Google Gemini',
   mistral: 'Mistral',
+  moonshot: 'Moonshot Kimi',
   openai: 'OpenAI',
   elevenlabs: 'ElevenLabs',
   local: 'Local model',
@@ -31,6 +32,7 @@ const PROVIDER_CONSOLES: Partial<Record<OrbModelProviderId, string>> = {
   anthropic: 'https://console.anthropic.com',
   google: 'https://aistudio.google.com',
   mistral: 'https://console.mistral.ai',
+  moonshot: 'https://platform.kimi.ai',
   openai: 'https://platform.openai.com/settings/organization/billing/overview',
   elevenlabs: 'https://elevenlabs.io/app/billing',
 }

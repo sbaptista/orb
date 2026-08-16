@@ -180,6 +180,7 @@ function formatModel(provider: string, model: string) {
   if (provider === 'anthropic' && model === 'claude-haiku-4-5') return 'Claude Haiku 4.5'
   if (provider === 'google' && model === 'gemini-3.1-pro-preview') return 'Gemini 3.1 Pro Preview'
   if (provider === 'mistral' && model === 'mistral-medium-latest') return 'Mistral Medium'
+  if (provider === 'moonshot' && model === 'kimi-k3') return 'Kimi K3'
   if (provider === 'openai' && model === 'tts-1') return 'OpenAI tts-1'
   if (provider === 'openai' && model === 'tts-1-hd') return 'OpenAI tts-1 HD'
   if (provider === 'elevenlabs' && model === 'eleven_turbo_v2_5') return 'ElevenLabs Turbo v2.5'

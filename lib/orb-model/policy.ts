@@ -11,6 +11,8 @@ export type OrbAiPolicy = {
   operationalModel: string
   strategicProvider: OrbModelProviderId
   strategicModel: string
+  evaluationProvider: OrbModelProviderId
+  evaluationModel: string
   monthlyBudgetUsd: number
   strategicBudgetUsd: number
   operationalBudgetUsd: number
@@ -50,6 +52,8 @@ export const DEFAULT_ORB_AI_POLICY: OrbAiPolicy = {
   operationalModel: 'claude-haiku-4-5',
   strategicProvider: 'google',
   strategicModel: 'gemini-3.1-pro-preview',
+  evaluationProvider: 'anthropic',
+  evaluationModel: 'claude-haiku-4-5',
   monthlyBudgetUsd: 40,
   strategicBudgetUsd: 24,
   operationalBudgetUsd: 16,
@@ -66,4 +70,5 @@ export const DEFAULT_ORB_AI_POLICY: OrbAiPolicy = {
 export const ORB_MODEL_OPTIONS = {
   operational: getOrbModelOptions('operational'),
   strategic: getOrbModelOptions('strategic'),
+  evaluation: getOrbModelOptions('evaluation'),
 } as const

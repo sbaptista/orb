@@ -53,7 +53,7 @@ export type EvalCase = {
   evaluationMode?: 'standard' | 'strategic'
   autoRoute?: boolean               // exercise the same explicit-strategy router used in orbConverse
   budgetOverride?: 'monthly' | 'role' // eval-only budget gate; performs no provider call
-  provider?: 'anthropic' | 'gemini' | 'mistral'
+  provider?: 'anthropic' | 'gemini' | 'mistral' | 'moonshot'
   model?: string
 
   // Tier 1: Tool-contract assertions (single model run)
@@ -67,7 +67,7 @@ export type EvalCase = {
   }
   expectNoTool?: boolean           // assert that no tool was called
   forbidTools?: string[]           // assert that none of these tools was called; other tools are allowed
-  expectProvider?: 'anthropic' | 'google'
+  expectProvider?: 'anthropic' | 'google' | 'mistral' | 'moonshot'
   expectRouteRole?: 'operational' | 'strategic'
 
   // Tier 2: Speech assertions (statistical — run multiple times, majority pass)
@@ -567,9 +567,9 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
 
   {
     id: 'query-uses-tool',
-    description: 'Asking about tasks triggers query_todos',
+    description: 'Asking for task fields absent from the BACKLOG triggers query_todos instead of inventing details',
     productCode: 'ORB',
-    input: 'Show me all open tasks in Orb',
+    input: 'Show me all open tasks in Orb with their full descriptions',
     tier: 1,
     expectTool: { name: 'query_todos' },
   },
@@ -816,6 +816,32 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
     tier: 1,
     expectNoTool: true,
     speechContains: ['openai'],
+  },
+
+  {
+    id: 'active-model-identity-kimi-is-server-stamped',
+    description: 'A direct identity question reports the active Moonshot/Kimi configuration from server state instead of allowing model self-identification or conversation-history contamination',
+    productCode: 'ORB',
+    input: 'What AI model are you?',
+    provider: 'moonshot',
+    model: 'kimi-k3',
+    tier: 1,
+    expectNoTool: true,
+    speechContains: ['Kimi K3', 'Moonshot', 'development'],
+    speechNotContains: ['Claude', 'Haiku'],
+  },
+
+  {
+    id: 'active-model-identity-haiku-is-server-stamped',
+    description: 'The same deterministic identity path reports Anthropic/Haiku when that configuration is active',
+    productCode: 'ORB',
+    input: 'Which model are you using?',
+    provider: 'anthropic',
+    model: 'claude-haiku-4-5',
+    tier: 1,
+    expectNoTool: true,
+    speechContains: ['Claude Haiku 4.5', 'Anthropic', 'development'],
+    speechNotContains: ['Kimi', 'Moonshot'],
   },
 
   {
@@ -1626,7 +1652,9 @@ const SMOKE_CASE_IDS = new Set([
 // expose on a fully enabled operational turn. This is deliberately separate
 // from smoke and from the incident-focused category cases: it answers the
 // narrow question "can the model select every available serial tool?" without
-// pretending one happy path covers negative safety or Realtime behavior.
+// pretending one happy path covers negative safety or Realtime behavior. The
+// cases are provider-neutral by design: EVAL_PROVIDER/EVAL_MODEL reruns this
+// same inventory against an experimental transport such as Moonshot Kimi K3.
 const SERIAL_TOOL_CONTRACT_CASE_BY_TOOL = {
   create_todo: 'create-default-project',
   update_todo: 'realtime-exact-title-update-analogue',
@@ -1671,6 +1699,8 @@ const FULLY_ENABLED_SERIAL_TOOL_NAMES = new Set([
 ])
 
 const MODEL_FREE_CASE_IDS = new Set([
+  'active-model-identity-kimi-is-server-stamped',
+  'active-model-identity-haiku-is-server-stamped',
   'delete-first-action-set-resolves-by-ledger',
   'pending-create-undercount-corrects-without-expanding',
   'strategic-budget-preserves-operations',
@@ -1684,7 +1714,7 @@ function evalCategory(id: string): EvalCategory {
   if (/ticket|bugs-question/.test(id)) return 'tickets'
   if (/voice/.test(id)) return 'voice'
   if (/memory|adaptation|preference|role-correction/.test(id)) return 'memory-adaptation'
-  if (/strategic|provider|budget|mutation-stays-on-operational-route/.test(id)) return 'provider-routing'
+  if (/strategic|provider|budget|mutation-stays-on-operational-route|active-model-identity/.test(id)) return 'provider-routing'
   if (
     /greeting|scope-transparency|reminder-nudge|distant-reminder|orb-mood|orb-window|project-health|cross-project-awareness|ambiguous-ui|unknown-feature|display-name|project-list|project-count|whats-new|commitment|reflective|ownership/.test(id)
   ) return 'grounding-speech'

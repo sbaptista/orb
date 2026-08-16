@@ -11,11 +11,11 @@ import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_FOUNDATIONAL_DEFINITIONS, ORB_
 import { STATUS_VOCABULARY } from '@/lib/status-groups'
 import { DB_SCHEMA } from '@/lib/db-schema'
 import { CHANGELOG } from '@/lib/changelog'
-import { ANTHROPIC_HAIKU_REFERENCE_MODEL, normalizeAnthropicUsage } from '@/lib/orb-model/anthropic'
+import { normalizeAnthropicUsage } from '@/lib/orb-model/anthropic'
 import { recordOrbModelRequest } from '@/lib/orb-model/record'
-import { completeGeminiEvaluation, GEMINI_STRATEGIC_EVAL_MODEL } from '@/lib/orb-model/gemini'
-import { ORB_EVAL_DEFAULT_PROVIDER } from '@/lib/orb-model/eval-defaults'
-import { completeMistralEvaluation, MISTRAL_STRATEGIC_EVAL_MODEL } from '@/lib/orb-model/mistral'
+import { completeGeminiEvaluation } from '@/lib/orb-model/gemini'
+import { completeMistralEvaluation } from '@/lib/orb-model/mistral'
+import { completeMoonshot } from '@/lib/orb-model/moonshot'
 import { STRATEGIC_CONTEXT_PACKETS } from '@/lib/orb-model/strategic-eval-packets'
 import { buildStrategicContextPacket, renderStrategicEvaluationPrompt } from '@/lib/orb-model/strategic-context'
 import type { OrbModelUsage } from '@/lib/orb-model/types'
@@ -25,6 +25,8 @@ import { extractCitedCodes, isFalseCompletionClaim, EFFECTFUL_TOOL_NAMES } from 
 import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, pendingTodoUndercount, resolveActionSetReference, todoCode, type OrbActionSetReference } from '@/lib/orb-model/context'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
 import { authorizesPendingMutation, buildPendingMutationConfirmationInstruction } from '@/lib/orb-model/mutation-authorization'
+import { getRuntimeOrbAiPolicy } from '@/lib/orb-model/runtime-policy'
+import { activeModelIdentitySpeech, isActiveModelIdentityQuestion } from '@/lib/orb-model/model-identity'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 
@@ -92,7 +94,7 @@ export async function POST(request: NextRequest) {
     ttsProvider?: string
     ttsModel?: string | null
     ttsVoiceId?: string | null
-    provider?: 'anthropic' | 'gemini' | 'mistral'
+    provider?: 'anthropic' | 'gemini' | 'mistral' | 'moonshot'
     model?: string
     userEmail?: string
     evaluationMode?: 'standard' | 'strategic'
@@ -403,10 +405,29 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           ORB_ADAPTATION_TOOL,
         ] as any[]
     // Eval model choice is deliberately independent of production role routing:
-    // routeRole still verifies operational vs strategic classification. The
-    // routine default mirrors production's model (see lib/orb-model/eval-defaults);
-    // each provider branch below falls back to its own model, never another's.
-    const requestedProvider = provider ?? ORB_EVAL_DEFAULT_PROVIDER
+    // routeRole still verifies operational vs strategic classification. A
+    // complete request pair is a one-run override; otherwise the persisted
+    // Evaluation role in AI Settings supplies both values.
+    if (Boolean(provider) !== Boolean(model)) {
+      return NextResponse.json({ error: 'provider and model must be supplied together' }, { status: 400 })
+    }
+    const aiPolicy = provider ? null : await getRuntimeOrbAiPolicy()
+    const requestedProvider = provider ?? aiPolicy!.evaluationProvider
+    const requestedModel = model ?? aiPolicy!.evaluationModel
+    if (isActiveModelIdentityQuestion(input)) {
+      return NextResponse.json({
+        speech: activeModelIdentitySpeech({
+          provider: requestedProvider === 'gemini' ? 'google' : requestedProvider,
+          model: requestedModel,
+          role: routeRole,
+          environment: 'development',
+        }),
+        toolCalls: [],
+        stopReason: 'deterministic_model_identity',
+        tokenUsage: { input_tokens: 0, output_tokens: 0 },
+        routeRole,
+      })
+    }
     let speech = ''
     let toolCalls: Array<{ name: string; params: Record<string, any> }> = []
     let tokenUsage: { input_tokens: number; output_tokens: number }
@@ -415,7 +436,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
 
     if (requestedProvider === 'gemini') {
       const result = await completeGeminiEvaluation({
-        model: model ?? GEMINI_STRATEGIC_EVAL_MODEL,
+        model: requestedModel,
         source: 'eval',
         systemPrompt: evalSystemPrompt,
         messages,
@@ -429,7 +450,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       modelUsage = result.modelUsage
     } else if (requestedProvider === 'mistral') {
       const result = await completeMistralEvaluation({
-        model: model ?? MISTRAL_STRATEGIC_EVAL_MODEL,
+        model: requestedModel,
         systemPrompt: evalSystemPrompt,
         messages,
         tools,
@@ -441,10 +462,26 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       tokenUsage = result.tokenUsage
       stopReason = result.stopReason
       modelUsage = result.modelUsage
+    } else if (requestedProvider === 'moonshot') {
+      const result = await completeMoonshot({
+        model: requestedModel,
+        source: 'eval',
+        systemPrompt: evalSystemPrompt,
+        messages,
+        tools,
+        forcedTool: null,
+        reasoningEffort: isStrategicEvaluation ? 'high' : 'low',
+        promptCacheKey: `orb-eval-${isStrategicEvaluation ? 'strategic' : 'operational'}-v1`,
+      })
+      speech = result.speech
+      toolCalls = result.toolCalls.map(({ name, params }) => ({ name, params }))
+      tokenUsage = result.tokenUsage
+      stopReason = result.stopReason
+      modelUsage = result.modelUsage
     } else if (requestedProvider === 'anthropic') {
       const requestStartedAt = Date.now()
       const response = await anthropic.messages.create({
-        model: model ?? ANTHROPIC_HAIKU_REFERENCE_MODEL,
+        model: requestedModel,
         max_tokens: 4096,
         // Mirror production's cache split (orb-converse.ts): breakpoint after
         // the stable block so every case shares one cached prefix. A second
@@ -483,7 +520,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       }
       stopReason = response.stop_reason ?? 'unknown'
       modelUsage = normalizeAnthropicUsage(response.usage, {
-        model: model ?? ANTHROPIC_HAIKU_REFERENCE_MODEL,
+        model: requestedModel,
         source: 'eval',
         latencyMs: Date.now() - requestStartedAt,
         clientToolCalls: toolCalls.length,

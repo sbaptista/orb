@@ -33,6 +33,8 @@ The complete native-sandbox, container, VM, removable-media, production-broker, 
 
 The tracked source is `scripts/security/orb-dev`; the installed command is `~/.local/bin/orb-dev`. The executable contains no credentials.
 
+The same fixed-purpose launcher exposes four allowlisted evaluation modes so a human-run eval can inherit encrypted `ORB_API_SECRET` and provider keys without recreating `.env.local` or opening a general secret-bearing shell: `--eval`, `--eval-t1`, `--eval-t2`, and `--strategic-eval`. Arguments after the mode go only to that named repository runner. These modes require the separately user-owned dev server to be running; they never start, stop, or restart it.
+
 ### Encrypted storage
 
 The target layout is:
@@ -49,7 +51,7 @@ The target layout is:
 
 `scripts/security/orb-secrets-seal` is deliberately human-run. It validates the expected credential names without printing values, encrypts the current external plaintext file using AES-256-CBC with PBKDF2, and verifies the encrypted copy before replacing any prior encrypted copy. Plaintext removal requires the explicit `--remove-plaintext` option.
 
-After sealing, `orb-secrets-set VARIABLE_NAME` performs one human-approved rotation without recreating the full plaintext file. It prompts without echo for the encryption passphrase and replacement value, decrypts and re-encrypts through a pipeline, verifies the replacement bundle, and atomically installs it at mode `0600`. `orb-secrets-set --remove ELEVENLABS_API_KEY` removes the retired credential through the same verified atomic path. Neither the passphrase nor replacement is accepted as a command-line argument.
+After sealing, `orb-secrets-set VARIABLE_NAME` performs one human-approved addition or rotation without recreating the full plaintext file. It prompts without echo for the encryption passphrase and replacement value, decrypts and re-encrypts through a pipeline, verifies the replacement bundle, and atomically installs it at mode `0600`. The allowlist includes the direct Moonshot runtime credential as `MOONSHOT_API_KEY`; a missing allowed name is appended exactly once. `orb-secrets-set --remove ELEVENLABS_API_KEY` removes the retired credential through the same verified atomic path. Neither the passphrase nor replacement is accepted as a command-line argument.
 
 Encryption is necessary because `0600/0700` protects against other macOS accounts but not an AI tool running as Stan's own account. An AI may be able to read the encrypted file, but it cannot recover the values without the human-held passphrase. This is a storage boundary, not a complete process-isolation boundary.
 

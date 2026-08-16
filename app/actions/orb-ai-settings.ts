@@ -40,6 +40,7 @@ export type AiFundingCapsInput = {
   anthropicApi: number | null
   openaiApi: number | null
   mistralApi: number | null
+  moonshotApi: number | null
 }
 
 export async function getTtsConfig(): Promise<TtsConfigResult> {
@@ -80,6 +81,7 @@ export async function saveOrbAiPolicy(next: OrbAiPolicy) {
   if (next.ttsProvider !== 'browser' && next.ttsProvider !== 'openai') throw new Error('Unsupported TTS provider.')
   if (!supportsOrbRole(next.operationalProvider, next.operationalModel, 'operational')) throw new Error('Unsupported operational model.')
   if (!supportsOrbRole(next.strategicProvider, next.strategicModel, 'strategic')) throw new Error('Unsupported strategic model.')
+  if (!supportsOrbRole(next.evaluationProvider, next.evaluationModel, 'evaluation')) throw new Error('Unsupported evaluation model.')
   const monthlyBudgetUsd = toNumber(next.monthlyBudgetUsd, 'Monthly budget')
   const strategicBudgetUsd = toNumber(next.strategicBudgetUsd, 'Strategic budget')
   const operationalBudgetUsd = toNumber(next.operationalBudgetUsd, 'Operational budget')
@@ -101,6 +103,8 @@ export async function saveOrbAiPolicy(next: OrbAiPolicy) {
     operational_model: next.operationalModel,
     strategic_provider: next.strategicProvider,
     strategic_model: next.strategicModel,
+    evaluation_provider: next.evaluationProvider,
+    evaluation_model: next.evaluationModel,
     monthly_budget_usd: monthlyBudgetUsd,
     strategic_budget_usd: strategicBudgetUsd,
     operational_budget_usd: operationalBudgetUsd,
@@ -126,6 +130,7 @@ export async function saveAiFundingCaps(input: AiFundingCapsInput) {
     anthropic_api: toOptionalNumber(input.anthropicApi, 'Anthropic API cap'),
     openai_api: toOptionalNumber(input.openaiApi, 'OpenAI API cap'),
     mistral_api: toOptionalNumber(input.mistralApi, 'Mistral API cap'),
+    moonshot_api: toOptionalNumber(input.moonshotApi, 'Moonshot API cap'),
   }
   const { data: before, error: beforeError } = await ctx.admin
     .from('orb_ai_funding_pools')
@@ -138,6 +143,7 @@ export async function saveAiFundingCaps(input: AiFundingCapsInput) {
     anthropic_api: { provider: 'anthropic', display_name: 'Anthropic API', sort_order: 10 },
     openai_api: { provider: 'openai', display_name: 'OpenAI API', sort_order: 20 },
     mistral_api: { provider: 'mistral', display_name: 'Mistral API', sort_order: 30 },
+    moonshot_api: { provider: 'moonshot', display_name: 'Moonshot API', sort_order: 40 },
   } as const
   const rows = Object.entries(caps).map(([poolKey, spendingCapUsd]) => ({
     pool_key: poolKey,
@@ -226,7 +232,7 @@ export async function getOrbCostReconciliations() {
 
 export async function saveOrbCostReconciliation(input: Omit<OrbCostReconciliation, 'id' | 'createdAt'> & { id?: string }) {
   const ctx = await requireAdmin()
-  if (!['anthropic', 'google', 'mistral', 'openai', 'elevenlabs'].includes(input.provider)) throw new Error('Unsupported provider.')
+  if (!['anthropic', 'google', 'mistral', 'moonshot', 'openai', 'elevenlabs'].includes(input.provider)) throw new Error('Unsupported provider.')
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.periodStart) || !/^\d{4}-\d{2}-\d{2}$/.test(input.periodEnd)) throw new Error('A valid billing period is required.')
   if (input.periodEnd < input.periodStart) throw new Error('Period end must follow period start.')
   const payload = {

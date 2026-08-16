@@ -1,5 +1,6 @@
 import type { AuthContext } from '@/lib/auth'
 import { DEFAULT_ORB_AI_POLICY, type OrbAiPolicy, type OrbModelRateCard } from '@/lib/orb-model/policy'
+import { supportsOrbRole } from '@/lib/orb-model/catalog'
 
 // Pure fetch/mapping for Orb AI settings, decoupled from the auth gate so callers
 // that already hold an AuthContext (e.g. getAiMetricsBundle) can reuse it without a
@@ -8,13 +9,18 @@ import { DEFAULT_ORB_AI_POLICY, type OrbAiPolicy, type OrbModelRateCard } from '
 export function mapPolicy(row: any): OrbAiPolicy {
   if (!row) return DEFAULT_ORB_AI_POLICY
   const ttsProvider = row.tts_provider === 'openai' ? 'openai' : 'browser'
+  const operationalSupported = supportsOrbRole(row.operational_provider, row.operational_model, 'operational')
+  const strategicSupported = supportsOrbRole(row.strategic_provider, row.strategic_model, 'strategic')
+  const evaluationSupported = supportsOrbRole(row.evaluation_provider, row.evaluation_model, 'evaluation')
   return {
     routingEnabled: row.routing_enabled,
     strategicReadsEnabled: row.strategic_reads_enabled,
-    operationalProvider: row.operational_provider,
-    operationalModel: row.operational_model,
-    strategicProvider: row.strategic_provider,
-    strategicModel: row.strategic_model,
+    operationalProvider: operationalSupported ? row.operational_provider : DEFAULT_ORB_AI_POLICY.operationalProvider,
+    operationalModel: operationalSupported ? row.operational_model : DEFAULT_ORB_AI_POLICY.operationalModel,
+    strategicProvider: strategicSupported ? row.strategic_provider : DEFAULT_ORB_AI_POLICY.strategicProvider,
+    strategicModel: strategicSupported ? row.strategic_model : DEFAULT_ORB_AI_POLICY.strategicModel,
+    evaluationProvider: evaluationSupported ? row.evaluation_provider : DEFAULT_ORB_AI_POLICY.evaluationProvider,
+    evaluationModel: evaluationSupported ? row.evaluation_model : DEFAULT_ORB_AI_POLICY.evaluationModel,
     monthlyBudgetUsd: Number(row.monthly_budget_usd),
     strategicBudgetUsd: Number(row.strategic_budget_usd),
     operationalBudgetUsd: Number(row.operational_budget_usd),

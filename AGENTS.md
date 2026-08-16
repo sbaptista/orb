@@ -265,6 +265,23 @@ AI tools do not run model evals themselves. If evals fail, Stan pastes the outpu
 
 ---
 
+# Moonshot API — Experimental Kimi K3 Candidate
+
+`moonshot/kimi-k3` is a development-only candidate for both Operational and Strategic roles. It is not a production default and must remain explicitly labeled **Experimental** until Stan accepts the relevant eval gates in `docs/orb-kimi-k3-integration-plan.md`.
+
+- **Adapter:** `lib/orb-model/moonshot.ts`
+- **Endpoint:** `https://api.moonshot.ai/v1/chat/completions`
+- **Secret:** server-only `MOONSHOT_API_KEY` in Orb's encrypted runtime environment; never restore or require a plaintext `.env.local`
+- **Operational test parameters:** `reasoning_effort=low`, tools enabled, `max_completion_tokens=4096`
+- **Strategic test parameters:** `reasoning_effort=high`, no tools, `max_completion_tokens=4096`
+- **Preserved thinking:** retain K3 `reasoning_content` on assistant messages across tool turns
+- **Accounting:** record provider `moonshot`, model `kimi-k3`, role/source/token/cache/latency fields in `orb_model_requests`; use AI Metrics rate cards for effective cost
+- **Eval:** routine `orb-dev --eval`, `--eval-t1`, and `--eval-t2` runs use the Evaluation Model selected in Settings → AI Settings. A paired provider-neutral `EVAL_PROVIDER=moonshot EVAL_MODEL=kimi-k3` override pins one run. `--strategic-eval` remains the separate comparative corpus. Stan runs every model eval, never the AI tool.
+
+Production continues to fall back to the accepted Haiku/Gemini policy if an experimental selection is stored during local testing. Adding the production Vercel credential and promoting the catalog entry require a separate explicit Stan decision after evaluation.
+
+---
+
 # Session Workflow
 
 ## At session start
