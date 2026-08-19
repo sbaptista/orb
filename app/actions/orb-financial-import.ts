@@ -3,6 +3,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { requireAdmin } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
+import { getOrbModelDefinition, ORB_MODEL_CATALOG } from '@/lib/orb-model/catalog'
 
 const FINANCIAL_KINDS = ['top_up', 'subscription', 'grant', 'refund', 'adjustment', 'expiration'] as const
 export type FinancialKind = typeof FINANCIAL_KINDS[number]
@@ -18,6 +19,16 @@ export type FinancialPoolOption = {
   active: boolean
 }
 
+export type FinancialModelOption = {
+  key: string
+  provider: string
+  model: string
+  label: string
+  poolKey: string
+  poolAvailable: boolean
+  experimental: boolean
+}
+
 export type FinancialImportSourceRow = {
   rowNumber: number
   date: string
@@ -30,6 +41,7 @@ export type FinancialImportSourceRow = {
 }
 
 export type FinancialImportPreviewRow = FinancialImportSourceRow & {
+  modelKey: string | null
   kind: FinancialKind | null
   poolKey: string | null
   disposition: ImportDisposition
@@ -40,6 +52,23 @@ export type FinancialImportPreviewRow = FinancialImportSourceRow & {
   fingerprint: string
   rememberDecision: boolean
   allowDuplicate: boolean
+}
+
+function financialModelKey(provider: string, model: string) {
+  return `${provider}:${model}`
+}
+
+function resolveFinancialModel(model: string | undefined, poolKey: string | null) {
+  const normalized = model?.trim().toLowerCase()
+  if (normalized) {
+    const exact = ORB_MODEL_CATALOG.find(option =>
+      option.model.toLowerCase() === normalized
+      || option.label.toLowerCase() === normalized
+      || financialModelKey(option.provider, option.model).toLowerCase() === normalized)
+    if (exact) return exact
+  }
+  const poolModels = ORB_MODEL_CATALOG.filter(option => option.fundingPoolKey === poolKey)
+  return poolModels.length === 1 ? poolModels[0] : undefined
 }
 
 export type FinancialTransaction = {
@@ -92,7 +121,7 @@ function validateSourceRow(row: FinancialImportSourceRow) {
   if (!row.type?.trim()) throw new Error(`Row ${row.rowNumber}: type is required.`)
 }
 
-export async function getFinancialImportSetup(): Promise<{ pools: FinancialPoolOption[] }> {
+export async function getFinancialImportSetup(): Promise<{ pools: FinancialPoolOption[]; models: FinancialModelOption[] }> {
   const ctx = await requireAdmin()
   const { data, error } = await ctx.admin
     .from('orb_ai_funding_pools')
@@ -100,8 +129,7 @@ export async function getFinancialImportSetup(): Promise<{ pools: FinancialPoolO
     .order('active', { ascending: false })
     .order('sort_order')
   if (error) throw error
-  return {
-    pools: (data ?? []).map(row => ({
+  const pools = (data ?? []).map(row => ({
       id: row.id,
       poolKey: row.pool_key,
       provider: row.provider,
@@ -109,7 +137,19 @@ export async function getFinancialImportSetup(): Promise<{ pools: FinancialPoolO
       fundingMode: row.funding_mode,
       recurringCostUsd: row.recurring_cost_usd == null ? null : Number(row.recurring_cost_usd),
       active: row.active,
-    })),
+    }))
+  const poolKeys = new Set(pools.map(pool => pool.poolKey))
+  return {
+    pools,
+    models: ORB_MODEL_CATALOG.map(option => ({
+      key: financialModelKey(option.provider, option.model),
+      provider: option.provider,
+      model: option.model,
+      label: option.label,
+      poolKey: option.fundingPoolKey,
+      poolAvailable: poolKeys.has(option.fundingPoolKey),
+      experimental: Boolean(option.experimental),
+    })).sort((a, b) => a.label.localeCompare(b.label)),
   }
 }
 
@@ -168,12 +208,17 @@ export async function previewFinancialImport(rows: FinancialImportSourceRow[]): 
     const fingerprintDuplicate = existingPairs.has(`${row.fingerprint}|${occurrence}`)
     const duplicateReason = referenceDuplicate ? 'external_reference' : fingerprintDuplicate ? 'fingerprint' : null
     const duplicate = duplicateReason !== null
+    const catalogModel = resolveFinancialModel(row.model, rule?.pool_key ?? null)
+    const poolKey = rule?.pool_key ?? catalogModel?.fundingPoolKey ?? null
+    const kind = (rule?.transaction_kind as FinancialKind | null | undefined) ?? row.kind
     return {
       ...row,
-      kind: (rule?.transaction_kind as FinancialKind | null | undefined) ?? row.kind,
-      poolKey: rule?.pool_key ?? null,
-      disposition: duplicate ? 'exclude' : (rule?.disposition as ImportDisposition | undefined) ?? 'review',
-      recognized: Boolean(rule),
+      model: catalogModel?.model ?? row.model,
+      modelKey: catalogModel ? financialModelKey(catalogModel.provider, catalogModel.model) : null,
+      kind,
+      poolKey,
+      disposition: duplicate ? 'exclude' : (rule?.disposition as ImportDisposition | undefined) ?? (catalogModel && poolKey && kind ? 'include' : 'review'),
+      recognized: Boolean(rule || catalogModel),
       duplicate,
       duplicateReason,
       occurrence,
@@ -194,12 +239,31 @@ export async function confirmFinancialImport(input: {
 
   for (const row of input.rows) {
     validateSourceRow(row)
-    if (row.disposition === 'review') throw new Error(`Row ${row.rowNumber}: choose where this item belongs or exclude it.`)
+    if (row.disposition === 'review') throw new Error(`Row ${row.rowNumber}: choose a model or service, or exclude it.`)
     if (row.disposition === 'include' && (!row.kind || !FINANCIAL_KINDS.includes(row.kind))) throw new Error(`Row ${row.rowNumber}: choose a transaction type.`)
-    if (row.disposition === 'include' && !row.poolKey) throw new Error(`Row ${row.rowNumber}: choose a destination.`)
+    if (row.disposition === 'include' && !row.poolKey) throw new Error(`Row ${row.rowNumber}: choose a model or service.`)
+    if (row.modelKey) {
+      const [provider, ...modelParts] = row.modelKey.split(':')
+      const definition = getOrbModelDefinition(provider, modelParts.join(':'))
+      if (!definition || row.model !== definition.model || row.poolKey !== definition.fundingPoolKey) {
+        throw new Error(`Row ${row.rowNumber}: choose a current model from the list.`)
+      }
+    }
     if (row.duplicateReason === 'external_reference' && row.disposition === 'include') throw new Error(`Row ${row.rowNumber}: that transaction/reference ID has already been imported.`)
     if (row.duplicateReason === 'fingerprint' && row.disposition === 'include' && !row.allowDuplicate) throw new Error(`Row ${row.rowNumber}: confirm that the apparent duplicate should be imported.`)
   }
+
+  const requestedPoolKeys = Array.from(new Set(input.rows
+    .filter(row => row.disposition === 'include' && row.poolKey)
+    .map(row => row.poolKey as string)))
+  const { data: availablePools, error: poolError } = await ctx.admin
+    .from('orb_ai_funding_pools')
+    .select('pool_key')
+    .in('pool_key', requestedPoolKeys)
+  if (poolError) throw poolError
+  const availablePoolKeys = new Set((availablePools ?? []).map(pool => pool.pool_key))
+  const unavailableRow = input.rows.find(row => row.disposition === 'include' && row.poolKey && !availablePoolKeys.has(row.poolKey))
+  if (unavailableRow) throw new Error(`Row ${unavailableRow.rowNumber}: that model's accounting pool is not available.`)
 
   const rows = input.rows.map(row => row.disposition === 'exclude' && !row.kind
     ? { ...row, rememberDecision: false }

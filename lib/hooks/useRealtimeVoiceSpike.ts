@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { startInteraction } from '@/lib/performance/telemetry'
+import { collectClientEnvironment } from '@/lib/client-environment'
 import {
   startSileroShadow,
   type SileroShadowController,
@@ -43,7 +44,7 @@ function reportRealtimeUsage(usage: RealtimeUsage | undefined) {
   fetch('/api/orb-realtime/usage', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usage }),
+    body: JSON.stringify({ usage, platform: collectClientEnvironment().platform }),
     keepalive: true,
   }).catch(() => {})
 }

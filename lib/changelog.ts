@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.297',
+    date: '2026-08-18',
+    changes: [
+      'Made AI statement import explicitly additive and clarified that it never replaces AI policy settings or existing financial records. The review now says Model instead of Destination, model assignments persist canonical provider/model identities, and the selector is generated from Orb\'s current model catalog so experimental Kimi K3 appears alongside every other current model while non-model services remain available.',
+      'Added a filtered CSV export to AI Metrics → Orb. Export CSV remains available when the Request Log is collapsed, exports every row matching the active text/date filters rather than only the visible page, uses bounded keyset streaming with a 100,000-row preflight ceiling, and produces a 29-column Excel-compatible file with stable UTC/numeric values, flattened rate snapshots, formula neutralization, and no user, response-text, or raw provider-usage payloads.',
+      'Added platform to the AI model request ledger and visible Request Log. Mac, iPad, iPhone, and server eval origins are recorded through one validated enum; historical or malformed origins remain unknown. Chat, STT, TTS, Realtime, and eval accounting paths are covered.',
+      'Eliminated platform-classification drift by extracting the complete browser/platform/viewport snapshot into one shared client-environment collector consumed by both performance telemetry and model-request accounting. CSV export records filter presence, row and byte counts, duration, cancellation, ceiling rejection, and failure without retaining search text.',
+      'Used the existing AI Metrics request-log heading, flex, btn-outline, btn-primary, table, and statement-import modal patterns without adding a new modal or CSS family. Updated the UI catalog, object capability/performance matrix, implementation plan, additive migrations, and deterministic CSV/platform verifier. Eval: not applicable — no Orb-conversation capability, routing rule, prompt, or defined speech behavior changed.',
+    ],
+  },
+  {
     version: 'v0.6.296',
     date: '2026-08-15',
     changes: [

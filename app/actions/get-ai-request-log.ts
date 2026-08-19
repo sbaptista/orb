@@ -1,6 +1,7 @@
 'use server'
 
 import { requireAdmin } from '@/lib/auth'
+import { AI_REQUEST_LOG_COLUMNS, applyAiRequestLogFilters, parseAiRequestLogFilters } from '@/lib/ai-metrics/request-log'
 
 export type AiRequestLogRow = {
   id: string
@@ -9,6 +10,7 @@ export type AiRequestLogRow = {
   model: string
   source: string
   route_role: string
+  platform: 'mac' | 'ipad' | 'iphone' | 'server' | 'unknown'
   input_tokens: number
   output_tokens: number
   cached_input_tokens: number | null
@@ -27,19 +29,6 @@ const SORT_COLUMNS: Record<string, string> = {
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
-function validIsoDate(value: string | null | undefined, endOfDay = false): string | null {
-  if (!value) return null
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) throw new Error('Invalid date filter.')
-  if (endOfDay) d.setUTCHours(23, 59, 59, 999)
-  else d.setUTCHours(0, 0, 0, 0)
-  return d.toISOString()
-}
-
-function sanitizeSearch(value: string): string {
-  return value.replace(/[%,()]/g, ' ').trim()
-}
 
 function sanitizeCursorValue(value: unknown): string {
   return String(value).replace(/[(),]/g, ' ').trim()
@@ -80,13 +69,7 @@ export async function getAiRequestLog(options: {
   try {
     const page = Math.max(0, options.page ?? 0)
     const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 50))
-    const search = sanitizeSearch(options.search ?? '')
-    const dateFrom = validIsoDate(options.createdFrom)
-    const dateTo = validIsoDate(options.createdTo, true)
-    const dateBefore = validIsoDate(options.createdBefore)
-    if (dateFrom && dateTo && dateFrom > dateTo) {
-      throw new Error('Date From must be before Date To.')
-    }
+    const filters = parseAiRequestLogFilters(options)
     const requestedSortColumn = options.sortKey ? SORT_COLUMNS[options.sortKey] : undefined
     const sortColumn = requestedSortColumn ?? 'created_at'
     const ascending = requestedSortColumn ? options.sortDir !== 'desc' : false
@@ -94,46 +77,9 @@ export async function getAiRequestLog(options: {
     const sortDir = ascending ? 'asc' : 'desc'
     const cursor = parseCursor(options.cursor)
 
-    const applyFilters = (query: any) => {
-      if (search) {
-        const pattern = `%${search}%`
-        query = query.or([
-          `provider.ilike.${pattern}`,
-          `model.ilike.${pattern}`,
-          `source.ilike.${pattern}`,
-          `route_role.ilike.${pattern}`,
-          `failure_code.ilike.${pattern}`,
-          `evaluation_case_id.ilike.${pattern}`,
-          `prompt_version.ilike.${pattern}`,
-        ].join(','))
-      }
-      if (dateFrom) query = query.gte('created_at', dateFrom)
-      if (dateTo) query = query.lte('created_at', dateTo)
-      if (dateBefore) query = query.lt('created_at', dateBefore)
-      return query
-    }
-
-    let query = applyFilters(ctx.admin
+    let query = applyAiRequestLogFilters(ctx.admin
       .from('orb_model_requests')
-      .select(`
-        id,
-        created_at,
-        provider,
-        model,
-        source,
-        route_role,
-        input_tokens,
-        output_tokens,
-        cached_input_tokens,
-        cache_write_tokens,
-        latency_ms,
-        attempt_count,
-        success,
-        failure_code,
-        estimated_cost_usd,
-        evaluation_case_id,
-        prompt_version
-      `))
+      .select(AI_REQUEST_LOG_COLUMNS), filters)
 
     if (cursor) {
       if (cursor.sortKey !== sortKey || cursor.sortDir !== sortDir) throw new Error('AI Request Log cursor does not match the current sort.')
@@ -141,9 +87,9 @@ export async function getAiRequestLog(options: {
       query = query.or(`${sortColumn}.${op}.${cursor.sort},and(${sortColumn}.eq.${cursor.sort},id.gt.${cursor.id})`)
     }
 
-    const countQuery = applyFilters(ctx.admin
+    const countQuery = applyAiRequestLogFilters(ctx.admin
       .from('orb_model_requests')
-      .select('id', { count: 'exact', head: true }))
+      .select('id', { count: 'exact', head: true }), filters)
 
     const pageQuery = query
       .order(sortColumn, { ascending, nullsFirst: false })

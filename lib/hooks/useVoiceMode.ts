@@ -5,6 +5,7 @@ import type { TtsProvider } from '@/lib/orb-model/tts'
 import { synthesizeSpeech } from '@/app/actions/orb-tts'
 import { startInteraction } from '@/lib/performance/telemetry'
 import { useCapabilities, type Capabilities } from './useCapabilities'
+import { collectClientEnvironment } from '@/lib/client-environment'
 
 export type TtsConfig = {
   provider: TtsProvider
@@ -542,6 +543,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
         try {
           const form = new FormData()
           form.append('audio', audio, recorder.mimeType.includes('ogg') ? 'orb-voice.ogg' : 'orb-voice.webm')
+          form.append('platform', collectClientEnvironment().platform)
           const response = await fetch('/api/orb-transcribe', { method: 'POST', body: form })
           const result = await response.json() as { text?: string; error?: string }
           if (!response.ok || !result.text) throw new Error(result.error || 'Speech transcription failed')
@@ -686,6 +688,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
             provider: cfg.provider,
             model: cfg.model || 'tts-1',
             voiceId: cfg.voiceId || 'nova',
+            clientEnvironment: collectClientEnvironment(),
           })
         }
         speechMeasurementRef.current?.mark('tts_response_received')
@@ -760,6 +763,7 @@ export function useVoiceMode(ttsConfig?: TtsConfig): VoiceState & VoiceActions {
             provider: currentCfg.provider,
             model: currentCfg.model || 'tts-1',
             voiceId: currentCfg.voiceId || 'nova',
+            clientEnvironment: collectClientEnvironment(),
           }),
         }
       }

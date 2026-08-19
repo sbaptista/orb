@@ -38,6 +38,7 @@ import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSu
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
 import { authorizesPendingMutation, buildPendingMutationConfirmationInstruction, grantsUpfrontMutationPermission, isBareMutationDecline } from '@/lib/orb-model/mutation-authorization'
 import { activeModelIdentitySpeech, isActiveModelIdentityQuestion } from '@/lib/orb-model/model-identity'
+import type { ClientEnvironmentSnapshot } from '@/lib/client-environment'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -225,6 +226,7 @@ export type OrbRequest = {
   // request — the Orb path is not headless, so a todo dated "tomorrow 9am"
   // lands in the zone the user is actually in right now, not a stored guess.
   clientTimeZone?: string | null
+  clientEnvironment?: ClientEnvironmentSnapshot
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
@@ -360,6 +362,7 @@ export async function orbConverse(req: OrbRequest) {
         promptVersion: 'orb-system-v0.6.49',
         contextPacketVersion: 'live-context-v1',
         responseText,
+        platform: req.clientEnvironment?.platform,
       }).catch(error => console.error('[orbConverse] Model request ledger insert failed:', error))
     }
 
@@ -873,6 +876,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             promptVersion: 'orb-system-v0.6.49',
             contextPacketVersion: 'live-context-v1',
             responseText: parsed.speech,
+            platform: req.clientEnvironment?.platform,
           }).catch(error => console.error('[orbConverse] Model request ledger insert failed:', error))
           recordMetrics(parsed.speech.length)
           stream.done({ speech: parsed.speech, insight, isStreaming: false })
@@ -916,6 +920,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             promptVersion: 'orb-system-v0.6.49',
             contextPacketVersion: 'live-context-v1',
             responseText: parsed.speech,
+            platform: req.clientEnvironment?.platform,
           }).catch(error => console.error('[orbConverse] Model request ledger insert failed:', error))
           recordMetrics(parsed.speech.length)
           stream.done({ speech: parsed.speech, insight, isStreaming: false })

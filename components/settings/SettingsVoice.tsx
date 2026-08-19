@@ -5,6 +5,7 @@ import { OPENAI_VOICES, type TtsVoiceOption } from '@/lib/orb-model/tts'
 import { synthesizeSpeech } from '@/app/actions/orb-tts'
 import { getTtsConfig, saveTtsConfig } from '@/app/actions/orb-ai-settings'
 import { useToast } from '@/components/ui/Toast'
+import { collectClientEnvironment } from '@/lib/client-environment'
 
 type BrowserVoiceInfo = {
   name: string
@@ -115,6 +116,7 @@ export default function SettingsVoice() {
         provider: 'openai',
         model: 'tts-1',
         voiceId,
+        clientEnvironment: collectClientEnvironment(),
       })
       const raw = atob(result.audioBase64)
       const arr = new Uint8Array(raw.length)

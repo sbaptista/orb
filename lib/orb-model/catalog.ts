@@ -9,6 +9,8 @@ export type OrbModelDefinition = {
   label: string
   roles: readonly OrbModelCatalogRole[]
   toolCapable: boolean
+  /** Accounting pool used when a provider statement row is assigned to this model. */
+  fundingPoolKey: string
   experimental?: boolean
 }
 
@@ -23,6 +25,7 @@ export const ORB_MODEL_CATALOG: readonly OrbModelDefinition[] = [
     label: 'Claude Haiku 4.5',
     roles: ['operational', 'strategic', 'evaluation'],
     toolCapable: true,
+    fundingPoolKey: 'anthropic_api',
   },
   {
     provider: 'google',
@@ -30,6 +33,7 @@ export const ORB_MODEL_CATALOG: readonly OrbModelDefinition[] = [
     label: 'Gemini 3.1 Pro Preview',
     roles: ['strategic'],
     toolCapable: false,
+    fundingPoolKey: 'google_cloud_historical',
   },
   {
     provider: 'moonshot',
@@ -37,6 +41,7 @@ export const ORB_MODEL_CATALOG: readonly OrbModelDefinition[] = [
     label: 'Kimi K3 — Experimental',
     roles: ['operational', 'strategic', 'evaluation'],
     toolCapable: true,
+    fundingPoolKey: 'moonshot_api',
     experimental: true,
   },
 ]

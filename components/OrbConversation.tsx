@@ -5,6 +5,7 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useToast } from '@/components/ui/Toast'
 import { startInteraction } from '@/lib/performance/telemetry'
+import { collectClientEnvironment } from '@/lib/client-environment'
 
 // ORB-358: pause-based auto-segmentation was tried and reverted (Stan,
 // 2026-07-23) — it introduced its own problems (queued transcriptions could
@@ -294,6 +295,7 @@ export default function OrbConversation({
                     measurement.mark('upload_started')
                     const form = new FormData()
                     form.append('audio', audio, recorder.mimeType?.includes('ogg') ? 'orb-dictate.ogg' : 'orb-dictate.webm')
+                    form.append('platform', collectClientEnvironment().platform)
                     const response = await fetch('/api/orb-transcribe', { method: 'POST', body: form })
                     measurement.mark('response_received')
                     const result = await response.json() as { text?: string; error?: string }

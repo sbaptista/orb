@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buildSttUsage, transcribeOpenAIAudio } from '@/lib/orb-model/stt'
 import { recordOrbModelRequest } from '@/lib/orb-model/record'
+import { sanitizeModelRequestPlatform } from '@/lib/client-environment'
 
 export const runtime = 'nodejs'
 
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
   try {
     const form = await request.formData()
     const audio = form.get('audio')
+    const platform = sanitizeModelRequestPlatform(form.get('platform'))
     if (!(audio instanceof File)) {
       return Response.json({ error: 'Audio file required' }, { status: 400 })
     }
@@ -54,6 +56,7 @@ export async function POST(request: Request) {
       userId: user.id,
       usage: buildSttUsage(result),
       routeRole: 'operational',
+      platform,
     }).catch(error => console.error('[stt] request ledger insert failed:', error))
 
     return Response.json({ text: result.text })

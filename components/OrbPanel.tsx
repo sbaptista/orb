@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { readStreamableValue } from 'ai/rsc'
 import { orbConverse, type OrbResponse } from '@/app/actions/orb-converse'
 import { collectSystemInfo, type SystemInfo } from '@/lib/system-info'
+import { collectClientEnvironment } from '@/lib/client-environment'
 
 export type PanelMessage = {
   id: string
@@ -68,6 +69,7 @@ export default function OrbPanel({ productId, productCode, todoCount, onMutation
         history,
         dryRun: false,
         systemInfo: systemInfoRef.current,
+        clientEnvironment: collectClientEnvironment(),
         clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       })
 

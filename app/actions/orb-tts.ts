@@ -4,12 +4,14 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { synthesizeOpenAI, buildTtsUsage, type TtsProvider } from '@/lib/orb-model/tts'
 import { recordOrbModelRequest } from '@/lib/orb-model/record'
+import type { ClientEnvironmentSnapshot } from '@/lib/client-environment'
 
 export type TtsSynthesizeRequest = {
   text: string
   provider: TtsProvider
   model: string
   voiceId: string
+  clientEnvironment?: ClientEnvironmentSnapshot
 }
 
 export type TtsSynthesizeResponse = {
@@ -35,6 +37,7 @@ export async function synthesizeSpeech(req: TtsSynthesizeRequest): Promise<TtsSy
     userId: user.id,
     usage,
     routeRole: 'operational',
+    platform: req.clientEnvironment?.platform,
   }).catch(err => console.error('[tts] failed to record usage:', err))
 
   return {

@@ -8,6 +8,7 @@ import {
   type FinancialImportPreviewRow,
   type FinancialImportSourceRow,
   type FinancialKind,
+  type FinancialModelOption,
   type FinancialPoolOption,
 } from '@/app/actions/orb-financial-import'
 import { useModalScrollLock } from '@/lib/hooks/useModalScrollLock'
@@ -110,9 +111,11 @@ export default function StatementImportModal({ open, onClose, onImported }: { op
   const toast = useToast()
   const dialogRef = useRef<HTMLDivElement>(null)
   const [pools, setPools] = useState<FinancialPoolOption[]>([])
+  const [models, setModels] = useState<FinancialModelOption[]>([])
   const [fileName, setFileName] = useState('')
   const [statementKey, setStatementKey] = useState('')
   const [rows, setRows] = useState<FinancialImportPreviewRow[]>([])
+  const [setupLoading, setSetupLoading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -129,7 +132,11 @@ export default function StatementImportModal({ open, onClose, onImported }: { op
 
   useEffect(() => {
     if (!open) return
-    getFinancialImportSetup().then(result => setPools(result.pools)).catch(cause => setError(cause instanceof Error ? cause.message : 'Could not load import destinations.'))
+    setSetupLoading(true)
+    getFinancialImportSetup().then(result => {
+      setPools(result.pools)
+      setModels(result.models)
+    }).catch(cause => setError(cause instanceof Error ? cause.message : 'Could not load import models.')).finally(() => setSetupLoading(false))
     const dialog = dialogRef.current
     const preferred = dialog?.querySelector<HTMLElement>('input, select, button')
     ;(preferred ?? dialog)?.focus()
@@ -145,7 +152,8 @@ export default function StatementImportModal({ open, onClose, onImported }: { op
   }, [closeModal, open])
 
   const includedCount = useMemo(() => rows.filter(row => row.disposition === 'include').length, [rows])
-  const reviewCount = useMemo(() => rows.filter(row => row.disposition === 'review').length, [rows])
+  const unavailableModelKeys = useMemo(() => new Set(models.filter(model => !model.poolAvailable).map(model => model.key)), [models])
+  const reviewCount = useMemo(() => rows.filter(row => row.disposition === 'review' || Boolean(row.modelKey && unavailableModelKeys.has(row.modelKey))).length, [rows, unavailableModelKeys])
 
   async function chooseFile(file: File | undefined) {
     if (!file) return
@@ -172,9 +180,44 @@ export default function StatementImportModal({ open, onClose, onImported }: { op
     setRows(current => current.map((row, rowIndex) => rowIndex === index ? { ...row, ...change } : row))
   }
 
+  function assignmentValue(row: FinancialImportPreviewRow) {
+    if (row.modelKey && models.some(model => model.key === row.modelKey)) return `model:${row.modelKey}`
+    return row.poolKey ? `service:${row.poolKey}` : ''
+  }
+
+  function assignModel(index: number, value: string) {
+    const row = rows[index]
+    if (!row) return
+    if (!value) {
+      updateRow(index, { model: undefined, modelKey: null, poolKey: null, disposition: 'review', rememberDecision: !row.recognized })
+      return
+    }
+    if (value.startsWith('model:')) {
+      const model = models.find(option => option.key === value.slice('model:'.length))
+      if (!model || !model.poolAvailable) return
+      updateRow(index, {
+        model: model.model,
+        modelKey: model.key,
+        poolKey: model.poolKey,
+        disposition: row.kind ? 'include' : 'review',
+        rememberDecision: !row.recognized,
+      })
+      return
+    }
+    const poolKey = value.slice('service:'.length)
+    updateRow(index, {
+      model: undefined,
+      modelKey: null,
+      poolKey,
+      disposition: row.kind ? 'include' : 'review',
+      rememberDecision: !row.recognized,
+    })
+  }
+
   async function importRows() {
     if (reviewCount > 0 || includedCount === 0) return
-    const perf = startInteraction({ focus: 'settings', flow: 'settings-ai-metrics', interaction: 'statement_import_commit', surface: 'settings-metrics', immediateFlush: true, metadata: { rows: rows.length, included: includedCount } })
+    const selectedModels = Array.from(new Set(rows.filter(row => row.disposition === 'include').map(row => row.modelKey ?? `service:${row.poolKey}`)))
+    const perf = startInteraction({ focus: 'settings', flow: 'settings-ai-metrics', interaction: 'statement_import_commit', surface: 'settings-metrics', immediateFlush: true, metadata: { rows: rows.length, included: includedCount, selectedModels } })
     setSaving(true)
     setError(null)
     try {
@@ -208,7 +251,7 @@ export default function StatementImportModal({ open, onClose, onImported }: { op
           <div className="s-form metrics-import-file-fields">
             <label>
               <span className="label">CSV file</span>
-              <input type="file" className="input" accept=".csv,text/csv" onChange={event => void chooseFile(event.target.files?.[0])} disabled={loading || saving} />
+              <input type="file" className="input" accept=".csv,text/csv" onChange={event => void chooseFile(event.target.files?.[0])} disabled={setupLoading || loading || saving} />
             </label>
             <label>
               <span className="label">Statement or account label <span className="text-muted">(optional)</span></span>
@@ -216,6 +259,7 @@ export default function StatementImportModal({ open, onClose, onImported }: { op
             </label>
           </div>
           <p className="s-card-desc">Required columns: date, company, cost, and type. Model, notes, and a transaction/reference ID are optional.</p>
+          <p className="s-card-desc">Import adds financial entries; it does not replace your AI settings. Remembered classifications and matching subscription costs may be updated.</p>
           {error && <p className="s-error" role="alert">{error}</p>}
           {loading && <div className="s-loading">Reading and classifying statement…</div>}
           {rows.length > 0 && (
@@ -223,7 +267,7 @@ export default function StatementImportModal({ open, onClose, onImported }: { op
               <div className="metrics-section-intro">
                 <div>
                   <h4>Review {rows.length} {rows.length === 1 ? 'row' : 'rows'}</h4>
-                  <p>{reviewCount > 0 ? `${reviewCount} need a destination before import.` : `${includedCount} ready to import.`}</p>
+                  <p>{reviewCount > 0 ? `${reviewCount} need a model or service before import.` : `${includedCount} ready to import.`}</p>
                 </div>
                 {reviewCount > 0 && <span className="metrics-state-pill metrics-state-pill--warning">{reviewCount} to review</span>}
               </div>
@@ -236,15 +280,20 @@ export default function StatementImportModal({ open, onClose, onImported }: { op
                       {row.duplicate && <span className="metrics-state-pill metrics-state-pill--warning">{row.duplicateReason === 'external_reference' ? 'Already imported' : 'Possible duplicate'}</span>}
                     </div>
                     <label>
-                      <span className="label">Destination</span>
+                      <span className="label">Model</span>
                       <select
                         className="select"
-                        value={row.poolKey ?? ''}
-                        onChange={event => updateRow(index, { poolKey: event.target.value || null, disposition: event.target.value ? 'include' : 'review', rememberDecision: !row.recognized })}
+                        value={assignmentValue(row)}
+                        onChange={event => assignModel(index, event.target.value)}
                         disabled={row.disposition === 'exclude'}
                       >
                         <option value="">Choose…</option>
-                        {pools.map(pool => <option key={pool.poolKey} value={pool.poolKey}>{pool.displayName}{pool.active ? '' : ' · historical'}</option>)}
+                        <optgroup label="Models">
+                          {models.map(model => <option key={model.key} value={`model:${model.key}`} disabled={!model.poolAvailable}>{model.label}{model.poolAvailable ? '' : ' · accounting unavailable'}</option>)}
+                        </optgroup>
+                        <optgroup label="Other services">
+                          {pools.filter(pool => !models.some(model => model.poolKey === pool.poolKey)).map(pool => <option key={pool.poolKey} value={`service:${pool.poolKey}`}>{pool.displayName}{pool.active ? '' : ' · historical'}</option>)}
+                        </optgroup>
                       </select>
                     </label>
                     <label>

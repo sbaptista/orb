@@ -113,6 +113,14 @@ function roleLabel(role: string) {
   return role === 'strategic' ? 'Strategic' : role === 'operational' ? 'Operational' : role
 }
 
+function platformLabel(platform: AiRequestLogRow['platform']) {
+  return platform === 'mac' ? 'Mac'
+    : platform === 'ipad' ? 'iPad'
+      : platform === 'iphone' ? 'iPhone'
+        : platform === 'server' ? 'Server'
+          : 'Unknown'
+}
+
 function sourceLabel(source: string) {
   return source === 'eval' ? 'Eval'
     : source === 'strategic_review' ? 'Strategic review'
@@ -239,12 +247,90 @@ export default function SettingsMetrics() {
   const [rateCards, setRateCards] = useState<EditableRateCard[]>([])
   const [newRateCard, setNewRateCard] = useState<DraftRateCard>(() => emptyNewRateCard())
   const [showRequestLog, setShowRequestLog] = useState(true)
+  const [exportingRequestLog, setExportingRequestLog] = useState(false)
   const [accountingLoading, setAccountingLoading] = useState(true)
   const [aiDateMode, setAiDateMode] = useState<AiCostDateMode>('all_tracked')
   const [aiDateFrom, setAiDateFrom] = useState('')
   const [aiDateTo, setAiDateTo] = useState('')
   const [aiMonth, setAiMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [aiModelKey, setAiModelKey] = useState('all')
+
+  async function exportRequestLogCsv() {
+    if (exportingRequestLog) return
+    const perf = startInteraction({
+      focus: 'settings',
+      flow: 'settings-ai-metrics',
+      interaction: 'request_log_export_csv',
+      surface: 'settings-metrics',
+      immediateFlush: true,
+      metadata: { search: Boolean(textSearchTerm), dateFilter: Boolean(dateFilter) },
+    })
+    const suggestedName = `orb-ai-requests-${new Date().toISOString().slice(0, 10)}.csv`
+    type SaveFileHandle = { createWritable: () => Promise<WritableStream<Uint8Array>> }
+    const picker = (window as Window & {
+      showSaveFilePicker?: (options: Record<string, unknown>) => Promise<SaveFileHandle>
+    }).showSaveFilePicker
+
+    setExportingRequestLog(true)
+    try {
+      const fileHandle = picker ? await picker({
+        suggestedName,
+        types: [{ description: 'CSV file', accept: { 'text/csv': ['.csv'] } }],
+      }) : null
+      const params = new URLSearchParams()
+      if (textSearchTerm) params.set('search', textSearchTerm)
+      if (dateFilter?.from) params.set('createdFrom', dateFilter.from)
+      if (dateFilter?.to) params.set('createdTo', dateFilter.to)
+      if (dateFilter?.before) params.set('createdBefore', dateFilter.before)
+      const response = await fetch(`/api/settings/ai-metrics/export?${params.toString()}`, { cache: 'no-store' })
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({})) as { error?: string }
+        const exportError = new Error(result.error || 'Could not export AI request data.') as Error & { status?: number }
+        exportError.status = response.status
+        throw exportError
+      }
+
+      let bytes = 0
+      if (fileHandle && response.body) {
+        const writable = await fileHandle.createWritable()
+        const counter = new TransformStream<Uint8Array, Uint8Array>({
+          transform(chunk, controller) {
+            bytes += chunk.byteLength
+            controller.enqueue(chunk)
+          },
+        })
+        await response.body.pipeThrough(counter).pipeTo(writable)
+      } else {
+        const blob = await response.blob()
+        bytes = blob.size
+        const disposition = response.headers.get('Content-Disposition')
+        const filename = disposition?.match(/filename="([^"]+)"/)?.[1] ?? suggestedName
+        const href = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = href
+        anchor.download = filename
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+        URL.revokeObjectURL(href)
+      }
+
+      const rows = Number(response.headers.get('X-Export-Row-Count') ?? 0)
+      perf.end(true, null, { rows, bytes })
+      toast.success(`Exported ${rows.toLocaleString()} request ${rows === 1 ? 'row' : 'rows'}.`)
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        perf.end(true, null, { cancelled: true })
+        return
+      }
+      const exportError = error as Error & { status?: number }
+      const message = exportError instanceof Error ? exportError.message : 'Could not export AI request data.'
+      perf.end(false, exportError.status === 413 ? 'export_row_ceiling' : 'export_failed', { message, ceilingReached: exportError.status === 413 })
+      toast.error(message)
+    } finally {
+      setExportingRequestLog(false)
+    }
+  }
 
   function markFullLoad(part: 'accounting' | 'table' | 'reconciliation', success: boolean, failureCode?: string | null) {
     const perf = fullLoadPerf.current
@@ -723,14 +809,19 @@ export default function SettingsMetrics() {
           Request-level ledger for conversation and TTS API model calls.
         </p>
       </div>
-      <button
-        type="button"
-        className="btn-primary"
-        onClick={() => setShowRequestLog(value => !value)}
-        aria-expanded={showRequestLog}
-      >
-        {showRequestLog ? 'Hide Log' : 'Show Log'}
-      </button>
+      <div className="flex-center gap-md">
+        <button type="button" className="btn-outline" onClick={() => void exportRequestLogCsv()} disabled={exportingRequestLog}>
+          {exportingRequestLog ? 'Exporting…' : 'Export CSV'}
+        </button>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => setShowRequestLog(value => !value)}
+          aria-expanded={showRequestLog}
+        >
+          {showRequestLog ? 'Hide Log' : 'Show Log'}
+        </button>
+      </div>
     </section>
   )
 
@@ -854,6 +945,7 @@ export default function SettingsMetrics() {
             { label: 'Model',        width: '180px', platformWidths: { ipad: '180px', iphone: '170px' } },
             { label: 'Source',       width: '120px', platformWidths: { ipad: '120px', iphone: '120px' } },
             { label: 'Role',         width: '110px', platformWidths: { ipad: '110px', iphone: '110px' } },
+            { label: 'Platform',     width: '100px', platformWidths: { ipad: '100px', iphone: '100px' } },
             { label: 'Status',       width: '90px',  platformWidths: { ipad: '90px',  iphone: '90px'  } },
             { label: 'Latency',      width: '100px', platformWidths: { ipad: '100px', iphone: '100px' } },
             { label: 'Input',        width: '100px', platformWidths: { ipad: '100px', iphone: '100px' } },
@@ -923,6 +1015,7 @@ export default function SettingsMetrics() {
               </td>
               <td className="audit-td">{sourceLabel(item.source)}</td>
               <td className="audit-td">{roleLabel(item.route_role)}</td>
+              <td className="audit-td">{platformLabel(item.platform)}</td>
               <td className="audit-td" style={{ color: item.success ? 'var(--success)' : 'var(--error)', fontWeight: 'var(--fw-semibold)' }}>
                 {item.success ? 'OK' : 'Failed'}
               </td>
@@ -964,7 +1057,7 @@ export default function SettingsMetrics() {
         onApply={term => { setTextSearchTerm(term); setShowTextSearch(false) }}
         onClear={() => { setTextSearchTerm(''); setShowTextSearch(false) }}
         currentTerm={textSearchTerm}
-        placeholder="Search provider, model, source, role, or failure"
+        placeholder="Search provider, model, source, role, platform, or failure"
         ariaLabel="Search AI request log"
       />
 

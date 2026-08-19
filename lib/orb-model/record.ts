@@ -1,5 +1,6 @@
 import type { OrbModelUsage } from './types'
 import type { OrbModelRole } from './policy'
+import { sanitizeModelRequestPlatform, type ModelRequestPlatform } from '@/lib/client-environment'
 
 export type OrbModelRequestRecord = {
   userId: string
@@ -10,6 +11,7 @@ export type OrbModelRequestRecord = {
   responseText?: string
   correlationId?: string
   routeRole?: OrbModelRole
+  platform?: ModelRequestPlatform
 }
 
 function configuredCost(usage: OrbModelUsage, rateCard: any): OrbModelUsage {
@@ -73,6 +75,7 @@ export async function recordOrbModelRequest(admin: any, record: OrbModelRequestR
     context_packet_version: record.contextPacketVersion ?? null,
     response_text: record.responseText ?? null,
     route_role: record.routeRole ?? 'operational',
+    platform: sanitizeModelRequestPlatform(record.platform),
   })
   if (error) throw error
 }

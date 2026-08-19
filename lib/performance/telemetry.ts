@@ -1,6 +1,7 @@
 'use client'
 
 import { VERSION } from '@/lib/version'
+import { collectClientEnvironment } from '@/lib/client-environment'
 
 export type PerfFocus = 'auth' | 'dashboard-init' | 'dashboard-clicks' | 'settings' | 'voice' | 'background'
 
@@ -155,43 +156,6 @@ export function consumePerformanceNavigationStart(href: string) {
   return atMs
 }
 
-function platformClass() {
-  if (typeof window === 'undefined') return 'unknown'
-  const ua = navigator.userAgent
-  const platform = navigator.platform
-  const touchPoints = navigator.maxTouchPoints || 0
-  if (/iPhone|iPod/.test(ua) || platform === 'iPhone' || platform === 'iPod') return 'iphone'
-  if (/iPad/.test(ua) || platform === 'iPad') return 'ipad'
-  if (platform === 'MacIntel' && touchPoints > 1) return 'ipad'
-  const coarse = window.matchMedia('(pointer: coarse)').matches
-  if (window.innerWidth <= 767) return 'iphone'
-  if (coarse) return 'ipad'
-  return 'mac'
-}
-
-function browserLabel() {
-  if (typeof navigator === 'undefined') return 'unknown'
-  const ua = navigator.userAgent
-  if (/Edg\//.test(ua)) return 'Edge'
-  if (/CriOS|Chrome\//.test(ua)) return 'Chrome'
-  if (/Safari\//.test(ua)) return 'Safari'
-  if (/Firefox\//.test(ua)) return 'Firefox'
-  return 'unknown'
-}
-
-function viewportInfo() {
-  const pointer = window.matchMedia('(pointer: coarse)').matches ? 'coarse' : 'fine'
-  const hover = window.matchMedia('(hover: hover)').matches ? 'hover' : 'none'
-  return {
-    width: window.innerWidth,
-    height: window.innerHeight,
-    dpr: window.devicePixelRatio || 1,
-    pointer,
-    hover,
-    standalone: window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true,
-  }
-}
-
 function sanitizeMetadata(metadata: Record<string, unknown> = {}) {
   const allowed: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(metadata)) {
@@ -254,6 +218,7 @@ export function startInteraction(options: PerfOptions) {
     end(success = true, failureCode?: string | null, metadata?: Record<string, unknown>) {
       if (!enabled || typeof window === 'undefined') return
       const durationMs = Math.round(performance.now() - start)
+      const environment = collectClientEnvironment()
       enqueue({
         appVersion: VERSION,
         sessionId: getSessionId(),
@@ -263,9 +228,9 @@ export function startInteraction(options: PerfOptions) {
         flow: options.flow,
         interaction: options.interaction,
         surface: options.surface ?? options.flow,
-        platform: platformClass(),
-        browser: browserLabel(),
-        viewport: viewportInfo(),
+        platform: environment.platform,
+        browser: environment.browser,
+        viewport: environment.viewport,
         durationMs,
         stages,
         success,

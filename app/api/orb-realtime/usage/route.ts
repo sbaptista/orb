@@ -1,5 +1,6 @@
 import { getAuthContext } from '@/lib/auth'
 import { recordOrbModelRequest } from '@/lib/orb-model/record'
+import { sanitizeModelRequestPlatform } from '@/lib/client-environment'
 
 export const runtime = 'nodejs'
 
@@ -20,13 +21,14 @@ type RealtimeUsage = {
 export async function POST(request: Request) {
   try {
     const auth = await getAuthContext()
-    const body = await request.json() as { usage?: RealtimeUsage }
+    const body = await request.json() as { usage?: RealtimeUsage; platform?: unknown }
     const usage = body.usage
     if (!usage) return Response.json({ ok: true })
 
     await recordOrbModelRequest(auth.admin, {
       userId: auth.user.id,
       routeRole: 'voice',
+      platform: sanitizeModelRequestPlatform(body.platform),
       usage: {
         provider: 'openai',
         model: REALTIME_MODEL,

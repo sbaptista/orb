@@ -556,6 +556,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           routeRole,
           evaluationCaseId,
           correlationId: evaluationRunId,
+          platform: 'server',
         }),
       ])
       if (metricsResult.status === 'fulfilled' && metricsResult.value.error) {

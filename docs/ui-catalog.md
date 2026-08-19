@@ -105,7 +105,7 @@ Standard settings layout with centered content card.
 **Files:** `components/settings/SettingsMetrics.tsx`, `components/settings/SettingsCostReconciliation.tsx`, `components/settings/SettingsSubscriptions.tsx`, `components/settings/StatementImportModal.tsx`
 **CSS prefix:** `metrics-`
 
-AI Metrics uses the standard settings shell plus `SettingsCrudList` for the request log. Keep the section headers outside cards, then place the data surface inside `s-card` containers. The accounting summary uses database-side rollups so the page does not fetch raw request-ledger rows to calculate totals. The request log must retain the shared pagination controller and table column navigation controller. Because it is a growing operational log, it uses cursor pagination on indexed `created_at` instead of exact-count offset pagination.
+AI Metrics uses the standard settings shell plus `SettingsCrudList` for the request log. Keep the section headers outside cards, then place the data surface inside `s-card` containers. The accounting summary uses database-side rollups so the page does not fetch raw request-ledger rows to calculate totals. The request log must retain the shared pagination controller and table column navigation controller. Because it is a growing operational log, it uses cursor pagination on indexed `created_at` instead of exact-count offset pagination. Its heading pairs a standard `btn-outline` Export CSV action with the existing `btn-primary` Show/Hide Log action inside `flex-center gap-md`; export uses the active log filters and remains available while the table is collapsed. No export modal or new CSS family is used.
 
 | Class | Purpose |
 |---|---|
@@ -115,7 +115,7 @@ AI Metrics uses the standard settings shell plus `SettingsCrudList` for the requ
 | `metrics-rate-section` / `metrics-section-heading` | Rate-card section spacing with the header/caption outside cards |
 | `metrics-new-rate-card` / `metrics-rate-form` | Visually distinct new-rate input card and responsive field grid |
 | `metrics-reconciliation-section` / `metrics-reconciliation-card` / `metrics-reconciliation-list` / `metrics-reconciliation-row` | Provider bill reconciliation section, entry form, and recorded bill rows |
-| `metrics-request-log-heading` / `metrics-request-log-collapsed` | Header/caption/toggle block above the AI request log plus the collapsed-state placeholder |
+| `metrics-request-log-heading` / `metrics-request-log-collapsed` | Header/caption/export/toggle block above the AI request log plus the collapsed-state placeholder; actions reuse `flex-center gap-md`, `btn-outline`, and `btn-primary` |
 | `metrics-summary-grid` / `metrics-summary-card` / `metrics-summary-label` / `metrics-summary-value` | Shared compact summary cards, also used by Performance Settings |
 | `metrics-cost-bar` | Small status/cost strip for loading or compact informational states |
 | `metrics-chart-*` | Accessible native-SVG time-series chart with direct axis labels, summary copy, and a screen-reader data table; first explored in the ORB-373 AI observability prototype |
@@ -124,7 +124,7 @@ AI Metrics uses the standard settings shell plus `SettingsCrudList` for the requ
 | `metrics-funding-controls` | Standard `s-card` + `s-form` composition for provider funding caps; numeric fields use the Settings `.input` treatment |
 | `metrics-collection-list` | Two-column desktop / one-column mobile wrapper for funding-entry and subscription `crud-card` records; the cards keep the canonical New, Edit, and inline Delete/Cancel interaction model |
 | `metrics-editor-form` / `metrics-editor-wide` | Responsive field grid inside the canonical `EditorModal` for individual funding entries and subscriptions |
-| `metrics-import-modal-body` / `metrics-import-file-fields` / `metrics-import-preview` / `metrics-import-row` / `metrics-import-actions` | Single-statement CSV import flow inside the canonical `modal-center modal-compose` shell: select a file, preview automatic classification, resolve unknowns and duplicates, then explicitly confirm the batch |
+| `metrics-import-modal-body` / `metrics-import-file-fields` / `metrics-import-preview` / `metrics-import-row` / `metrics-import-actions` | Single-statement CSV import flow inside the canonical `modal-center modal-compose` shell: select a file, preview automatic classification, assign catalog-backed Models (with non-model accounts retained under Other services), resolve duplicates, then explicitly confirm the additive batch. The review states that AI policy settings are not replaced. |
 
 **ORB-373 production assembly:** `SettingsMetrics` uses the standard `s-page-wide` + `s-header` + `s-title` shell. Orb, Providers, and Controls switch with ordinary catalogued pills; the dark segmented prototype navigation was deliberately not promoted. During the step-by-step rebuild, Orb carries the rate cards after its complete request ledger; Controls contains only funding controls. Orb uses the accessible native-SVG history chart family with real ledger data and provider comparison bars. Providers has one statement-import entry point for heterogeneous CSV rows plus per-item funding CRUD. The former Current Status runway and subscription-management assembly is not mounted. The remaining prototype-only shell classes stay confined to `app/prototype/ai-cost-observability` and are not production grammar.
 

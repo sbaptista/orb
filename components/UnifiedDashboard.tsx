@@ -15,6 +15,7 @@ import { registerOrbTour, unregisterOrbTour, runOrbTour, launchOrbTour } from '.
 import { OrbDevPanel, DevTestError, type MoodOverride, type SimulateError } from './OrbDevPanel'
 import { orbConverse, type ActionSet, type OrbResponse, type PendingMutation } from '@/app/actions/orb-converse'
 import { collectSystemInfo, type SystemInfo } from '@/lib/system-info'
+import { collectClientEnvironment } from '@/lib/client-environment'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
 import { checkReminders } from '@/app/actions/reminder-actions'
 import { fetchPendingDevMessages, markDevMessageDelivered, processDevMessage, purgeOldDevMessages } from '@/app/actions/dev-channel'
@@ -1396,7 +1397,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       const outgoingMutation = pendingMutationRef.current
       pendingMutationRef.current = null
       submitMeasurement.mark('server_action_start')
-      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError, systemInfo: systemInfoRef.current, clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, pendingMutation: outgoingMutation ?? undefined, actionSets: actionSetsRef.current, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive, voiceMode: voice.voiceActive, availableVoices: voice.voiceActive ? voice.availableVoices.map(v => v.name) : undefined, currentVoice: voice.voiceActive ? voice.selectedVoiceName || undefined : undefined, ttsProvider: voice.voiceActive ? ttsConfig?.provider : undefined, ttsModel: voice.voiceActive ? ttsConfig?.model : undefined, ttsVoiceId: voice.voiceActive ? ttsConfig?.voiceId : undefined } })
+      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError, systemInfo: systemInfoRef.current, clientEnvironment: collectClientEnvironment(), clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, pendingMutation: outgoingMutation ?? undefined, actionSets: actionSetsRef.current, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive, voiceMode: voice.voiceActive, availableVoices: voice.voiceActive ? voice.availableVoices.map(v => v.name) : undefined, currentVoice: voice.voiceActive ? voice.selectedVoiceName || undefined : undefined, ttsProvider: voice.voiceActive ? ttsConfig?.provider : undefined, ttsModel: voice.voiceActive ? ttsConfig?.model : undefined, ttsVoiceId: voice.voiceActive ? ttsConfig?.voiceId : undefined } })
       submitMeasurement.mark('server_action_stream_opened')
       let firstChunkSeen = false
       for await (const chunk of readStreamableValue(stream)) {
