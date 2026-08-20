@@ -6,6 +6,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.298',
+    date: '2026-08-19',
+    changes: [
+      'Restored AI development-agent access to the backlog, projects, tickets, the Knowledge Repository, and database health through a new read-only capability broker, without giving any agent a master credential. ORB-375 had removed every agent data path along with the plaintext environment file, because capability and credential were the same object; the broker separates them.',
+      'Added the SELECT-only orb_agent_ro database role. Grants cover exactly eight tables and deliberately exclude audit_log. Read-only is enforced by database grants and row-level security policies rather than by the command line, so even a rewritten client cannot write. The migration never enables row-level security on a table that currently has it off, which would have denied application reads.',
+      'Added orb-agent, an allowlisted read-only broker with todos, projects, tickets, knowledge, and database-health verbs. It holds no credential, passes the database password through PGPASSFILE so it never reaches process arguments or the environment, validates every argument before use, and passes values as quoted psql variables rather than concatenating them into SQL.',
+      'Made agent access time-boxed. Stan opens a window with orb-agent-session --hours N (default 8, maximum 24) and can revoke it instantly with --end. Outside an active window the broker has no capability at all, and an expired session is deleted on first use. Loose permissions on the session credential file fail closed rather than proceeding on a psql warning.',
+      'Kept every mutation human-approved. Agents can only record a proposal; orb-agent-approve unlocks the master store, resolves the live record, prints the target from trusted code rather than the agent\'s description, requires a typed confirmation, and verifies the response before continuing. Resolution notes and Knowledge content must carry the required attribution line or the proposal is rejected.',
+      'Replaced the inline-secret curl and psql instructions in both AGENTS.md files with broker commands, denied every passphrase-bearing command to Claude Code in the tracked settings, and recorded the broker read surface in the object capability matrix. Internal developer tooling: no application route, component, or user-facing behavior changed. Performance instrumentation: not required. Eval: not applicable — no Orb-conversation capability, routing rule, prompt, or defined speech behavior changed.',
+    ],
+  },
+  {
     version: 'v0.6.297',
     date: '2026-08-18',
     changes: [

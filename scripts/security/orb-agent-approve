@@ -1,0 +1,229 @@
+#!/bin/bash
+#
+# orb-agent-approve — review and apply one agent proposal.
+#
+# HUMAN-RUN ONLY. Plan: docs/agent-capability-broker-plan.md (Layer 2)
+#
+# This is the ONLY path by which agent-originated work reaches Orb's data.
+# It unlocks the MASTER store, resolves the proposal against live records,
+# prints the resolved target from trusted code (never the agent's own
+# description of what it is doing — ORB-374 BP-3), and requires a typed
+# confirmation.
+#
+# Writes go through the Orb REST API because `closed_at` is server-managed
+# from `status`; a direct SQL UPDATE would silently skip it.
+
+set -euo pipefail
+set +x
+umask 077
+
+readonly SECRET_ROOT="/Users/stanleybaptista/Project-secrets"
+readonly MASTER_FILE="$SECRET_ROOT/orb-secrets/orb.env.enc"
+readonly AGENT_DIR="$SECRET_ROOT/orb-agent"
+readonly PROPOSAL_DIR="$AGENT_DIR/proposals"
+readonly AUDIT_FILE="$AGENT_DIR/audit.log"
+readonly OPENSSL="/opt/homebrew/bin/openssl"
+readonly ORB_BASE="https://orb-eight-lake.vercel.app"
+
+fail() { printf 'orb-agent-approve: %s\n' "$*" >&2; exit 1; }
+
+audit() {
+  printf '%s  %s\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >> "$AUDIT_FILE"
+  /bin/chmod 600 "$AUDIT_FILE" 2>/dev/null || true
+}
+
+# curl with the credential supplied through --config on stdin, so it never
+# enters argv and cannot be seen in `ps` or a shell history.
+curl_auth() {
+  local secret="$1"; shift
+  printf 'header = "Authorization: %s"\n' "$secret" \
+    | /usr/bin/curl --config - --silent --show-error --max-time 30 "$@"
+}
+
+curl_supabase() {
+  local key="$1"; shift
+  printf 'header = "apikey: %s"\nheader = "Authorization: Bearer %s"\n' "$key" "$key" \
+    | /usr/bin/curl --config - --silent --show-error --max-time 30 "$@"
+}
+
+load_master() {
+  local line="" name="" value=""
+  [[ -f "$MASTER_FILE" && ! -L "$MASTER_FILE" ]] || fail "master store is missing: $MASTER_FILE"
+  [[ "$(/usr/bin/stat -f '%Lp' "$MASTER_FILE")" == "600" ]] || fail "master store must have mode 600"
+
+  printf 'orb-agent-approve: unlock the MASTER Orb environment.\n'
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    [[ "$line" == *=* ]] || fail "master store contains a malformed line"
+    name="${line%%=*}"; value="${line#*=}"
+    case "$name" in
+      ORB_API_SECRET|SUPABASE_SECRET_KEY|NEXT_PUBLIC_SUPABASE_URL)
+        export "$name=$value" ;;
+      *) : ;;   # every other credential is deliberately discarded
+    esac
+  done < <("$OPENSSL" enc -d -aes-256-cbc -pbkdf2 -iter 210000 -in "$MASTER_FILE")
+
+  [[ -n "${ORB_API_SECRET:-}" ]] || fail "master store did not yield ORB_API_SECRET"
+  [[ -n "${SUPABASE_SECRET_KEY:-}" ]] || fail "master store did not yield SUPABASE_SECRET_KEY"
+  [[ -n "${NEXT_PUBLIC_SUPABASE_URL:-}" ]] || fail "master store did not yield NEXT_PUBLIC_SUPABASE_URL"
+}
+
+main() {
+  [[ $# -eq 1 ]] || fail "usage: orb-agent-approve <proposal-id>"
+  local id="$1"
+  [[ "$id" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}$ ]] || fail "invalid proposal id"
+
+  local path="$PROPOSAL_DIR/$id.json"
+  [[ -f "$path" ]] || fail "no such proposal: $id"
+
+  local kind status ref
+  kind="$(/usr/bin/python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["kind"])' "$path")"
+  status="$(/usr/bin/python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["status"])' "$path")"
+  ref="$(/usr/bin/python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["todo_ref"])' "$path")"
+
+  [[ "$status" == "pending" ]] || fail "proposal $id is already '$status'"
+  [[ "$kind" == "todo-close" ]] || fail "unsupported proposal kind: $kind"
+
+  local code="${ref%-*}" number="${ref##*-}"
+
+  load_master
+
+  # ---- Resolve the LIVE record. The banner below is built from this
+  # ---- response, not from anything the agent wrote.
+  printf '\nResolving %s against production...\n' "$ref"
+  local todo_json
+  todo_json="$(curl_auth "$ORB_API_SECRET" "$ORB_BASE/api/tasks?product=$code" \
+    | /usr/bin/python3 -c "
+import sys, json
+tasks = json.load(sys.stdin)
+match = [t for t in tasks if t.get('todo_number') == int('$number')]
+print(json.dumps(match[0]) if match else '')")"
+
+  [[ -n "$todo_json" ]] || fail "$ref was not found in production — nothing applied"
+
+  local todo_id todo_title todo_status
+  todo_id="$(/usr/bin/python3 -c 'import json,sys;print(json.loads(sys.argv[1])["id"])' "$todo_json")"
+  todo_title="$(/usr/bin/python3 -c 'import json,sys;print(json.loads(sys.argv[1])["title"])' "$todo_json")"
+  todo_status="$(/usr/bin/python3 -c 'import json,sys;print(json.loads(sys.argv[1])["status"])' "$todo_json")"
+
+  local k_title k_tags notes_head
+  k_title="$(/usr/bin/python3 -c '
+import json,sys
+k=json.load(open(sys.argv[1])).get("knowledge")
+print(k["title"] if k else "(NONE — violates working rule 8)")' "$path")"
+  k_tags="$(/usr/bin/python3 -c '
+import json,sys
+k=json.load(open(sys.argv[1])).get("knowledge")
+print(",".join(k["tags"]) if k and k["tags"] else "(none)")' "$path")"
+  notes_head="$(/usr/bin/python3 -c '
+import json,sys
+print(json.load(open(sys.argv[1]))["resolution_notes"].splitlines()[0])' "$path")"
+
+  cat <<BANNER
+
+────────────────────────────────────────────────────────────
+  ENVIRONMENT   production ($ORB_BASE)
+  ACTION        close todo + create Knowledge entry
+  TODO          $ref  ($todo_id)
+  TITLE         $todo_title
+  STATUS        $todo_status  ->  closed
+  NOTES (1st)   $notes_head
+  KNOWLEDGE     $k_title
+  TAGS          $k_tags
+  PROPOSAL      $id
+────────────────────────────────────────────────────────────
+
+BANNER
+
+  printf 'Apply this? Type exactly: yes\n> '
+  local answer=""; IFS= read -r answer
+  [[ "$answer" == "yes" ]] || { printf 'Aborted. Nothing was written.\n'; audit "proposal $id declined"; exit 1; }
+
+  # ---- 1. Close the todo through the Orb REST API (server manages closed_at)
+  printf '\nClosing %s...\n' "$ref"
+  local patch_body patch_result
+  patch_body="$(/usr/bin/python3 -c '
+import json,sys
+p=json.load(open(sys.argv[1]))
+print(json.dumps({"status":"closed","resolution_notes":p["resolution_notes"]}))' "$path")"
+
+  patch_result="$(printf '%s' "$patch_body" \
+    | curl_auth "$ORB_API_SECRET" -X PATCH "$ORB_BASE/api/tasks/$todo_id" \
+        -H "Content-Type: application/json" --data-binary @-)"
+
+  # Integrity rule 3: read the response, confirm the field actually changed.
+  local new_status
+  new_status="$(printf '%s' "$patch_result" | /usr/bin/python3 -c '
+import json,sys
+try:
+    d=json.load(sys.stdin)
+    print((d.get("task") or d).get("status",""))
+except Exception:
+    print("")')"
+  [[ "$new_status" == "closed" ]] \
+    || fail "the todo did NOT reach status=closed (response said: ${new_status:-<unparseable>}). Knowledge entry NOT written."
+
+  printf 'Todo closed and verified.\n'
+
+  # ---- 2. Knowledge entry
+  local has_knowledge
+  has_knowledge="$(/usr/bin/python3 -c '
+import json,sys
+print("yes" if json.load(open(sys.argv[1])).get("knowledge") else "no")' "$path")"
+
+  if [[ "$has_knowledge" == "yes" ]]; then
+    printf 'Writing Knowledge entry...\n'
+    local product_id knowledge_body knowledge_result
+    product_id="$(/usr/bin/python3 -c 'import json,sys;print(json.loads(sys.argv[1]).get("product_id") or "")' "$todo_json")"
+    knowledge_body="$(/usr/bin/python3 -c '
+import json,sys
+p=json.load(open(sys.argv[1]))
+k=p["knowledge"]
+print(json.dumps({
+  "title": k["title"],
+  "content": k["content"],
+  "tags": k["tags"],
+  "product_id": sys.argv[2] or None,
+  "origin_todo_id": sys.argv[3],
+}))' "$path" "$product_id" "$todo_id")"
+
+    knowledge_result="$(printf '%s' "$knowledge_body" \
+      | curl_supabase "$SUPABASE_SECRET_KEY" -X POST "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/knowledge_repo" \
+          -H "Content-Type: application/json" -H "Prefer: return=representation" --data-binary @-)"
+
+    local knowledge_id
+    knowledge_id="$(printf '%s' "$knowledge_result" | /usr/bin/python3 -c '
+import json,sys
+try:
+    d=json.load(sys.stdin)
+    print(d[0]["id"] if isinstance(d,list) and d else "")
+except Exception:
+    print("")')"
+    if [[ -n "$knowledge_id" ]]; then
+      printf 'Knowledge entry created and verified: %s\n' "$knowledge_id"
+    else
+      printf 'WARNING: the todo IS closed, but the Knowledge write could not be confirmed.\n' >&2
+      printf 'Response: %s\n' "$knowledge_result" >&2
+      audit "proposal $id PARTIAL — todo closed, knowledge unconfirmed"
+      /usr/bin/python3 -c '
+import json,sys
+p=json.load(open(sys.argv[1])); p["status"]="partial"
+open(sys.argv[1],"w").write(json.dumps(p,indent=2))' "$path"
+      exit 1
+    fi
+  fi
+
+  /usr/bin/python3 -c '
+import json,sys,datetime
+p=json.load(open(sys.argv[1]))
+p["status"]="applied"
+p["applied_at"]=datetime.datetime.now(datetime.timezone.utc).isoformat()
+open(sys.argv[1],"w").write(json.dumps(p,indent=2))' "$path"
+
+  audit "proposal $id applied — $ref closed"
+  printf '\nProposal %s applied.\n' "$id"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

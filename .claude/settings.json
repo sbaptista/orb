@@ -3,7 +3,36 @@
   "permissions": {
     "deny": [
       "Bash(git push)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+
+      "Bash(orb-dev)",
+      "Bash(orb-dev *)",
+      "Bash(scripts/security/orb-dev)",
+      "Bash(scripts/security/orb-dev *)",
+
+      "Bash(orb-secrets-seal)",
+      "Bash(orb-secrets-seal *)",
+      "Bash(scripts/security/orb-secrets-seal)",
+      "Bash(scripts/security/orb-secrets-seal *)",
+      "Bash(orb-secrets-set)",
+      "Bash(orb-secrets-set *)",
+      "Bash(scripts/security/orb-secrets-set)",
+      "Bash(scripts/security/orb-secrets-set *)",
+
+      "Bash(orb-agent-seal)",
+      "Bash(orb-agent-seal *)",
+      "Bash(scripts/security/orb-agent-seal)",
+      "Bash(scripts/security/orb-agent-seal *)",
+      "Bash(orb-agent-session)",
+      "Bash(orb-agent-session *)",
+      "Bash(scripts/security/orb-agent-session)",
+      "Bash(scripts/security/orb-agent-session *)",
+      "Bash(orb-agent-approve)",
+      "Bash(orb-agent-approve *)",
+      "Bash(scripts/security/orb-agent-approve)",
+      "Bash(scripts/security/orb-agent-approve *)",
+
+      "Read(//Users/stanleybaptista/Project-secrets/**)"
     ]
   }
 }

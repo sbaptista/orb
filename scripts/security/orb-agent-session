@@ -1,0 +1,128 @@
+#!/bin/bash
+#
+# orb-agent-session — open or close a time-boxed agent access window.
+#
+# HUMAN-RUN ONLY. Plan: docs/agent-capability-broker-plan.md (Layer 3)
+#
+# Decrypts the agent credential store and writes an EXPIRING session so
+# `orb-agent` can perform read-only work unattended. Outside an active
+# window the broker has no capability at all.
+#
+# The password is written to a PGPASSFILE, never to argv and never to the
+# exported environment, so it cannot leak through `ps` or shell history.
+
+set -euo pipefail
+set +x
+umask 077
+
+readonly SECRET_ROOT="/Users/stanleybaptista/Project-secrets"
+readonly AGENT_DIR="$SECRET_ROOT/orb-agent"
+readonly AGENT_FILE="$AGENT_DIR/agent.env.enc"
+readonly SESSION_FILE="$AGENT_DIR/session"
+readonly PGPASS_FILE="$AGENT_DIR/session.pgpass"
+readonly AUDIT_FILE="$AGENT_DIR/audit.log"
+readonly OPENSSL="/opt/homebrew/bin/openssl"
+readonly MAX_HOURS=24
+readonly DEFAULT_HOURS=8
+
+fail() { printf 'orb-agent-session: %s\n' "$*" >&2; exit 1; }
+
+audit() {
+  printf '%s  %s\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >> "$AUDIT_FILE"
+  /bin/chmod 600 "$AUDIT_FILE" 2>/dev/null || true
+}
+
+end_session() {
+  /bin/rm -f "$SESSION_FILE" "$PGPASS_FILE"
+  audit "session ended by human"
+  printf 'orb-agent-session: session ended. The broker now has no access.\n'
+}
+
+show_status() {
+  if [[ ! -f "$SESSION_FILE" ]]; then
+    printf 'orb-agent-session: no active session.\n'
+    return 0
+  fi
+  local expires="" now=""
+  expires="$(/usr/bin/awk -F= '$1=="EXPIRES"{print $2}' "$SESSION_FILE")"
+  now="$(/bin/date +%s)"
+  if [[ -z "$expires" ]] || (( now >= expires )); then
+    printf 'orb-agent-session: session EXPIRED. Removing.\n'
+    end_session
+    return 0
+  fi
+  printf 'orb-agent-session: active until %s (%d minutes remaining).\n' \
+    "$(/bin/date -r "$expires" '+%Y-%m-%d %H:%M:%S %Z')" "$(( (expires - now) / 60 ))"
+}
+
+main() {
+  local hours="$DEFAULT_HOURS"
+
+  while (( $# > 0 )); do
+    case "$1" in
+      --end)    end_session; return 0 ;;
+      --status) show_status; return 0 ;;
+      --hours)
+        [[ $# -ge 2 ]] || fail "--hours requires a value"
+        hours="$2"; shift 2 ;;
+      *) fail "usage: orb-agent-session [--hours N] | --end | --status" ;;
+    esac
+  done
+
+  [[ "$hours" =~ ^[0-9]{1,2}$ ]] || fail "--hours must be a whole number"
+  (( hours >= 1 && hours <= MAX_HOURS )) || fail "--hours must be between 1 and $MAX_HOURS"
+
+  [[ -x "$OPENSSL" ]] || fail "OpenSSL is required at $OPENSSL"
+  [[ -f "$AGENT_FILE" && ! -L "$AGENT_FILE" ]] || fail "no agent credential store — run orb-agent-seal first"
+  [[ "$(/usr/bin/stat -f '%Lp' "$AGENT_DIR")" == "700" ]] || fail "agent directory must have mode 700"
+  [[ "$(/usr/bin/stat -f '%Lp' "$AGENT_FILE")" == "600" ]] || fail "agent store must have mode 600"
+  [[ "$(/usr/bin/stat -f '%Su' "$AGENT_FILE")" == "$(/usr/bin/id -un)" ]] || fail "agent store is not owned by the current user"
+
+  local host="" port="" database="" user="" password="" line="" name="" value=""
+
+  printf 'orb-agent-session: unlock the AGENT credential store (not the master passphrase).\n'
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    [[ "$line" == *=* ]] || fail "agent store contains a malformed line"
+    name="${line%%=*}"; value="${line#*=}"
+    case "$name" in
+      PGHOST)     host="$value" ;;
+      PGPORT)     port="$value" ;;
+      PGDATABASE) database="$value" ;;
+      PGUSER)     user="$value" ;;
+      PGPASSWORD) password="$value" ;;
+      *) fail "agent store contains an unexpected name: $name" ;;
+    esac
+  done < <("$OPENSSL" enc -d -aes-256-cbc -pbkdf2 -iter 210000 -in "$AGENT_FILE")
+
+  [[ -n "$host" && -n "$port" && -n "$database" && -n "$user" && -n "$password" ]] \
+    || fail "agent store is missing required connection fields"
+
+  case "$user" in
+    postgres|postgres.*|supabase_admin|service_role)
+      fail "refusing to open a session for privileged role $user" ;;
+  esac
+
+  local expires=""
+  expires="$(( $(/bin/date +%s) + hours * 3600 ))"
+
+  # PGPASSFILE keeps the password out of argv AND out of the environment.
+  printf '%s:%s:%s:%s:%s\n' "$host" "$port" "$database" "$user" "$password" > "$PGPASS_FILE"
+  /bin/chmod 600 "$PGPASS_FILE"
+  unset password
+
+  printf 'EXPIRES=%s\nPGHOST=%s\nPGPORT=%s\nPGDATABASE=%s\nPGUSER=%s\n' \
+    "$expires" "$host" "$port" "$database" "$user" > "$SESSION_FILE"
+  /bin/chmod 600 "$SESSION_FILE"
+
+  audit "session opened for ${hours}h as ${user}@${host}:${port}"
+
+  printf '\nAgent session open for %s hour(s), until %s.\n' \
+    "$hours" "$(/bin/date -r "$expires" '+%Y-%m-%d %H:%M:%S %Z')"
+  printf 'Role: %s (SELECT only)\n' "$user"
+  printf 'Revoke early with: orb-agent-session --end\n\n'
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

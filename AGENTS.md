@@ -47,7 +47,66 @@ The following file contains cross-project rules, conventions, and shared resourc
 
 **@/Users/stanleybaptista/Projects/shared/AGENTS.md**
 
-### Manual Clipboard Protocol (current)
+### Agent Data Access — the `orb-agent` broker (primary)
+
+Agents read Orb data through `orb-agent`, a read-only capability broker.
+Plan and rationale: `docs/agent-capability-broker-plan.md`.
+
+The broker holds no credential of its own. It uses a SELECT-only `orb_agent_ro`
+database role through a time-boxed session that **Stan** opens. Read-only is
+enforced by database grants and RLS, not by the CLI.
+
+```bash
+orb-agent status
+```
+
+```bash
+orb-agent todos list --project ORB --status open --limit 20
+```
+
+```bash
+orb-agent todos get ORB-381
+```
+
+```bash
+orb-agent knowledge search "realtime confirmation" --limit 10
+```
+
+```bash
+orb-agent db health
+```
+
+Add `--json` to any read verb for machine-readable output. Full verb list:
+`orb-agent --help`.
+
+**Rules for agents:**
+
+- If the broker says there is no active session, **ask Stan to run
+  `orb-agent-session --hours 8`**. Do not attempt to unlock any store yourself.
+  `orb-agent-seal`, `orb-agent-session`, `orb-agent-approve`, `orb-secrets-*`,
+  and `orb-dev` are human-only and are denied to Claude Code in
+  `.claude/settings.json`.
+- **The broker cannot write.** To close a todo, record a proposal and hand the
+  id to Stan:
+
+  ```bash
+  orb-agent propose todo-close ORB-381 --notes-file notes.md --knowledge-file k.md --knowledge-title "Title" --knowledge-tags "a,b"
+  ```
+
+  Stan applies it with `orb-agent-approve <id>`. **Never report the todo as
+  closed until Stan confirms he applied the proposal** — the same rule as
+  manual mode.
+- Resolution notes and Knowledge content must still begin with
+  `YYYY-MM-DD — Tool (Model)`; the broker rejects a proposal that does not.
+- The task-start Knowledge search is **restored** whenever a session is active.
+  Use `orb-agent knowledge search`. When no session is active, say so rather
+  than implying the repository was checked.
+- Every broker call is logged, redacted, to
+  `/Users/stanleybaptista/Project-secrets/orb-agent/audit.log`.
+
+### Manual Clipboard Protocol (fallback)
+
+Use this when no broker session is available and Stan does not want to open one.
 
 The encrypted environment is available to the human-unlocked development
 server, not to Codex or Claude shells. Until Stan explicitly replaces this
@@ -91,29 +150,33 @@ mode:
 The Knowledge Repo stores distilled lessons, decisions, and resolution notes across all projects in the database.
 
 - **API URL:** `https://livwkbnkdlrbmzgythys.supabase.co`
-- **Key:** `SUPABASE_SECRET_KEY` (service role) located in `/Users/stanleybaptista/Projects/orb/.env.local`
-- **Rule:** Bypasses RLS to guarantee complete results. Never query using the publishable/anon key.
-- **Known sandboxed network path:** Required Supabase, psql, Orb API, or Knowledge Repo reads need outbound DNS/network access. If the current AI tool runs in a sandbox where these calls are known to fail, do not perform a doomed first attempt just to rediscover the DNS failure. Go directly to the tool's approved/escalated network path, then continue the task after the read succeeds. If escalation/network access is not available, say so and provide the exact fallback content Stan can run manually.
+- **Agent access:** `orb-agent knowledge search` / `orb-agent knowledge get` (read-only). `SUPABASE_SECRET_KEY` lives only in the encrypted master store; it is **not** in `.env.local` (that file no longer exists) and is never available to an agent shell.
+- **Rule:** Do not construct `curl` calls that expand a secret from a file. Use the broker, or ask Stan.
+- **When the broker has no session:** say so plainly and provide the exact fallback content Stan can run or paste manually. Do not attempt a direct Supabase, `psql`, or Orb API call to work around a missing session, and do not ask Stan to decrypt or expose credentials.
 - **Schema:** Columns are `id`, `product_id`, `origin_todo_id`, `title`, `content`, `tags` (text[]), `created_at`, `updated_at`. There is no `project_id` column — use `product_id`.
 
 **Database table names:**
-- User data is in `public.users` (not `profiles`). Columns include `id`, `first_name`, `last_name` — there is no `role` column on this table (role is in `auth.users` metadata only).
+- User data is in `public.users` (not `profiles`). Columns include `id`, `first_name`, `last_name`, and **`role_id` (integer)** — corrected 2026-08-19: the `tickets_admin_all` RLS policy reads `users.role_id = ANY (ARRAY[1, 3])`, so a role identifier *does* live on this table. The previous note claiming role exists only in `auth.users` metadata was wrong. `public.users` is not readable by `orb_agent_ro` and is not part of the broker's read surface.
 
-### Query all entries:
+### Read entries
+
 ```bash
-curl -s "https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?select=*,projects(code,name)&order=created_at.desc" \
-  -H "apikey: $(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local | cut -d= -f2)" \
-  -H "Authorization: Bearer $(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local | cut -d= -f2)"
+orb-agent knowledge search "<term>" --limit 10
 ```
 
-### Search by topic/keyword:
 ```bash
-curl -s "https://livwkbnkdlrbmzgythys.supabase.co/rest/v1/knowledge_repo?or=(title.ilike.*<term>*,content.ilike.*<term>*)&select=id,title,created_at,content&order=created_at.desc" \
-  -H "apikey: $(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local | cut -d= -f2)" \
-  -H "Authorization: Bearer $(grep SUPABASE_SECRET_KEY /Users/stanleybaptista/Projects/orb/.env.local | cut -d= -f2)"
+orb-agent knowledge get <uuid>
 ```
 
----
+The broker reads `knowledge_repo` through the SELECT-only `orb_agent_ro` role.
+Agents no longer construct `curl` calls carrying `SUPABASE_SECRET_KEY`; that
+credential is not available to an agent shell and must not be requested.
+
+### Write entries
+
+Agents do not write to the Knowledge Repository. Record a proposal with
+`orb-agent propose todo-close ... --knowledge-file ...` and ask Stan to apply it
+with `orb-agent-approve <id>`, which is the only path holding write credentials.
 
 ---
 
@@ -254,7 +317,7 @@ AI tools do not run model evals themselves. If evals fail, Stan pastes the outpu
 **Server action:** `app/actions/orb-converse.ts`
 **Model:** `claude-haiku-4-5`
 **Tools:** `create_todo`, `query_todos`, `update_todo`, `delete_todo`
-**Local key:** `ANTHROPIC_API_KEY` in `.env.local`
+**Local key:** `ANTHROPIC_API_KEY` in the encrypted master store, supplied to the dev server by `orb-dev` (not `.env.local`, which no longer exists)
 **Production key:** same value set in Vercel project env vars
 
 **Safety:** Server-only key (never reaches browser), Supabase auth gate, 10 calls/min/user rate limit, Anthropic console spend cap, prompt caching on system prompt + backlog (5-min TTL).
@@ -347,23 +410,24 @@ The version is not tracked in HANDOFF.md — `package.json` in the main director
 
 ---
 
-# Direct SQL Access (psql)
+# Direct SQL Access (psql) — Stan only
 
-`psql` is installed via `libpq` at `/opt/homebrew/opt/libpq/bin/psql`. Use it for DDL migrations (CREATE TABLE, ALTER TABLE, etc.) that the Supabase REST API cannot handle.
+`psql` is installed via `libpq` at `/opt/homebrew/opt/libpq/bin/psql`. It is used
+for DDL migrations that the Supabase REST API cannot handle.
 
-**Connection string:** stored in `.env.local` as `DATABASE_URL` (transaction pooler, port 6543).
+**Agents cannot run these.** `DATABASE_URL` lives only in the encrypted master
+store and is never available in an agent shell. Do not construct commands that
+read it from `.env.local` — that file no longer exists, and `orb-dev` refuses to
+start while it does.
 
-## Run a migration
+When an agent needs a migration applied, it writes the `.sql` file under
+`scripts/migrations/` and gives Stan the command to run:
 
 ```bash
-/opt/homebrew/opt/libpq/bin/psql "$(grep DATABASE_URL /Users/stanleybaptista/Projects/orb/.env.local | cut -d= -f2-)" -f scripts/migrations/whatever.sql
+/opt/homebrew/opt/libpq/bin/psql "$DATABASE_URL" -f scripts/migrations/whatever.sql
 ```
 
-## Run ad-hoc SQL
-
-```bash
-/opt/homebrew/opt/libpq/bin/psql "$(grep DATABASE_URL /Users/stanleybaptista/Projects/orb/.env.local | cut -d= -f2-)" -c "SELECT ..."
-```
+Agents read database state with `orb-agent db health` instead.
 
 ---
 
@@ -494,52 +558,29 @@ Before writing code for any feature that touches the database, answer these ques
 
 ## 2. Periodic Health Review (run at the start of any session where DB changes are made)
 
-Run the following canonical inspection queries before and after any migration or schema change. Takes under 2 minutes.
+Agents run the canonical inspection set through the broker:
 
-### Sequential scan audit (primary IO driver)
 ```bash
-/opt/homebrew/opt/libpq/bin/psql "$(grep DATABASE_URL /Users/stanleybaptista/Projects/orb/.env.local | cut -d= -f2-)" -c "
-SELECT relname AS table_name, seq_scan, seq_tup_read, idx_scan,
-  CASE WHEN seq_scan = 0 THEN NULL ELSE round(seq_tup_read::numeric / seq_scan, 0) END AS avg_rows_per_scan
-FROM pg_stat_user_tables WHERE seq_scan > 0
-ORDER BY seq_tup_read DESC LIMIT 15;"
+orb-agent db health
 ```
-**Flag:** any user table with seq_tup_read > 100k and low idx_scan count needs an index.
 
-### Dead row bloat
-```bash
-/opt/homebrew/opt/libpq/bin/psql "$(grep DATABASE_URL /Users/stanleybaptista/Projects/orb/.env.local | cut -d= -f2-)" -c "
-SELECT relname, n_live_tup, n_dead_tup,
-  CASE WHEN n_live_tup = 0 THEN NULL ELSE round(100.0 * n_dead_tup / n_live_tup, 1) END AS dead_pct,
-  last_autovacuum, last_vacuum
-FROM pg_stat_user_tables ORDER BY n_dead_tup DESC LIMIT 10;"
-```
-**Flag:** dead_pct > 20% on any table → run VACUUM ANALYZE public.<table>; (outside a transaction block).
+It reports the same four checks the project has always used — sequential scan
+audit, dead row bloat, top disk-reading queries, and the RLS initplan check —
+against the read-only role.
 
-### Top disk-reading queries
-```bash
-/opt/homebrew/opt/libpq/bin/psql "$(grep DATABASE_URL /Users/stanleybaptista/Projects/orb/.env.local | cut -d= -f2-)" -c "
-SELECT round(total_exec_time::numeric,0) AS total_ms, calls,
-  shared_blks_read AS disk_blks,
-  round(100.0 * shared_blks_hit / NULLIF(shared_blks_hit+shared_blks_read,0),1) AS cache_hit_pct,
-  left(query, 120) AS query_snippet
-FROM extensions.pg_stat_statements
-WHERE shared_blks_read > 0
-ORDER BY shared_blks_read DESC LIMIT 10;"
-```
-**Flag:** any query with cache_hit_pct < 95% or disk_blks dominating the list.
+**Flags:**
 
-### RLS initplan check (auth.uid() must always be wrapped in SELECT)
-```bash
-/opt/homebrew/opt/libpq/bin/psql "$(grep DATABASE_URL /Users/stanleybaptista/Projects/orb/.env.local | cut -d= -f2-)" -c "
-SELECT tablename, policyname
-FROM pg_policies
-WHERE schemaname = 'public'
-  AND ((qual ILIKE '%auth.uid()%' AND qual NOT ILIKE '%select auth.uid()%')
-    OR (with_check ILIKE '%auth.uid()%' AND with_check NOT ILIKE '%select auth.uid()%'))
-ORDER BY tablename, policyname;"
-```
-**Flag:** any result = a policy evaluating auth.uid() per-row. Rewrite with (SELECT auth.uid()).
+- any user table with `seq_tup_read` > 100k and low `idx_scan` needs an index;
+- `dead_pct` > 20% on any table → ask Stan to run
+  `VACUUM ANALYZE public.<table>;` (outside a transaction block);
+- any query with `cache_hit_pct` < 95% or dominating `disk_blks`;
+- **any** row from the RLS initplan check = a policy evaluating `auth.uid()`
+  per row; rewrite it with `(SELECT auth.uid())`.
+
+If the disk-read section reports UNAVAILABLE, the role was not granted
+`extensions.pg_stat_statements`. That section is then **unmeasured, not clean** —
+say so rather than reporting a pass, and ask Stan to run it from the master
+credential if it matters.
 
 ### Supabase dashboard
 - **Observability → Overview → Disk IO** — if > 50%, run the queries above before doing more work.

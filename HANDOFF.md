@@ -13,14 +13,14 @@
 ## App State
 
 - **Branch:** `main`.
-- **Unpushed:** none after Stan's authorized v0.6.297 commit and production
-  push.
+- **Unpushed:** v0.6.298 is implemented but **not yet committed**. Nothing is
+  pushed; no production deploy has occurred.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.297** — additive catalog-backed statement import,
-  shared client-environment platform capture, Platform in the AI Request Log,
-  and filtered safe CSV export.
+- **Local version:** **0.6.298** — agent capability broker: a read-only
+  `orb-agent` command, the SELECT-only `orb_agent_ro` role, time-boxed sessions,
+  and a human-only approval gate for every write.
 - **Production maintenance:** off.
 - **Database:** Stan applied
   `scripts/migrations/20260818_statement_import_catalog_models.sql` and
@@ -28,20 +28,182 @@
   `scripts/migrations/20260818_model_request_platform.sql` and reported
   “Success. No rows returned.” Historical request rows deliberately remain
   `unknown`; no production model promotion was made.
-- **ORB-374:** deferred. Its complete reviewed long-range plan is preserved.
+- **Database — ACTION REQUIRED:** `scripts/migrations/20260819_orb_agent_ro_role.sql`
+  has **not** been applied. The broker cannot work until Stan applies it, sets
+  the role password with `\password orb_agent_ro`, and runs
+  `scripts/migrations/verify-orb-agent-ro.sql`.
+- **ORB-374:** still deferred overall, but its Phase 1 items 4 and 7 (narrow
+  brokers; removing inline-secret instructions from both `AGENTS.md` files) are
+  now implemented by the capability broker.
 - **ORB-375:** implementation and credential rotation are in progress.
 
 ---
 
 ## Uncommitted Changes
 
+**v0.6.298 — agent capability broker (Claude Code, Opus 5):**
+
+- `docs/agent-capability-broker-plan.md` — new. The approved plan, research
+  basis, architecture, limits, and verification requirements.
+- `scripts/migrations/20260819_orb_agent_ro_role.sql` — new. Creates the
+  SELECT-only `orb_agent_ro` role, grants, and RLS policies. **Not yet applied.**
+- `scripts/migrations/verify-orb-agent-ro.sql` — new. Negative *and* positive
+  boundary tests. **Not yet run.**
+- `scripts/security/orb-agent` — new. The read-only broker. Agent-runnable.
+- `scripts/security/orb-agent-seal` — new. Seals the agent DSN. Human-only.
+- `scripts/security/orb-agent-session` — new. Opens/ends a time-boxed session.
+  Human-only.
+- `scripts/security/orb-agent-approve` — new. The only write path. Human-only.
+- `scripts/security/test-orb-agent.sh` — new. 48 offline checks; all passing.
+- `.claude/settings.json` — modified. Denies every passphrase-bearing command
+  (`orb-dev`, `orb-secrets-*`, `orb-agent-seal|session|approve`) plus reads of
+  `Project-secrets/`. The existing `git push` denies are unchanged.
+- `AGENTS.md` — modified. New broker section; manual clipboard mode demoted to
+  fallback; Knowledge and DB-health instructions rewritten to broker verbs;
+  `psql` marked Stan-only.
+- `/Users/stanleybaptista/Projects/shared/AGENTS.md` — modified **(outside this
+  repo, affects Helm's agents too)**. Adds the Orb broker section and marks the
+  Orb API / Knowledge `curl` blocks superseded for Orb only. Non-Orb projects
+  explicitly unchanged.
+- `docs/object-capability-matrix.md` — modified. New Part 1b records the broker
+  read surface and why `audit_log` is excluded.
+- `package.json`, `lib/version.ts`, `lib/changelog.ts` — v0.6.298.
+- The four broker commands are installed at `~/.local/bin/` (outside git).
+
+**Pre-existing, not mine:**
+
 - `docs/orb-381-model-cost-comparison-plan.md` remains a pre-existing untracked
-  ORB-381 planning file under its separate active claim. It was deliberately
-  excluded from the v0.6.297 implementation commit.
+  ORB-381 planning file under Codex's separate claim. I did not touch it and it
+  should be excluded from the v0.6.298 commit.
 
 ---
 
 ## Last Session Completed
+
+**Agent capability broker — 2026-08-19 (Claude Code, Opus 5)**
+
+Released locally as **v0.6.298**. Stan asked why `orb-dev` had made agent data
+access impossible and approved all four layers of the fix.
+
+**Diagnosis.** ORB-375 was working as designed, not broken. `orb-dev` allowlists
+six commands and none reads data (`orb-dev:162`); the passphrase comes from the
+terminal, so unlocking is not scriptable (`:139`); the launcher refuses to start
+while a repository `.env.local` exists (`:151`); and the fifteen credentials are
+one indivisible bundle (`:17-33`). Agents needed three of the fifteen and could
+not get them without all fifteen. The root cause was that **capability and
+credential were the same object**, so revoking one revoked the other. The
+replacement — manual clipboard mode — was enforced only by prose, which ORB-374
+§5.4 already identifies as the weakest possible control.
+
+**What shipped.** A read-only `orb_agent_ro` role with grants on exactly eight
+tables and `audit_log` deliberately excluded; RLS policies scoped to that role,
+with soft-delete filtering in the policy. An `orb-agent` broker holding no
+credential of its own, passing the password through `PGPASSFILE` (never argv or
+the environment) and every argument as a quoted psql variable. Time-boxed
+sessions Stan opens and can revoke instantly. A human-only `orb-agent-approve`
+that resolves the live record, prints the target from trusted code rather than
+the agent's description, requires a typed `yes`, and verifies the response.
+Enforcement moved from prose into `.claude/settings.json` deny rules and rewritten
+`AGENTS.md` instructions.
+
+**Verification.** `bash scripts/security/test-orb-agent.sh` — **48/48 passing**,
+run repeatedly and deterministic (no model, network, or database involved).
+`npx tsc --noEmit` passed. I spot-checked that each `check_fails` case fails for
+the *right* reason rather than incidentally, and that a valid call reaches psql
+and stops only at DNS.
+
+**Three bugs I introduced and fixed, all worth remembering:** backticks inside
+double-quoted bash strings execute as command substitution at runtime (`bash -n`
+does not catch it); blanket `ENABLE ROW LEVEL SECURITY` in the migration would
+have denied every authenticated application read on any table that currently has
+RLS off; and **macOS ships bash 3.2, where `"${arr[@]}"` on an empty array is an
+unbound-variable error under `set -u`** — this broke `projects list` and
+`db health`, the only two verbs that pass no psql variables, and the offline
+tests could not reach that code path without a live session. All three now have
+deterministic checks in `test-orb-agent.sh`.
+
+**RLS OR-evaluation finding (verified 2026-08-19).** The first verification run
+returned 35/36 with one failure: `tickets` was unreadable with "permission denied
+for table users". Cause, confirmed by dumping `pg_policies`: permissive policies
+are OR'd and evaluated **as the querying role**, and `tickets_admin_all` is
+`TO public` (so it applies to `orb_agent_ro`) and dereferences
+`public.users(id, role_id)`. `true OR <anything>` is constant-folded at plan time
+so the subquery never enters the plan — which is why `knowledge_repo`, whose
+policies also reference `users`, passed. `deleted_at IS NULL OR <subquery>`
+cannot be folded, so it failed. Fixed by giving `tickets` `USING (true)` rather
+than granting any access to `users`; the broker's own `WHERE deleted_at IS NULL`
+carries soft-delete filtering there. **Do not "fix" this by granting on
+`public.users`.** Section C of the verifier exists to catch exactly this class of
+over-restriction, and it did.
+
+**Also corrected:** `AGENTS.md` claimed `public.users` has no role column and
+that role lives only in `auth.users` metadata. The policy dump shows
+`users.role_id` (integer). That note is now fixed.
+
+**NOT verified — Stan must confirm before trusting any of this:**
+
+- **The database boundary is VERIFIED.** Post-fix rerun on 2026-08-19 returned
+  **36 passed, 0 failed — BOUNDARY VERIFIED**. All 12 section A attribute checks
+  pass (SELECT-only on exactly 8 tables, `audit_log` absent, no privileged
+  memberships, NOBYPASSRLS, NOINHERIT). All 10 section B refusals pass
+  (INSERT/UPDATE/DELETE on todos, INSERT on knowledge_repo, reads of
+  `audit_log`, `auth.users`, `public.users`, CREATE TABLE, ALTER TABLE), plus
+  soft-deleted todos hidden. All 10 section C reads pass — todos 452, projects
+  12, knowledge_repo 283, statuses 5, priorities 4, categories 39, groups 17,
+  tickets 71, the broker's todos/projects join 452, pg_stat_user_tables 81.
+  Section D confirms no probe row, table, or column was left behind.
+- **The direct connection is unusable — confirmed 2026-08-19.**
+  `db.livwkbnkdlrbmzgythys.supabase.co` publishes only an AAAA record (no A
+  record); this project has no IPv4 add-on, and psql fails with "could not
+  translate host name". The **pooler is the required path**, with the username
+  in `orb_agent_ro.<project-ref>` form. Whether a custom role authenticates
+  through the pooler is the one remaining untested step.
+- `GRANT pg_read_all_stats` **was refused** by Supabase on 2026-08-19 (its
+  `postgres` role is not a superuser); `pg_stat_statements` itself was granted.
+  Because that view returns partial data rather than erroring, `db health` now
+  checks the privilege first and prints **UNMEASURED** with the SQL for Stan to
+  run manually. The disk-read audit is a Stan-run check, not an agent one.
+- No end-to-end read has been performed, because performing one requires the
+  session that only Stan can open.
+
+**PUSH-GATE GAP FOUND — not fixed, needs Stan's decision.** While reviewing what
+survives an AI that ignores `AGENTS.md`, four things were verified:
+
+1. **Codex had no entry in the shared AGENTS.md push-gate table**, despite being
+   one of the two writable agents and the author of v0.6.296 and v0.6.297. The
+   table asserted "every AI tool must have a push gate" while omitting one of
+   them — an impression of coverage is worse than an admitted gap. Codex is now
+   listed with its real, unverified status.
+2. **`.claude/settings.json` binds Claude Code only.** Codex does not read it, so
+   the `git push` deny rule gives Codex nothing.
+3. **No `pre-push` hook exists** — there is no tool-agnostic gate at the git
+   layer.
+4. **`git credential fill` returns a GitHub username and password from
+   `osxkeychain` non-interactively** (run and confirmed). Push credentials are
+   available on demand to any process running as Stan.
+
+Codex's config has `approval_policy = "untrusted"` globally but Orb is
+`trust_level = "trusted"`; **how those interact in the installed build was not
+tested.** Safe one-command test, recorded in the shared AGENTS.md: run
+`git push --dry-run origin main` in Codex and report whether an approval prompt
+appeared.
+
+**The durable lesson:** per-tool push gates do not compose. Every new tool starts
+ungated, the gate lives in that tool's own config, and "unlisted tools must flag
+it" depends on the tool reading and obeying the file — exactly what a gate must
+not rely on. The only tool-agnostic gate is the credential layer: an SSH key
+whose passphrase is not in `ssh-agent` or the login keychain fails closed for
+every tool. Proposed commands are in the shared AGENTS.md note. **Caveats before
+acting:** `git credential reject` clears `github.com` for all repos including
+Helm, and `gh` CLI holds separate auth that this does not touch.
+
+**Eval:** not applicable — no Orb-conversation capability, tool, routing rule,
+prompt, or defined speech behavior changed. **Performance instrumentation:** not
+required — no application route, server action, component, or load path changed;
+this is a CLI outside the Next.js app. **UI:** none — no component or CSS
+touched, so the UI catalog does not apply.
+
+**Prior session:**
 
 **Statement import catalog alignment and AI Metrics CSV export — 2026-08-18
 (Codex, GPT-5.6 Sol)**
@@ -620,21 +782,55 @@ enter that surface.
 
 ## Next Priorities
 
-0. Verify the v0.6.297 Vercel deployment, then spot-check AI Metrics → Orb on
+0. **Bring the agent capability broker into service (v0.6.298).** Nothing works
+   until these run, and the boundary is unproven until step (c) passes.
+   Both SQL files are written for the **Supabase SQL Editor** (no psql
+   meta-commands, no `DATABASE_URL` needed) and also run under psql:
+   a. **DONE 2026-08-19.** All eight tables already had RLS enabled, so all
+      eight `agent_ro: select` policies were created; `pg_stat_statements` was
+      granted and `pg_read_all_stats` was refused (see above).
+   b. **DONE 2026-08-19** — password set via
+      `ALTER ROLE orb_agent_ro WITH PASSWORD '<random>'`. For a future rotation:
+      generate locally with `openssl rand -base64 32`, and clear the SQL Editor
+      afterwards since it retains recent queries.
+   b2. **DONE 2026-08-19** — the `tickets` agent policy was changed from
+      `deleted_at IS NULL` to `true`. See "RLS OR-evaluation finding" below.
+      The committed migration already encodes this for a fresh setup.
+   c. **DONE 2026-08-19 — 36 passed, 0 failed, BOUNDARY VERIFIED.** Rerun
+      `scripts/migrations/verify-orb-agent-ro.sql` after any policy or grant
+      change; every row must read PASS.
+   d. **BLOCKED 2026-08-19** — `orb-agent-seal` was run against the direct host
+      `db.<ref>.supabase.co:5432`, which did not resolve. Supabase projects
+      without the IPv4 add-on are IPv6-only on `db.*`. Reseal against the
+      pooler: host from Project Settings → Database → Connection pooling, port
+      `6543`, and username **`orb_agent_ro.<project-ref>`** (the `.<ref>` suffix
+      is required by Supavisor). Whether a *custom* role authenticates through
+      the pooler is the one untested assumption in this design.
+   e. `orb-agent-session --hours 8`, then ask me to run `orb-agent status`,
+      `orb-agent todos list --project ORB --status open`, and
+      `orb-agent db health` so we confirm end to end.
+1. **Decide the push gate (unresolved, tool-agnostic).** First run
+   `git push --dry-run origin main` inside Codex and record whether it prompted
+   — that establishes whether Codex has any gate at all. Then choose: move to an
+   SSH key whose passphrase is never added to `ssh-agent` (recommended — fails
+   closed for every tool), add a `pre-push` hook (weaker; an agent running as
+   Stan can delete it), or accept the current state knowingly. Also check
+   whether `gh` CLI can push independently.
+2. Verify the v0.6.297 Vercel deployment, then spot-check AI Metrics → Orb on
    Mac/iPad/iPhone: Platform values, all/date/search/empty CSV exports, filtered
    row counts/IDs, collapsed-log availability, and Numbers/Excel opening.
-1. Stan has the prepared encompassing Knowledge Repository entry. Do not report
+3. Stan has the prepared encompassing Knowledge Repository entry. Do not report
    it saved until he confirms the manual write.
-2. **Nothing is owed on the non-admin account plan.** It is on hold as of
+4. **Nothing is owed on the non-admin account plan.** It is on hold as of
    2026-08-12 and is not a task. Two of its findings are separable and can be
    acted on any time Stan wants, independently of it: tighten
    `/Users/stanleybaptista` from `0750` to `0700`, and consider a read-only Git
    credential as the structural complement to the policy-based push gate.
    Neither is scheduled.
-3. Use Kimi experimentally in the Operational, Strategic, and Evaluation roles;
+5. Use Kimi experimentally in the Operational, Strategic, and Evaluation roles;
    compare live quality, latency, and AI Metrics cost before deciding whether
    to promote it beyond development.
-4. **ORB-359 — make the four §7 decisions** in
+6. **ORB-359 — make the four §7 decisions** in
    `docs/orb-359-realtime-confirmation-integrity-plan.md`. Recommended first
    move is **B1** (never silently swallow a committed mutation): it has no
    dependencies, needs no provider evidence, and fixes the half of the reported
@@ -642,12 +838,14 @@ enter that surface.
    transcription prompt before the boundary rejection lands — see §3.** A3
    (logprobs gate) stays unspecified until a raw payload is captured, which
    itself needs Stan's approval for temporary instrumentation (§10).
-5. Stan chose manual clipboard CRUD for now. Test Copy/Copy All on Mac, iPad,
+7. Stan chose manual clipboard CRUD for now. Test Copy/Copy All on Mac, iPad,
    and iPhone across Todo, Settings Projects, Settings Knowledge, and the
    dashboard List project modal. In Settings Knowledge, also verify `Claude
    security` with both All terms and Any term, plus the bounded 10-entry Copy
-   Results packet. The local-unlock and larger broker documents remain
-   historical planning, not active implementation priorities.
+   Results packet. **Manual clipboard mode is now the documented fallback, not
+   the primary path** — once priority 0 is complete, agents read through
+   `orb-agent` and manual transfer is only for what the broker does not cover
+   or for when no session is open.
 6. Review `docs/orb-instruction-architecture-proposal.md` with Orb and Claude
    Code; preserve complete attributed packets and leave all final decisions to
    Stan. Do not change active instructions before its gates are satisfied.
@@ -746,13 +944,22 @@ enter that surface.
   contain "push", including commit messages.
 - **A safety rule cannot live in a file the agent writes to.** That is why the
   gate moved out of `.claude/settings.local.json`.
+- **Per-tool gates do not compose; a table of them invites false confidence.**
+  The push-gate table omitted Codex entirely while asserting universal coverage.
+  A control that must be re-implemented per tool, in that tool's own config, is
+  a control that silently lapses with every new tool. Prefer gates at the shared
+  layer both tools must pass through — the credential, the database grant, the
+  OS account — over gates each tool applies to itself.
+- **Verify a control by exercising it, including the credential path.**
+  `git credential fill` answering non-interactively is the kind of fact that a
+  documentation table will never reveal.
 - **Orb identity:** Brownie temperament, butler intelligence.
 
 ---
 
 ## AI Tool Used Last Session
 
-`2026-08-18 — Codex (GPT-5.6 Sol)`
+`2026-08-19 — Claude Code (Opus 5)`
 
 ---
 

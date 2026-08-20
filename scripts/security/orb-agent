@@ -1,0 +1,514 @@
+#!/bin/bash
+#
+# orb-agent — read-only capability broker for AI development agents.
+#
+# AGENT-RUNNABLE. Plan: docs/agent-capability-broker-plan.md (Layer 2)
+#
+# Holds no credential of its own. Reads execute against the SELECT-only
+# `orb_agent_ro` role through an unexpired session. Writes NEVER execute:
+# they serialise a proposal that only `orb-agent-approve` can apply.
+#
+# Read-only is enforced by the database (grants + RLS), not by this file.
+# The verb allowlist below is defence in depth, not the boundary.
+
+set -euo pipefail
+set +x
+umask 077
+
+readonly SECRET_ROOT="/Users/stanleybaptista/Project-secrets"
+readonly AGENT_DIR="$SECRET_ROOT/orb-agent"
+readonly SESSION_FILE="$AGENT_DIR/session"
+readonly PGPASS_FILE="$AGENT_DIR/session.pgpass"
+readonly PROPOSAL_DIR="$AGENT_DIR/proposals"
+readonly AUDIT_FILE="$AGENT_DIR/audit.log"
+readonly PSQL="/opt/homebrew/opt/libpq/bin/psql"
+
+JSON_OUTPUT=0
+
+fail() { printf 'orb-agent: %s\n' "$*" >&2; exit 1; }
+
+audit() {
+  [[ -d "$AGENT_DIR" ]] || return 0
+  printf '%s  %s\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >> "$AUDIT_FILE"
+  /bin/chmod 600 "$AUDIT_FILE" 2>/dev/null || true
+}
+
+usage() {
+  cat <<'USAGE'
+orb-agent — read-only Orb data access for AI development agents
+
+  orb-agent status
+  orb-agent todos list [--project CODE] [--status NAME] [--limit N]
+  orb-agent todos get <CODE-NUMBER>
+  orb-agent projects list
+  orb-agent tickets list [--status NAME] [--limit N]
+  orb-agent knowledge search <term> [--limit N]
+  orb-agent knowledge get <uuid>
+  orb-agent db health
+  orb-agent propose todo-close <CODE-NUMBER> --notes-file PATH
+                     [--knowledge-file PATH --knowledge-title TITLE [--knowledge-tags a,b]]
+  orb-agent proposals list
+  orb-agent proposals show <id>
+
+Global:
+  --json      emit JSON instead of an aligned table
+
+Reads require an unexpired session opened by Stan:
+  orb-agent-session --hours 8
+
+Writes are never executed here. `propose` records a proposal; Stan applies
+it with `orb-agent-approve <id>`, which requires the master passphrase.
+USAGE
+}
+
+# ---------------------------------------------------------------- session
+
+require_session() {
+  [[ -x "$PSQL" ]] || fail "psql is required at $PSQL"
+  [[ -f "$SESSION_FILE" ]] || fail "no active session. Ask Stan to run: orb-agent-session --hours 8"
+  [[ -f "$PGPASS_FILE" ]] || fail "session is incomplete. Ask Stan to run: orb-agent-session --hours 8"
+
+  # Expiry is checked FIRST so an expired credential is always removed,
+  # whatever else is wrong with it.
+  local expires="" now=""
+  expires="$(/usr/bin/awk -F= '$1=="EXPIRES"{print $2}' "$SESSION_FILE")"
+  now="$(/bin/date +%s)"
+  if [[ ! "$expires" =~ ^[0-9]+$ ]] || (( now >= expires )); then
+    /bin/rm -f "$SESSION_FILE" "$PGPASS_FILE"
+    audit "session expired or malformed; removed"
+    fail "session expired. Ask Stan to run: orb-agent-session --hours 8"
+  fi
+
+  # Then fail closed on loose permissions. psql only WARNS about a group-
+  # or world-readable password file and carries on; that is not good enough
+  # for a credential file. A missing control must refuse service.
+  [[ ! -L "$SESSION_FILE" && ! -L "$PGPASS_FILE" ]] || fail "session files must not be symlinks"
+  [[ "$(/usr/bin/stat -f '%Lp' "$PGPASS_FILE")" == "600" ]] \
+    || fail "session credential file has unsafe permissions — ask Stan to reopen the session"
+  [[ "$(/usr/bin/stat -f '%Su' "$PGPASS_FILE")" == "$(/usr/bin/id -un)" ]] \
+    || fail "session credential file is not owned by the current user"
+
+  PGHOST="$(/usr/bin/awk -F= '$1=="PGHOST"{print $2}' "$SESSION_FILE")"
+  PGPORT="$(/usr/bin/awk -F= '$1=="PGPORT"{print $2}' "$SESSION_FILE")"
+  PGDATABASE="$(/usr/bin/awk -F= '$1=="PGDATABASE"{print $2}' "$SESSION_FILE")"
+  PGUSER="$(/usr/bin/awk -F= '$1=="PGUSER"{print $2}' "$SESSION_FILE")"
+  SESSION_EXPIRES="$expires"
+  [[ -n "$PGHOST" && -n "$PGPORT" && -n "$PGDATABASE" && -n "$PGUSER" ]] \
+    || fail "session file is missing connection fields"
+}
+
+# Runs SQL as orb_agent_ro. The password comes from PGPASSFILE, so it
+# never appears in argv or the exported environment.
+run_sql() {
+  local sql="$1"; shift
+  # NOTE: macOS ships bash 3.2, where "${arr[@]}" on an EMPTY array is an
+  # unbound-variable error under `set -u`. Verbs that pass no psql variables
+  # (projects list, db health) hit exactly that, so every expansion of a
+  # possibly-empty array below uses the ${arr[@]+"${arr[@]}"} guard.
+  local -a vars=("${@+$@}")
+  local -a args=(
+    --host "$PGHOST" --port "$PGPORT" --username "$PGUSER" --dbname "$PGDATABASE"
+    --no-password --quiet --no-psqlrc
+    --set ON_ERROR_STOP=1
+  )
+  local v
+  for v in ${vars[@]+"${vars[@]}"}; do args+=(--variable "$v"); done
+  if (( JSON_OUTPUT == 1 )); then
+    args+=(--tuples-only --no-align)
+  else
+    args+=(--pset "border=1" --pset "footer=off")
+  fi
+  PGPASSFILE="$PGPASS_FILE" PGCONNECT_TIMEOUT=15 "${PSQL}" "${args[@]}" --command "$sql"
+}
+
+# ---------------------------------------------------------------- validation
+
+valid_code()   { [[ "$1" =~ ^[A-Za-z0-9_-]{1,16}$ ]]; }
+valid_ref()    { [[ "$1" =~ ^[A-Za-z0-9_-]{1,16}-[0-9]{1,9}$ ]]; }
+valid_limit()  { [[ "$1" =~ ^[0-9]{1,4}$ ]] && (( $1 >= 1 && $1 <= 1000 )); }
+valid_uuid()   { [[ "$1" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; }
+valid_status() {
+  case "$1" in
+    open|"in progress"|deferred|"on hold"|closed) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Wraps a SELECT so --json returns one JSON array. Values still travel as
+# psql :'variables', which psql quotes — arguments are never concatenated
+# into the statement text.
+select_stmt() {
+  local inner="$1"
+  if (( JSON_OUTPUT == 1 )); then
+    printf 'SELECT coalesce(json_agg(r), '"'"'[]'"'"')::text FROM (%s) r;' "$inner"
+  else
+    printf '%s;' "$inner"
+  fi
+}
+
+# ---------------------------------------------------------------- verbs
+
+cmd_status() {
+  if [[ ! -f "$SESSION_FILE" ]]; then
+    printf 'session:  none — ask Stan to run `orb-agent-session --hours 8`\n'
+    return 0
+  fi
+  local expires now
+  expires="$(/usr/bin/awk -F= '$1=="EXPIRES"{print $2}' "$SESSION_FILE")"
+  now="$(/bin/date +%s)"
+  if [[ ! "$expires" =~ ^[0-9]+$ ]] || (( now >= expires )); then
+    printf 'session:  expired\n'
+    return 0
+  fi
+  printf 'session:  active, %d minute(s) remaining\n' "$(( (expires - now) / 60 ))"
+  printf 'role:     %s (SELECT only)\n' "$(/usr/bin/awk -F= '$1=="PGUSER"{print $2}' "$SESSION_FILE")"
+  printf 'proposals pending: %s\n' "$(/usr/bin/find "$PROPOSAL_DIR" -name '*.json' 2>/dev/null | /usr/bin/wc -l | /usr/bin/tr -d ' ')"
+}
+
+cmd_todos_list() {
+  local project="" status="" limit="50"
+  while (( $# > 0 )); do
+    case "$1" in
+      --project) [[ $# -ge 2 ]] || fail "--project requires a value"
+                 valid_code "$2" || fail "invalid project code"; project="$2"; shift 2 ;;
+      --status)  [[ $# -ge 2 ]] || fail "--status requires a value"
+                 valid_status "$2" || fail "invalid status. Valid: open, in progress, deferred, on hold, closed"
+                 status="$2"; shift 2 ;;
+      --limit)   [[ $# -ge 2 ]] || fail "--limit requires a value"
+                 valid_limit "$2" || fail "--limit must be 1-1000"; limit="$2"; shift 2 ;;
+      *) fail "unknown option for 'todos list': $1" ;;
+    esac
+  done
+
+  run_sql "$(select_stmt "
+    SELECT p.code || '-' || t.todo_number AS ref, t.title, t.status,
+           t.priority_value AS pri, t.due_at, t.created_at
+    FROM public.todos t
+    JOIN public.projects p ON p.id = t.product_id
+    WHERE t.deleted_at IS NULL
+      AND (:'project' = '' OR upper(p.code) = upper(:'project'))
+      AND (:'status'  = '' OR t.status = :'status')
+    ORDER BY t.todo_number DESC
+    LIMIT :'limit'::int")" \
+    "project=$project" "status=$status" "limit=$limit"
+
+  audit "todos list project=${project:-*} status=${status:-*} limit=$limit"
+}
+
+cmd_todos_get() {
+  [[ $# -ge 1 ]] || fail "usage: orb-agent todos get <CODE-NUMBER>"
+  valid_ref "$1" || fail "invalid todo reference — expected e.g. ORB-381"
+  local code="${1%-*}" number="${1##*-}"
+
+  run_sql "$(select_stmt "
+    SELECT p.code || '-' || t.todo_number AS ref, t.title, t.status,
+           t.priority_value AS pri, t.description, t.resolution_notes,
+           t.urls, t.due_at, t.created_at, t.closed_at
+    FROM public.todos t
+    JOIN public.projects p ON p.id = t.product_id
+    WHERE t.deleted_at IS NULL
+      AND upper(p.code) = upper(:'code')
+      AND t.todo_number = :'number'::int")" \
+    "code=$code" "number=$number"
+
+  audit "todos get $1"
+}
+
+cmd_projects_list() {
+  (( $# == 0 )) || fail "'projects list' takes no options"
+  run_sql "$(select_stmt "
+    SELECT code, name, is_dormant, sort_order
+    FROM public.projects
+    ORDER BY is_dormant, sort_order, code")"
+  audit "projects list"
+}
+
+cmd_tickets_list() {
+  local status="" limit="50"
+  while (( $# > 0 )); do
+    case "$1" in
+      --status) [[ $# -ge 2 ]] || fail "--status requires a value"
+                [[ "$2" =~ ^[a-z_]{1,24}$ ]] || fail "invalid ticket status"; status="$2"; shift 2 ;;
+      --limit)  [[ $# -ge 2 ]] || fail "--limit requires a value"
+                valid_limit "$2" || fail "--limit must be 1-1000"; limit="$2"; shift 2 ;;
+      *) fail "unknown option for 'tickets list': $1" ;;
+    esac
+  done
+
+  run_sql "$(select_stmt "
+    SELECT ticket_number AS num, type, status, summary, created_at
+    FROM public.tickets
+    WHERE deleted_at IS NULL
+      AND (:'status' = '' OR status = :'status')
+    ORDER BY ticket_number DESC
+    LIMIT :'limit'::int")" \
+    "status=$status" "limit=$limit"
+
+  audit "tickets list status=${status:-*} limit=$limit"
+}
+
+cmd_knowledge_search() {
+  [[ $# -ge 1 ]] || fail "usage: orb-agent knowledge search <term> [--limit N]"
+  local term="$1"; shift
+  local limit="10"
+  while (( $# > 0 )); do
+    case "$1" in
+      --limit) [[ $# -ge 2 ]] || fail "--limit requires a value"
+               valid_limit "$2" || fail "--limit must be 1-1000"; limit="$2"; shift 2 ;;
+      *) fail "unknown option for 'knowledge search': $1" ;;
+    esac
+  done
+  [[ ${#term} -le 200 ]] || fail "search term is too long (max 200 characters)"
+
+  run_sql "$(select_stmt "
+    SELECT k.id, k.title, p.code AS project, k.tags, k.created_at
+    FROM public.knowledge_repo k
+    LEFT JOIN public.projects p ON p.id = k.product_id
+    WHERE k.title ILIKE '%' || :'term' || '%'
+       OR k.content ILIKE '%' || :'term' || '%'
+    ORDER BY k.created_at DESC
+    LIMIT :'limit'::int")" \
+    "term=$term" "limit=$limit"
+
+  audit "knowledge search (${#term} chars) limit=$limit"
+}
+
+cmd_knowledge_get() {
+  [[ $# -eq 1 ]] || fail "usage: orb-agent knowledge get <uuid>"
+  valid_uuid "$1" || fail "invalid uuid"
+
+  run_sql "$(select_stmt "
+    SELECT k.id, k.title, k.content, k.tags, p.code AS project,
+           k.origin_todo_id, k.created_at, k.updated_at
+    FROM public.knowledge_repo k
+    LEFT JOIN public.projects p ON p.id = k.product_id
+    WHERE k.id = :'id'::uuid")" \
+    "id=$1"
+
+  audit "knowledge get $1"
+}
+
+cmd_db_health() {
+  (( $# == 0 )) || fail "'db health' takes no options"
+
+  printf '\n=== Sequential scan audit (flag: seq_tup_read > 100k with low idx_scan) ===\n'
+  run_sql "SELECT relname AS table_name, seq_scan, seq_tup_read, idx_scan,
+    CASE WHEN seq_scan = 0 THEN NULL ELSE round(seq_tup_read::numeric / seq_scan, 0) END AS avg_rows_per_scan
+    FROM pg_stat_user_tables WHERE seq_scan > 0
+    ORDER BY seq_tup_read DESC LIMIT 15;" || printf '(unavailable — role lacks stats access)\n'
+
+  printf '\n=== Dead row bloat (flag: dead_pct > 20%%) ===\n'
+  run_sql "SELECT relname, n_live_tup, n_dead_tup,
+    CASE WHEN n_live_tup = 0 THEN NULL ELSE round(100.0 * n_dead_tup / n_live_tup, 1) END AS dead_pct,
+    last_autovacuum, last_vacuum
+    FROM pg_stat_user_tables ORDER BY n_dead_tup DESC LIMIT 10;" || printf '(unavailable — role lacks stats access)\n'
+
+  printf '\n=== Top disk-reading queries (flag: cache_hit_pct < 95) ===\n'
+  # Without pg_read_all_stats, pg_stat_statements does NOT error — it silently
+  # returns only this role's own queries. An almost-empty table would read as
+  # "clean" when it is actually unmeasured, so check the privilege first and
+  # refuse to print a misleading result.
+  local can_read_all=""
+  can_read_all="$(JSON_OUTPUT=1 run_sql \
+    "SELECT pg_has_role(current_user, 'pg_read_all_stats', 'USAGE')::text;" 2>/dev/null | /usr/bin/tr -d '[:space:]')"
+
+  if [[ "$can_read_all" != "true" ]]; then
+    printf 'UNMEASURED — not shown.\n\n'
+    printf 'orb_agent_ro does not hold pg_read_all_stats (Supabase refuses to grant\n'
+    printf 'it: the postgres role is not a superuser). Without it pg_stat_statements\n'
+    printf 'returns only this role s own queries, so any table printed here would be\n'
+    printf 'a near-empty result masquerading as a clean bill of health.\n\n'
+    printf 'This section is NOT clean. It is unmeasured. Do not report it as passing.\n'
+    printf 'To measure it, Stan runs this in the Supabase SQL Editor:\n\n'
+    printf '  SELECT round(total_exec_time::numeric,0) AS total_ms, calls,\n'
+    printf '         shared_blks_read AS disk_blks,\n'
+    printf '         round(100.0 * shared_blks_hit / NULLIF(shared_blks_hit+shared_blks_read,0),1) AS cache_hit_pct,\n'
+    printf '         left(query, 120) AS query_snippet\n'
+    printf '  FROM extensions.pg_stat_statements\n'
+    printf '  WHERE shared_blks_read > 0\n'
+    printf '  ORDER BY shared_blks_read DESC LIMIT 10;\n'
+  elif ! run_sql "SELECT round(total_exec_time::numeric,0) AS total_ms, calls,
+    shared_blks_read AS disk_blks,
+    round(100.0 * shared_blks_hit / NULLIF(shared_blks_hit+shared_blks_read,0),1) AS cache_hit_pct,
+    left(query, 120) AS query_snippet
+    FROM extensions.pg_stat_statements
+    WHERE shared_blks_read > 0
+    ORDER BY shared_blks_read DESC LIMIT 10;" 2>/dev/null; then
+    printf 'UNAVAILABLE — extensions.pg_stat_statements could not be read.\n'
+    printf 'This section is NOT clean; it is unmeasured.\n'
+  fi
+
+  printf '\n=== RLS initplan check (any result = a policy evaluating auth.uid() per row) ===\n'
+  run_sql "SELECT tablename, policyname
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND ((qual ILIKE '%auth.uid()%' AND qual NOT ILIKE '%select auth.uid()%')
+        OR (with_check ILIKE '%auth.uid()%' AND with_check NOT ILIKE '%select auth.uid()%'))
+    ORDER BY tablename, policyname;" || printf '(unavailable)\n'
+
+  printf '\n'
+  audit "db health"
+}
+
+# ---------------------------------------------------------------- proposals
+
+cmd_propose() {
+  [[ $# -ge 1 ]] || fail "usage: orb-agent propose todo-close <CODE-NUMBER> --notes-file PATH [--knowledge-file PATH]"
+  local kind="$1"; shift
+  [[ "$kind" == "todo-close" ]] || fail "unsupported proposal kind: $kind (only todo-close)"
+
+  [[ $# -ge 1 ]] || fail "propose todo-close requires a todo reference"
+  local ref="$1"; shift
+  valid_ref "$ref" || fail "invalid todo reference — expected e.g. ORB-381"
+
+  local notes_file="" knowledge_file="" knowledge_title="" knowledge_tags=""
+  while (( $# > 0 )); do
+    case "$1" in
+      --notes-file)      [[ $# -ge 2 ]] || fail "--notes-file requires a path"; notes_file="$2"; shift 2 ;;
+      --knowledge-file)  [[ $# -ge 2 ]] || fail "--knowledge-file requires a path"; knowledge_file="$2"; shift 2 ;;
+      --knowledge-title) [[ $# -ge 2 ]] || fail "--knowledge-title requires a value"; knowledge_title="$2"; shift 2 ;;
+      --knowledge-tags)  [[ $# -ge 2 ]] || fail "--knowledge-tags requires a value"; knowledge_tags="$2"; shift 2 ;;
+      *) fail "unknown option for 'propose todo-close': $1" ;;
+    esac
+  done
+
+  [[ -n "$notes_file" ]] || fail "--notes-file is required (resolution notes)"
+  [[ -f "$notes_file" ]] || fail "notes file not found: $notes_file"
+  [[ -z "$knowledge_file" || -f "$knowledge_file" ]] || fail "knowledge file not found: $knowledge_file"
+
+  # Shared working rule 8: closing a todo means resolution notes AND a
+  # Knowledge entry — always both. Warn loudly rather than silently allowing
+  # half a closure.
+  if [[ -z "$knowledge_file" ]]; then
+    printf 'orb-agent: WARNING — no --knowledge-file supplied.\n' >&2
+    printf 'Shared working rule 8 requires BOTH resolution notes and a Knowledge\n' >&2
+    printf 'Repository entry when closing a todo. Continuing will propose an\n' >&2
+    printf 'incomplete closure.\n' >&2
+  else
+    [[ -n "$knowledge_title" ]] || fail "--knowledge-title is required with --knowledge-file"
+    [[ ${#knowledge_title} -le 200 ]] || fail "knowledge title is too long (max 200)"
+    [[ -z "$knowledge_tags" || "$knowledge_tags" =~ ^[A-Za-z0-9_,-]{1,200}$ ]] \
+      || fail "--knowledge-tags must be a comma-separated list of simple tags"
+  fi
+
+  # Shared working rule 9: attribution is the first line.
+  /usr/bin/head -n 1 "$notes_file" | /usr/bin/grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2} — .+ \(.+\)$' \
+    || fail "resolution notes must begin with 'YYYY-MM-DD — Tool (Model)'"
+  if [[ -n "$knowledge_file" ]]; then
+    /usr/bin/head -n 1 "$knowledge_file" | /usr/bin/grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2} — .+ \(.+\)$' \
+      || fail "knowledge content must begin with 'YYYY-MM-DD — Tool (Model)'"
+  fi
+
+  /bin/mkdir -p "$PROPOSAL_DIR"; /bin/chmod 700 "$PROPOSAL_DIR"
+
+  local id="" path=""
+  id="$(/bin/date -u '+%Y%m%dT%H%M%SZ')-$(/usr/bin/openssl rand -hex 3)"
+  path="$PROPOSAL_DIR/$id.json"
+
+  /usr/bin/python3 - "$path" "$id" "$ref" "$notes_file" "${knowledge_file:-}" \
+      "${knowledge_title:-}" "${knowledge_tags:-}" <<'PY'
+import json, sys, pathlib, datetime
+path, pid, ref, notes_file, knowledge_file, ktitle, ktags = sys.argv[1:8]
+proposal = {
+    "id": pid,
+    "kind": "todo-close",
+    "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    "todo_ref": ref,
+    "resolution_notes": pathlib.Path(notes_file).read_text(),
+    "knowledge": {
+        "title": ktitle,
+        "content": pathlib.Path(knowledge_file).read_text(),
+        "tags": [t for t in ktags.split(",") if t],
+    } if knowledge_file else None,
+    "status": "pending",
+}
+pathlib.Path(path).write_text(json.dumps(proposal, indent=2))
+PY
+  /bin/chmod 600 "$path"
+
+  audit "proposal created $id todo-close $ref"
+  printf 'Proposal recorded. NOTHING HAS BEEN WRITTEN to Orb.\n\n'
+  printf '  id:   %s\n  kind: todo-close\n  todo: %s\n\n' "$id" "$ref"
+  printf 'Ask Stan to review and apply it:\n  orb-agent-approve %s\n' "$id"
+}
+
+cmd_proposals_list() {
+  (( $# == 0 )) || fail "'proposals list' takes no options"
+  [[ -d "$PROPOSAL_DIR" ]] || { printf 'No proposals.\n'; return 0; }
+  local found=0 f
+  for f in "$PROPOSAL_DIR"/*.json; do
+    [[ -e "$f" ]] || continue
+    found=1
+    /usr/bin/python3 -c "
+import json,sys
+d=json.load(open(sys.argv[1]))
+print(f\"{d['id']}  {d['status']:<9} {d['kind']:<12} {d.get('todo_ref','')}\")" "$f"
+  done
+  (( found == 1 )) || printf 'No proposals.\n'
+}
+
+cmd_proposals_show() {
+  [[ $# -eq 1 ]] || fail "usage: orb-agent proposals show <id>"
+  [[ "$1" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}$ ]] || fail "invalid proposal id"
+  local path="$PROPOSAL_DIR/$1.json"
+  [[ -f "$path" ]] || fail "no such proposal: $1"
+  /bin/cat "$path"
+}
+
+# ---------------------------------------------------------------- dispatch
+
+main() {
+  local -a argv=()
+  local a
+  for a in "$@"; do
+    if [[ "$a" == "--json" ]]; then JSON_OUTPUT=1; else argv+=("$a"); fi
+  done
+  set -- "${argv[@]+"${argv[@]}"}"
+
+  [[ $# -ge 1 ]] || { usage; exit 1; }
+  local group="$1"; shift
+
+  case "$group" in
+    -h|--help|help) usage; return 0 ;;
+    status)    cmd_status "$@" ;;
+    todos)
+      [[ $# -ge 1 ]] || fail "usage: orb-agent todos list|get"
+      local sub="$1"; shift
+      case "$sub" in
+        list) require_session; cmd_todos_list "$@" ;;
+        get)  require_session; cmd_todos_get "$@" ;;
+        *) fail "unknown todos verb: $sub" ;;
+      esac ;;
+    projects)
+      [[ $# -ge 1 && "$1" == "list" ]] || fail "usage: orb-agent projects list"
+      shift; require_session; cmd_projects_list "$@" ;;
+    tickets)
+      [[ $# -ge 1 && "$1" == "list" ]] || fail "usage: orb-agent tickets list"
+      shift; require_session; cmd_tickets_list "$@" ;;
+    knowledge)
+      [[ $# -ge 1 ]] || fail "usage: orb-agent knowledge search|get"
+      local ksub="$1"; shift
+      case "$ksub" in
+        search) require_session; cmd_knowledge_search "$@" ;;
+        get)    require_session; cmd_knowledge_get "$@" ;;
+        *) fail "unknown knowledge verb: $ksub" ;;
+      esac ;;
+    db)
+      [[ $# -ge 1 && "$1" == "health" ]] || fail "usage: orb-agent db health"
+      shift; require_session; cmd_db_health "$@" ;;
+    propose)   cmd_propose "$@" ;;
+    proposals)
+      [[ $# -ge 1 ]] || fail "usage: orb-agent proposals list|show"
+      local psub="$1"; shift
+      case "$psub" in
+        list) cmd_proposals_list "$@" ;;
+        show) cmd_proposals_show "$@" ;;
+        *) fail "unknown proposals verb: $psub" ;;
+      esac ;;
+    *) fail "unknown verb: $group (run 'orb-agent --help')" ;;
+  esac
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

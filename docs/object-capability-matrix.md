@@ -66,6 +66,40 @@ The **only** test mechanism in this repo is the Orb eval suite (`scripts/eval-ca
 
 ---
 
+## Part 1b — Agent broker read surface (`orb-agent`)
+
+Added 2026-08-19. The `orb-agent` capability broker gives AI development agents
+read access to Orb data without any master credential, through the SELECT-only
+`orb_agent_ro` role. Plan: `docs/agent-capability-broker-plan.md`.
+
+| Object | Broker read | Verb | Broker write |
+|---|---|---|---|
+| **todos** | ✅ | `orb-agent todos list` / `todos get` | ❌ by design — `propose todo-close` records a proposal only |
+| **projects** | ✅ | `orb-agent projects list` | ❌ |
+| **tickets** | ✅ | `orb-agent tickets list` | ❌ |
+| **knowledge_repo** | ✅ | `orb-agent knowledge search` / `knowledge get` | ❌ by design — applied by `orb-agent-approve` |
+| **statuses / priorities / categories / groups** | ✅ (joins) | read as part of the verbs above | ❌ |
+| **audit_log** | ❌ **deliberately excluded** | — | ❌ |
+| **DB health (pg_stat_*, pg_policies)** | ✅ | `orb-agent db health` | ❌ |
+| Every other table | ❌ no grant | — | ❌ |
+
+**`audit_log` is excluded on purpose, not by omission.** Its `before`/`after`
+JSONB columns can hold arbitrary prior row contents and it carries `user_id`;
+no documented agent workflow needs it. Do not add the grant without Stan's
+explicit decision.
+
+**Writes have no broker path at all.** `orb-agent` contains no write SQL and the
+role has no write grant, so read-only is enforced by the database rather than by
+the CLI. Agent-originated mutations reach Orb only through the human-run
+`orb-agent-approve`, which unlocks the master store, prints the resolved target
+from the live record, and requires a typed confirmation.
+
+**Not covered by this surface:** any object an agent must still receive by
+manual clipboard transfer, and any write. When no session is open the broker has
+no capability whatsoever.
+
+---
+
 ## Part 2 — Flow / Performance Matrix
 
 Speed is a flow property, not an object property — login isn't one of the 11 domain objects, but it's exactly the kind of critical path this matrix exists to stop losing track of. Per [[project_systematic_quality_audits]]: when one flow is found slow, audit the class, don't patch the instance.
