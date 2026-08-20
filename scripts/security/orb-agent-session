@@ -1,126 +1,207 @@
 #!/bin/bash
 #
-# orb-agent-session — open or close a time-boxed agent access window.
+# orb-agent-session — open or close a genuinely-expiring agent window.
 #
-# HUMAN-RUN ONLY. Plan: docs/agent-capability-broker-plan.md (Layer 3)
+# HUMAN-RUN ONLY. Plan: docs/agent-capability-broker-plan.md (Layer 3, option C)
 #
-# Decrypts the agent credential store and writes an EXPIRING session so
-# `orb-agent` can perform read-only work unattended. Outside an active
-# window the broker has no capability at all.
+# Every window mints a FRESH random password for orb_agent_ro and stamps a
+# server-side `VALID UNTIL`. Expiry is therefore enforced by PostgreSQL, not
+# by a local file check: copying the credential during a window buys nothing
+# past the wall clock, because the database itself refuses the login.
 #
-# The password is written to a PGPASSFILE, never to argv and never to the
-# exported environment, so it cannot leak through `ps` or shell history.
+# This replaces the earlier design, where expiry deleted a local file while
+# the database password stayed valid indefinitely.
+#
+# The master store is unlocked here because only it can ALTER ROLE. That is
+# the same passphrase already typed for `orb-dev`, so it is not a new class
+# of exposure — but it does make root-owned launchers a prerequisite, since
+# a trojaned prompt would now capture it on more occasions.
 
 set -euo pipefail
 set +x
 umask 077
 
 readonly SECRET_ROOT="/Users/stanleybaptista/Project-secrets"
+readonly MASTER_FILE="$SECRET_ROOT/orb-secrets/orb.env.enc"
 readonly AGENT_DIR="$SECRET_ROOT/orb-agent"
-readonly AGENT_FILE="$AGENT_DIR/agent.env.enc"
 readonly SESSION_FILE="$AGENT_DIR/session"
 readonly PGPASS_FILE="$AGENT_DIR/session.pgpass"
 readonly AUDIT_FILE="$AGENT_DIR/audit.log"
 readonly OPENSSL="/opt/homebrew/bin/openssl"
+readonly PSQL="/opt/homebrew/opt/libpq/bin/psql"
+readonly AGENT_ROLE="orb_agent_ro"
 readonly MAX_HOURS=24
 readonly DEFAULT_HOURS=8
 
+MASTER_PGPASS=""
+
 fail() { printf 'orb-agent-session: %s\n' "$*" >&2; exit 1; }
 
+cleanup() { [[ -n "$MASTER_PGPASS" && -f "$MASTER_PGPASS" ]] && /bin/rm -f "$MASTER_PGPASS"; }
+trap cleanup EXIT
+
 audit() {
+  [[ -d "$AGENT_DIR" ]] || return 0
   printf '%s  %s\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >> "$AUDIT_FILE"
   /bin/chmod 600 "$AUDIT_FILE" 2>/dev/null || true
 }
 
-end_session() {
-  /bin/rm -f "$SESSION_FILE" "$PGPASS_FILE"
-  audit "session ended by human"
-  printf 'orb-agent-session: session ended. The broker now has no access.\n'
-}
-
 show_status() {
   if [[ ! -f "$SESSION_FILE" ]]; then
-    printf 'orb-agent-session: no active session.\n'
-    return 0
+    printf 'orb-agent-session: no active session.\n'; return 0
   fi
-  local expires="" now=""
+  local expires now
   expires="$(/usr/bin/awk -F= '$1=="EXPIRES"{print $2}' "$SESSION_FILE")"
   now="$(/bin/date +%s)"
-  if [[ -z "$expires" ]] || (( now >= expires )); then
-    printf 'orb-agent-session: session EXPIRED. Removing.\n'
-    end_session
+  if [[ ! "$expires" =~ ^[0-9]+$ ]] || (( now >= expires )); then
+    printf 'orb-agent-session: session EXPIRED (the database is already refusing it).\n'
+    printf 'Run --end to rotate the password, or --hours N to open a fresh window.\n'
     return 0
   fi
   printf 'orb-agent-session: active until %s (%d minutes remaining).\n' \
     "$(/bin/date -r "$expires" '+%Y-%m-%d %H:%M:%S %Z')" "$(( (expires - now) / 60 ))"
 }
 
-main() {
-  local hours="$DEFAULT_HOURS"
+# Unlock the master store and keep ONLY DATABASE_URL. Every other credential
+# is read and discarded.
+load_database_url() {
+  local line name value
+  [[ -f "$MASTER_FILE" && ! -L "$MASTER_FILE" ]] || fail "master store is missing: $MASTER_FILE"
+  [[ "$(/usr/bin/stat -f '%Lp' "$MASTER_FILE")" == "600" ]] || fail "master store must have mode 600"
 
-  while (( $# > 0 )); do
-    case "$1" in
-      --end)    end_session; return 0 ;;
-      --status) show_status; return 0 ;;
-      --hours)
-        [[ $# -ge 2 ]] || fail "--hours requires a value"
-        hours="$2"; shift 2 ;;
-      *) fail "usage: orb-agent-session [--hours N] | --end | --status" ;;
-    esac
-  done
-
-  [[ "$hours" =~ ^[0-9]{1,2}$ ]] || fail "--hours must be a whole number"
-  (( hours >= 1 && hours <= MAX_HOURS )) || fail "--hours must be between 1 and $MAX_HOURS"
-
-  [[ -x "$OPENSSL" ]] || fail "OpenSSL is required at $OPENSSL"
-  [[ -f "$AGENT_FILE" && ! -L "$AGENT_FILE" ]] || fail "no agent credential store — run orb-agent-seal first"
-  [[ "$(/usr/bin/stat -f '%Lp' "$AGENT_DIR")" == "700" ]] || fail "agent directory must have mode 700"
-  [[ "$(/usr/bin/stat -f '%Lp' "$AGENT_FILE")" == "600" ]] || fail "agent store must have mode 600"
-  [[ "$(/usr/bin/stat -f '%Su' "$AGENT_FILE")" == "$(/usr/bin/id -un)" ]] || fail "agent store is not owned by the current user"
-
-  local host="" port="" database="" user="" password="" line="" name="" value=""
-
-  printf 'orb-agent-session: unlock the AGENT credential store (not the master passphrase).\n'
+  printf 'orb-agent-session: unlock the master Orb environment.\n'
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "$line" || "$line" == \#* ]] && continue
-    [[ "$line" == *=* ]] || fail "agent store contains a malformed line"
+    [[ "$line" == *=* ]] || fail "master store contains a malformed line"
     name="${line%%=*}"; value="${line#*=}"
-    case "$name" in
-      PGHOST)     host="$value" ;;
-      PGPORT)     port="$value" ;;
-      PGDATABASE) database="$value" ;;
-      PGUSER)     user="$value" ;;
-      PGPASSWORD) password="$value" ;;
-      *) fail "agent store contains an unexpected name: $name" ;;
-    esac
-  done < <("$OPENSSL" enc -d -aes-256-cbc -pbkdf2 -iter 210000 -in "$AGENT_FILE")
+    [[ "$name" == "DATABASE_URL" ]] && DATABASE_URL="$value"
+  done < <("$OPENSSL" enc -d -aes-256-cbc -pbkdf2 -iter 210000 -in "$MASTER_FILE")
 
-  [[ -n "$host" && -n "$port" && -n "$database" && -n "$user" && -n "$password" ]] \
-    || fail "agent store is missing required connection fields"
+  [[ -n "${DATABASE_URL:-}" ]] || fail "master store did not yield DATABASE_URL"
+}
 
-  case "$user" in
-    postgres|postgres.*|supabase_admin|service_role)
-      fail "refusing to open a session for privileged role $user" ;;
-  esac
+# Split DATABASE_URL into parts, and derive the agent username. Supabase's
+# pooler requires <role>.<project-ref>; a direct connection does not. The
+# master username tells us which we are on, so the operator never has to
+# know or type a hostname.
+derive_connection() {
+  local parsed
+  parsed="$(/usr/bin/python3 - "$DATABASE_URL" "$AGENT_ROLE" <<'PY'
+import sys, urllib.parse as u
+url, agent_role = sys.argv[1], sys.argv[2]
+p = u.urlparse(url)
+host = p.hostname or ""
+port = str(p.port or 5432)
+db   = (p.path or "/postgres").lstrip("/") or "postgres"
+user = u.unquote(p.username or "")
+# Pooled master usernames look like "postgres.<project-ref>".
+if "." in user:
+    agent_user = agent_role + "." + user.split(".", 1)[1]
+else:
+    agent_user = agent_role
+print("\t".join([host, port, db, agent_user, u.unquote(p.password or "")]))
+PY
+)"
+  IFS=$'\t' read -r PGHOST PGPORT PGDATABASE AGENT_USER MASTER_PASSWORD <<< "$parsed"
+  [[ -n "$PGHOST" && -n "$PGPORT" && -n "$PGDATABASE" && -n "$AGENT_USER" && -n "$MASTER_PASSWORD" ]] \
+    || fail "could not parse DATABASE_URL into connection fields"
 
-  local expires=""
+  local master_user
+  master_user="$(/usr/bin/python3 -c 'import sys,urllib.parse as u;print(u.unquote(u.urlparse(sys.argv[1]).username or ""))' "$DATABASE_URL")"
+  MASTER_PGPASS="$(/usr/bin/mktemp "$AGENT_DIR/master.pgpass.XXXXXX")"
+  printf '%s:%s:%s:%s:%s\n' "$PGHOST" "$PGPORT" "$PGDATABASE" "$master_user" "$MASTER_PASSWORD" > "$MASTER_PGPASS"
+  /bin/chmod 600 "$MASTER_PGPASS"
+  MASTER_USER="$master_user"
+  unset MASTER_PASSWORD
+}
+
+# Run SQL as the master role. The statement arrives on STDIN, never in argv,
+# because it carries the new password.
+master_sql() {
+  PGPASSFILE="$MASTER_PGPASS" PGCONNECT_TIMEOUT=20 "$PSQL" \
+    --host "$PGHOST" --port "$PGPORT" --username "$MASTER_USER" --dbname "$PGDATABASE" \
+    --no-password --quiet --no-psqlrc --set ON_ERROR_STOP=1 --file -
+}
+
+rotate_role() {
+  local password="$1" valid_until="$2"
+  printf "ALTER ROLE %s WITH PASSWORD '%s' VALID UNTIL '%s';\n" \
+    "$AGENT_ROLE" "$password" "$valid_until" | master_sql
+}
+
+end_session() {
+  [[ -x "$OPENSSL" && -x "$PSQL" ]] || fail "OpenSSL and psql are required"
+  /bin/mkdir -p "$AGENT_DIR"; /bin/chmod 700 "$AGENT_DIR"
+  load_database_url
+  derive_connection
+
+  # Rotate to a value nothing retains, and expire it in the past.
+  printf 'orb-agent-session: revoking...\n'
+  rotate_role "$(/usr/bin/openssl rand -hex 32)" "$(/bin/date -u -v-1M '+%Y-%m-%d %H:%M:%S+00')" \
+    || fail "revocation FAILED — the old credential may still be valid. Re-run --end."
+
+  /bin/rm -f "$SESSION_FILE" "$PGPASS_FILE"
+  audit "session ended; role password rotated and VALID UNTIL set to the past"
+  printf 'Session ended. The database now refuses %s until a new window is opened.\n' "$AGENT_ROLE"
+}
+
+open_session() {
+  local hours="$1"
+  [[ -x "$OPENSSL" && -x "$PSQL" ]] || fail "OpenSSL and psql are required"
+  /bin/mkdir -p "$AGENT_DIR" "$AGENT_DIR/proposals"
+  /bin/chmod 700 "$AGENT_DIR" "$AGENT_DIR/proposals"
+
+  load_database_url
+  derive_connection
+
+  local password expires valid_until
+  password="$(/usr/bin/openssl rand -hex 32)"
   expires="$(( $(/bin/date +%s) + hours * 3600 ))"
+  valid_until="$(/bin/date -u -r "$expires" '+%Y-%m-%d %H:%M:%S+00')"
 
-  # PGPASSFILE keeps the password out of argv AND out of the environment.
-  printf '%s:%s:%s:%s:%s\n' "$host" "$port" "$database" "$user" "$password" > "$PGPASS_FILE"
+  printf 'orb-agent-session: minting a fresh credential for %s...\n' "$AGENT_ROLE"
+  rotate_role "$password" "$valid_until" || fail "could not set the role password — no session opened"
+
+  printf '%s:%s:%s:%s:%s\n' "$PGHOST" "$PGPORT" "$PGDATABASE" "$AGENT_USER" "$password" > "$PGPASS_FILE"
   /bin/chmod 600 "$PGPASS_FILE"
   unset password
 
   printf 'EXPIRES=%s\nPGHOST=%s\nPGPORT=%s\nPGDATABASE=%s\nPGUSER=%s\n' \
-    "$expires" "$host" "$port" "$database" "$user" > "$SESSION_FILE"
+    "$expires" "$PGHOST" "$PGPORT" "$PGDATABASE" "$AGENT_USER" > "$SESSION_FILE"
   /bin/chmod 600 "$SESSION_FILE"
 
-  audit "session opened for ${hours}h as ${user}@${host}:${port}"
+  # Integrity rule 3: verify the credential actually works before reporting
+  # success, rather than leaving Stan believing a window is open.
+  if ! PGPASSFILE="$PGPASS_FILE" PGCONNECT_TIMEOUT=20 "$PSQL" \
+        --host "$PGHOST" --port "$PGPORT" --username "$AGENT_USER" --dbname "$PGDATABASE" \
+        --no-password --quiet --no-psqlrc --tuples-only --command 'SELECT 1;' >/dev/null 2>&1; then
+    /bin/rm -f "$SESSION_FILE" "$PGPASS_FILE"
+    fail "the new credential did not authenticate as $AGENT_USER@$PGHOST:$PGPORT — session NOT opened.
+If this is a Supabase pooler, confirm the role logs in as $AGENT_USER."
+  fi
+
+  audit "session opened ${hours}h as ${AGENT_USER}@${PGHOST}:${PGPORT}; password rotated, VALID UNTIL ${valid_until}"
 
   printf '\nAgent session open for %s hour(s), until %s.\n' \
     "$hours" "$(/bin/date -r "$expires" '+%Y-%m-%d %H:%M:%S %Z')"
-  printf 'Role: %s (SELECT only)\n' "$user"
-  printf 'Revoke early with: orb-agent-session --end\n\n'
+  printf 'Role:    %s (SELECT only)\n' "$AGENT_USER"
+  printf 'Expiry:  enforced by PostgreSQL (VALID UNTIL), not by a local file.\n'
+  printf 'Revoke:  orb-agent-session --end\n\n'
+}
+
+main() {
+  local hours="$DEFAULT_HOURS"
+  while (( $# > 0 )); do
+    case "$1" in
+      --end)    end_session; return 0 ;;
+      --status) show_status; return 0 ;;
+      --hours)  [[ $# -ge 2 ]] || fail "--hours requires a value"; hours="$2"; shift 2 ;;
+      *) fail "usage: orb-agent-session [--hours N] | --end | --status" ;;
+    esac
+  done
+  [[ "$hours" =~ ^[0-9]{1,2}$ ]] || fail "--hours must be a whole number"
+  (( hours >= 1 && hours <= MAX_HOURS )) || fail "--hours must be between 1 and $MAX_HOURS"
+  open_session "$hours"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

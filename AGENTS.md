@@ -83,9 +83,10 @@ Add `--json` to any read verb for machine-readable output. Full verb list:
 
 - If the broker says there is no active session, **ask Stan to run
   `orb-agent-session --hours 8`**. Do not attempt to unlock any store yourself.
-  `orb-agent-seal`, `orb-agent-session`, `orb-agent-approve`, `orb-secrets-*`,
-  and `orb-dev` are human-only and are denied to Claude Code in
-  `.claude/settings.json`.
+  `orb-agent-session`, `orb-agent-approve`, `orb-secrets-*`, and `orb-dev` are
+  human-only and are denied to Claude Code in `.claude/settings.json`.
+  A session mints a fresh database password with a server-side `VALID UNTIL`,
+  so an expired window is refused by PostgreSQL itself, not merely by the CLI.
 - **The broker cannot write.** To close a todo, record a proposal and hand the
   id to Stan:
 

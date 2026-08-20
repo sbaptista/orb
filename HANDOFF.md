@@ -18,9 +18,9 @@
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.298** — agent capability broker: a read-only
-  `orb-agent` command, the SELECT-only `orb_agent_ro` role, time-boxed sessions,
-  and a human-only approval gate for every write.
+- **Local version:** **0.6.299** — option C sessions: a fresh per-window
+  password with a PostgreSQL `VALID UNTIL`, no stored agent credential, and the
+  sealing step removed. v0.6.298 (the broker itself) is committed but unpushed.
 - **Production maintenance:** off.
 - **Database:** Stan applied
   `scripts/migrations/20260818_statement_import_catalog_models.sql` and
@@ -799,23 +799,50 @@ enter that surface.
    c. **DONE 2026-08-19 — 36 passed, 0 failed, BOUNDARY VERIFIED.** Rerun
       `scripts/migrations/verify-orb-agent-ro.sql` after any policy or grant
       change; every row must read PASS.
-   d. **BLOCKED 2026-08-19** — `orb-agent-seal` was run against the direct host
-      `db.<ref>.supabase.co:5432`, which did not resolve. Supabase projects
-      without the IPv4 add-on are IPv6-only on `db.*`. Reseal against the
-      pooler: host from Project Settings → Database → Connection pooling, port
-      `6543`, and username **`orb_agent_ro.<project-ref>`** (the `.<ref>` suffix
-      is required by Supavisor). Whether a *custom* role authenticates through
-      the pooler is the one untested assumption in this design.
-   e. `orb-agent-session --hours 8`, then ask me to run `orb-agent status`,
-      `orb-agent todos list --project ORB --status open`, and
-      `orb-agent db health` so we confirm end to end.
-1. **Decide the push gate (unresolved, tool-agnostic).** First run
-   `git push --dry-run origin main` inside Codex and record whether it prompted
-   — that establishes whether Codex has any gate at all. Then choose: move to an
-   SSH key whose passphrase is never added to `ssh-agent` (recommended — fails
-   closed for every tool), add a `pre-push` hook (weaker; an agent running as
-   Stan can delete it), or accept the current state knowingly. Also check
-   whether `gh` CLI can push independently.
+   d. **OBSOLETE — sealing was removed in v0.6.299.** The direct host
+      `db.<ref>.supabase.co` is IPv6-only without the IPv4 add-on, which blocked
+      the original flow. Option C derives host, port, database, and the correct
+      `<role>.<project-ref>` username from the master `DATABASE_URL`, so nothing
+      is typed and the pooler form is handled automatically.
+   e. **NEXT ACTION — run `orb-agent-session --hours 8`.** It asks for the
+      **master** passphrase (only it can `ALTER ROLE`), mints a fresh password,
+      stamps `VALID UNTIL`, and self-tests the credential before reporting
+      success. Then ask Claude to run `orb-agent status`,
+      `orb-agent todos list --project ORB --status open`,
+      `orb-agent knowledge search "<term>"`, and `orb-agent db health`.
+      This has **not** been run yet — option C is verified offline (56/56) but
+      has never touched the live database.
+   f. Then `orb-agent-session --end` and re-run
+      `scripts/migrations/verify-orb-agent-ro.sql`; the new section A row
+      "server-side expiry is stamped" should show an expiry in the past.
+1. **🔴 CODEX HAS NO PUSH GATE — TESTED AND CONFIRMED 2026-08-19. Highest
+   priority.** Codex ran `git push --dry-run origin main` with **no approval
+   prompt, exit 0**. `git ls-remote` independently confirmed the remote did not
+   move, so nothing was deployed — **the only thing that prevented a production
+   deploy was the `--dry-run` flag in the command string.**
+
+   Root cause verified: `trust_level = "trusted"` overrides
+   `approval_policy = "untrusted"`, and it is set on **both**
+   `/Users/stanleybaptista/Projects/orb` and its parent
+   `/Users/stanleybaptista/Projects` — the parent covers every sibling project
+   including Helm. **This is not push-specific: Codex runs any shell command in
+   those trees unprompted**, including overwriting `~/.local/bin/orb-dev` with a
+   passphrase-capturing version.
+
+   By contrast, Claude Code's deny rule was verified by exercise the same day
+   and refused even the harmless `--dry-run` form outright.
+
+   Actions, in order:
+   a. Remove **both** `trust_level = "trusted"` entries from
+      `~/.codex/config.toml` (removing only the Orb entry leaves the parent in
+      force). Tool-specific, immediate.
+   b. Move to an SSH key whose passphrase is never added to `ssh-agent` or the
+      login keychain — the only tool-agnostic gate. Caveats: `git credential
+      reject` clears `github.com` for all repos including Helm, and `gh` CLI
+      holds separate auth that must be checked independently.
+   c. `sudo chown root:wheel` the launchers in `~/.local/bin` so a non-root
+      process cannot trojan the passphrase prompt.
+   d. Re-test after each change. A control is verified by exercising it.
 2. Verify the v0.6.297 Vercel deployment, then spot-check AI Metrics → Orb on
    Mac/iPad/iPhone: Platform values, all/date/search/empty CSV exports, filtered
    row counts/IDs, collapsed-log availability, and Numbers/Excel opening.
@@ -944,6 +971,16 @@ enter that surface.
   contain "push", including commit messages.
 - **A safety rule cannot live in a file the agent writes to.** That is why the
   gate moved out of `.claude/settings.local.json`.
+- **A local file lifetime is not a credential expiry.** The first session
+  design deleted `session.pgpass` at expiry while the database password stayed
+  valid indefinitely — anything that read the file during a window kept working
+  access. Option C fixes this with `ALTER ROLE ... VALID UNTIL`, which Postgres
+  enforces. When something is called an expiry, ask what refuses the request
+  after it passes.
+- **Test the control, do not read the table.** On 2026-08-19 both push gates
+  were exercised for the first time. Claude Code's held; Codex had none at all,
+  and had been the second writable agent for months. Neither fact was
+  discoverable from the documentation, which asserted universal coverage.
 - **Per-tool gates do not compose; a table of them invites false confidence.**
   The push-gate table omitted Codex entirely while asserting universal coverage.
   A control that must be re-implemented per tool, in that tool's own config, is

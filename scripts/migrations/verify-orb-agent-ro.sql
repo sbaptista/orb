@@ -11,8 +11,11 @@
 -- SUCCEED where they must, so "denies everything" cannot pass as "works".
 --
 -- REQUIRED OUTCOME: every row reads PASS. Any FAIL in section B means the
--- boundary is broken — do not seal a credential. Any FAIL in section C
--- means reads are over-restricted — recheck the RLS policies.
+-- boundary is broken. Any FAIL in section C means reads are over-restricted.
+-- Any FAIL in section E means the role can reach a SECURITY DEFINER routine
+-- that runs as its owner, which bypasses every table grant and policy tested
+-- in A-C. Section E was added after Codex's Round 1 review found that
+-- `REVOKE ... FROM orb_agent_ro` does not remove what PUBLIC grants.
 -- ============================================================
 
 DROP TABLE IF EXISTS orb_agent_boundary_results;
@@ -50,7 +53,14 @@ BEGIN
     ('A', 'no replication',    'false', CASE WHEN NOT r.rolreplication THEN 'PASS' ELSE 'FAIL' END, r.rolreplication::text),
     ('A', 'cannot bypass RLS', 'false', CASE WHEN NOT r.rolbypassrls   THEN 'PASS' ELSE 'FAIL' END, r.rolbypassrls::text),
     ('A', 'has a password set','true',  CASE WHEN r.rolpassword IS NOT NULL THEN 'PASS' ELSE 'FAIL' END,
-       CASE WHEN r.rolpassword IS NOT NULL THEN 'set' ELSE 'NOT SET — run step 2' END);
+       CASE WHEN r.rolpassword IS NOT NULL THEN 'set' ELSE 'NOT SET — open a session' END),
+    ('A', 'server-side expiry is stamped', 'VALID UNTIL set',
+       CASE WHEN r.rolvaliduntil IS NOT NULL THEN 'PASS' ELSE 'FAIL' END,
+       CASE WHEN r.rolvaliduntil IS NULL
+            THEN 'no VALID UNTIL — the credential never expires server-side. Open a session with orb-agent-session.'
+            WHEN r.rolvaliduntil > now()
+            THEN 'active window, expires ' || r.rolvaliduntil::text
+            ELSE 'expired at ' || r.rolvaliduntil::text || ' — database is refusing logins (correct when no window is open)' END);
 
   -- Only pg_read_all_stats is an acceptable membership.
   SELECT coalesce(string_agg(g.rolname, ', ' ORDER BY g.rolname), '(none)') INTO memberships
@@ -237,6 +247,119 @@ BEGIN
     INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
       VALUES ('D', 'no probe column on todos', '0', 'PASS', 'clean');
   END IF;
+END
+$$;
+
+-- ------------------------------------------------------------
+-- E. ROUTINE privileges — the gap Codex found in Round 1
+--
+-- `REVOKE ALL ON ALL FUNCTIONS ... FROM orb_agent_ro` does NOT remove what
+-- PUBLIC grants, and PostgreSQL grants EXECUTE on new functions to PUBLIC by
+-- default. A SECURITY DEFINER function runs as its OWNER, so any such function
+-- reachable by this role bypasses every table grant and RLS policy tested above.
+--
+-- These tests use has_function_privilege() and DO NOT CALL anything, so they
+-- are side-effect free.
+-- ------------------------------------------------------------
+DO $$
+DECLARE
+  n_secdef   bigint;
+  secdef_list text;
+  n_audit    bigint;
+  audit_list text;
+  n_mutation bigint;
+  mut_list   text;
+  n_total    bigint;
+  is_admin_result boolean;
+  total_list text;
+BEGIN
+  -- E1: SECURITY DEFINER functions this role may execute. Each runs with its
+  -- owner's privileges, so this must be zero APART FROM the documented
+  -- exceptions below, which are carved out by name so the exception is
+  -- visible and auditable rather than hidden inside a passing test.
+  --
+  -- A test that is expected to fail forever trains people to ignore failures,
+  -- which is worse than no test. Each exception must be justified here AND
+  -- separately proven harmless (is_admin -> E3b).
+  --
+  -- EXCEPTIONS:
+  --   is_admin  — called from RLS policies; revoking it breaks the broker's
+  --               own reads (same class as F9). Proven to return false for
+  --               this role by test E3b, which calls it.
+  SELECT count(*), coalesce(string_agg(p.proname, ', ' ORDER BY p.proname), '(none)')
+    INTO n_secdef, secdef_list
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public' AND p.prosecdef
+    AND p.proname NOT IN ('is_admin')
+    AND has_function_privilege('orb_agent_ro', p.oid, 'EXECUTE');
+
+  INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+    VALUES ('E', 'no SECURITY DEFINER function is executable', '0 (excl. is_admin)',
+            CASE WHEN n_secdef = 0 THEN 'PASS' ELSE 'FAIL' END,
+            n_secdef || ' executable: ' || left(secdef_list, 260)
+              || ' | documented exception carved out: is_admin (see E3b)');
+
+  -- E2: functions whose name implies audit_log access. audit_log is
+  -- deliberately excluded from the grants; a function path around that
+  -- exclusion defeats it entirely.
+  SELECT count(*), coalesce(string_agg(p.proname, ', ' ORDER BY p.proname), '(none)')
+    INTO n_audit, audit_list
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public' AND p.proname ILIKE '%audit%'
+    AND has_function_privilege('orb_agent_ro', p.oid, 'EXECUTE');
+
+  INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+    VALUES ('E', 'no audit_log function is executable', '0',
+            CASE WHEN n_audit = 0 THEN 'PASS' ELSE 'FAIL' END,
+            n_audit || ' executable: ' || left(audit_list, 300));
+
+  -- E3: mutation RPCs. These write. None may be reachable.
+  SELECT count(*), coalesce(string_agg(p.proname, ', ' ORDER BY p.proname), '(none)')
+    INTO n_mutation, mut_list
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public'
+    AND (p.proname ILIKE 'confirm_%' OR p.proname ILIKE 'import_%'
+      OR p.proname ILIKE 'restore_%' OR p.proname ILIKE 'upsert_%'
+      OR p.proname ILIKE 'set_%'     OR p.proname ILIKE 'assign_%'
+      OR p.proname ILIKE 'reconcile_%' OR p.proname ILIKE 'note_%')
+    AND has_function_privilege('orb_agent_ro', p.oid, 'EXECUTE');
+
+  INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+    VALUES ('E', 'no mutation RPC is executable', '0',
+            CASE WHEN n_mutation = 0 THEN 'PASS' ELSE 'FAIL' END,
+            n_mutation || ' executable: ' || left(mut_list, 300));
+
+  -- E3b: is_admin is deliberately left PUBLIC-executable (it is called from
+  -- RLS policies and revoking it would break the broker's own reads). Prove
+  -- it is harmless rather than trusting the migration's comment: as
+  -- orb_agent_ro, auth.uid() is NULL so it must return false.
+  BEGIN
+    EXECUTE 'SET ROLE orb_agent_ro';
+    EXECUTE 'SELECT public.is_admin()' INTO is_admin_result;
+    RESET ROLE;
+    INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+      VALUES ('E', 'is_admin() returns false for the agent role', 'false',
+              CASE WHEN is_admin_result IS NOT TRUE THEN 'PASS' ELSE 'FAIL' END,
+              'returned ' || coalesce(is_admin_result::text, 'null'));
+  EXCEPTION WHEN OTHERS THEN
+    RESET ROLE;
+    -- Refused is also acceptable: it means is_admin is not reachable at all.
+    INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+      VALUES ('E', 'is_admin() returns false for the agent role', 'false or refused',
+              'PASS', 'refused: ' || left(SQLERRM, 70));
+  END;
+
+  -- E4: informational — total reachable routines in public.
+  SELECT count(*), coalesce(string_agg(p.proname, ', ' ORDER BY p.proname), '(none)')
+    INTO n_total, total_list
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public' AND has_function_privilege('orb_agent_ro', p.oid, 'EXECUTE');
+
+  -- Named, not just counted: a shrinking number tells you less than knowing
+  -- exactly which routines remain reachable and being able to review them.
+  INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+    VALUES ('E', 'reachable routines (review this list)', 'informational', 'PASS',
+            n_total || ': ' || left(total_list, 400));
 END
 $$;
 

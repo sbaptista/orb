@@ -12,7 +12,7 @@
 set -uo pipefail
 
 readonly HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SCRIPTS=(orb-agent orb-agent-seal orb-agent-session orb-agent-approve)
+readonly SCRIPTS=(orb-agent orb-agent-session orb-agent-approve)
 
 PASS=0
 FAIL=0
@@ -106,6 +106,10 @@ check "[[ \$(ls '$SCRATCH/secrets/orb-agent/proposals'/*.json 2>/dev/null | wc -
 check "'$BROKER' proposals list | grep -q pending" "the proposal lists as pending"
 check_fails "'$BROKER' propose todo-close ORB-1 --notes-file '$NOTES' --knowledge-file '$KNOW'" \
   "a knowledge file without --knowledge-title is rejected"
+check_fails "'$BROKER' propose todo-close ORB-1 --notes-file '$NOTES'" \
+  "a closure with NO Knowledge entry is rejected (working rule 8, both or neither)"
+check_fails "'$BROKER' propose todo-close ORB-1 --notes-file '$NOTES' --knowledge-file '$KNOW' --knowledge-title 'T' --knowledge-tags 'bad;tag'" \
+  "malformed knowledge tags are rejected"
 
 printf '\n== 8. The broker cannot write to the database by construction ==\n'
 if /usr/bin/grep -nE '^\s*[^#]*\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|GRANT|CREATE)\b' "$HERE/orb-agent" \
@@ -132,11 +136,23 @@ check "/usr/bin/grep -q 'vars\[@\]+' '$HERE/orb-agent'" \
   "run_sql uses the \${arr[@]+...} guard for a possibly-empty array"
 check "bash --posix -n '$HERE/orb-agent'" "orb-agent parses under stricter mode"
 
-printf '\n== 9. Privileged roles cannot be sealed as the agent identity ==\n'
-check "/usr/bin/grep -q 'refusing to seal a privileged role' '$HERE/orb-agent-seal'" \
-  "orb-agent-seal refuses postgres/service_role"
-check "/usr/bin/grep -q 'refusing to open a session for privileged role' '$HERE/orb-agent-session'" \
-  "orb-agent-session refuses postgres/service_role"
+printf '\n== 9. Session credentials genuinely expire (option C) ==\n'
+check "/usr/bin/grep -q 'VALID UNTIL' '$HERE/orb-agent-session'" \
+  "expiry is stamped server-side with VALID UNTIL, not just a local file"
+check "/usr/bin/grep -q 'openssl rand -hex 32' '$HERE/orb-agent-session'" \
+  "each window mints a fresh 256-bit password"
+check "/usr/bin/grep -q -- '--file -' '$HERE/orb-agent-session'" \
+  "the ALTER ROLE statement goes via stdin, never argv (it carries the password)"
+check "/usr/bin/grep -q 'readonly AGENT_ROLE=\"orb_agent_ro\"' '$HERE/orb-agent-session'" \
+  "the agent role is a fixed constant — a privileged role cannot be substituted"
+check "/usr/bin/grep -q 'trap cleanup EXIT' '$HERE/orb-agent-session'" \
+  "the temporary master pgpass file is removed on every exit path"
+check "/usr/bin/grep -q 'did not authenticate' '$HERE/orb-agent-session'" \
+  "a session is not reported open until the new credential is proven to work"
+check "/usr/bin/grep -q 'revocation FAILED' '$HERE/orb-agent-session'" \
+  "--end fails loudly if the rotation did not take"
+check_fails "/usr/bin/grep -q 'orb-agent-seal' '$HERE/orb-agent-session'" \
+  "the obsolete seal step is gone (the DSN is derived from DATABASE_URL)"
 
 printf '\n== 10. The approval gate verifies its writes ==\n'
 check "/usr/bin/grep -q 'did NOT reach status=closed' '$HERE/orb-agent-approve'" \

@@ -1,6 +1,6 @@
 # Agent Capability Broker — restoring AI-agent data access without master credentials
 
-**Status:** Approved by Stan on 2026-08-19 (all four layers, direct-DB transport). Implemented in this change; migration and sealing require Stan's execution.
+**Status:** Approved by Stan on 2026-08-19 (all four layers, direct-DB transport, option C for Layer 3). Migration applied and boundary verified 36/36. Option C rebuilt 2026-08-19; awaiting an end-to-end session.
 **Plan owner:** Claude Code
 **Created:** 2026-08-19 — Claude Code (Opus 5)
 **Todo:** not yet created — Stan to assign an ORB number and link this document
@@ -54,36 +54,34 @@ Repository, and database health, such that:
 |---|---|---|
 | The agent holds a capability, never the credential | [Doppler](https://www.doppler.com/blog/mcp-server-credential-security-best-practices) | Layer 2 broker verbs; the master bundle is never decrypted in an agent shell |
 | Excessive Agency is now OWASP LLM03:2026 (up from #6), root causes: excessive functionality, permissions, autonomy | [ReversingLabs](https://www.reversinglabs.com/blog/owasp-top-10-for-llm-apps-excessive-agency), [Mend](https://www.mend.io/blog/owasp-llm-top-10-2026/) | Layer 1 read-only role (permissions); Layer 2 verb allowlist (functionality); Layer 2 propose/approve split (autonomy) |
-| Short-lived, scoped, revocable beats static env vars | [Descope](https://www.descope.com/blog/post/ai-agent-credential-management), [Aembit](https://aembit.io/blog/securing-ai-agents-without-secrets/) | Layer 3 expiring sessions with explicit revoke |
+| Short-lived, scoped, revocable beats static env vars | [Descope](https://www.descope.com/blog/post/ai-agent-credential-management), [Aembit](https://aembit.io/blog/securing-ai-agents-without-secrets/) | Layer 3 option C — a fresh password per window with a PostgreSQL `VALID UNTIL`, revocable instantly with `--end` |
 | Inject at runtime; let the secret die with the subprocess | [1Password](https://www.1password.dev/cli/secret-references) | Already correct in `orb-dev`; the broker uses the same `export`-then-`exec` discipline |
 | Deny-rules bind built-in tools, not Bash | [Developers Digest](https://www.developersdigest.tech/blog/claude-code-permissions-settings-guide), [ahmet.ee](https://ahmet.ee/your-claude-code-setup-is-probably-not-as-safe-as-you-think/) | Layer 4 deny-rules are treated as a speed bump; the real control is that the master DSN is never in a file an agent can use |
-| Best practice is no plaintext secret on disk | [Backslash](https://www.backslash.security/blog/claude-code-security-best-practices) | Preserved — the agent DSN is sealed with its own passphrase, distinct from the master passphrase |
+| Best practice is no plaintext secret on disk | [Backslash](https://www.backslash.security/blog/claude-code-security-best-practices) | Exceeded under option C — the agent credential is not stored at all. It is minted per window and expires server-side, so between windows nothing valid exists on disk |
 | Human approval must show resolved fields from trusted code | ORB-374 BP-3, citing OWASP on forged approval dialogs | Layer 2 `orb-agent-approve` prints resolved target/action/rows before prompting |
 | Enforce scopes at the server, not the tool list | [obot.ai](https://obot.ai/resources/learning-center/mcp-security/) | Layer 1 grants and RLS policies are the real boundary; the CLI allowlist is defence in depth |
 
 ## 4. Architecture
 
 ```text
-  Stan (human, holds both passphrases)
+  Stan (human, holds the master passphrase)
     │
-    ├─ orb-agent-seal ──────────► Project-secrets/orb-agent/agent.env.enc   (0600, own passphrase)
-    │                              contains ONLY the orb_agent_ro DSN
+    ├─ orb-agent-session --hours 8 ─► ALTER ROLE orb_agent_ro
+    │                                   PASSWORD <fresh 256-bit>
+    │                                   VALID UNTIL <now + 8h>     ← server-side expiry
+    │                                 └► Project-secrets/orb-agent/session{,.pgpass} (0600)
     │
-    ├─ orb-agent-session --hours 8 ──► Project-secrets/orb-agent/session    (0600, expiring)
-    │                                   decrypted DSN + hard expiry
-    │
-    └─ orb-agent-approve <id> ──► master orb.env.enc ──► Orb REST / Supabase REST (writes)
+    └─ orb-agent-approve <id> ──────► master orb.env.enc ──► Orb REST / Supabase REST (writes)
 
-  Agent (unattended, within an active session window)
+  Agent (unattended, only within an unexpired window)
     │
-    └─ orb-agent <verb> ──► session DSN ──► psql as orb_agent_ro ──► SELECT only
-                        └─ propose ──► proposal JSON (never executes)
+    └─ orb-agent <verb> ──► session pgpass ──► psql as orb_agent_ro ──► SELECT only
+                        └─ propose ──────────► proposal JSON (never executes)
 ```
 
-Two separate encrypted stores with two separate passphrases is deliberate. The
-agent store holds one low-value credential; the master store holds fifteen
-high-value ones. Compromising the agent passphrase yields read access to the
-backlog and nothing else.
+There is now **one** encrypted store, not two. The agent credential is not
+stored at all — it is generated per window and expires in the database, so
+there is nothing at rest for an agent to find between windows.
 
 ### Layer 1 — Separate identity
 
@@ -138,22 +136,52 @@ is server-managed from `status` (`docs/api-spec.yaml`); a direct `UPDATE` would
 silently skip that. Knowledge Repository writes use the Supabase REST endpoint,
 which is the documented path and has no equivalent Orb route.
 
-### Layer 3 — Time-boxed sessions
+### Layer 3 — Time-boxed sessions with **server-side** expiry (option C)
 
-`orb-agent-session --hours N` (default 8, maximum 24) is human-run. It prompts
-for the agent passphrase, decrypts the DSN, and writes a `0600` session file
-carrying a hard expiry epoch. `orb-agent` refuses and unlinks the session once
-expired. `orb-agent-session --end` revokes immediately.
+Stan chose option C on 2026-08-19. Every window mints a **fresh 256-bit
+password** for `orb_agent_ro` and stamps a PostgreSQL `VALID UNTIL`:
 
-Without an active session there is no unattended agent access at all. An agent
-prompt-injected outside a session window has nothing to act with.
+```sql
+ALTER ROLE orb_agent_ro WITH PASSWORD '<fresh>' VALID UNTIL '<now + N hours>';
+```
+
+**Expiry is therefore enforced by the database, not by a local file check.**
+Copying `session.pgpass` during a window buys nothing past the wall clock,
+because Postgres itself refuses the login. This closes the defect in the
+earlier design, where expiry deleted a local file while the password stayed
+valid indefinitely — a *local file lifetime* masquerading as a token expiry.
+
+`--end` rotates to a value nothing retains and sets `VALID UNTIL` in the past,
+so revocation is immediate and server-side.
+
+Consequences of the change:
+
+- **`orb-agent-seal` is deleted.** Host, port, database, and the correct
+  username are derived from the master `DATABASE_URL`, including the
+  `<role>.<project-ref>` form Supabase's pooler requires. Nothing is typed, so
+  the connection-string problem that blocked the first attempt cannot recur.
+- **The separate agent store is gone** — one fewer file, one fewer passphrase.
+- **`orb-agent-session` now unlocks the master store**, because only it can
+  `ALTER ROLE`. This is the same passphrase already typed for `orb-dev`, so it
+  is not a new class of exposure — but it makes **root-owned launchers a
+  prerequisite rather than an option**, since a trojaned prompt would now
+  capture it on more occasions (finding F8 in
+  `docs/agent-enforcement-hardening.md`).
+- The `ALTER ROLE` statement travels on **stdin**, never argv, because it
+  carries the password.
+- A session is not reported open until the new credential is **proven to
+  authenticate**; on failure the local files are removed rather than left
+  implying a working window.
+
+Residual limit, stated plainly: within an open window the credential is usable
+by anything running as Stan. Option C bounds the window in real time; it does
+not isolate processes. That remains ORB-374 Tier B/C.
 
 ### Layer 4 — Mechanical enforcement
 
 - `permissions.deny` in the tracked `.claude/settings.json` gains
-  `Bash(orb-secrets-seal*)`, `Bash(orb-secrets-set*)`, `Bash(orb-agent-seal*)`,
-  `Bash(orb-agent-session*)`, and `Bash(orb-agent-approve*)` — every
-  passphrase-bearing command. Patterns are anchored at the start of the command
+  `Bash(orb-secrets-seal*)`, `Bash(orb-secrets-set*)`, `Bash(orb-agent-session*)`,
+  and `Bash(orb-agent-approve*)` — every passphrase-bearing command. Patterns are anchored at the start of the command
   per the confirmed 2026-08-05 wildcard finding.
 - Both `AGENTS.md` files replace the inline-secret `curl`/`psql` blocks with
   `orb-agent` verbs. This closes ORB-374 Phase 1 item 7.
@@ -215,8 +243,10 @@ than `RAISE NOTICE`, which the editor does not surface.
   **not** per-role settings such as `default_transaction_read_only` — those
   apply only to real logins. The grant-based denial is the control being
   proven; the session setting is additional depth.
-- `orb-agent-seal`, then `orb-agent-session`, then confirm each read verb from a
-  separate agent shell.
+- `orb-agent-session --hours 8`, then confirm each read verb from a separate
+  agent shell. There is no sealing step: the connection is derived from
+  `DATABASE_URL`, including the pooler's `<role>.<project-ref>` username form.
+- After `--end`, confirm the database refuses the old credential.
 
 **Unverified and requiring Stan's test — stated plainly:**
 

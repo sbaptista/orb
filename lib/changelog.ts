@@ -6,6 +6,20 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.299',
+    date: '2026-08-19',
+    changes: [
+      'Made agent session expiry real. Every window now mints a fresh 256-bit password for the read-only orb_agent_ro role and stamps a PostgreSQL VALID UNTIL, so expiry is enforced by the database rather than by deleting a local file. Copying the credential during a window buys nothing past the wall clock. Ending a session rotates the password to a value nothing retains and sets the expiry in the past, making revocation immediate.',
+      'Removed the sealing step and the second encrypted store entirely. Host, port, database, and the correct username are derived from the master DATABASE_URL, including the role.project-ref form Supabase\'s connection pooler requires, so no connection string is ever typed. The agent credential is no longer stored anywhere at rest — between windows nothing valid exists on disk.',
+      'Hardened the minting path: the ALTER ROLE statement travels on stdin rather than process arguments because it carries the password, the temporary master credential file is removed on every exit path, the agent role is a fixed constant so a privileged role cannot be substituted, and a session is not reported open until the new credential is proven to authenticate.',
+      'Recorded a confirmed cross-tool security finding. Codex executed git push with no approval prompt because a trusted project setting overrides its approval policy, and that trust covers the whole Projects directory. Claude Code\'s deny rule was verified by exercise and held. Both results are now in the shared push-gate table with the commands that established them.',
+      'Closed a real privilege gap found by an external model review: the read-only agent role could execute eleven SECURITY DEFINER routines, including the audit log readers, because revoking a privilege from a role does not remove what PUBLIC grants. Those routines are now revoked from PUBLIC and granted explicitly to the application roles, so no application access changed and only the agent role lost reach. Reachable routines fell from twenty-two to seven, and the boundary verifier now measures routine privileges as well as tables.',
+      'Made the todo closure rule enforced rather than advised. Proposing a closure without a Knowledge Repository entry is now rejected instead of warned about, matching the standing rule that closing a todo always requires both resolution notes and a Knowledge entry.',
+      'Fixed the broker\'s parameterised queries, which failed against a live database because psql does not interpolate variables supplied to a single command string. Statements now travel on standard input, which also keeps them out of process arguments. The offline suite could not have caught this: it matches source patterns and never executes SQL.',
+      'Opened docs/agent-enforcement-hardening.md, a cross-model review packet inviting frontier models to attack Orb\'s enforcement model, and proposed tagging every agent rule with the tier that actually enforces it so a convention can no longer read like a control. Internal developer tooling and documentation: no application route, component, or user-facing behavior changed. Eval: not applicable.',
+    ],
+  },
+  {
     version: 'v0.6.298',
     date: '2026-08-19',
     changes: [

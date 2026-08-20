@@ -19,10 +19,6 @@
       "Bash(scripts/security/orb-secrets-set)",
       "Bash(scripts/security/orb-secrets-set *)",
 
-      "Bash(orb-agent-seal)",
-      "Bash(orb-agent-seal *)",
-      "Bash(scripts/security/orb-agent-seal)",
-      "Bash(scripts/security/orb-agent-seal *)",
       "Bash(orb-agent-session)",
       "Bash(orb-agent-session *)",
       "Bash(scripts/security/orb-agent-session)",

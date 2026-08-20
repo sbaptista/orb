@@ -76,7 +76,8 @@ require_session() {
   if [[ ! "$expires" =~ ^[0-9]+$ ]] || (( now >= expires )); then
     /bin/rm -f "$SESSION_FILE" "$PGPASS_FILE"
     audit "session expired or malformed; removed"
-    fail "session expired. Ask Stan to run: orb-agent-session --hours 8"
+    fail "session expired — the database is refusing this credential (VALID UNTIL has passed).
+Ask Stan to run: orb-agent-session --hours 8"
   fi
 
   # Then fail closed on loose permissions. psql only WARNS about a group-
@@ -118,7 +119,17 @@ run_sql() {
   else
     args+=(--pset "border=1" --pset "footer=off")
   fi
-  PGPASSFILE="$PGPASS_FILE" PGCONNECT_TIMEOUT=15 "${PSQL}" "${args[@]}" --command "$sql"
+
+  # SQL is fed on STDIN via `--file -`, NOT `--command`. psql does not perform
+  # :'variable' interpolation on a --command string, so every parameterised
+  # verb failed with "syntax error at or near \":\"" against the live
+  # database. Reading from stdin goes through the normal lexer, which does
+  # interpolate — and keeps the statement out of argv as well.
+  #
+  # The 58 offline checks did not catch this: they match source patterns and
+  # never execute SQL. Behaviour needs a live database, not a grep.
+  printf '%s\n' "$sql" \
+    | PGPASSFILE="$PGPASS_FILE" PGCONNECT_TIMEOUT=15 "${PSQL}" "${args[@]}" --file -
 }
 
 # ---------------------------------------------------------------- validation
@@ -377,19 +388,17 @@ cmd_propose() {
   [[ -z "$knowledge_file" || -f "$knowledge_file" ]] || fail "knowledge file not found: $knowledge_file"
 
   # Shared working rule 8: closing a todo means resolution notes AND a
-  # Knowledge entry — always both. Warn loudly rather than silently allowing
-  # half a closure.
-  if [[ -z "$knowledge_file" ]]; then
-    printf 'orb-agent: WARNING — no --knowledge-file supplied.\n' >&2
-    printf 'Shared working rule 8 requires BOTH resolution notes and a Knowledge\n' >&2
-    printf 'Repository entry when closing a todo. Continuing will propose an\n' >&2
-    printf 'incomplete closure.\n' >&2
-  else
-    [[ -n "$knowledge_title" ]] || fail "--knowledge-title is required with --knowledge-file"
-    [[ ${#knowledge_title} -le 200 ]] || fail "knowledge title is too long (max 200)"
-    [[ -z "$knowledge_tags" || "$knowledge_tags" =~ ^[A-Za-z0-9_,-]{1,200}$ ]] \
-      || fail "--knowledge-tags must be a comma-separated list of simple tags"
-  fi
+  # Knowledge entry — always both. This REJECTS rather than warns. A warning
+  # that proceeds is not enforcement: Codex's Round 1 review found that the
+  # earlier warn-and-continue form let an incomplete closure through, and that
+  # the mechanization audit had already recorded this rule as enforced.
+  [[ -n "$knowledge_file" ]] || fail "--knowledge-file is required.
+Shared working rule 8: closing a todo means resolution notes AND a Knowledge
+Repository entry — always both. Write the entry, then propose the closure."
+  [[ -n "$knowledge_title" ]] || fail "--knowledge-title is required with --knowledge-file"
+  [[ ${#knowledge_title} -le 200 ]] || fail "knowledge title is too long (max 200)"
+  [[ -z "$knowledge_tags" || "$knowledge_tags" =~ ^[A-Za-z0-9_,-]{1,200}$ ]] \
+    || fail "--knowledge-tags must be a comma-separated list of simple tags"
 
   # Shared working rule 9: attribution is the first line.
   /usr/bin/head -n 1 "$notes_file" | /usr/bin/grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2} — .+ \(.+\)$' \
