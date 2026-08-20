@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.300',
+    date: '2026-08-20',
+    changes: [
+      'Closed an unauthenticated data exposure found by external model review. Nine SECURITY DEFINER routines — including the audit log readers, the AI cost readers, and a financial import that writes — were executable by the anonymous role, which in Supabase makes them reachable through the Data API using the publishable key that ships in the browser bundle. Every verified call site uses the server-side service client, so all nine are now service-role only and no application access changed. The previous migration had made this pre-existing grant explicit while presenting itself as a lockdown.',
+      'Closed a confirmed identity-forgery path. The read-only agent role could set the request JWT claim to a real user id read from project ownership and make the admin check return true, widening row visibility through permissive-policy evaluation. Writes were never reachable. The admin check is no longer executable by the agent role. Restoring agent reads on todos required trading that table\'s policy-level soft-delete filter for the broker\'s own filter — a documented reduction from two layers to one, recorded in the verifier on every run.',
+      'Made session revocation actually revoke. A server-side expiry stamp gates new logins but does nothing to connections already established: a held connection kept reading after revocation, which was proven by test and contradicted what the previous release claimed. Revocation and minting now terminate every live backend for the role, verified by holding a connection across a revocation and watching it be severed. Natural expiry still does not terminate, so a held connection survives until the next revoke or mint; that residual is documented rather than glossed.',
+      'Hardened the human approval gate. It now revalidates the complete proposal at apply time rather than trusting creation-time checks, refuses to proceed if the proposal file changed between display and confirmation, and writes the Knowledge entry before closing the todo so the only reachable half-state is visibly unfinished rather than silently rule-breaking.',
+      'Replaced hand-written routine lists with rule-based sweeps after the lists missed four routines, and extended the boundary verifier to measure routine privileges, unauthenticated and authenticated reach, and forged request context. The verifier previously asked only what the agent role could do while reporting a general boundary. Internal developer tooling and documentation: no application route, component, or user-facing behavior changed. Eval: not applicable.',
+    ],
+  },
+  {
     version: 'v0.6.299',
     date: '2026-08-19',
     changes: [

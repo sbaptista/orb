@@ -150,14 +150,43 @@ BEGIN
     EXECUTE 'SET ROLE orb_agent_ro';
     EXECUTE 'SELECT count(*) FROM public.todos WHERE deleted_at IS NOT NULL' INTO visible;
     RESET ROLE;
+    -- NOTE (2026-08-20): todos was folded to USING (true) so the planner never
+    -- permission-checks is_admin (20260820d). DB-level soft-delete for todos is
+    -- therefore GONE and the broker's own WHERE clause is the only filter.
+    -- Reporting this as a failure would be dishonest — the design changed — but
+    -- silently passing would hide a real reduction in depth. It is recorded as
+    -- an explicit ACCEPTED trade so it stays visible on every run.
     INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
-      VALUES ('B', 'soft-deleted todos hidden', '0',
+      VALUES ('B', 'soft-deleted todos: DB filter traded away (accepted)', 'documented',
+              'PASS',
+              visible || ' deleted todo(s) visible at the DB layer. Broker filters them in'
+                || ' `todos list`/`todos get`. Depth reduced from 2 layers to 1 — accepted'
+                || ' because the alternative reopens the confirmed is_admin forgery (G3).');
+  EXCEPTION WHEN OTHERS THEN
+    RESET ROLE;
+    INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+      VALUES ('B', 'soft-deleted todos hidden', '0', 'FAIL', left(SQLERRM, 90));
+  END;
+END
+$$;
+
+-- Soft delete IS still enforced in-policy for categories and groups. Test one,
+-- so the mechanism is not left entirely untested after the todos trade.
+DO $$
+DECLARE visible bigint;
+BEGIN
+  BEGIN
+    EXECUTE 'SET ROLE orb_agent_ro';
+    EXECUTE 'SELECT count(*) FROM public.categories WHERE deleted_at IS NOT NULL' INTO visible;
+    RESET ROLE;
+    INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+      VALUES ('B', 'soft-deleted categories hidden by policy', '0',
               CASE WHEN visible = 0 THEN 'PASS' ELSE 'FAIL' END,
               visible || ' deleted row(s) visible');
   EXCEPTION WHEN OTHERS THEN
     RESET ROLE;
     INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
-      VALUES ('B', 'soft-deleted todos hidden', '0', 'FAIL', left(SQLERRM, 90));
+      VALUES ('B', 'soft-deleted categories hidden by policy', '0', 'FAIL', left(SQLERRM, 90));
   END;
 END
 $$;
@@ -360,6 +389,182 @@ BEGIN
   INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
     VALUES ('E', 'reachable routines (review this list)', 'informational', 'PASS',
             n_total || ': ' || left(total_list, 400));
+END
+$$;
+
+-- ------------------------------------------------------------
+-- F. UNAUTHENTICATED and AUTHENTICATED reach — added after Codex Round 2
+--
+-- WHY THIS EXISTS: sections A-E only ever asked what `orb_agent_ro` could do.
+-- The verifier reported BOUNDARY VERIFIED while `anon` — the unauthenticated
+-- browser role — could execute SECURITY DEFINER readers over audit_log through
+-- Supabase's Data API. Measuring one role and reporting a general boundary is
+-- the same error, repeated.
+--
+-- In Supabase, EXECUTE for `anon` on a function in the exposed `public` schema
+-- makes it callable with the PUBLISHABLE key, and SECURITY DEFINER bypasses RLS.
+-- ------------------------------------------------------------
+DO $$
+DECLARE
+  n_anon bigint; anon_list text;
+  n_auth bigint; auth_list text;
+BEGIN
+  SELECT count(*), coalesce(string_agg(p.proname, ', ' ORDER BY p.proname), '(none)')
+    INTO n_anon, anon_list
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public' AND p.prosecdef
+    AND p.proname <> 'is_admin'
+    AND has_function_privilege('anon', p.oid, 'EXECUTE');
+
+  INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+    VALUES ('F', 'anon cannot execute SECURITY DEFINER routines', '0',
+            CASE WHEN n_anon = 0 THEN 'PASS' ELSE 'FAIL' END,
+            n_anon || ' reachable by UNAUTHENTICATED callers: ' || left(anon_list, 260));
+
+  SELECT count(*), coalesce(string_agg(p.proname, ', ' ORDER BY p.proname), '(none)')
+    INTO n_auth, auth_list
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public' AND p.prosecdef AND p.proname <> 'is_admin'
+    AND p.proname IN ('get_audit_log_page','get_audit_log_count','get_audit_log_cursor_page',
+                      'get_orb_metrics_page','get_orb_metrics_summary','upsert_orb_metric',
+                      'reconcile_user_id')
+    AND has_function_privilege('authenticated', p.oid, 'EXECUTE');
+
+  INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+    VALUES ('F', 'authenticated cannot execute server-only routines', '0',
+            CASE WHEN n_auth = 0 THEN 'PASS' ELSE 'FAIL' END,
+            n_auth || ' reachable: ' || left(auth_list, 260)
+              || ' | all verified call sites use the admin/service client');
+
+  -- Informational: what `authenticated` can reach. Not swept yet — the blast
+  -- radius is unmeasured and breaking the app to close a hole anon already
+  -- lost would be a bad trade. Listed so the decision uses data.
+  INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+  SELECT 'F', 'SECURITY DEFINER routines reachable by authenticated', 'informational', 'PASS',
+         count(*) || ': ' || left(coalesce(string_agg(p.proname, ', ' ORDER BY p.proname), '(none)'), 300)
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public' AND p.prosecdef
+    AND has_function_privilege('authenticated', p.oid, 'EXECUTE');
+
+  INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+  SELECT 'F', 'anon cannot read audit_log directly', 'refused',
+         CASE WHEN count(*) = 0 THEN 'PASS' ELSE 'FAIL' END, count(*) || ' table grant(s)'
+  FROM information_schema.role_table_grants
+  WHERE grantee = 'anon' AND table_schema = 'public' AND table_name = 'audit_log';
+END
+$$;
+
+-- ------------------------------------------------------------
+-- G. FORGED REQUEST CONTEXT — tests Codex Round 2 R2-Q2
+--
+-- Supabase's auth.uid() reads the `request.jwt.claim.sub` GUC. A DIRECT
+-- PostgreSQL client (which orb_agent_ro is) can normally SET custom GUCs.
+-- If it can, then orb_agent_ro may forge an identity: it can read candidate
+-- UUIDs from public.projects.created_by, set the claim, and make admin RLS
+-- predicates true — widening row visibility beyond the agent policy through
+-- permissive-policy OR evaluation.
+--
+-- This tests the MECHANISM with a bogus all-zeros UUID. It impersonates
+-- nobody real and changes no data. If auth.uid() echoes the forged value, the
+-- vector is real and only requires a genuine UUID, which the role can read.
+--
+-- This was Suspected in Round 2. A suspected vector that is cheap to test must
+-- be tested, not reasoned about — that rule exists because it has been broken
+-- three times in this project already.
+-- ------------------------------------------------------------
+DO $$
+DECLARE
+  forged   constant text := '00000000-0000-0000-0000-000000000001';
+  echoed   text;
+  admin_rv boolean;
+BEGIN
+  BEGIN
+    EXECUTE 'SET ROLE orb_agent_ro';
+    EXECUTE format('SET LOCAL request.jwt.claim.sub = %L', forged);
+    BEGIN
+      EXECUTE 'SELECT auth.uid()::text' INTO echoed;
+    EXCEPTION WHEN OTHERS THEN
+      echoed := 'error: ' || left(SQLERRM, 60);
+    END;
+    RESET ROLE;
+
+    INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+      VALUES ('G', 'agent CANNOT forge auth.uid() via request.jwt.claim.sub',
+              'null or error',
+              CASE WHEN echoed IS NULL OR echoed <> forged THEN 'PASS' ELSE 'FAIL' END,
+              CASE WHEN echoed = forged
+                   THEN 'FORGERY WORKS — auth.uid() echoed the injected claim. R2-Q2 confirmed.'
+                   ELSE 'auth.uid() returned ' || coalesce(echoed, 'null') END);
+  EXCEPTION WHEN OTHERS THEN
+    RESET ROLE;
+    INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+      VALUES ('G', 'agent CANNOT forge auth.uid() via request.jwt.claim.sub',
+              'null or error', 'PASS', 'refused: ' || left(SQLERRM, 80));
+  END;
+
+  BEGIN
+    EXECUTE 'SET ROLE orb_agent_ro';
+    EXECUTE format('SET LOCAL request.jwt.claim.sub = %L', forged);
+    BEGIN
+      EXECUTE 'SELECT public.is_admin()' INTO admin_rv;
+    EXCEPTION WHEN OTHERS THEN
+      admin_rv := NULL;
+    END;
+    RESET ROLE;
+
+    INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+      VALUES ('G', 'is_admin() stays false under a forged claim', 'false',
+              CASE WHEN admin_rv IS NOT TRUE THEN 'PASS' ELSE 'FAIL' END,
+              'returned ' || coalesce(admin_rv::text, 'null/refused')
+                || ' (bogus UUID; a real admin UUID is readable from projects.created_by)');
+  EXCEPTION WHEN OTHERS THEN
+    RESET ROLE;
+    INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+      VALUES ('G', 'is_admin() stays false under a forged claim', 'false', 'PASS',
+              'refused: ' || left(SQLERRM, 80));
+  END;
+  -- G3: G2 used an all-zeros UUID, which is guaranteed not to be an admin, so
+  -- a `false` result there proves nothing about forgery. is_admin is SECURITY
+  -- DEFINER and runs as its OWNER, which CAN reach auth.uid() even though the
+  -- agent role cannot (G1). This test uses a REAL admin UUID — one the agent
+  -- can itself read from projects.created_by — which is what an attacker would
+  -- do. Read-only; impersonates the project owner only inside this test.
+  BEGIN
+    DECLARE
+      real_uuid text;
+      rv        boolean;
+    BEGIN
+      SELECT created_by::text INTO real_uuid
+      FROM public.projects WHERE created_by IS NOT NULL LIMIT 1;
+
+      IF real_uuid IS NULL THEN
+        INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+          VALUES ('G', 'is_admin() stays false under a REAL forged uuid', 'false',
+                  'PASS', 'no candidate uuid in projects.created_by — untestable here');
+      ELSE
+        EXECUTE 'SET ROLE orb_agent_ro';
+        EXECUTE format('SET LOCAL request.jwt.claim.sub = %L', real_uuid);
+        BEGIN
+          EXECUTE 'SELECT public.is_admin()' INTO rv;
+        EXCEPTION WHEN OTHERS THEN
+          rv := NULL;
+        END;
+        RESET ROLE;
+
+        INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+          VALUES ('G', 'is_admin() stays false under a REAL forged uuid', 'false',
+                  CASE WHEN rv IS NOT TRUE THEN 'PASS' ELSE 'FAIL' END,
+                  CASE WHEN rv IS TRUE
+                       THEN 'FORGERY CONFIRMED — the agent role can assume an admin identity. R2-Q2 is real; remove the is_admin exception.'
+                       ELSE 'returned ' || coalesce(rv::text, 'null/refused') END);
+      END IF;
+    END;
+  EXCEPTION WHEN OTHERS THEN
+    RESET ROLE;
+    INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+      VALUES ('G', 'is_admin() stays false under a REAL forged uuid', 'false', 'PASS',
+              'refused: ' || left(SQLERRM, 80));
+  END;
 END
 $$;
 

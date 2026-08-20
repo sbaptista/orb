@@ -27,6 +27,60 @@ readonly ORB_BASE="https://orb-eight-lake.vercel.app"
 
 fail() { printf 'orb-agent-approve: %s\n' "$*" >&2; exit 1; }
 
+# Validate the COMPLETE proposal at apply time, not just at creation.
+# Codex Round 2 R2-Q1: `orb-agent propose` was fixed to reject a closure with no
+# Knowledge entry, but this script still accepted a stored proposal whose
+# `knowledge` was null and marked it applied. A proposal written before that fix,
+# or edited by any same-user process afterwards, produced the forbidden
+# half-closure. Creation-time validation is not enforcement.
+validate_proposal() {
+  local path="$1"
+  /usr/bin/python3 - "$path" <<'PY' || exit 1
+import json, re, sys
+p = json.load(open(sys.argv[1]))
+errs = []
+ATTR = re.compile(r'^\d{4}-\d{2}-\d{2} — .+ \(.+\)$')
+
+if p.get("kind") != "todo-close":
+    errs.append(f"unsupported kind: {p.get('kind')!r}")
+if p.get("status") != "pending":
+    errs.append(f"status is {p.get('status')!r}, expected 'pending'")
+if not re.match(r'^[A-Za-z0-9_-]{1,16}-[0-9]{1,9}$', p.get("todo_ref") or ""):
+    errs.append("todo_ref is missing or malformed")
+
+notes = p.get("resolution_notes") or ""
+if not notes.strip():
+    errs.append("resolution_notes is empty")
+elif not ATTR.match(notes.splitlines()[0]):
+    errs.append("resolution_notes must begin with 'YYYY-MM-DD — Tool (Model)'")
+
+k = p.get("knowledge")
+if not k:
+    errs.append("knowledge entry is MISSING — working rule 8 requires resolution "
+                "notes AND a Knowledge entry, always both")
+else:
+    if not (k.get("title") or "").strip():
+        errs.append("knowledge.title is empty")
+    content = k.get("content") or ""
+    if not content.strip():
+        errs.append("knowledge.content is empty")
+    elif not ATTR.match(content.splitlines()[0]):
+        errs.append("knowledge.content must begin with 'YYYY-MM-DD — Tool (Model)'")
+    if not isinstance(k.get("tags"), list):
+        errs.append("knowledge.tags must be a list")
+
+if errs:
+    print("orb-agent-approve: proposal is INVALID and will not be applied:", file=sys.stderr)
+    for e in errs:
+        print(f"  - {e}", file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
+# Hash the proposal so the bytes confirmed are the bytes applied. Between the
+# banner and the typed "yes", any same-user process can rewrite the file.
+proposal_hash() { /sbin/md5 -q "$1" 2>/dev/null || /usr/bin/shasum -a 256 "$1" | cut -d' ' -f1; }
+
 audit() {
   printf '%s  %s\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >> "$AUDIT_FILE"
   /bin/chmod 600 "$AUDIT_FILE" 2>/dev/null || true
@@ -84,6 +138,10 @@ main() {
   [[ "$status" == "pending" ]] || fail "proposal $id is already '$status'"
   [[ "$kind" == "todo-close" ]] || fail "unsupported proposal kind: $kind"
 
+  validate_proposal "$path" || fail "refusing to apply an invalid proposal"
+  local hash_at_display
+  hash_at_display="$(proposal_hash "$path")"
+
   local code="${ref%-*}" number="${ref##*-}"
 
   load_master
@@ -139,9 +197,60 @@ BANNER
   local answer=""; IFS= read -r answer
   [[ "$answer" == "yes" ]] || { printf 'Aborted. Nothing was written.\n'; audit "proposal $id declined"; exit 1; }
 
-  # ---- 1. Close the todo through the Orb REST API (server manages closed_at)
-  printf '\nClosing %s...\n' "$ref"
-  local patch_body patch_result
+  # The bytes you confirmed must be the bytes applied.
+  if [[ "$(proposal_hash "$path")" != "$hash_at_display" ]]; then
+    audit "proposal $id CHANGED between display and confirmation — refused"
+    fail "the proposal file changed after it was displayed. Nothing applied.
+Something rewrote $path between the banner and your confirmation."
+  fi
+  validate_proposal "$path" || fail "proposal became invalid after confirmation — nothing applied"
+
+  # ---- ORDERING (Codex Round 2 R2-Q1): Knowledge FIRST, then close.
+  #
+  # The previous order closed the todo first. A failed Knowledge write then left
+  # a closed todo with no Knowledge entry — a silent violation of working rule 8,
+  # and the exact state the rule exists to prevent.
+  #
+  # Reversing the order cannot make the pair atomic, but it changes which
+  # half-state is possible:
+  #   old worst case: todo closed, no Knowledge   -> rule broken, looks complete
+  #   new worst case: Knowledge written, todo open -> rule intact, visibly unfinished
+  # The second is recoverable and obvious. That is the whole gain; it is not a
+  # transaction and is not claimed as one.
+
+  local product_id knowledge_body knowledge_result knowledge_id
+  product_id="$(/usr/bin/python3 -c 'import json,sys;print(json.loads(sys.argv[1]).get("product_id") or "")' "$todo_json")"
+
+  printf '\nWriting the Knowledge entry first...\n'
+  knowledge_body="$(/usr/bin/python3 -c '
+import json,sys
+k=json.load(open(sys.argv[1]))["knowledge"]
+print(json.dumps({
+  "title": k["title"], "content": k["content"], "tags": k["tags"],
+  "product_id": sys.argv[2] or None, "origin_todo_id": sys.argv[3],
+}))' "$path" "$product_id" "$todo_id")"
+
+  knowledge_result="$(printf '%s' "$knowledge_body" \
+    | curl_supabase "$SUPABASE_SECRET_KEY" -X POST "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/knowledge_repo" \
+        -H "Content-Type: application/json" -H "Prefer: return=representation" --data-binary @-)"
+
+  knowledge_id="$(printf '%s' "$knowledge_result" | /usr/bin/python3 -c '
+import json,sys
+try:
+    d=json.load(sys.stdin); print(d[0]["id"] if isinstance(d,list) and d else "")
+except Exception: print("")')"
+
+  [[ -n "$knowledge_id" ]] || {
+    audit "proposal $id FAILED at knowledge write — todo NOT closed"
+    fail "the Knowledge write could not be confirmed. The todo is UNCHANGED and still open.
+Response: $knowledge_result"
+  }
+  printf 'Knowledge entry created and verified: %s\n' "$knowledge_id"
+
+  # ---- Now close the todo. closed_at is server-managed from status, which is
+  # why this goes through the REST API rather than a direct UPDATE.
+  printf 'Closing %s...\n' "$ref"
+  local patch_body patch_result new_status
   patch_body="$(/usr/bin/python3 -c '
 import json,sys
 p=json.load(open(sys.argv[1]))
@@ -151,67 +260,24 @@ print(json.dumps({"status":"closed","resolution_notes":p["resolution_notes"]}))'
     | curl_auth "$ORB_API_SECRET" -X PATCH "$ORB_BASE/api/tasks/$todo_id" \
         -H "Content-Type: application/json" --data-binary @-)"
 
-  # Integrity rule 3: read the response, confirm the field actually changed.
-  local new_status
   new_status="$(printf '%s' "$patch_result" | /usr/bin/python3 -c '
 import json,sys
 try:
-    d=json.load(sys.stdin)
-    print((d.get("task") or d).get("status",""))
-except Exception:
-    print("")')"
-  [[ "$new_status" == "closed" ]] \
-    || fail "the todo did NOT reach status=closed (response said: ${new_status:-<unparseable>}). Knowledge entry NOT written."
+    d=json.load(sys.stdin); print((d.get("task") or d).get("status",""))
+except Exception: print("")')"
 
-  printf 'Todo closed and verified.\n'
-
-  # ---- 2. Knowledge entry
-  local has_knowledge
-  has_knowledge="$(/usr/bin/python3 -c '
+  if [[ "$new_status" != "closed" ]]; then
+    audit "proposal $id PARTIAL — knowledge $knowledge_id written, todo NOT closed"
+    /usr/bin/python3 -c '
 import json,sys
-print("yes" if json.load(open(sys.argv[1])).get("knowledge") else "no")' "$path")"
-
-  if [[ "$has_knowledge" == "yes" ]]; then
-    printf 'Writing Knowledge entry...\n'
-    local product_id knowledge_body knowledge_result
-    product_id="$(/usr/bin/python3 -c 'import json,sys;print(json.loads(sys.argv[1]).get("product_id") or "")' "$todo_json")"
-    knowledge_body="$(/usr/bin/python3 -c '
-import json,sys
-p=json.load(open(sys.argv[1]))
-k=p["knowledge"]
-print(json.dumps({
-  "title": k["title"],
-  "content": k["content"],
-  "tags": k["tags"],
-  "product_id": sys.argv[2] or None,
-  "origin_todo_id": sys.argv[3],
-}))' "$path" "$product_id" "$todo_id")"
-
-    knowledge_result="$(printf '%s' "$knowledge_body" \
-      | curl_supabase "$SUPABASE_SECRET_KEY" -X POST "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/knowledge_repo" \
-          -H "Content-Type: application/json" -H "Prefer: return=representation" --data-binary @-)"
-
-    local knowledge_id
-    knowledge_id="$(printf '%s' "$knowledge_result" | /usr/bin/python3 -c '
-import json,sys
-try:
-    d=json.load(sys.stdin)
-    print(d[0]["id"] if isinstance(d,list) and d else "")
-except Exception:
-    print("")')"
-    if [[ -n "$knowledge_id" ]]; then
-      printf 'Knowledge entry created and verified: %s\n' "$knowledge_id"
-    else
-      printf 'WARNING: the todo IS closed, but the Knowledge write could not be confirmed.\n' >&2
-      printf 'Response: %s\n' "$knowledge_result" >&2
-      audit "proposal $id PARTIAL — todo closed, knowledge unconfirmed"
-      /usr/bin/python3 -c '
-import json,sys
-p=json.load(open(sys.argv[1])); p["status"]="partial"
-open(sys.argv[1],"w").write(json.dumps(p,indent=2))' "$path"
-      exit 1
-    fi
+p=json.load(open(sys.argv[1])); p["status"]="partial"; p["knowledge_id"]=sys.argv[2]
+open(sys.argv[1],"w").write(json.dumps(p,indent=2))' "$path" "$knowledge_id"
+    fail "the Knowledge entry WAS written ($knowledge_id) but the todo did NOT close
+(response said: ${new_status:-<unparseable>}).
+The todo is still open, which is the recoverable half-state. Re-running would
+duplicate the Knowledge entry — close the todo manually, or delete $knowledge_id first."
   fi
+  printf 'Todo closed and verified.\n'
 
   /usr/bin/python3 -c '
 import json,sys,datetime

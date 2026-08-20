@@ -18,9 +18,9 @@
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.299** — option C sessions: a fresh per-window
-  password with a PostgreSQL `VALID UNTIL`, no stored agent credential, and the
-  sealing step removed. v0.6.298 (the broker itself) is committed but unpushed.
+- **Local version:** **0.6.300** — Round 2 remediation: unauthenticated
+  exposure closed, identity forgery closed, revocation now terminates live
+  sessions. v0.6.298–0.6.300 are committed and **unpushed**.
 - **Production maintenance:** off.
 - **Database:** Stan applied
   `scripts/migrations/20260818_statement_import_catalog_models.sql` and
@@ -41,44 +41,73 @@
 
 ## Uncommitted Changes
 
-**v0.6.298 — agent capability broker (Claude Code, Opus 5):**
-
-- `docs/agent-capability-broker-plan.md` — new. The approved plan, research
-  basis, architecture, limits, and verification requirements.
-- `scripts/migrations/20260819_orb_agent_ro_role.sql` — new. Creates the
-  SELECT-only `orb_agent_ro` role, grants, and RLS policies. **Not yet applied.**
-- `scripts/migrations/verify-orb-agent-ro.sql` — new. Negative *and* positive
-  boundary tests. **Not yet run.**
-- `scripts/security/orb-agent` — new. The read-only broker. Agent-runnable.
-- `scripts/security/orb-agent-seal` — new. Seals the agent DSN. Human-only.
-- `scripts/security/orb-agent-session` — new. Opens/ends a time-boxed session.
-  Human-only.
-- `scripts/security/orb-agent-approve` — new. The only write path. Human-only.
-- `scripts/security/test-orb-agent.sh` — new. 48 offline checks; all passing.
-- `.claude/settings.json` — modified. Denies every passphrase-bearing command
-  (`orb-dev`, `orb-secrets-*`, `orb-agent-seal|session|approve`) plus reads of
-  `Project-secrets/`. The existing `git push` denies are unchanged.
-- `AGENTS.md` — modified. New broker section; manual clipboard mode demoted to
-  fallback; Knowledge and DB-health instructions rewritten to broker verbs;
-  `psql` marked Stan-only.
-- `/Users/stanleybaptista/Projects/shared/AGENTS.md` — modified **(outside this
-  repo, affects Helm's agents too)**. Adds the Orb broker section and marks the
-  Orb API / Knowledge `curl` blocks superseded for Orb only. Non-Orb projects
-  explicitly unchanged.
-- `docs/object-capability-matrix.md` — modified. New Part 1b records the broker
-  read surface and why `audit_log` is excluded.
-- `package.json`, `lib/version.ts`, `lib/changelog.ts` — v0.6.298.
-- The four broker commands are installed at `~/.local/bin/` (outside git).
-
-**Pre-existing, not mine:**
-
 - `docs/orb-381-model-cost-comparison-plan.md` remains a pre-existing untracked
-  ORB-381 planning file under Codex's separate claim. I did not touch it and it
-  should be excluded from the v0.6.298 commit.
+  ORB-381 planning file under Codex's separate claim. Not mine; exclude it from
+  any commit.
+
+**Applied to the database (not represented by git state):**
+`20260819_orb_agent_ro_role.sql`, `20260819b_orb_agent_ro_routine_privileges.sql`,
+`20260820_routine_least_privilege.sql`, `20260820b_anon_definer_sweep.sql`,
+`20260820c_is_admin_and_authenticated_lockdown.sql`, and
+`20260820d_todos_agent_policy_fold.sql` are all **applied**. The `anon` exposure
+is closed in production regardless of whether these commits are pushed.
 
 ---
 
 ## Last Session Completed
+
+**Round 2 remediation — 2026-08-20 (Claude Code, Opus 5)**
+
+Released locally as **v0.6.300**. Codex's Round 2 review of
+`docs/agent-enforcement-hardening.md` found two live problems that four rounds
+of my own testing had missed, plus four partial remediations.
+
+**Live unauthenticated exposure (F16).** Nine `SECURITY DEFINER` routines were
+executable by `anon` — the audit log readers, the AI cost readers, and
+`import_ai_financial_rows`, which **writes**. In Supabase that means reachable
+through the Data API with the publishable key from the browser bundle. Root
+cause was a `DROP`+`CREATE` restoring PostgreSQL's default `PUBLIC` EXECUTE
+after the original migrations had correctly revoked it. My own `20260819b`
+re-granted it explicitly while calling itself a lockdown.
+
+**Confirmed identity forgery (F15).** `orb_agent_ro` could `SET
+request.jwt.claim.sub` to a real UUID from `projects.created_by`; `is_admin()`
+runs as its owner, reached `auth.uid()`, and returned true. Codex reasoned it
+from documentation and marked it Suspected. My first test used a bogus UUID,
+returned false, and I read that as vindication. The real-UUID test confirmed it.
+
+**`VALID UNTIL` is not a session lease (F18).** Held a connection across
+`--end`: it kept reading. I had claimed the opposite in the plan doc, changelog,
+commit message, and to Stan directly. Revocation now runs
+`pg_terminate_backend`; the same test then produced `FATAL: terminating
+connection due to administrator command`, and `--end` reported `terminated 1`.
+**Residual:** natural expiry is not an event, so a held connection survives
+until the next mint or `--end` — documented, not fixed.
+
+**Also fixed:** approve now revalidates the complete proposal at apply time and
+binds the confirmed bytes to the applied bytes; Knowledge is written before the
+todo closes so the reachable half-state is visibly unfinished rather than
+silently rule-breaking; hand-written routine lists replaced with rule-based
+sweeps; verifier gained sections E, F, and G.
+
+**Accepted trade (F17):** `todos` agent policy folded to `USING (true)` so the
+planner never permission-checks `is_admin`. DB-level soft-delete for todos is
+gone; the broker's filter is the only layer. Verified by test — broker returns
+452 against 475 in the database, and three known-deleted refs return nothing
+through both verbs.
+
+**Verification:** boundary **50/50 BOUNDARY VERIFIED**; offline suite **66/66**
+across three runs; tsc clean. F8 mitigated: launchers moved to root-owned
+`/usr/local/orb-bin` with a root-owned directory, confirmed from the agent side
+that all five are unwritable and the directory rejects file creation.
+
+**Key lesson.** Five of my "verified" claims were overturned in one session —
+F1, F4, F5, the `is_admin` G2 reading, and F18. Every one had the same shape: I
+tested a mechanism, then described it in language wider than the test supported.
+The 66-check offline suite never caught a single one. All five came from a
+second model asking what I had not checked.
+
+**Prior session:**
 
 **Agent capability broker — 2026-08-19 (Claude Code, Opus 5)**
 
@@ -996,7 +1025,7 @@ enter that surface.
 
 ## AI Tool Used Last Session
 
-`2026-08-19 — Claude Code (Opus 5)`
+`2026-08-20 — Claude Code (Opus 5)`
 
 ---
 

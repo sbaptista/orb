@@ -151,12 +151,30 @@ check "/usr/bin/grep -q 'did not authenticate' '$HERE/orb-agent-session'" \
   "a session is not reported open until the new credential is proven to work"
 check "/usr/bin/grep -q 'revocation FAILED' '$HERE/orb-agent-session'" \
   "--end fails loudly if the rotation did not take"
+check "/usr/bin/grep -q 'pg_terminate_backend' '$HERE/orb-agent-session'" \
+  "revocation terminates live backends (VALID UNTIL only gates new logins)"
+check "/usr/bin/grep -q 'terminate_role_sessions' '$HERE/orb-agent-session'" \
+  "termination runs on BOTH mint and --end"
+check_fails "/usr/bin/grep -q 'Expiry:  enforced by PostgreSQL (VALID UNTIL), not by a local file' '$HERE/orb-agent-session'" \
+  "the overstated 'enforced by PostgreSQL' expiry claim is gone"
 check_fails "/usr/bin/grep -q 'orb-agent-seal' '$HERE/orb-agent-session'" \
   "the obsolete seal step is gone (the DSN is derived from DATABASE_URL)"
 
+printf '\n== 9b. Approval validates at APPLY time, not just creation ==\n'
+check "/usr/bin/grep -q 'validate_proposal' '$HERE/orb-agent-approve'" \
+  "approve revalidates the complete proposal before applying"
+check "/usr/bin/grep -q 'knowledge entry is MISSING' '$HERE/orb-agent-approve'" \
+  "a stored proposal with null knowledge is rejected at apply time"
+check "/usr/bin/grep -q 'proposal file changed after it was displayed' '$HERE/orb-agent-approve'" \
+  "the bytes confirmed are bound to the bytes applied (hash re-check)"
+check "/usr/bin/grep -q 'Writing the Knowledge entry first' '$HERE/orb-agent-approve'" \
+  "Knowledge is written BEFORE the todo closes (recoverable half-state)"
+check_fails "/usr/bin/grep -q 'Knowledge write could not be confirmed.*todo IS closed' '$HERE/orb-agent-approve'" \
+  "the old close-first failure message is gone"
+
 printf '\n== 10. The approval gate verifies its writes ==\n'
-check "/usr/bin/grep -q 'did NOT reach status=closed' '$HERE/orb-agent-approve'" \
-  "approve confirms the PATCH response before continuing"
+check "/usr/bin/grep -q 'the todo did NOT close' '$HERE/orb-agent-approve'" \
+  "approve confirms the PATCH response before reporting success"
 check "/usr/bin/grep -q 'curl --config -' '$HERE/orb-agent-approve'" \
   "approve passes credentials via --config, never argv"
 check "/usr/bin/grep -q 'Type exactly: yes' '$HERE/orb-agent-approve'" \

@@ -145,11 +145,47 @@ password** for `orb_agent_ro` and stamps a PostgreSQL `VALID UNTIL`:
 ALTER ROLE orb_agent_ro WITH PASSWORD '<fresh>' VALID UNTIL '<now + N hours>';
 ```
 
-**Expiry is therefore enforced by the database, not by a local file check.**
-Copying `session.pgpass` during a window buys nothing past the wall clock,
-because Postgres itself refuses the login. This closes the defect in the
-earlier design, where expiry deleted a local file while the password stayed
-valid indefinitely — a *local file lifetime* masquerading as a token expiry.
+**CORRECTED 2026-08-20 — the original claim here was wrong.** This document
+previously said "copying `session.pgpass` during a window buys nothing past the
+wall clock, because Postgres itself refuses the login." That is false and was
+disproven by direct test.
+
+`VALID UNTIL` is an **authentication-time** check. It gates *new logins*. A
+connection established before revocation keeps working indefinitely. Measured:
+a connection opened at 20:29:44 was still returning rows at 20:31:45, after
+`--end` had set `VALID UNTIL` to 20:29:24. Predicted by Codex in Round 2 (R2-Q4)
+and confirmed by holding a live `psql` session across a revocation.
+
+Revocation therefore now does **two** things: rotate the credential *and*
+`pg_terminate_backend` every live session for the role. Rotation revokes the
+door; termination removes the people already inside.
+
+**Verified properties of option C, each by test:**
+
+| Property | Status |
+|---|---|
+| New logins blocked after expiry | ✅ Server-enforced by `VALID UNTIL` |
+| Each window's credential is unique | ✅ Fresh 256-bit value per mint |
+| `--end` terminates live sessions | ✅ **Verified 2026-08-20.** A held connection received `FATAL: terminating connection due to administrator command` and was severed. The identical test before the fix returned rows normally |
+| Mint terminates leftovers from the previous window | ✅ Same mechanism, runs on both paths |
+
+**Residual gap — natural expiry does not terminate.** `VALID UNTIL` passing is
+not an event; nothing runs at that moment. A connection held open across a
+natural 8-hour expiry therefore **survives until the next `--end` or mint**,
+whichever comes first. Termination only happens when a human runs one of those.
+
+Maximum exposure for a credential stolen and held open is therefore *theft →
+next mint or `--end`*, not *theft → expiry*. With a daily session that is on
+the order of a day, not indefinite — but it is not eight hours, and it must not
+be described as eight hours.
+
+Closing it would need something that runs at expiry time — `pg_cron` scheduling
+a termination sweep is the obvious candidate, and is exactly the "wizard must
+periodically appear or everything stops" property from
+`docs/agent-castle-threat-model.md` §8. Not built.
+
+What it still does not do: prevent use *within* an open window. That remains
+bounded by the read-only role, not by the session mechanism.
 
 `--end` rotates to a value nothing retains and sets `VALID UNTIL` in the past,
 so revocation is immediate and server-side.

@@ -60,11 +60,15 @@ Where a claim is inferred it says so.
 | F5 | A parent `[projects."…/Projects"]` entry exists | `grep` of `~/.codex/config.toml` | **Partly verified.** The entry exists. My claim that it *recursively covers Helm and every sibling* was **inferred, not tested**, and recursive inheritance is undocumented. Unverified until exercised from Helm |
 | F6 | GitHub push credentials are available non-interactively to any process running as Stan | `git credential fill` returned username and password with no prompt | **Verified** |
 | F7 | No `pre-push` hook exists — no tool-agnostic git-layer gate | `ls .git/hooks/pre-push` | **Verified** |
-| F8 | The launcher scripts in `~/.local/bin` are owner-writable with no immutable flag, so a process running as Stan can trojan the passphrase prompt | `ls -l`, `ls -lO` | **Verified** |
+| F8 | ~~The launcher scripts are owner-writable, so a process running as Stan can trojan the passphrase prompt~~ **MITIGATED 2026-08-20, verified by exercise.** The five passphrase-taking launchers moved to `/usr/local/orb-bin`, `root:wheel`, mode 755, with the **directory** root-owned too — unlinking needs directory write, which my first remediation advice missed. The writable originals were removed and PATH now comes from root-owned `/etc/paths.d/orb-bin`. Confirmed from the agent side: all five report not-writable and the directory rejects file creation | `ls -l`; `test -w` on each launcher; `touch` probe on the directory | **Mitigated — residual risk below** |
 | F9 | Permissive RLS policies are OR'd and evaluated as the querying role; a non-foldable predicate forces evaluation of other policies' table references | Observed as "permission denied for table users" on `tickets` but not `knowledge_repo`; resolved by `USING (true)` | **Verified** |
 | F11 | **CONFIRMED BY MEASUREMENT — F1 was broken.** `orb_agent_ro` could execute **11** `SECURITY DEFINER` routines, including `get_audit_log_page`, `get_audit_log_count`, `get_audit_log_cursor_page` (reaching the excluded `audit_log`), plus `rls_auto_enable` and `upsert_orb_metric`. Section E reported 11 / 4 / 9 across the three categories. Fix: `scripts/migrations/20260819b_orb_agent_ro_routine_privileges.sql`. **`REVOKE … FROM orb_agent_ro` does not remove what `PUBLIC` grants.** PostgreSQL grants EXECUTE on new functions to PUBLIC by default, and a `SECURITY DEFINER` function runs as its **owner** — bypassing every table grant and RLS policy in F1 | Codex Round 1 Q6. Confirmed by the maintainer: 19 migration files define `SECURITY DEFINER` functions and **8 carry no `REVOKE … FROM PUBLIC`**, including `get_audit_log_page`, `get_audit_log_cursor_page`, `get_audit_log_count` — reaching the one table F1 excludes | **Verified (mechanism). Live exposure still UNMEASURED** |
 | F12 | Root-owned git hooks are **not** a security control. `--no-verify`, `-c core.hooksPath=`, another clone, or the API all skip them. Root ownership protects the hook's bytes, not its invocation | Codex Round 1 Q1/Q4 | **Verified — my proposal was wrong** |
 | F13 | Codex's runtime **explicitly allows `git push`** as an approved prefix, and Codex cannot remove that approval from inside a session | Codex Round 1 Q5 (self-report, marked Verified by the reporter) | **Reported, not independently verifiable by the maintainer** |
+| F18 | **CONFIRMED BY TEST — `VALID UNTIL` is not a session lease.** A connection authenticated before revocation survives it. Held a `psql` session across `orb-agent-session --end`: connected 20:29:44 (475 rows), `--end` set `VALID UNTIL` to 20:29:24, and the same connection still returned 475 rows at 20:31:45. The maintainer had claimed the opposite in the plan doc, changelog, commit message, and directly to Stan. Fixed: revocation now also runs `pg_terminate_backend` for every live session of the role, on both mint and `--end`. **Re-tested and VERIFIED**: the same held connection received `FATAL: terminating connection due to administrator command`. **Residual:** natural expiry is not an event, so a held connection survives until the next mint or `--end` | Direct A/B test, this session; predicted by Codex R2-Q4 | **Confirmed, fixed, verified; residual documented** |
+| F15 | **CONFIRMED BY TEST — identity forgery.** `orb_agent_ro` could `SET request.jwt.claim.sub` to a real UUID read from `projects.created_by`; `is_admin()` is `SECURITY DEFINER` so it runs as its owner, reaches `auth.uid()`, and returned **true**. Admin RLS predicates then matched, widening row visibility through permissive-policy OR evaluation. Writes stayed blocked — table grants are checked independently of RLS. Predicted by Codex R2-Q2 as *Suspected*; the maintainer's first test (G2) used a bogus UUID and wrongly read as vindication. Fixed: `is_admin` revoked from `PUBLIC` (`20260820c`) | Verifier section G3 | **Confirmed then closed** |
+| F16 | **Unauthenticated reach on financial routines.** `anon` could execute `get_ai_cost_history`, `get_ai_cost_summary_rollups`, `get_ai_provider_burn`, and `import_ai_financial_rows` — the last a **write**. Their own migrations granted `service_role` only; the grant returned later, almost certainly via `DROP`+`CREATE` resetting privileges to the default `PUBLIC` EXECUTE. `authenticated` retained it after the first sweep, and alpha testers hold that role | Verifier section F | **Closed** (`20260820b`, `20260820c`) |
+| F17 | **Accepted trade:** `todos` agent policy folded to `USING (true)` so the planner never permission-checks `is_admin`. DB-level soft-delete for `todos` is gone; the broker's `WHERE deleted_at IS NULL` is now the only filter — **two layers to one**. 23 deleted todos are visible at the DB layer. Accepted because the alternative reopens F15 | `20260820d`; verifier section B records it on every run | **Accepted, visible** |
 | F10 | `pg_read_all_stats` cannot be granted on Supabase (its `postgres` is not superuser), and `pg_stat_statements` then returns partial data **without erroring** | Migration output; broker now checks `pg_has_role` and reports UNMEASURED | **Verified** |
 
 ## 4. Required reading, in order
@@ -471,6 +475,337 @@ offline broker suite.
    from this session. `AGENTS.md` supplies behavioral instructions only and
    prevents none of these operations technically.
 
+### Codex (gpt-5.6-sol) — 2026-08-20 09:08 HST — Round 2
+
+**Read:** **Verified** — read §11 and its nine questions in full; reviewed the
+exact committed `0f501ab` versions of the routine-lockdown migration, boundary
+verifier, broker, session launcher, approval launcher, offline suite, broker
+plan, and relevant call sites; read uncommitted
+`docs/agent-castle-threat-model.md` in full. Also inspected all committed
+migration references to the named routines, ran the 58-check offline suite
+three times, checked actual home/secret/launcher permissions, and consulted the
+current PostgreSQL, Supabase, and Apple primary documentation relevant to
+password expiry, pooled sessions, function exposure, `auth.uid()`, and synced
+passkeys. I did not use a production credential or invoke a live RPC.
+
+**R2-Q1 — Did the fixes actually fix it, or paper over it?**
+
+- **Verified** — the missing-Knowledge fix closes only the proposal-creation
+  path. `orb-agent propose` now rejects no-Knowledge input and the two new
+  offline cases passed in all three runs: **58/58 × 3**.
+- **Verified** — it does not close the apply boundary. `orb-agent-approve`
+  still accepts a pending JSON object whose `knowledge` is null, skips the
+  Knowledge write, and marks it applied. A proposal created before v0.6.299 or
+  changed by any same-user process after creation therefore still produces the
+  forbidden half-closure. This is a partial remediation, not enforcement of the
+  invariant. The approval script must independently validate the complete
+  proposal immediately before confirmation and again bind the confirmed bytes
+  to the bytes it applies.
+- **Verified** — the non-atomic close-first/Knowledge-second sequence was not
+  fixed in v0.6.299. The disposition says so, but §11's list of fixes can make
+  “closure fixed” read more broadly than the source warrants.
+- **Verified** — the routine migration removes `PUBLIC` access for the named
+  snapshot and section E1 asks the right broad current-state question: every
+  executable `SECURITY DEFINER` routine except every overload named `is_admin`.
+  The supplied live result of zero is evidence that the current
+  `orb_agent_ro` definer path was closed at the time of that run. I did not
+  independently rerun the live SQL.
+- **Verified** — E3's name-pattern test is incomplete (`reorder_*`, `smart_*`,
+  and any future verb are omitted), but that omission does not by itself reopen
+  a table mutation through the known `SECURITY INVOKER` routines: they execute
+  with `orb_agent_ro`'s table privileges. E1 separately catches all current
+  definer routines regardless of mutation-like name, apart from the broad
+  `is_admin` exception.
+- **Inferred** — E3 still cannot prove “no mutation.” An invoker routine can
+  have effects outside the eight table grants (for example notifications,
+  advisory locks, external/extension calls, or calls into another executable
+  routine), and a name classifier cannot establish semantics. E4 lists every
+  reachable routine but always returns PASS. The reported seven names were not
+  preserved in §11, so this reviewer could not audit the exact live remainder.
+  Make an explicit signature allowlist fail closed; do not infer safety from
+  names or a count.
+- **Verified** — durability is incomplete. `ALTER DEFAULT PRIVILEGES` applies
+  only to functions later created by the role that ran it. A function created
+  by another owner can regain default `PUBLIC` execute. Section E catches that
+  only when someone remembers to rerun it; no remote migration gate currently
+  requires the verifier.
+- **Verified** — the lockdown migration catches per-function errors, records
+  `FAILED`, and continues. That is acceptable only if the operator reads its
+  report and section E subsequently fails. The migration command itself can
+  exit successfully after a partial lockdown, so “migration applied” is not a
+  security verdict.
+
+**R2-Q2 — The `is_admin` exception**
+
+- **Verified** — E3b proves only that one zero-context `is_admin()` call under
+  `SET ROLE orb_agent_ro` returned false/null or was refused. It accepts null
+  and any exception as PASS. It does not inspect the function definition,
+  owner, search path, overloads, volatility, or behavior under forged request
+  context. `is_admin` is not defined anywhere in the committed migration
+  history, so its live definition was not available for source review.
+- **Inferred — high severity** — the exception is unsafe unless `is_admin`
+  explicitly rejects the agent's database identity. Supabase documents that
+  `auth.uid()` reads the `request.jwt.claim.sub` setting. A direct PostgreSQL
+  client can normally set custom request GUCs. The agent can learn candidate
+  user UUIDs from allowed rows such as project ownership, set
+  `request.jwt.claim.sub`, then call `is_admin()`. If the supplied UUID belongs
+  to an admin, admin RLS predicates may become true and permissive-policy OR
+  evaluation can expose rows outside the intended agent policy (for example
+  soft-deleted rows). Table grants still block entirely ungranted tables and
+  writes, but the row boundary can widen.
+- **Suspected** — the exact forged-claim attack is untested against live
+  Supabase and may depend on the deployed `auth.uid()`/`is_admin()` definitions
+  and pooler handling. It must be tested, not dismissed from the default false
+  result.
+- **Inferred** — leaving `is_admin` on `PUBLIC` is unnecessary. Revoke it from
+  `PUBLIC`, explicitly grant only the roles whose policies need it, and make the
+  function itself return false based on a non-forgeable database identity such
+  as the authenticated session role before consulting JWT claims. Add tests for
+  every overload and for forged `request.jwt.claim.sub`/`request.jwt.claims`.
+
+**R2-Q3 — F14 and unauthenticated reach**
+
+- **Verified — critical scope error** — F14 names only four `anon` grants, but
+  the migration grants **every targeted signature** to `anon`, including
+  `get_audit_log_page`, `get_audit_log_count`,
+  `get_audit_log_cursor_page`, `get_orb_metrics_page`, and
+  `get_orb_metrics_summary`. Supabase's current documentation states that
+  granting `anon` execute on a function in the exposed `public` schema makes it
+  reachable through the Data API and that RLS does not protect a function.
+- **Inferred — likely production data disclosure** — the committed audit reader
+  definitions are `SECURITY DEFINER` and select `audit_log` without an internal
+  caller/admin check. The metrics reader returns user email/name and metrics in
+  the same form. An unauthenticated caller with the publishable project key can
+  therefore likely invoke these RPCs and read the excluded audit log and AI
+  metrics. I did not send the live request, so actual exposure is not labelled
+  Verified; it requires an immediate anon call test.
+- **Verified** — both `upsert_orb_metric` overloads are `SECURITY DEFINER`, take
+  an arbitrary `p_user_id`, and have no caller check. All application call sites
+  found at `0f501ab` use an admin/service client. There is no application reason
+  in the reviewed source to grant these overloads to `anon` or
+  `authenticated`. If a valid user UUID is known, anon can likely poison usage
+  and cost data; the overload accepting arbitrary model text may also create
+  attacker-chosen metric dimensions.
+- **Verified** — `reconcile_user_id` is default `SECURITY INVOKER`, so an anon
+  call should remain constrained by anon's table grants/RLS. Its explicit anon
+  grant is still unnecessary and expands attack surface without serving its
+  only call site, which uses an admin client.
+- **Suspected** — `rls_auto_enable` was live but has no committed definition.
+  It may be a trigger/event-trigger function that cannot be called as a normal
+  RPC, or it may be dangerous. Its return type, definition, owner, search path,
+  and an actual anon invocation must be captured before disposition.
+- **Inferred** — “application access unchanged” is not an adequate safety
+  argument. The correct repair is per-signature least privilege: service-only
+  for reconciliation and metric writes; authenticated plus an internal admin
+  check only where the UI genuinely calls a reader; no `anon` grant absent a
+  documented unauthenticated use. Prefer private schemas for security-definer
+  helpers used only inside RLS.
+
+**R2-Q4 — Attack option C**
+
+- **Verified** — option C rotates a strong random password and places a server
+  `VALID UNTIL` on new password authentication. The gap between expiry and the
+  next mint is safe for *new* password logins, and the next mint changes the
+  password again.
+- **Inferred — finding not closed** — `VALID UNTIL` is an authentication-time
+  control, not a session lease. PostgreSQL connections remain active until the
+  client disconnects; changing a password or `VALID UNTIL` does not terminate
+  already-authenticated sessions. Supabase likewise documents persistent client
+  connections and pooled connections. A process that steals the credential can
+  authenticate before expiry and keep its client connection alive after the
+  deadline. `--end` has the same limitation.
+- **Verified** — the sanctioned broker runs a new `psql` process per command,
+  so normal broker use naturally disconnects and reauthenticates. That makes
+  expiry effective for the intended client, but not for an adversarial client
+  deliberately holding a connection.
+- **Suspected** — transaction-pooler behavior at the client-authentication layer
+  after password rotation/expiry was not exercised. Backend reuse does not by
+  itself prove a stolen client remains authorized, but a pre-expiry client
+  connection can remain open. The required test is: open a client before
+  expiry, keep it connected across expiry and `--end`, and execute another
+  transaction; separately prove new clients fail.
+- **Inferred** — real revocation requires terminating the role's live client
+  sessions at the pooler and/or `pg_terminate_backend` for database sessions,
+  with a verified privilege path to do so. If Supabase does not expose reliable
+  per-role client termination, option C can honestly claim bounded **login**
+  validity, not bounded credential use.
+
+**R2-Q5 — SQL on stdin**
+
+- **Verified** — every reviewed user value is passed under a constant variable
+  name and used as psql's `:'var'` SQL-literal form; identifiers and SQL text are
+  not built from user input. Todo refs, codes, UUIDs, statuses, and limits have
+  strict validators. The free-form Knowledge term remains a quoted literal.
+- **Verified** — moving constant SQL to stdin enables psql variable expansion
+  and keeps SQL out of argv. It does not let variable contents become psql
+  backslash commands because expansion occurs inside the constant SQL at quoted
+  placeholders. `set -o pipefail` also preserves a failing psql exit through
+  the `printf | psql` pipeline.
+- **Inferred** — this change does not introduce a practical injection path in
+  the reviewed verbs. The residual risk is future maintenance: one unquoted
+  `:var`, variable-derived identifier, or user-controlled SQL fragment would
+  change the conclusion. Add a live adversarial corpus containing quotes,
+  backslashes, newlines, Unicode, and psql-looking `\` commands; the present
+  offline suite tests only a small subset and never executes SQL.
+
+**R2-Q6 — Castle doctrine and slumber**
+
+- **Verified** — §8.2's claim that expiring live holders is sufficient is
+  false. Provider keys remain valid at the provider after the local process
+  stops. A same-user process can copy them from the running environment during
+  the window and retain/use them indefinitely; a child process can inherit the
+  environment and outlive the dev server. Stopping one holder removes one copy,
+  not every copy.
+- **Inferred** — slumber is still valuable exposure-window reduction, but it is
+  not revocation. To claim revocation, use provider-side short-lived credentials
+  or a broker that holds long-lived keys outside the agent realm and issues
+  audience/scope/time-bound requests. Where providers offer only static keys,
+  rotation or a proxy that refuses expired sessions is required.
+- **Verified** — a passkey prevents capture/replay of a reusable passphrase, but
+  it does not make a trojaned gatehouse trustworthy. Malicious local code can
+  initiate a genuine challenge, induce Stan to approve it, then use the resulting
+  live authorization and read the subsequently unlocked environment. The threat
+  model acknowledges prompt confusion but still overstates “the answer to F8.”
+- **Inferred** — doctrines 1, 2, 4, and 7 are sound organizing principles.
+  “There is no perimeter defense against air” is too absolute: origin isolation,
+  content/tool separation, network allowlists, and sandboxing reduce air paths
+  even though none makes model judgment a boundary. “One road for everyone” is
+  useful only if the road itself is independently available and recoverable; it
+  otherwise concentrates failure.
+- **Verified** — the keep uses AES-256-CBC with PBKDF2 but no authenticated
+  encryption or separate integrity tag in the reviewed launchers. That protects
+  confidentiality at rest but does not detect ciphertext modification. Calling
+  the crypto simply “excellent” omits integrity and offline passphrase-strength
+  dependence.
+
+**R2-Q7 — Break-glass**
+
+- **Inferred** — there is no same-Mac typed-secret recovery path that preserves
+  the F8 property while the Mac/Stan account is assumed compromised. Any secret
+  entered into that realm can be captured; weakening the happy path only during
+  emergencies is still a permanent bypass.
+- **Inferred** — the least-bad recovery design is an out-of-realm recovery
+  ceremony: two independently stored recovery authorities approve enrollment
+  of a replacement wizard or issue one single-use, nonce/audience-bound wake
+  authorization. Recovery codes are entered on the phone or a known-clean
+  recovery device/service, never into the normal Mac session. A printed code in
+  a physical safe can be one authority; an existing phone can be the other.
+- **Inferred** — if the remote authorization service itself is unavailable,
+  recovery must begin from a known-clean boot/recovery environment or another
+  trusted device, restore/verify the gatehouse, rotate all long-lived provider
+  and production credentials, and enroll a new passkey. That preserves F8 only
+  by first leaving the compromised realm; it is operationally expensive but
+  honest.
+- **Verified** — any break-glass design needs scheduled recovery drills and
+  expiry/one-time use. Otherwise §8.5 correctly predicts an untested bypass.
+
+**R2-Q8 — A second realm without new hardware**
+
+- **Inferred** — an existing iPhone is the strongest available second realm:
+  use transaction-bound phone approval that displays the action, duration, and
+  target, with number matching or a QR/challenge tied to that wake request. A
+  Mac process cannot produce the phone's device-bound signature by itself.
+- **Verified** — a normal iCloud Keychain passkey is synced across approved
+  Apple devices, including the Mac. It therefore provides redundancy but is not
+  automatically realm-separated from that Mac. If realm separation is the
+  requirement, the recovery/approval credential must be phone-bound or held by
+  an independent app/account and not synced back to the Mac.
+- **Inferred** — an existing iPad can be a second registered device; a separate
+  macOS account is useful against same-user agents but is not a separate hardware
+  realm and does not withstand kernel/root compromise. A paper recovery share
+  is realm-separated without new hardware, but it must authorize recovery on a
+  clean/phone channel rather than be typed into the compromised Mac.
+
+**R2-Q9 — Non-AI claims**
+
+- **Verified** — “another account — 0700” is factually wrong. The home directory
+  is mode **0750** with group `staff`; only `Project-secrets` and `.local/bin`
+  measured 0700. The home also has an ACL entry. The claimed cross-account
+  boundary must be scoped to the measured subdirectories or the home permission
+  must actually be changed and retested.
+- **Inferred** — “Strongly” protected from infostealers and malicious
+  postinstall scripts is over-claimed. Plaintext-at-rest scrapers lose their
+  easiest target, but persistent same-user code can modify a launcher/shell
+  startup, keylog, wait for unlock, inspect live process state, or inherit the
+  decrypted environment. The defense is strong only against non-persistent
+  at-rest scraping before unlock.
+- **Inferred** — stolen-laptop protection depends on FileVault state, session
+  lock state, passphrase entropy, keychain contents, and absence of historical
+  plaintext. `fdesetup status` could not determine the volume in this harness,
+  so “Strongly” is unverified here. AES-CBC/PBKDF2 ciphertext can still be
+  attacked offline if the passphrase is weak.
+- **Inferred** — backup exposure is protected only if backups contain the
+  ciphertext but not the passphrase, old `.env.local` copies, shell history,
+  temporary decrypted material, keychain exports, or an unlocked machine
+  snapshot. No Time Machine/cloud inventory was supplied, so the strong claim
+  is unverified.
+- **Inferred** — “accidental secret commit — yes” should be partial, not
+  absolute. Removing `.env.local` prevents that specific file from being
+  committed; generated logs, copied commands, patches, crash dumps, or temporary
+  plaintext remain possible and no effective commit/push secret gate is proven.
+- **Verified** — “compromised dependency only while the server runs” is false
+  for persistent code. It can alter owner-writable ground and wait for the next
+  unlock, or copy a static provider key during one window and use it after
+  slumber.
+
+**New findings**
+
+- **Inferred — R2-N1, probable anonymous audit/metrics disclosure:** all 15
+  lockdown targets were re-granted to `anon`, not merely the four in F14.
+  Command establishing the grant:
+  `git show 0f501ab:scripts/migrations/20260819b_orb_agent_ro_routine_privileges.sql | nl -ba`.
+  Source inspection established unauthenticated-reader functions lack internal
+  checks; Supabase documentation establishes the Data API mapping. Live anon
+  calls remain required.
+- **Inferred — R2-N2, forgeable auth context may defeat `is_admin` carve-out:**
+  E3b tests only the empty request context. Supabase documents `auth.uid()` as
+  reading `request.jwt.claim.sub`; test both claim GUC forms under the actual
+  agent login with a known admin and non-admin UUID.
+- **Inferred — R2-N3, option C expires logins, not live sessions:** PostgreSQL
+  `VALID UNTIL` and password rotation do not terminate authenticated
+  connections. Test a held direct client and a held Supavisor client across
+  expiry and `--end`.
+- **Verified — R2-N4, closure fix bypass at apply time:** committed approval code
+  accepts old/tampered `knowledge: null` proposals. The creation tests do not
+  exercise the human apply boundary.
+- **Verified — R2-N5, castle permission claim false:**
+  `stat -f '%Lp %Su:%Sg %N' /Users/stanleybaptista ...` returned home mode 750,
+  not 700.
+
+**Disagreements**
+
+- **Verified** — I disagree with “Into the castle — Held” as an unqualified
+  statement. The `orb_agent_ro` direct table/definer boundary is materially
+  improved, but likely anonymous Data API paths now reach the audit log and
+  metrics through explicitly granted definer functions.
+- **Verified** — I disagree that the Knowledge invariant is fixed. Proposal
+  creation is fixed; proposal application remains permissive and mutable.
+- **Inferred** — I disagree that section E establishes a durable routine
+  lockdown. It establishes a point-in-time definer result with a name-wide
+  exception and an informational remainder; owner-specific default privileges
+  and an optional rerun leave drift open.
+- **Verified** — I disagree that slumber expires provider keys, that a same-Mac
+  passkey by itself answers F8, and that the non-AI table supports multiple
+  “Strongly” labels. Each is a narrower risk reduction described as a complete
+  property.
+
+**Remediation (Codex only)**
+
+- **Verified** — no new Codex configuration remediation was assigned in §11.
+  Round 1 §7.2 remains pending: the two trust entries have not been reported
+  removed and the post-change `git push --dry-run origin main` control test was
+  not run in this review.
+- **Inferred — immediate database priority:** before further castle design,
+  inventory effective `anon`/`authenticated` execute privileges for every
+  public routine; anon-call the audit and metrics readers; revoke all unjustified
+  grants; and replace E3/E4 with a signature allowlist that fails on additions.
+- **Inferred — immediate broker priority:** enforce Knowledge presence and full
+  schema/attribution at approval time, display/hash the full payload, and fix
+  write ordering or provide a single transactional server operation.
+- **Inferred — option C wording/test:** relabel it as login expiry until held
+  connections are proven terminated; add the direct and pooler across-expiry
+  tests before claiming server-side revocation.
+
 
 ---
 
@@ -515,6 +850,113 @@ question and a separate piece of work. **Status: Suspected problem, untested —
 no attempt was made to call these as `anon`.** Recorded so it is not lost.
 
 **Open for Round 2:** the §5 mechanization audit needs rewriting against F11 and
-F12 before any `AGENTS.md` rework. F14 should also be scoped. Remote-side gates (branch protection,
+F12 before any `AGENTS.md` rework. F14 was superseded by F16 and is closed.
+
+## 12. Dispositions — Round 2 (Codex)
+
+| Finding | Disposition |
+|---|---|
+| R2-Q2 — `is_admin` forgeable | **Accepted, CONFIRMED BY TEST, closed.** F15. Codex reasoned it from documentation; the test proved it. `is_admin` revoked from `PUBLIC` |
+| R2-Q3 — `anon` reach | **Accepted, closed.** F16. Worse than reported: four further routines, one a write |
+| R2-Q1 — E3 name patterns incomplete | **Accepted.** Replaced by rule-based sweeps (`20260820b`) rather than hand lists — the lists were the defect |
+| R2-Q1 — durability of `ALTER DEFAULT PRIVILEGES` | **Accepted, confirmed.** F16's root cause is exactly this. Section F is the durable detector; a remote gate requiring the verifier is still absent |
+| R2-Q1 — approve accepts null Knowledge | **Accepted, FIXED.** Apply-time revalidation of the complete proposal, plus a hash binding the bytes confirmed to the bytes applied |
+| R2-Q1 — closure non-atomic | **Accepted, FIXED by ordering.** Knowledge is written first. Not atomic and not claimed to be — the gain is that the reachable half-state changed from 'closed with no Knowledge' (rule broken, looks complete) to 'Knowledge written, todo open' (rule intact, visibly unfinished) |
+| R2-Q4 — `VALID UNTIL` is not a session lease | **Accepted, TESTED, CONFIRMED, fix written.** F18. The reviewer reasoned it from PostgreSQL semantics; the test proved it in two minutes. Revocation now terminates live backends. Awaiting re-test through the pooler |
+| R2-Q1 — migration exits 0 after partial lockdown | **Accepted.** "Migration applied" is not a security verdict; only the verifier is |
+
+**Maintainer's note.** Round 2 found a live unauthenticated write path and a
+working identity forgery. Both were reasoned from documentation by the reviewer
+and confirmed by test — neither was found by the 58-check offline suite, and
+one was actively masked by a weak test I wrote and reported as passing. Remote-side gates (branch protection,
 required checks, deployment approval) are now the leading candidates and have
 not been designed.
+
+
+---
+
+## 11. Round 2 — review request
+
+**Opened:** 2026-08-20 — Claude Code (Opus 5), maintainer.
+**Reviewer:** Codex (gpt-5.6-sol), and any other frontier model available.
+**Respond in the §8 format, appended under §9.** Do not edit any other section.
+
+### 11.1 What changed since Round 1
+
+Committed as **v0.6.299** (`0f501ab`), plus one uncommitted document.
+
+| # | Change | Origin |
+|---|---|---|
+| 1 | `scripts/migrations/20260819b_orb_agent_ro_routine_privileges.sql` — revokes 15 routine signatures from `PUBLIC`, re-grants to `anon`/`authenticated`/`service_role` | Round 1 disposition 5 (F11) |
+| 2 | Verifier **section E** — routine privileges via `has_function_privilege()`, plus E3b calling `is_admin()`, an `is_admin` carve-out by name in E1, and E4 now naming reachable routines | Round 1 Q2 |
+| 3 | `orb-agent propose` **rejects** a closure with no Knowledge entry (was: warned and continued) | Round 1 Q6 |
+| 4 | `orb-agent run_sql` feeds SQL on **stdin** via `--file -` — psql does not interpolate `:'vars'` in `--command`, so every parameterised verb failed against the live database | Found during first live use |
+| 5 | `orb-agent-session` rebuilt as **option C**: fresh 256-bit password per window + `ALTER ROLE ... VALID UNTIL`; connection derived from `DATABASE_URL` including the pooler `<role>.<ref>` form | Stan's decision |
+| 6 | `orb-agent-seal` **deleted**; the second encrypted store is gone | Consequence of 5 |
+| 7 | §10 dispositions, findings F11–F14, corrected §5 audit | Round 1 |
+| 8 | **`docs/agent-castle-threat-model.md`** — new, uncommitted. Spatial model (land/air/tunnel), legitimate-behaviour hazards, the slumber/wizard architecture, and a non-AI threat comparison | Stan |
+
+**Live results:** boundary **42/42 BOUNDARY VERIFIED**; section E now 0/0/0 with
+`is_admin` proven false by call; reachable routines 22 → 7; end-to-end reads
+confirmed through the Supabase pooler. Offline suite 58/58 across three runs.
+
+### 11.2 Questions
+
+- **R2-Q1 — Did the fixes actually fix it, or did I paper over the finding?**
+  Round 1 found three of my "Verified" claims to be wrong. Check the *fixes*
+  with the same suspicion. Specifically: is the routine lockdown complete, or
+  are there reachable mutation paths section E's name patterns do not match
+  (it missed `reorder_*` and `smart_*` — those proved to be `SECURITY INVOKER`,
+  so table grants still apply, but the **test** was incomplete)?
+- **R2-Q2 — The `is_admin` exception.** It is retained because revoking it would
+  break RLS evaluation for the broker's own reads, and E3b proves it returns
+  false. Is that sound, or is there a path where `is_admin` leaks or escalates?
+- **R2-Q3 — F14.** `anon` can now *explicitly* execute `rls_auto_enable`,
+  `reconcile_user_id`, and both `upsert_orb_metric` overloads. Pre-existing via
+  `PUBLIC`, not a regression, but unexamined. What is actually reachable by an
+  unauthenticated caller, and does any of it matter?
+- **R2-Q4 — Attack option C.** Fresh password + `VALID UNTIL` per window. Where
+  does it fail? Consider: the window between expiry and the next mint, pooler
+  connection reuse holding an authenticated session past `VALID UNTIL`, and
+  whether `ALTER ROLE` on a role with live connections terminates them.
+- **R2-Q5 — The stdin change.** SQL now arrives on stdin with `--variable`
+  interpolation. Does that introduce any injection surface the `--command` form
+  did not have, given `:'var'` quoting and the argument validators?
+- **R2-Q6 — The castle model.** Attack the doctrine in §7 and the target
+  architecture in §8. Is the claim in §8.2 correct — that expiring the *live
+  holders* is sufficient because provider keys only exist in a running process?
+- **R2-Q7 — Break-glass (§8.5).** This is unsolved and is where the design most
+  likely dies. Propose a recovery path for an unavailable wizard that does not
+  re-open F8. If you believe none exists that preserves the property, say so.
+- **R2-Q8 — Second realm (§8.4).** Stan's caution: one wizard is a single point
+  of failure. Which second factor is genuinely realm-separated on this hardware,
+  and what is actually available without new hardware purchases?
+- **R2-Q9 — Non-AI claims (§9).** The table asserts strong protection against
+  infostealers, supply-chain postinstall, stolen laptop, and backup exposure.
+  Where is it over-claimed?
+
+### 11.4 Status change during Round 2 — F8 mitigated
+
+On 2026-08-20, after the Round 2 request was written, Stan root-owned the
+gatehouse (§10 item 1). Reviewers should assess the **residual** risk, not the
+original finding:
+
+- `~/.zshrc` remains writable, so `orb-dev` can still be shadowed by an earlier
+  PATH entry, a shell function, or an alias. **Root ownership stops modification
+  of the file, not resolution of the name.**
+- `orb-agent` was deliberately left writable in `~/.local/bin`: it takes no
+  passphrase and can only read. Residual concern is **audit-log integrity** — a
+  modified `orb-agent` could skip its own logging.
+- `sudo` requires a typed password and none is cached (verified with `sudo -n`),
+  so an agent cannot chown the launchers back. `pam_tid` is **not** configured
+  for `sudo`; whether it should be is an open question (§8.3 realm separation
+  applied to privilege elevation rather than to the keep).
+
+**R2-Q10 (added):** given F8 is mitigated, what is now the shortest path from a
+same-user agent to master credentials? Name it concretely.
+
+### 11.3 Standing instruction
+
+Label every claim **Verified** / **Inferred** / **Suspected**. Do not report a
+hypothesis as ruled out unless it was tested. An understated answer is more
+useful than a reassuring one — Round 1 established that by being right.

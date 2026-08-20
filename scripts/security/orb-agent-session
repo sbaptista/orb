@@ -129,6 +129,21 @@ rotate_role() {
     "$AGENT_ROLE" "$password" "$valid_until" | master_sql
 }
 
+# VALID UNTIL is an AUTHENTICATION-time check. It gates new logins and does
+# NOTHING to sessions already established — verified by test on 2026-08-20:
+# a connection opened at 20:29:44 was still reading at 20:31:45, after --end
+# had set VALID UNTIL to 20:29:24. Codex predicted this in Round 2 R2-Q4.
+#
+# Rotation alone therefore revokes the door, not the people already inside.
+# Existing backends must be terminated explicitly.
+terminate_role_sessions() {
+  printf "SELECT count(*) AS terminated FROM (
+            SELECT pg_terminate_backend(pid)
+            FROM pg_stat_activity
+            WHERE usename = '%s' AND pid <> pg_backend_pid()
+          ) t;\n" "$AGENT_ROLE" | master_sql
+}
+
 end_session() {
   [[ -x "$OPENSSL" && -x "$PSQL" ]] || fail "OpenSSL and psql are required"
   /bin/mkdir -p "$AGENT_DIR"; /bin/chmod 700 "$AGENT_DIR"
@@ -140,9 +155,14 @@ end_session() {
   rotate_role "$(/usr/bin/openssl rand -hex 32)" "$(/bin/date -u -v-1M '+%Y-%m-%d %H:%M:%S+00')" \
     || fail "revocation FAILED — the old credential may still be valid. Re-run --end."
 
+  # Rotation stops NEW logins. This stops the ones already connected.
+  printf 'orb-agent-session: terminating any live %s sessions...\n' "$AGENT_ROLE"
+  terminate_role_sessions \
+    || printf 'WARNING: could not terminate live sessions. A pre-existing connection may still be reading.\n' >&2
+
   /bin/rm -f "$SESSION_FILE" "$PGPASS_FILE"
-  audit "session ended; role password rotated and VALID UNTIL set to the past"
-  printf 'Session ended. The database now refuses %s until a new window is opened.\n' "$AGENT_ROLE"
+  audit "session ended; password rotated, VALID UNTIL set to the past, live backends terminated"
+  printf 'Session ended. New logins refused AND live connections terminated.\n'
 }
 
 open_session() {
@@ -161,6 +181,10 @@ open_session() {
 
   printf 'orb-agent-session: minting a fresh credential for %s...\n' "$AGENT_ROLE"
   rotate_role "$password" "$valid_until" || fail "could not set the role password — no session opened"
+
+  # Terminate anything still connected from a previous window. Without this a
+  # connection from the last window survives into this one indefinitely.
+  terminate_role_sessions >/dev/null 2>&1 || true
 
   printf '%s:%s:%s:%s:%s\n' "$PGHOST" "$PGPORT" "$PGDATABASE" "$AGENT_USER" "$password" > "$PGPASS_FILE"
   /bin/chmod 600 "$PGPASS_FILE"
@@ -185,7 +209,8 @@ If this is a Supabase pooler, confirm the role logs in as $AGENT_USER."
   printf '\nAgent session open for %s hour(s), until %s.\n' \
     "$hours" "$(/bin/date -r "$expires" '+%Y-%m-%d %H:%M:%S %Z')"
   printf 'Role:    %s (SELECT only)\n' "$AGENT_USER"
-  printf 'Expiry:  enforced by PostgreSQL (VALID UNTIL), not by a local file.\n'
+  printf 'Expiry:  VALID UNTIL blocks NEW logins. It does NOT terminate a live\n'
+  printf '         connection — --end terminates those explicitly.\n'
   printf 'Revoke:  orb-agent-session --end\n\n'
 }
 
