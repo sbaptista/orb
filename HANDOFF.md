@@ -13,17 +13,17 @@
 ## App State
 
 - **Branch:** `main`.
-- **Unpushed:** v0.6.298, v0.6.299 and v0.6.300 are **committed and unpushed**;
-  v0.6.301 is this session's work. Nothing is pushed; no production deploy has
-  occurred. **A push therefore deploys four versions at once**, including
-  v0.6.299, whose headline feature this release removes.
+- **Pushed:** v0.6.298 through **v0.6.301 are pushed** (`630c271`, 2026-09-03)
+  and deployed by Vercel. Four versions went out together, including v0.6.299,
+  whose headline feature v0.6.301 removes — so the deployed changelog shows the
+  session mechanism introduced and withdrawn in one batch. Nothing is
+  outstanding.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
 - **Local version:** **0.6.301** — ORB-382: time-boxed agent sessions removed;
   `orb_agent_ro` moves to a standing credential with `NOLOGIN` revocation.
-  v0.6.298–0.6.300 are committed and **unpushed**; v0.6.301 is this session's
-  work.
+  Pushed and live.
 - **Production maintenance:** off.
 - **Database:** Stan applied
   `scripts/migrations/20260818_statement_import_catalog_models.sql` and
@@ -42,11 +42,10 @@
   *does* authenticate through Supabase's transaction pooler, as
   `orb_agent_ro.<project-ref>` on `aws-1-us-west-1.pooler.supabase.com:6543`.
   That had been the one untested step since 2026-08-19.
-- **ACTION REMAINING (Stan, requires sudo):** the installed launcher
-  `/usr/local/orb-bin/orb-agent-session` is root-owned and still on disk. It is
-  now not merely obsolete but **harmful** — running it would mint a new password
-  and silently break the standing credential. Remove it:
-  `sudo rm /usr/local/orb-bin/orb-agent-session`
+- **DONE 2026-09-03:** the obsolete `/usr/local/orb-bin/orb-agent-session` was
+  removed by Stan. The four remaining launchers (`orb-agent-approve`, `orb-dev`,
+  `orb-secrets-seal`, `orb-secrets-set`) are all `root:wheel`, all
+  passphrase-bearing, and all denied to Claude Code.
 - **ORB-374:** still deferred overall, but its Phase 1 items 4 and 7 (narrow
   brokers; removing inline-secret instructions from both `AGENTS.md` files) are
   now implemented by the capability broker.
@@ -55,6 +54,9 @@
 ---
 
 ## Uncommitted Changes
+
+**None from ORB-382** — everything below shipped in `630c271` (v0.6.301) and is
+pushed. Retained as the record of what that release contained.
 
 **ORB-382 — session removal (v0.6.301), all mine:**
 
