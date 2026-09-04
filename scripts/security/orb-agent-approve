@@ -101,7 +101,7 @@ curl_supabase() {
 }
 
 load_master() {
-  local line="" name="" value=""
+  local line="" name="" value="" parsed=0
   [[ -f "$MASTER_FILE" && ! -L "$MASTER_FILE" ]] || fail "master store is missing: $MASTER_FILE"
   [[ "$(/usr/bin/stat -f '%Lp' "$MASTER_FILE")" == "600" ]] || fail "master store must have mode 600"
 
@@ -110,12 +110,24 @@ load_master() {
     [[ -z "$line" || "$line" == \#* ]] && continue
     [[ "$line" == *=* ]] || fail "master store contains a malformed line"
     name="${line%%=*}"; value="${line#*=}"
+    parsed=$(( parsed + 1 ))
     case "$name" in
       ORB_API_SECRET|SUPABASE_SECRET_KEY|NEXT_PUBLIC_SUPABASE_URL)
         export "$name=$value" ;;
       *) : ;;   # every other credential is deliberately discarded
     esac
   done < <("$OPENSSL" enc -d -aes-256-cbc -pbkdf2 -iter 210000 -in "$MASTER_FILE")
+
+  # Same defect as orb-dev had: a failure inside process substitution is not
+  # caught by `set -e`, so a wrong passphrase used to be reported as "master
+  # store did not yield ORB_API_SECRET" — which points at the store rather than
+  # at the typo. It matters more here than in orb-dev, because this runs at the
+  # moment a mutation is being approved.
+  if (( parsed == 0 )); then
+    fail "read nothing from the master store — the passphrase was almost certainly
+wrong. openssl prints its own 'bad decrypt' above when that is the cause.
+NOTHING WAS APPLIED."
+  fi
 
   [[ -n "${ORB_API_SECRET:-}" ]] || fail "master store did not yield ORB_API_SECRET"
   [[ -n "${SUPABASE_SECRET_KEY:-}" ]] || fail "master store did not yield SUPABASE_SECRET_KEY"

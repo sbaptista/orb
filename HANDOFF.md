@@ -21,10 +21,26 @@
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.302** — post-ORB-382 loose ends: psql/`DATABASE_URL`
-  instructions corrected, `db health` schema-qualified with an absolute bloat
-  floor, `shared/` put under version control. **v0.6.302 is committed and
-  NOT pushed.** v0.6.298–0.6.301 are pushed and live.
+- **Local version:** **0.6.303** — accurate failure message on a wrong unlock
+  passphrase, plus an installed-vs-repo divergence check for the security
+  launchers. **v0.6.303 is committed and NOT pushed.** v0.6.298–0.6.302 are
+  pushed and live.
+- **🔴 ACTION REQUIRED (Stan, needs sudo).** Three installed launchers in
+  `/usr/local/orb-bin` differ from this repository and **the installed copy is
+  what runs**. `npm run test:security-launcher` now fails until they match:
+
+  ```
+  sudo install -o root -g wheel -m 755 scripts/security/orb-agent-approve /usr/local/orb-bin/orb-agent-approve
+  sudo install -o root -g wheel -m 755 scripts/security/orb-dev /usr/local/orb-bin/orb-dev
+  sudo install -o root -g wheel -m 755 scripts/security/orb-secrets-seal /usr/local/orb-bin/orb-secrets-seal
+  ```
+
+  `orb-secrets-seal` is the important one and its divergence **pre-dates this
+  session**: the installed copy still requires `ELEVENLABS_API_KEY`, removed
+  from the store on 2026-08-05. Seal refuses to run when a required name is
+  absent, so the version on PATH **cannot re-seal the store** — a broken
+  recovery path found only by diffing. The other two carry this session's
+  passphrase-message fix.
 - **Production maintenance:** off.
 - **Database:** Stan applied
   `scripts/migrations/20260818_statement_import_catalog_models.sql` and
@@ -56,8 +72,22 @@
 
 ## Uncommitted Changes
 
-**None.** v0.6.302 is committed and awaiting a push decision; v0.6.301 and
+**None.** v0.6.303 is committed and awaiting a push decision; v0.6.302 and
 earlier are pushed and live.
+
+**v0.6.303 — launcher integrity and passphrase diagnostics (committed, unpushed):**
+
+- `scripts/security/orb-dev`, `scripts/security/orb-agent-approve` — a command
+  that fails inside `< <(process substitution)` is **not** caught by
+  `set -euo pipefail`; the loop reads nothing and execution continues.
+  **Verified by isolated test 2026-09-03**, not reasoned. A wrong passphrase
+  therefore surfaced as "missing required names: <all fifteen>" in `orb-dev`
+  and "master store did not yield ORB_API_SECRET" in approve — both of which
+  accuse the store rather than the typist. Each now counts parsed lines and
+  reports the real cause; approve also states that nothing was applied.
+- `scripts/security/test-orb-launcher.sh` — new installed-vs-repo divergence
+  check. Version control was never the control here: the root-owned copies in
+  `/usr/local/orb-bin` are what run, and nothing kept them in step.
 
 **v0.6.302 — post-ORB-382 loose ends (committed, unpushed):**
 
@@ -233,6 +263,35 @@ holding 47, 35 and 29 dead rows respectively. That is kilobytes.
 `orb_eval_runs` has never auto-vacuumed because it has not reached its trigger
 of 56 dead rows, which is correct behaviour rather than neglect. The actionable
 defect was the alarm rule, not the tables.
+
+**Fresh-eyes re-read of `orb-dev` (2026-09-03), findings not otherwise
+recorded:**
+
+- **PATH ordering defeats the root-owned-launcher mitigation.** F8 was recorded
+  as mitigated because the launchers and their directory are `root:wheel` and
+  unwritable. Both facts are true; the conclusion does not follow. `~/.zshrc`
+  (**mode 644, owner-writable**) prepends `~/.local/bin`,
+  `~/.antigravity-ide/…/bin` and — via Homebrew — `/opt/homebrew/bin`
+  (**`drwxrwxr-x`, group `admin`, writable**) *in front of* the
+  `/usr/local/orb-bin` entry that `path_helper` appends at position 15.
+  `which -a orb-dev` resolves correctly **today**, so nothing is shadowing it —
+  but that is a fact about the current filesystem, not a control. One file
+  written into `~/.local/bin`, with no `.zshrc` edit and no sudo, captures the
+  master passphrase on the next invocation. This is Codex's R3-Q5, still open.
+  Root ownership protects the launcher *files*; it does not govern which file
+  is *reached*. **Not fixed — the honest options are "document accurately" or
+  "stop calling F8 mitigated", and that is Stan's call.**
+- Same applies inside the script: `exec /usr/bin/env npm run dev` resolves npm
+  through that PATH. `npm` itself is `/usr/local/bin/npm` (root-owned, not
+  writable) at position 6, behind three writable directories. `package.json`
+  already defines a `prebuild` script, so npm lifecycle hooks are in active use
+  and an added `predev` would not look out of place in a diff (R3-N2).
+- `load_encrypted_environment` exports **every** name in the store, not only
+  the fifteen required. The required list is a floor, not a ceiling.
+- `orb-dev --check` takes no passphrase and touches no secret — it is purely a
+  filesystem/network posture check. It is nonetheless caught by the blanket
+  `Bash(orb-dev *)` deny, so an agent cannot use it to verify posture. Not
+  necessarily wrong, but worth a deliberate decision rather than an accident.
 
 **Prior session:**
 

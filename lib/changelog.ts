@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.303',
+    date: '2026-09-03',
+    changes: [
+      'Made a mistyped unlock passphrase say so. Both the development launcher and the human approval gate read the decrypted store through a shell construct whose failures are silently ignored, so a wrong passphrase produced no error of its own — the loop simply read nothing and the next check fired instead. The launcher then reported that the store was missing all fifteen required credentials, and the approval gate reported that the store had failed to yield a specific key. Both point at a corrupted or half-written store rather than at a typo, which is the wrong thing to go debugging. Each now detects that nothing was read and says the passphrase was almost certainly wrong; the approval gate also states plainly that nothing was applied.',
+      'Added a check that the installed security launchers match the versions in this repository. The copies that actually run are root-owned and live outside the repository, and nothing kept them in step. One had silently diverged: it still required a credential that was removed from the store four weeks earlier, and since it refuses to run when a required credential is absent, the version on the path could not re-seal the store at all — a broken recovery path that was only found by diffing. The check reports every difference and prints the exact reinstall command for each.',
+      'Kept the improved failure messages honest about what they prove: the shell behaviour they guard against was confirmed by isolated test rather than assumed. Internal developer tooling: no application route, component, or user-facing behavior changed. Eval: not applicable — no Orb-conversation capability, tool, routing rule, prompt, or defined speech behavior changed.',
+    ],
+  },
+  {
     version: 'v0.6.302',
     date: '2026-09-03',
     changes: [

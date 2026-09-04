@@ -126,6 +126,7 @@ load_encrypted_environment() {
   local line=""
   local name=""
   local value=""
+  local parsed=0
   local missing=()
 
   printf 'orb-dev: unlock the encrypted Orb development environment.\n'
@@ -136,13 +137,26 @@ load_encrypted_environment() {
     value="${line#*=}"
     [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fail "encrypted environment contains an invalid variable name"
     export "$name=$value"
+    parsed=$(( parsed + 1 ))
   done < <(/opt/homebrew/bin/openssl enc -d -aes-256-cbc -pbkdf2 -iter 210000 -in "$ORB_SECRET_FILE")
+
+  # A command that fails inside process substitution is NOT caught by
+  # `set -euo pipefail`: the loop simply reads nothing and execution carries on.
+  # Verified by isolated test 2026-09-03. Without this check, a mistyped
+  # passphrase surfaced as "missing required names: <all fifteen>", which reads
+  # like a corrupted or half-written store rather than a typo — the wrong thing
+  # to go debugging at the moment you most want to get on with work.
+  if (( parsed == 0 )); then
+    fail "read nothing from the encrypted environment — the passphrase was almost
+certainly wrong. openssl prints its own 'bad decrypt' above when that is the
+cause. If the passphrase was right, $ORB_SECRET_FILE may be empty or corrupt."
+  fi
 
   for name in "${required_environment[@]}"; do
     [[ -n "${!name:-}" ]] || missing+=("$name")
   done
   if (( ${#missing[@]} > 0 )); then
-    fail "encrypted environment is missing required names: ${missing[*]}"
+    fail "encrypted environment decrypted ($parsed names) but is missing required names: ${missing[*]}"
   fi
 }
 
