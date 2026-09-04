@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.301',
+    date: '2026-09-03',
+    changes: [
+      'Removed time-boxed agent sessions. The read-only development-agent role now uses a standing credential, and the session launcher that minted one window at a time is deleted. The window was never the security boundary: that is the database grant, which allows SELECT on eight tables, excludes the audit log, and carries no write privilege of any kind. Handing an agent the raw credential with every line of session code removed still does not let it write anything.',
+      'Withdrew the expiry mechanism because it did not behave as it had been described. A server-side expiry stamp gates new logins but never terminates an established connection, and natural expiry fires no event at all, so a held connection survived until the next mint or an explicit revoke. The local clock check inside the broker was a cooperating agent declining to try rather than a control an attacker ever faced.',
+      'Removed a recurring exposure of the master passphrase. Opening a window was the only read path that unlocked the master credential store, so every session opened was another occasion to type the master passphrase into a local prompt — the highest-ranked exposure in the project\'s own threat model. The control was consuming the asset it existed to protect.',
+      'Replaced revocation with an explicit statement rather than a schedule: the role is set NOLOGIN to revoke and LOGIN to restore. This is documented as an authentication-time check that stops new connections without severing an open one, so cutting off a live session requires pairing it with a backend-termination sweep. That distinction is stated plainly because the previous design\'s central claim failed on exactly this point.',
+      'Accepted and recorded the cost: a leaked standing credential stays valid until it is revoked or rotated, with no automatic bound. Inverted the boundary verifier\'s expiry assertion, which previously treated a missing expiry stamp as a failure and would now flag a stale one; replaced the suite\'s session checks with absence checks described as nothing more than that. Internal developer tooling and documentation: no application route, component, or user-facing behavior changed. Eval: not applicable — no Orb-conversation capability, tool, routing rule, prompt, or defined speech behavior changed.',
+    ],
+  },
+  {
     version: 'v0.6.300',
     date: '2026-08-20',
     changes: [

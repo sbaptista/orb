@@ -80,9 +80,9 @@ Read these before responding. They are the current state, not proposals.
 | 1 | `docs/agent-capability-broker-plan.md` | The read-only broker: architecture, explicit non-claims, verification |
 | 2 | `scripts/migrations/20260819_orb_agent_ro_role.sql` | The Layer 1 boundary as actually written, including the RLS-enablement guard and the F9 note |
 | 3 | `scripts/migrations/verify-orb-agent-ro.sql` | Both-direction verification. Note sections B, C, and D |
-| 4 | `scripts/security/orb-agent` | The broker. Read `require_session()` and `run_sql()` closely |
-| 5 | `scripts/security/orb-agent-session`, `-seal`, `-approve` | The human-only paths |
-| 6 | `scripts/security/test-orb-agent.sh` | 53 offline checks; what they do and do not prove |
+| 4 | `scripts/security/orb-agent` | The broker. Read `require_credential()` and `run_sql()` closely |
+| 5 | `scripts/security/orb-secrets-seal`, `-set`, `orb-agent-approve` | The human-only paths. (`orb-agent-session` was deleted in ORB-382 — see §14) |
+| 6 | `scripts/security/test-orb-agent.sh` | 62 offline checks; what they do and do not prove |
 | 7 | `/Users/stanleybaptista/Projects/shared/AGENTS.md` → "Git — Commits and Pushes" | The push-gate table, now carrying F2 and F3 |
 | 8 | `docs/orb-374-ai-tool-local-access-security-plan.md` §§5–7, 10, 17 | The deferred long-range program. Do not re-propose what is already recorded there |
 | 9 | `docs/security-hardening-phase-1.md` | What ORB-375 built and the boundary it explicitly declined to claim |
@@ -807,6 +807,260 @@ passkeys. I did not use a production credential or invoke a live RPC.
   tests before claiming server-side revocation.
 
 
+### Codex (gpt-5.6-sol) — 2026-08-20 11:09 HST — Round 3
+
+**Read:** **Verified** — read §13 and its seven questions in full; reviewed the
+exact committed `0bb452b` versions of all four `20260820*` migrations, the
+complete verifier, broker, session and approval launchers, offline suite, and
+the relevant historical todos policies. Read the uncommitted
+`docs/agent-castle-threat-model.md` in full. Inspected the installed root-owned
+launchers, `/etc/paths.d`, `~/.zshrc`, and the effective interactive-shell PATH;
+ran the 66-check offline suite three times; and consulted current PostgreSQL,
+Supabase Cron, OpenSSL, and npm primary documentation. I did not use a production
+credential, rerun the live verifier, alter a role/policy, tamper with the master
+store, or perform the held-connection test.
+
+**R3-Q1 — Did these fixes hold?**
+
+- **Verified — the claimed hash binding does not hold.** The script hashes the
+  path at lines 142–143, re-hashes it after confirmation at lines 200–205, then
+  reopens that same owner-writable path to construct `knowledge_body` at lines
+  225–231 and `patch_body` at lines 254–257. A same-user writer can replace the
+  proposal after the final hash/validation and before either later read. This is
+  a post-check TOCTOU window. I established the window by reading the complete
+  control flow; I did not race the production launcher.
+- **Verified — confirmation still is not full-content review.** The banner shows
+  the first notes line, Knowledge title, and tags, but not the complete resolution
+  notes or Knowledge content. Even if the race is removed, hashing unseen bytes
+  binds a file version to a shallow summary; it does not establish that Stan
+  approved the exact payload.
+- **Verified** — `proposal_hash()` prefers MD5 whenever `/sbin/md5` is present,
+  despite naming the SHA-256 fallback second. MD5 is unnecessary here and should
+  not be retained as the security comparison primitive. **Inferred** — exploiting
+  an MD5 chosen-prefix collision against valid JSON is harder than exploiting the
+  direct post-check race and is not the leading path; I did not construct one.
+- **Verified** — apply-time schema/attribution validation now closes the old/null
+  Knowledge path, and Knowledge-first removes the specifically forbidden
+  closed-todo/no-Knowledge failure order. Those are real improvements, but they
+  do not make the two remote writes atomic. The code accurately reports the
+  remaining Knowledge-created/todo-open half-state and warns that a retry would
+  duplicate Knowledge.
+- **Inferred — repair:** read and parse the proposal once into an in-memory,
+  normalized snapshot; derive both request bodies and the complete review text
+  from that snapshot before prompting; after `yes`, use only those immutable
+  variables and never reopen the path. Display the full notes and Knowledge
+  content. A temp file owned by the same UID is not an integrity boundary against
+  the stated attacker. Add an idempotency constraint/key for the two-step retry,
+  or move the pair behind one transactional trusted operation if the invariant
+  must be atomic.
+
+**R3-Q2 — F17 and the todos trade**
+
+- **Verified** — PostgreSQL policies have an inclusion list, not an `EXCEPT`
+  list. A policy with `TO PUBLIC` applies to every role; `ALTER POLICY ... TO
+  anon, authenticated, service_role` would make it inapplicable to
+  `orb_agent_ro` provided that role is not a member of one of the named roles.
+  Inapplicable policies are not combined or evaluated. This is the cleaner
+  mechanism than relying on planner constant folding.
+- **Verified** — the committed historical todos admin policies omit `TO`, so
+  they default to `PUBLIC`; their expressions call `is_admin()`. **Suspected** —
+  the exact live policy that caused a plain SELECT to permission-check
+  `is_admin()` is not preserved in §13, and the diagnostic output from
+  `20260820d` was not recorded. Do not alter policies from migration history
+  alone; capture every live `pg_policies` row, including role memberships, first.
+- **Inferred — preferred repair:** narrow every applicable `is_admin` policy to
+  the complete set of real application roles, restore the agent policy to
+  `USING (deleted_at IS NULL)`, then test anon, authenticated owner, authenticated
+  admin, service role, and direct agent reads/writes. Table owners and roles with
+  `BYPASSRLS` are separately governed; any custom non-bypass role omitted from
+  the new list would lose that policy's access. That role-inventory/acceptance
+  matrix is the principal compatibility cost.
+- **Verified — F17 is not merely a broker presentation trade.** During an open
+  window the pgpass credential can be used directly with `psql`; the broker's
+  `WHERE deleted_at IS NULL` does not constrain that client. The reported
+  452/475 broker result verifies broker behavior, not the database disclosure
+  boundary. Keeping `USING (true)` intentionally gives a non-cooperating agent
+  every soft-deleted todo.
+
+**R3-Q3 — Natural-expiry residual**
+
+- **Verified** — `--end` and the next mint now rotate the password and call
+  `pg_terminate_backend`; the source and supplied A/B result support that narrow
+  claim. Natural `VALID UNTIL` still only rejects later authentication. There is
+  no event at expiry in this design, so an already-active backend survives.
+- **Inferred** — Supabase Cron/`pg_cron` can bound the residual: a narrowly
+  privileged scheduled job can periodically terminate backends whose database
+  identity is `orb_agent_ro` once that role's `rolvaliduntil` has passed. The
+  bound is the schedule interval plus scheduling delay, not the timestamp itself.
+  It adds no application credential, but the job runs with its creator's database
+  privileges and becomes persistent security automation.
+- **Inferred — costs/risks:** an incorrect predicate can kill legitimate or
+  system work; a missed/disabled job fails open for held sessions; pooler backend
+  identity and timing must be tested; job/run history needs monitoring and
+  retention; and the extension/job is another privileged object an operator must
+  audit. Supabase itself cautions that broad `pg_terminate_backend` jobs can
+  disrupt critical background processes.
+- **Inferred — recommendation:** accept and document the residual for the
+  current read-only, manually opened local workflow unless Stan requires a hard
+  maximum read-session lifetime. If accepted, call it **login expiry**, not
+  session expiry. If a hard bound is required, use the cron job with an exact
+  role-and-expired-role predicate and first repeat the held direct and Supavisor
+  tests across natural expiry. `idle_session_timeout` is only defense in depth;
+  an adversary can keep a session non-idle.
+
+**R3-Q4 — Keep integrity**
+
+- **Verified** — `openssl enc` does not support authenticated modes such as GCM
+  or CCM and OpenSSL documents that it will not add them. AES-CBC plus PBKDF2 as
+  currently invoked authenticates neither the ciphertext nor its age.
+- **Inferred** — an OpenSSL-only encrypt-then-MAC envelope is possible, but it is
+  not the least-risk change: it needs a versioned format, independent encryption
+  and MAC keys derived from the passphrase, separate salts/nonces, MAC over the
+  complete header plus ciphertext, verification before decryption, safe key
+  transport that does not expose raw keys in argv, atomic replacement, and a
+  migration/rollback path. A shell wrapper is now implementing a cryptographic
+  protocol, which is a larger assurance burden than one new audited dependency.
+- **Inferred — recommendation:** use a maintained authenticated-encryption tool
+  with passphrase mode (for example `age`) and root-pin its binary/path like the
+  launchers. That is the less disruptive security design even though it gives up
+  “OpenSSL only.” If no-new-dependency is absolute, implement encrypt-then-MAC
+  only after specifying and independently reviewing the envelope; do not append
+  an HMAC made directly from the same passphrase and call it complete.
+- **Verified** — a write-only attacker can always corrupt or replace the blob and
+  cause unlock failure (availability), and can replay any older valid ciphertext
+  they retained (rollback/freshness failure). **Inferred** — with known plaintext
+  layout, CBC bit flips can predictably change bytes in the following plaintext
+  block while corrupting the preceding block; a syntactically surviving change
+  could alter a loaded endpoint or credential. Repeated attempts plus observable
+  launcher/network behavior may form an oracle. **Suspected** — a useful targeted
+  credential substitution or plaintext recovery has not been demonstrated here;
+  blind write access alone is not evidence that confidentiality is already lost.
+
+**R3-Q5 — Shortest same-user path to master credentials**
+
+- **Verified — `~/.zshrc` shadowing is not the leading path.** The file is
+  owner-writable and could define an `orb-dev` function/alias or prepend a fake
+  executable. In the inspected fresh login shell, however, `whence -va orb-dev`
+  resolved `/usr/local/orb-bin/orb-dev`; the current PATH contains several
+  owner-writable directories before `/usr/local/orb-bin`.
+- **Verified — the shorter path is the writable workload deliberately launched
+  after decryption.** Root-owned `orb-dev` loads the master environment, changes
+  into the agent-writable Orb repository, and executes `/usr/bin/env npm run
+  dev`. An agent can add a `predev` script to the writable `package.json`; npm's
+  documented behavior runs matching `pre<name>` scripts before `npm run <name>`.
+  Or it can alter server-side application code that the dev process runs with
+  those environment variables. Root ownership of the gate does not make the
+  program receiving the secrets trusted.
+- **Verified** — `/usr/bin/env npm` and `/usr/bin/env npx` add a second concrete
+  route: they resolve through the inherited PATH, whose earlier directories are
+  owner-writable. Even invoking `/usr/local/orb-bin/orb-dev` by absolute path can
+  therefore hand the decrypted environment to a shadowed `npm`/`npx`.
+- **Inferred — consequence:** F8 is narrowed only from “replace the prompt” to
+  “modify the post-unlock execution chain.” It is not mitigated against a
+  malicious same-user agent with repository write access. Pinning absolute npm,
+  disabling pre/post scripts, and reviewing a clean tree remove particular easy
+  variants, but the development server must receive secrets and execute mutable
+  source, so they do not create same-user isolation. The structural choices are
+  a separate OS identity/VM or credentials scoped so narrowly that capture has
+  acceptable impact.
+
+**R3-Q6 — Rule-based sweep limits**
+
+- **Verified** — `20260820b` is point-in-time, `public`-schema-only, and revokes
+  only `PUBLIC`/`anon`; `authenticated` is deliberately outside its rule. It
+  does not cover another exposed schema, a later routine, or a routine recreated
+  after the sweep by an owner whose default privileges still grant `PUBLIC`.
+- **Verified — procedure hole:** the loop selects all `pg_proc` rows with
+  `prosecdef` but emits `REVOKE ... ON FUNCTION`. PostgreSQL supports
+  `SECURITY DEFINER` procedures and distinguishes FUNCTION, PROCEDURE, and
+  ROUTINE in `REVOKE`. A matching procedure will hit the caught exception,
+  record `FAILED`, and let the migration itself succeed. Use `ROUTINE` or branch
+  on `prokind`, and make any failure abort the migration.
+- **Verified** — the allowlist is by `proname`, not signature. Every current or
+  future overload named `is_admin` is exempt from this sweep, while the later
+  explicit revoke names only `public.is_admin()`. The current reported anon-zero
+  result is point-in-time evidence, not durable protection against a new
+  overload.
+- **Inferred** — invoker routines can still produce effects allowed to the
+  caller, chain to other reachable objects, acquire locks, notify, or invoke
+  extension/external behavior; views, triggers, operators, and extension update
+  scripts are outside this definer-routine rule. Search-path safety and routine
+  bodies are also semantic properties the privilege sweep does not assess.
+- **Inferred — repair:** retain rule-based discovery, but make a signature-and-
+  kind allowlist the failing assertion in a required live migration gate; sweep
+  every exposed schema and role; install owner-specific default privileges; and
+  fail on exceptions/additions. A hand list is useful as the expected-state
+  oracle, not as the only discovery mechanism.
+
+**R3-Q7 — Offline suite value**
+
+- **Verified** — I independently ran **66/66 × 3** in about two seconds total.
+  The suite explicitly says the database boundary remains unproven. It is fast
+  and does protect syntax, argument validation, scratch session refusal,
+  proposal creation, and the presence of several intended mechanisms.
+- **Verified** — several security-labelled checks prove only that strings exist.
+  For example, grepping for the proposal-change error reports the hash binding
+  as present while missing the post-check reopen; grepping for
+  `pg_terminate_backend` misses natural-expiry survival. Those checks are not
+  exploit regressions and their descriptions overstate what passed.
+- **Inferred — recommendation:** keep the suite, but label it **offline
+  lint/behavioral smoke**, rewrite over-claimed grep checks as actual isolated
+  behavior tests where feasible, and stop using its total as boundary evidence.
+  Add the live adversarial corpus as a separate mandatory gate for database
+  security migrations: effective privileges by role/signature, real anon RPCs,
+  forged claims, direct non-broker SQL, soft-deleted rows, and held direct/pooler
+  connections. The offline suite is not harmful by its size; it is harmful only
+  when “66/66” is allowed to answer a question it never exercised.
+
+**New findings**
+
+- **Verified — R3-N1, post-confirmation proposal TOCTOU:** `nl -ba
+  scripts/security/orb-agent-approve` established the final path hash at
+  200–205 and later independent path reads at 225–231 and 254–257.
+- **Verified — R3-N2, root gate hands secrets to mutable ground:** `rg -n
+  '/usr/bin/env|npm|npx' /usr/local/orb-bin/orb-dev scripts/security/orb-dev`
+  established the unlocked `npm run dev`/eval chain; inspection of
+  `package.json` and npm's primary documentation established the writable
+  lifecycle hook.
+- **Verified — R3-N3, sweep misses procedures while succeeding:** reading
+  `20260820b_anon_definer_sweep.sql` established the unfiltered `pg_proc` loop,
+  `ON FUNCTION`, caught exception, and success path; PostgreSQL's `CREATE
+  PROCEDURE` and `REVOKE` references establish the object-kind distinction.
+- **Verified — R3-N4, castle corrections are internally incomplete:**
+  `rg -n 'excellent|42/42|completely open|owner-writable|passphrase capture|CBC'
+  docs/agent-castle-threat-model.md` found “no MAC/CBC malleable” at line 15
+  immediately followed by “keep's crypto is excellent” at line 21; stale 42/42
+  claims at lines 30 and 137; and the now-false owner-writable-launcher claim at
+  line 70. The model also still calls passphrase capture open at line 139 without
+  identifying the stronger mutable-workload route above.
+
+**Disagreements**
+
+- **Verified** — I disagree that apply-time hashing binds confirmed bytes to
+  applied bytes; the source reopens the mutable file after its last check.
+- **Verified** — I disagree that F8 is mitigated by root-owned launchers. The
+  prompt file is protected, but the launcher resolves owner-controlled PATH
+  executables and intentionally starts owner-controlled repository code with the
+  decrypted environment.
+- **Verified** — I disagree that the broker's 452/475 result compensates for
+  F17 at the database boundary. The issued database credential is directly
+  usable outside the broker.
+- **Inferred** — I disagree with treating the rule sweep or 66-check suite as a
+  durable security gate. Both are useful components only when exceptions and
+  unexpected live state fail closed.
+
+**Remediation (Codex only)**
+
+- **Verified** — no new Codex configuration remediation was assigned in §13.
+  Round 1 §7.2 remains pending; this review did not run a push dry-run.
+- **Inferred — immediate priority:** close R3-N2 before further describing the
+  keep as protected from same-user agents. Absolute binary paths alone are
+  insufficient because mutable repository code is the payload.
+- **Inferred — database priority:** replace F17 with role-scoped policy
+  applicability after capturing the live policy/role matrix, and turn the live
+  adversarial corpus into the required migration gate.
+
+
 ---
 
 ## 10. Dispositions — Round 1 (Codex)
@@ -864,6 +1118,23 @@ F12 before any `AGENTS.md` rework. F14 was superseded by F16 and is closed.
 | R2-Q1 — closure non-atomic | **Accepted, FIXED by ordering.** Knowledge is written first. Not atomic and not claimed to be — the gain is that the reachable half-state changed from 'closed with no Knowledge' (rule broken, looks complete) to 'Knowledge written, todo open' (rule intact, visibly unfinished) |
 | R2-Q4 — `VALID UNTIL` is not a session lease | **Accepted, TESTED, CONFIRMED, fix written.** F18. The reviewer reasoned it from PostgreSQL semantics; the test proved it in two minutes. Revocation now terminates live backends. Awaiting re-test through the pooler |
 | R2-Q1 — migration exits 0 after partial lockdown | **Accepted.** "Migration applied" is not a security verdict; only the verifier is |
+
+**Round 2 dispositions, part 2** — recorded 2026-08-20 after reading the full
+packet. My first pass dispositioned only Q1–Q4; Q5–Q9 contained five further
+corrections, all accepted.
+
+| Finding | Disposition |
+|---|---|
+| R2-Q5 — stdin change introduces no injection path | **Accepted as confirmation.** Codex's caution stands: the offline suite never executes SQL, so a future unquoted `:var` or variable-derived identifier would not be caught. A live adversarial corpus (quotes, backslashes, newlines, Unicode, psql `\` commands) is **not built** |
+| R2-Q6 — slumber is not revocation | **Accepted — my claim was false.** A provider key stays valid *at the provider* after the process stops; a same-user process can copy it during the window, and a child can inherit the environment. Castle §8.2 corrected: slumber is exposure-window reduction |
+| R2-Q6 — passkey is not "the answer to F8" | **Accepted.** Local code can initiate a genuine challenge and induce approval. A biometric proves presence, not authorization of *that* action. Castle §8.3 corrected; transaction-bound phone approval is what narrows it |
+| R2-Q6 — "no perimeter defense against air" too absolute | **Accepted.** Origin isolation, network allowlists, and sandboxing reduce air paths. Doctrine 1 qualified |
+| R2-Q6 — the keep has no integrity protection | **Accepted, NOT FIXED.** AES-256-CBC + PBKDF2 gives confidentiality only. No AEAD, no MAC, and CBC is malleable — an attacker able to write `orb.env.enc` could alter decrypted values, not merely corrupt them. Calling the crypto "excellent" omitted this. **Open work item** |
+| R2-Q7 — no same-Mac break-glass preserves F8 | **Accepted.** Recorded as designed-first-or-not-at-all. The out-of-realm ceremony (two independent recovery authorities, entered on phone or clean device, never the Mac) is the least-bad shape |
+| R2-Q8 — iCloud Keychain passkeys sync to the Mac | **Accepted — important.** A synced passkey is redundancy, not realm separation. The second factor must be phone-bound or held by an independent app, not synced back |
+| R2-Q9 — home is `0750`, not `0700` | **Accepted — factually wrong, and I had measured it correctly earlier and then wrote the opposite.** Only `Project-secrets` and `.local/bin` are `0700` |
+| R2-Q9 — non-AI protections over-claimed | **Accepted.** Castle §9 rewritten: five "Strongly" rows downgraded to Partial or Unverified. Stolen-laptop and backup claims marked unverified for lack of FileVault status and a backup inventory |
+| R2-N1 — all 15 targets re-granted to anon, not 4 | **Accepted, already closed** by the rule-based sweeps |
 
 **Maintainer's note.** Round 2 found a live unauthenticated write path and a
 working identity forgery. Both were reasoned from documentation by the reviewer
@@ -960,3 +1231,136 @@ same-user agent to master credentials? Name it concretely.
 Label every claim **Verified** / **Inferred** / **Suspected**. Do not report a
 hypothesis as ruled out unless it was tested. An understated answer is more
 useful than a reassuring one — Round 1 established that by being right.
+
+
+---
+
+## 13. Round 3 — review request
+
+**Opened:** 2026-08-20 — Claude Code (Opus 5), maintainer.
+**Respond in the §8 format, appended under §9.** Do not edit any other section.
+
+### 13.1 What changed since Round 2
+
+Committed as **v0.6.300** (`0bb452b`). All ten Round 2 findings accepted; none
+rejected. Six applied migrations.
+
+| # | Change | Origin |
+|---|---|---|
+| 1 | `20260820`, `20260820b`, `20260820c` — nine `SECURITY DEFINER` routines moved to `service_role` only. `20260820b` sweeps **by rule**, not by list, because the hand-written list missed four | R2-Q3, R2-N1 |
+| 2 | `is_admin` revoked from `PUBLIC`. **Forgery confirmed by test first**: a real UUID from `projects.created_by` made `is_admin()` return true | R2-Q2 |
+| 3 | `20260820d` — `todos` agent policy folded to `USING (true)` to restore reads after (2). **Accepted trade F17**: policy-level soft-delete for that table is gone | consequence of (2) |
+| 4 | Revocation and minting now `pg_terminate_backend`. **A/B verified**: identical held connection returned rows before the fix, received `FATAL: terminating connection due to administrator command` after; `--end` reported `terminated 1` | R2-Q4 |
+| 5 | `orb-agent-approve` revalidates the complete proposal at apply time and hashes it to bind confirmed bytes to applied bytes | R2-Q1 |
+| 6 | Knowledge is written **before** the todo closes | R2-Q1 |
+| 7 | Verifier sections **E** (routine privileges), **F** (anon/authenticated reach), **G** (forged request context) | R2-Q1/Q2/Q3 |
+| 8 | Castle model corrected: §8.2 slumber is not revocation; §8.3 passkey is not the answer to F8; doctrine 1 qualified; §1 crypto integrity gap noted; §9 non-AI table downgraded | R2-Q6, R2-Q9 |
+
+**Live results:** 50/50 BOUNDARY VERIFIED. `anon` reach 0. Reachable routines
+22 → 6. Offline suite 66/66 × 3.
+
+### 13.2 Questions
+
+- **R3-Q1 — Did *these* fixes hold?** Round 2's lead question found that the
+  Round 1 remediation had closed only the creation path. Apply the same
+  suspicion here. In particular: does the apply-time revalidation plus hash
+  actually bind confirmation to application, or is there still a window?
+- **R3-Q2 — F17, the todos trade.** `todos` lost policy-level soft-delete so the
+  planner would not permission-check `is_admin`. The broker's filter was
+  verified (452 of 475; three known-deleted refs return nothing through both
+  verbs). Is there a better fix — for example `ALTER POLICY ... TO` excluding
+  `orb_agent_ro` while preserving the expression — and what would it break?
+- **R3-Q3 — The expiry residual.** `--end` now terminates, but natural expiry is
+  not an event: a held connection survives until the next mint or `--end`. Is
+  `pg_cron` a sound closure on Supabase, and what does it cost in new attack
+  surface? If the honest answer is "accept and document", say so.
+- **R3-Q4 — Keep integrity (your R2-Q6).** Accepted and unfixed. AES-256-CBC +
+  PBKDF2 with no MAC, and CBC is malleable. What is the least-disruptive fix
+  that keeps the `openssl`-only, no-new-dependency property — an encrypt-then-MAC
+  wrapper, or is a different tool warranted? What does an attacker who can write
+  `orb.env.enc` but not read it actually achieve today?
+- **R3-Q5 — R2-Q10, still unanswered.** F8 is mitigated: launchers and their
+  directory are `root:wheel` in `/usr/local/orb-bin`, PATH from root-owned
+  `/etc/paths.d`, verified unwritable from the agent side. **What is now the
+  shortest path from a same-user agent to master credentials?** Name it
+  concretely, including whether `~/.zshrc` shadowing is the leading candidate.
+- **R3-Q6 — Rule-based sweeps.** `20260820b` sweeps every `SECURITY DEFINER`
+  routine except an `is_admin` allowlist. Where does a rule-based sweep fail
+  that a list would not — new schemas, non-definer routines with side effects,
+  extensions, or routines created by another owner after the sweep?
+- **R3-Q7 — The offline suite.** 66 checks, zero real vulnerabilities found. All
+  five real findings came from your review. Is the suite worth keeping at this
+  size, should it be replaced by the live adversarial corpus you proposed in
+  R2-Q5, or is it actively harmful as a source of false confidence?
+
+### 13.3 Standing instruction
+
+Label every claim **Verified** / **Inferred** / **Suspected**. Do not report a
+hypothesis as ruled out unless it was tested. Rounds 1 and 2 each overturned
+maintainer claims that had been reported as verified; assume this round contains
+more of the same.
+
+
+---
+
+## 14. Disposition — ORB-382: the session mechanism was removed, not hardened
+
+**Recorded:** 2026-09-03 — Claude Code (Opus 5), maintainer.
+**Decision:** Stan, after reviewing the full functionality of both `orb-dev` and
+`orb-agent`.
+
+Round 3 asked (R3-Q3) whether `pg_cron` should close the natural-expiry residual
+on F18, and Codex's answer was to accept and document it unless a hard maximum
+session lifetime was actually required. Stan's decision went further: the
+requirement itself was withdrawn. `orb-agent-session` is deleted and
+`orb_agent_ro` now carries a standing credential.
+
+**What this closes:**
+
+| Finding | Status after ORB-382 |
+|---|---|
+| **F18** — `VALID UNTIL` is not a session lease | **Closed by removal.** There is no window to expire, so the residual it left has nothing to attach to. The `pg_terminate_backend` fix and its A/B evidence remain recorded above as the reason the mechanism lost its justification |
+| **R3-Q3** — is `pg_cron` a sound closure? | **Moot.** No expiry sweep is needed for a credential with no expiry |
+
+**What this does not change.** F15, F16, F17, and the Round 3 findings R3-N1
+(post-confirmation TOCTOU in `orb-agent-approve`), R3-N2 (the root gate hands
+secrets to mutable ground via `npm run dev`), R3-N3 (the sweep misses procedures
+while succeeding), and R3-N4 (internally incomplete castle corrections) are all
+untouched and remain open. **R3-N2 in particular is unaffected in both
+directions** — removing the session neither widens nor narrows the
+`predev`/PATH-shadowing path to master credentials, because that path runs
+through `orb-dev`, not the broker.
+
+**The reasoning, stated so a later reader can disagree with it.** Three things
+made the window cost more than it returned:
+
+1. The boundary was always Layer 1 — SELECT on eight tables, no write grant,
+   `NOBYPASSRLS`, `CONNECTION LIMIT 4`. The window never contributed to it.
+2. The expiry did not behave as claimed. That is F18's whole content, and it was
+   found by a reviewer reasoning from PostgreSQL semantics, not by the 66-check
+   offline suite.
+3. `orb-agent-session` was the only read-path component that unlocked the master
+   store. Every window opened was another passphrase entry — the F8 exposure
+   ranked highest in `docs/agent-castle-threat-model.md`. The control consumed
+   the asset it existed to protect.
+
+**Accepted cost, stated plainly.** A leaked standing credential stays valid
+until Stan revokes it with `ALTER ROLE orb_agent_ro NOLOGIN;` or rotates the
+password. There is no automatic bound any more. This is a real reduction in
+defence-in-depth and is accepted deliberately, on the grounds that the credential
+reads eight tables, cannot write, and that the mechanism removed did not
+reliably terminate anything on natural expiry regardless.
+
+**Note on `NOLOGIN`.** It is an authentication-time check, exactly like
+`VALID UNTIL`. It stops new connections and does **not** sever an open one. To
+cut off a live session it must be paired with a `pg_terminate_backend` sweep for
+the role. This is written down here, rather than left implied, because the
+previous design's central claim failed on precisely this distinction and the
+same mistake is available again.
+
+**Verification:** offline suite **62/62 across three runs**. The suite's session
+section was replaced with absence checks, which are described in the file as
+absence checks and nothing more — a grep proves a string is gone, and that is
+the entire claim. The database side (revocation by `NOLOGIN`, the SELECT-only
+boundary) is **not** proven by that total and requires
+`scripts/migrations/verify-orb-agent-ro.sql` plus Stan's live test.

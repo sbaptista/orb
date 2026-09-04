@@ -1,6 +1,9 @@
 # Agent Capability Broker — restoring AI-agent data access without master credentials
 
-**Status:** Approved by Stan on 2026-08-19 (all four layers, direct-DB transport, option C for Layer 3). Migration applied and boundary verified 36/36. Option C rebuilt 2026-08-19; awaiting an end-to-end session.
+**Status:** Approved by Stan on 2026-08-19 (all four layers, direct-DB transport, option C for Layer 3). Migration applied and boundary verified 36/36, later 50/50.
+**AMENDED 2026-09-03 (ORB-382): Layer 3 option C is REMOVED.** Time-boxed
+sessions are replaced by a standing credential — see the rewritten Layer 3
+below. Layers 1, 2 and 4 are unchanged and remain in force.
 **Plan owner:** Claude Code
 **Created:** 2026-08-19 — Claude Code (Opus 5)
 **Todo:** not yet created — Stan to assign an ORB number and link this document
@@ -45,7 +48,10 @@ Repository, and database health, such that:
    already working on* — no provider keys, no service role, no writes.
 3. Every mutation remains human-approved, with the approval rendered from the
    resolved request by trusted code rather than from the model's description.
-4. Access is time-boxed, so an idle or injected agent has no standing capability.
+4. ~~Access is time-boxed, so an idle or injected agent has no standing
+   capability.~~ **Withdrawn 2026-09-03 (ORB-382).** The window was not the
+   boundary and its expiry did not behave as claimed (F18). Goals 1–3 and 5 are
+   what the design actually rests on.
 5. Enforcement is mechanical, not textual.
 
 ## 3. Research basis
@@ -54,7 +60,7 @@ Repository, and database health, such that:
 |---|---|---|
 | The agent holds a capability, never the credential | [Doppler](https://www.doppler.com/blog/mcp-server-credential-security-best-practices) | Layer 2 broker verbs; the master bundle is never decrypted in an agent shell |
 | Excessive Agency is now OWASP LLM03:2026 (up from #6), root causes: excessive functionality, permissions, autonomy | [ReversingLabs](https://www.reversinglabs.com/blog/owasp-top-10-for-llm-apps-excessive-agency), [Mend](https://www.mend.io/blog/owasp-llm-top-10-2026/) | Layer 1 read-only role (permissions); Layer 2 verb allowlist (functionality); Layer 2 propose/approve split (autonomy) |
-| Short-lived, scoped, revocable beats static env vars | [Descope](https://www.descope.com/blog/post/ai-agent-credential-management), [Aembit](https://aembit.io/blog/securing-ai-agents-without-secrets/) | Layer 3 option C — a fresh password per window with a PostgreSQL `VALID UNTIL`, revocable instantly with `--end` |
+| Short-lived, scoped, revocable beats static env vars | [Descope](https://www.descope.com/blog/post/ai-agent-credential-management), [Aembit](https://aembit.io/blog/securing-ai-agents-without-secrets/) | **Partially applied, deliberately.** Scoped ✅ and revocable ✅ (NOLOGIN). Short-lived ❌ as of ORB-382 — the industry advice assumes a credential worth stealing; this one reads eight tables and cannot write, and the minting ceremony cost a master-passphrase entry per window |
 | Inject at runtime; let the secret die with the subprocess | [1Password](https://www.1password.dev/cli/secret-references) | Already correct in `orb-dev`; the broker uses the same `export`-then-`exec` discipline |
 | Deny-rules bind built-in tools, not Bash | [Developers Digest](https://www.developersdigest.tech/blog/claude-code-permissions-settings-guide), [ahmet.ee](https://ahmet.ee/your-claude-code-setup-is-probably-not-as-safe-as-you-think/) | Layer 4 deny-rules are treated as a speed bump; the real control is that the master DSN is never in a file an agent can use |
 | Best practice is no plaintext secret on disk | [Backslash](https://www.backslash.security/blog/claude-code-security-best-practices) | Exceeded under option C — the agent credential is not stored at all. It is minted per window and expires server-side, so between windows nothing valid exists on disk |
@@ -66,10 +72,9 @@ Repository, and database health, such that:
 ```text
   Stan (human, holds the master passphrase)
     │
-    ├─ orb-agent-session --hours 8 ─► ALTER ROLE orb_agent_ro
-    │                                   PASSWORD <fresh 256-bit>
-    │                                   VALID UNTIL <now + 8h>     ← server-side expiry
-    │                                 └► Project-secrets/orb-agent/session{,.pgpass} (0600)
+    ├─ (one-time setup) \password orb_agent_ro   ← standing password, set by hand
+    │                                 └► Project-secrets/orb-agent/credential.pgpass (0600)
+    │     revoke at any time:  ALTER ROLE orb_agent_ro NOLOGIN;
     │
     └─ orb-agent-approve <id> ──────► master orb.env.enc ──► Orb REST / Supabase REST (writes)
 
@@ -136,7 +141,55 @@ is server-managed from `status` (`docs/api-spec.yaml`); a direct `UPDATE` would
 silently skip that. Knowledge Repository writes use the Supabase REST endpoint,
 which is the documented path and has no equivalent Orb route.
 
-### Layer 3 — Time-boxed sessions with **server-side** expiry (option C)
+### Layer 3 — Standing credential (ORB-382, 2026-09-03)
+
+`orb_agent_ro` holds a standing password with no `VALID UNTIL`. `orb-agent`
+reads one standard pgpass line — `host:port:dbname:user:password`, mode 600 —
+and takes its connection fields from that same line, so there is no second file
+to drift out of step. The password reaches psql through `PGPASSFILE` and never
+enters argv or the environment.
+
+**Revocation is explicit rather than scheduled:**
+
+```sql
+ALTER ROLE orb_agent_ro NOLOGIN;   -- revoke
+ALTER ROLE orb_agent_ro LOGIN;     -- restore
+```
+
+`NOLOGIN`, like `VALID UNTIL`, is an authentication-time check — it stops new
+connections and does not sever an open one. To cut off a live session, pair it
+with a `pg_terminate_backend` sweep for the role. This is stated rather than
+implied, because the previous design's central claim failed on exactly this
+distinction.
+
+**Why option C was withdrawn.** Three reasons, in order of weight:
+
+1. **The window was never the boundary.** Layer 1 is: SELECT on eight tables,
+   no write grant anywhere, `NOBYPASSRLS`, `CONNECTION LIMIT 4`. Handing an
+   agent the raw credential with every line of session shell deleted still does
+   not let it write.
+2. **Its expiry did not work as described.** F18 — `VALID UNTIL` gates logins
+   only, natural expiry fires no event, and a held connection survived until the
+   next mint or an explicit `--end`. The maximum exposure was never the window
+   length, and the local clock check in the broker was a cooperating agent
+   declining to try.
+3. **It spent the wrong currency.** `orb-agent-session` was the only read-path
+   component that unlocked the master store, so every window opened was another
+   occasion to type the master passphrase into a local prompt — the F8 exposure
+   the castle model ranks highest. It consumed the thing it was meant to
+   protect.
+
+**What is deliberately given up:** time-boxing, per-window rotation, and the
+`--end` verb that both rotated and terminated live backends. A leaked standing
+credential stays valid until Stan revokes or rotates it. Accepted: the
+credential reads eight tables and cannot write, and the ceremony being removed
+did not reliably terminate anything on natural expiry.
+
+---
+
+#### Superseded — option C, time-boxed sessions (2026-08-19 to 2026-09-03)
+
+*Retained as the evidence trail for the F18 finding. Not current behaviour.*
 
 Stan chose option C on 2026-08-19. Every window mints a **fresh 256-bit
 password** for `orb_agent_ro` and stamps a PostgreSQL `VALID UNTIL`:
@@ -216,9 +269,10 @@ not isolate processes. That remains ORB-374 Tier B/C.
 ### Layer 4 — Mechanical enforcement
 
 - `permissions.deny` in the tracked `.claude/settings.json` gains
-  `Bash(orb-secrets-seal*)`, `Bash(orb-secrets-set*)`, `Bash(orb-agent-session*)`,
-  and `Bash(orb-agent-approve*)` — every passphrase-bearing command. Patterns are anchored at the start of the command
-  per the confirmed 2026-08-05 wildcard finding.
+  `Bash(orb-secrets-seal*)`, `Bash(orb-secrets-set*)`, and
+  `Bash(orb-agent-approve*)` — every passphrase-bearing command. Patterns are anchored at the start of the command
+  per the confirmed 2026-08-05 wildcard finding. (The `Bash(orb-agent-session*)`
+  rules were removed with the launcher itself in ORB-382.)
 - Both `AGENTS.md` files replace the inline-secret `curl`/`psql` blocks with
   `orb-agent` verbs. This closes ORB-374 Phase 1 item 7.
 - Every broker invocation appends a redacted line to
@@ -279,10 +333,10 @@ than `RAISE NOTICE`, which the editor does not surface.
   **not** per-role settings such as `default_transaction_read_only` — those
   apply only to real logins. The grant-based denial is the control being
   proven; the session setting is additional depth.
-- `orb-agent-session --hours 8`, then confirm each read verb from a separate
-  agent shell. There is no sealing step: the connection is derived from
-  `DATABASE_URL`, including the pooler's `<role>.<project-ref>` username form.
-- After `--end`, confirm the database refuses the old credential.
+- Install the standing credential (`orb-agent status` prints the exact pgpass
+  line), then confirm each read verb from a separate agent shell.
+- Set the role `NOLOGIN` and confirm the next read is refused; restore `LOGIN`
+  and confirm it works again. That is the revocation path now.
 
 **Unverified and requiring Stan's test — stated plainly:**
 
@@ -314,7 +368,9 @@ agent-run CLI outside the Next.js application.
 
 ## 8. Rollback
 
-`orb-agent-session --end` revokes access immediately. `DROP ROLE orb_agent_ro`
-(after dropping its policies) removes the identity entirely. Neither affects the
+`ALTER ROLE orb_agent_ro NOLOGIN;` revokes access immediately for new
+connections; add a `pg_terminate_backend` sweep to cut off one already open.
+`DROP ROLE orb_agent_ro` (after dropping its policies) removes the identity
+entirely. Neither affects the
 application, `orb-dev`, or the master store. Manual clipboard mode remains
 available as the fallback and its documentation is retained, not deleted.

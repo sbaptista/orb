@@ -12,8 +12,8 @@
 |---|---|---|
 | **The castle** | The Supabase database | Todos, Knowledge, tickets, users, the audit log |
 | **The grounds** | The repository and local filesystem | Source, migrations, the security launchers, tool configs, `AGENTS.md` |
-| **The keep** | `orb.env.enc` — the master store | Fifteen credentials. Holding it is holding everything |
-| **The gates** | `orb-dev`, `orb-agent-session`, `orb-agent-approve` | The only sanctioned way in carrying credentials |
+| **The keep** | `orb.env.enc` — the master store | Fifteen credentials. Holding it is holding everything. **Confidentiality only:** AES-256-CBC with PBKDF2 and **no authenticated encryption or MAC** (Codex R2-Q6). Ciphertext tampering is undetected, and CBC is malleable — an attacker able to write the file could alter decrypted values rather than merely corrupt them. Offline passphrase strength is also load-bearing |
+| **The gates** | `orb-dev`, `orb-agent-approve` | The only sanctioned way in carrying credentials. *`orb-agent-session` was removed 2026-09-03 (ORB-382): it unlocked the keep on every window, spending the passphrase it was meant to protect, for an expiry that F18 showed did not behave as claimed* |
 | **The gatekeeper** | Stan | The only one who can open a gate |
 | **Visitors** | Claude Code, Codex, any future tool | Invited. Also potentially carrying something they cannot detect |
 
@@ -145,6 +145,10 @@ keep's protection depends on them.**
 ## 7. Doctrine
 
 1. **Assume the walls are breached.** Defend the treasury, not the perimeter.
+   *Qualified 2026-08-20 (Codex R2-Q6): "there is no perimeter defense against
+   air" is too absolute. Origin isolation, content/tool separation, network
+   allowlists, and sandboxing all reduce air paths. None makes model judgment a
+   boundary, which was the real point.*
 2. **Gates check authority, never intent.** Legitimate and hostile traffic are
    identical at the gate. Design for that rather than around it.
 3. **The ground you stand on must not be yours to dig.** A defense the agent can
@@ -188,7 +192,18 @@ the keep again.
 | `ORB_API_SECRET` | Server-side expiry check |
 | All provider keys | **Implicitly** — nothing holds them once the server stops |
 
-You do not need every key to expire. You need every live holder to.
+**CORRECTED 2026-08-20 (Codex R2-Q6).** The claim above — that expiring live
+holders is sufficient — is **false**. A provider key remains valid *at the
+provider* after the local process stops. A same-user process can copy it out of
+the running environment during a window and use it indefinitely; a child process
+can inherit the environment and outlive the dev server. Stopping one holder
+removes one copy, not every copy.
+
+Slumber is **exposure-window reduction, not revocation.** Claiming revocation
+would require provider-side short-lived credentials, or a broker holding the
+long-lived keys outside the agent's realm and issuing scoped, time-bound
+requests. Where a provider offers only static keys, rotation is the only real
+answer.
 
 ### 8.3 The wizard is the answer to F8
 
@@ -206,9 +221,18 @@ compromised ground:
 | Phone approval | Another device | ✅ |
 | Typed passphrase | **This realm** | ❌ This is F8 |
 
-**The passkey minting plan and this metaphor are the same idea.** The argument
-for it is not convenience; it is that biometric proof is unstealable by a
-compromised gatehouse.
+**The passkey minting plan and this metaphor are the same idea**, and a passkey
+does prevent capture and replay of a reusable passphrase.
+
+**But it is NOT "the answer to F8" — corrected 2026-08-20 (Codex R2-Q6).**
+Malicious local code can initiate a *genuine* challenge, induce Stan to approve
+what looks like a legitimate prompt, then use the resulting live authorization
+and read the environment it unlocks. A biometric proves a human was present; it
+does not prove the human authorized *that* action, and it does not make a
+trojaned gatehouse trustworthy. Transaction-bound approval showing the resolved
+action, duration, and target — on a device the Mac does not control — is what
+narrows this, which is why §8.4's realm separation matters more than the
+biometric itself.
 
 ### 8.4 One wizard is a single point of failure — Stan's caution
 
@@ -261,20 +285,20 @@ there, and it holds its own Vercel credentials. The castle is the *local* realm.
 The controls are not AI-specific. The threat model is *"an untrusted process
 running as Stan, hunting for credentials"* — an AI agent is one instance.
 
-| Traditional vector | Protected? | Why |
+**Downgraded 2026-08-20 after Codex R2-Q9.** The original table said
+"Strongly" in five rows. Persistent same-user code defeats most of them, and two
+were unverifiable in this environment.
+
+| Traditional vector | Protected? | Honest scope |
 |---|---|---|
-| **Infostealer malware** (Atomic Stealer et al. — these specifically target `.env` files) | ✅ **Strongly** | There is no `.env.local`. The store is AES-encrypted; a scraper gets noise |
-| **Malicious npm postinstall / supply chain** | ✅ **Strongly** | Same — runs as Stan, finds nothing usable |
-| **Stolen or seized laptop** | ✅ **Strongly** | Passphrase is not on disk |
-| **Cloud/Time Machine backup exposure** | ✅ **Strongly** | Backups carry ciphertext |
-| **Accidental secret commit** | ✅ | No plaintext file exists to commit |
-| **Another account on the machine** | ✅ | `0700` — this is what Unix permissions actually do |
-| **Compromised dependency reading `process.env`** | ⚠️ **Partial** | Only while the server runs. Slumber shrinks the window |
-| **Keylogger** | ❌ | Captures the passphrase. **The biometric wizard is the fix** |
-| **Stolen GitHub token / keychain credential** | ❌ | F6 — still open |
-| **Browser session/cookie theft** | ❌ | Untouched |
-| **Compromised Supabase/Vercel/GitHub account** | ❌ | Server-side; needs 2FA there |
-| **Phishing, ransomware, physical access while unlocked** | ❌ | Out of scope |
+| **Infostealer — non-persistent at-rest scraping** | ✅ Strong | No `.env.local`; the store is ciphertext |
+| **Infostealer — persistent code** | ⚠️ Partial | Can modify a launcher or shell startup, keylog, wait for unlock, or inherit the decrypted environment |
+| **Malicious npm postinstall** | ⚠️ Partial | Same distinction: strong against grab-and-go, weak against code that persists and waits |
+| **Stolen laptop** | ❓ **Unverified** | Depends on FileVault state, session lock, passphrase entropy, keychain contents. `fdesetup status` could not be determined here |
+| **Backup exposure** | ❓ **Unverified** | Only if backups hold ciphertext and *not* the passphrase, old `.env.local` copies, shell history, or an unlocked snapshot. No backup inventory was taken |
+| **Accidental secret commit** | ⚠️ Partial | That specific file cannot be committed. Logs, patches, crash dumps, pasted commands remain, and no commit/push secret gate is proven |
+| **Another account on the machine** | ⚠️ **Scoped — my claim was wrong** | The home directory is **`0750` with group `staff`**, not `0700`. Only `Project-secrets` and `.local/bin` measured `0700`. The cross-account boundary holds for those subdirectories, not the home |
+| **Compromised dependency** | ⚠️ Partial | "Only while the server runs" is **false** for persistent code: it can alter owner-writable ground and wait for the next unlock, or copy a static provider key during one window and use it after slumber |
 
 **The overlap is not a coincidence.** Removing plaintext credentials from disk
 defeats the most common real-world macOS credential theft in exactly the way it

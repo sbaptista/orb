@@ -12,7 +12,7 @@
 set -uo pipefail
 
 readonly HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SCRIPTS=(orb-agent orb-agent-session orb-agent-approve)
+readonly SCRIPTS=(orb-agent orb-agent-approve)
 
 PASS=0
 FAIL=0
@@ -37,7 +37,7 @@ for s in "${SCRIPTS[@]}"; do
   fi
 done
 
-printf '\n== 3. Broker refuses everything without a session ==\n'
+printf '\n== 3. Broker refuses everything without a credential ==\n'
 # Point the broker at a scratch root so a real session cannot satisfy these.
 SCRATCH="$(mktemp -d)"
 trap 'rm -rf "$SCRATCH"' EXIT
@@ -46,28 +46,40 @@ sed "s|^readonly SECRET_ROOT=.*|readonly SECRET_ROOT=\"$SCRATCH/secrets\"|" "$HE
 chmod 755 "$BROKER"
 mkdir -p "$SCRATCH/secrets/orb-agent/proposals"
 
-check_fails "'$BROKER' todos list"        "todos list refuses without a session"
-check_fails "'$BROKER' todos get ORB-1"   "todos get refuses without a session"
-check_fails "'$BROKER' projects list"     "projects list refuses without a session"
-check_fails "'$BROKER' knowledge search x" "knowledge search refuses without a session"
-check_fails "'$BROKER' db health"         "db health refuses without a session"
-check "'$BROKER' status | grep -q 'none'" "status reports no session without failing"
+CRED="$SCRATCH/secrets/orb-agent/credential.pgpass"
 
-printf '\n== 4. Expired sessions are rejected and removed ==\n'
-SESS="$SCRATCH/secrets/orb-agent/session"
-printf 'EXPIRES=1\nPGHOST=h\nPGPORT=5432\nPGDATABASE=d\nPGUSER=orb_agent_ro\n' > "$SESS"
-printf 'h:5432:d:orb_agent_ro:pw\n' > "$SCRATCH/secrets/orb-agent/session.pgpass"
-chmod 600 "$SCRATCH/secrets/orb-agent/session.pgpass"
-check_fails "'$BROKER' todos list" "an expired session is refused"
-check "[[ ! -f '$SESS' ]]"         "an expired session file is deleted on use"
-check "[[ ! -f '$SCRATCH/secrets/orb-agent/session.pgpass' ]]" "the expired pgpass file is deleted too"
+check_fails "'$BROKER' todos list"        "todos list refuses without a credential"
+check_fails "'$BROKER' todos get ORB-1"   "todos get refuses without a credential"
+check_fails "'$BROKER' projects list"     "projects list refuses without a credential"
+check_fails "'$BROKER' knowledge search x" "knowledge search refuses without a credential"
+check_fails "'$BROKER' db health"         "db health refuses without a credential"
+# NOTE: piping into `grep -q` under `set -o pipefail` fails spuriously — grep
+# exits on the first match and closes the pipe, so the broker's remaining
+# output takes SIGPIPE and the pipeline reports failure. Capture instead.
+check "[[ \"\$('$BROKER' status)\" == *'NOT INSTALLED'* ]]" \
+  "status reports a missing credential without failing"
+check "[[ \"\$('$BROKER' status)\" == *'chmod 600'* ]]" \
+  "status prints the install instructions"
+
+printf '\n== 4. A malformed credential file is refused ==\n'
+printf 'not-a-pgpass-line\n' > "$CRED"; chmod 600 "$CRED"
+check_fails "'$BROKER' todos list" "a credential file with too few fields is refused"
+printf 'h:notaport:d:orb_agent_ro:pw\n' > "$CRED"; chmod 600 "$CRED"
+check_fails "'$BROKER' todos list" "a non-numeric port is refused"
+printf ':5432:d:orb_agent_ro:pw\n' > "$CRED"; chmod 600 "$CRED"
+check_fails "'$BROKER' todos list" "an empty host field is refused"
 
 printf '\n== 4b. Loose credential-file permissions fail closed ==\n'
-printf 'EXPIRES=%s\nPGHOST=h\nPGPORT=5432\nPGDATABASE=d\nPGUSER=orb_agent_ro\n' "$(( $(date +%s) + 3600 ))" > "$SESS"
-printf 'h:5432:d:orb_agent_ro:pw\n' > "$SCRATCH/secrets/orb-agent/session.pgpass"
-chmod 644 "$SCRATCH/secrets/orb-agent/session.pgpass"
+printf 'h:5432:d:orb_agent_ro:pw\n' > "$CRED"
+chmod 644 "$CRED"
 check_fails "'$BROKER' todos list" "a world-readable pgpass file is refused (psql only warns)"
-chmod 600 "$SCRATCH/secrets/orb-agent/session.pgpass"
+chmod 600 "$CRED"
+
+printf '\n== 4c. A symlinked credential file is refused ==\n'
+mv "$CRED" "$SCRATCH/real.pgpass"
+ln -s "$SCRATCH/real.pgpass" "$CRED"
+check_fails "'$BROKER' todos list" "a symlinked credential file is refused"
+rm -f "$CRED"; mv "$SCRATCH/real.pgpass" "$CRED"; chmod 600 "$CRED"
 
 printf '\n== 5. Unknown verbs and options are rejected ==\n'
 check_fails "'$BROKER' delete-everything"        "unknown top-level verb rejected"
@@ -75,10 +87,11 @@ check_fails "'$BROKER' todos drop"               "unknown todos verb rejected"
 check_fails "'$BROKER' proposals nuke"           "unknown proposals verb rejected"
 check_fails "'$BROKER' propose todo-delete ORB-1" "unsupported proposal kind rejected"
 
-printf '\n== 6. Input validation (checked before any session is required) ==\n'
-# A far-future session so validation, not session state, is what rejects these.
-printf 'EXPIRES=%s\nPGHOST=h\nPGPORT=5432\nPGDATABASE=d\nPGUSER=orb_agent_ro\n' "$(( $(date +%s) + 3600 ))" > "$SESS"
-printf 'h:5432:d:orb_agent_ro:pw\n' > "$SCRATCH/secrets/orb-agent/session.pgpass"
+printf '\n== 6. Input validation (checked before the database is reached) ==\n'
+# A well-formed credential, so validation is what rejects these — not a
+# missing credential. The host is unroutable, so nothing can connect anyway.
+printf 'h:5432:d:orb_agent_ro:pw\n' > "$CRED"
+chmod 600 "$CRED"
 
 check_fails "'$BROKER' todos get 'ORB-1; DROP TABLE todos'" "SQL metacharacters in a todo ref rejected"
 check_fails "'$BROKER' todos get notaref"                   "malformed todo ref rejected"
@@ -136,29 +149,30 @@ check "/usr/bin/grep -q 'vars\[@\]+' '$HERE/orb-agent'" \
   "run_sql uses the \${arr[@]+...} guard for a possibly-empty array"
 check "bash --posix -n '$HERE/orb-agent'" "orb-agent parses under stricter mode"
 
-printf '\n== 9. Session credentials genuinely expire (option C) ==\n'
-check "/usr/bin/grep -q 'VALID UNTIL' '$HERE/orb-agent-session'" \
-  "expiry is stamped server-side with VALID UNTIL, not just a local file"
-check "/usr/bin/grep -q 'openssl rand -hex 32' '$HERE/orb-agent-session'" \
-  "each window mints a fresh 256-bit password"
-check "/usr/bin/grep -q -- '--file -' '$HERE/orb-agent-session'" \
-  "the ALTER ROLE statement goes via stdin, never argv (it carries the password)"
-check "/usr/bin/grep -q 'readonly AGENT_ROLE=\"orb_agent_ro\"' '$HERE/orb-agent-session'" \
-  "the agent role is a fixed constant — a privileged role cannot be substituted"
-check "/usr/bin/grep -q 'trap cleanup EXIT' '$HERE/orb-agent-session'" \
-  "the temporary master pgpass file is removed on every exit path"
-check "/usr/bin/grep -q 'did not authenticate' '$HERE/orb-agent-session'" \
-  "a session is not reported open until the new credential is proven to work"
-check "/usr/bin/grep -q 'revocation FAILED' '$HERE/orb-agent-session'" \
-  "--end fails loudly if the rotation did not take"
-check "/usr/bin/grep -q 'pg_terminate_backend' '$HERE/orb-agent-session'" \
-  "revocation terminates live backends (VALID UNTIL only gates new logins)"
-check "/usr/bin/grep -q 'terminate_role_sessions' '$HERE/orb-agent-session'" \
-  "termination runs on BOTH mint and --end"
-check_fails "/usr/bin/grep -q 'Expiry:  enforced by PostgreSQL (VALID UNTIL), not by a local file' '$HERE/orb-agent-session'" \
-  "the overstated 'enforced by PostgreSQL' expiry claim is gone"
-check_fails "/usr/bin/grep -q 'orb-agent-seal' '$HERE/orb-agent-session'" \
-  "the obsolete seal step is gone (the DSN is derived from DATABASE_URL)"
+printf '\n== 9. The session mechanism is gone (ORB-382) ==\n'
+# These are ABSENCE checks. A grep proves absence of a string, which is exactly
+# what is claimed here — no more. It is not evidence about database behaviour.
+check "[[ ! -e '$HERE/orb-agent-session' ]]" \
+  "orb-agent-session no longer exists in the repository"
+check_fails "/usr/bin/grep -q 'orb-agent-session' '$HERE/orb-agent'" \
+  "orb-agent no longer refers agents to a session launcher"
+check_fails "/usr/bin/grep -q 'SESSION_FILE' '$HERE/orb-agent'" \
+  "the session file constant is gone"
+check_fails "/usr/bin/grep -q 'require_session' '$HERE/orb-agent'" \
+  "require_session is gone"
+check_fails "/usr/bin/grep -qE 'EXPIRES|SESSION_EXPIRES' '$HERE/orb-agent'" \
+  "the local expiry check is gone (it was never a control an attacker faced)"
+check "/usr/bin/grep -q 'require_credential' '$HERE/orb-agent'" \
+  "require_credential replaces it"
+check "/usr/bin/grep -q 'credential.pgpass' '$HERE/orb-agent'" \
+  "the credential is a single standard pgpass file"
+check_fails "/usr/bin/grep -q 'VALID UNTIL' '$HERE/orb-agent'" \
+  "no VALID UNTIL claim survives in the broker"
+
+# The boundary this file CANNOT test. Stated so the total is never mistaken
+# for evidence about the database.
+printf '  note  revocation (NOLOGIN) and the SELECT-only boundary are DB-side;\n'
+printf '        only scripts/migrations/verify-orb-agent-ro.sql proves those.\n'
 
 printf '\n== 9b. Approval validates at APPLY time, not just creation ==\n'
 check "/usr/bin/grep -q 'validate_proposal' '$HERE/orb-agent-approve'" \

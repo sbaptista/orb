@@ -95,8 +95,10 @@ the CLI. Agent-originated mutations reach Orb only through the human-run
 from the live record, and requires a typed confirmation.
 
 **Not covered by this surface:** any object an agent must still receive by
-manual clipboard transfer, and any write. When no session is open the broker has
-no capability whatsoever.
+manual clipboard transfer, and any write. When the standing credential is not
+installed, or the role has been set `NOLOGIN`, the broker has no capability
+whatsoever. (Time-boxed sessions were removed in ORB-382; revocation is now an
+explicit `NOLOGIN`, not an expiry.)
 
 ---
 

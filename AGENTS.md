@@ -53,7 +53,7 @@ Agents read Orb data through `orb-agent`, a read-only capability broker.
 Plan and rationale: `docs/agent-capability-broker-plan.md`.
 
 The broker holds no credential of its own. It uses a SELECT-only `orb_agent_ro`
-database role through a time-boxed session that **Stan** opens. Read-only is
+database role through a standing credential that **Stan** installs. Read-only is
 enforced by database grants and RLS, not by the CLI.
 
 ```bash
@@ -81,12 +81,14 @@ Add `--json` to any read verb for machine-readable output. Full verb list:
 
 **Rules for agents:**
 
-- If the broker says there is no active session, **ask Stan to run
-  `orb-agent-session --hours 8`**. Do not attempt to unlock any store yourself.
-  `orb-agent-session`, `orb-agent-approve`, `orb-secrets-*`, and `orb-dev` are
+- **There is no session to open.** Since ORB-382 the broker uses a standing
+  SELECT-only credential; time-boxed windows were removed because the expiry
+  never worked as described (see F18) while costing a master-passphrase entry
+  each time one was opened. If `orb-agent status` reports the credential as
+  NOT INSTALLED or REFUSED, say so and ask Stan — do not attempt to unlock any
+  store yourself. `orb-agent-approve`, `orb-secrets-*`, and `orb-dev` are
   human-only and are denied to Claude Code in `.claude/settings.json`.
-  A session mints a fresh database password with a server-side `VALID UNTIL`,
-  so an expired window is refused by PostgreSQL itself, not merely by the CLI.
+  Stan revokes agent access at any time by setting the role NOLOGIN.
 - **The broker cannot write.** To close a todo, record a proposal and hand the
   id to Stan:
 
@@ -99,15 +101,17 @@ Add `--json` to any read verb for machine-readable output. Full verb list:
   manual mode.
 - Resolution notes and Knowledge content must still begin with
   `YYYY-MM-DD — Tool (Model)`; the broker rejects a proposal that does not.
-- The task-start Knowledge search is **restored** whenever a session is active.
-  Use `orb-agent knowledge search`. When no session is active, say so rather
-  than implying the repository was checked.
+- The task-start Knowledge search is **expected** whenever the credential is
+  installed. Use `orb-agent knowledge search`. If the broker reports the
+  credential missing or refused, say so plainly rather than implying the
+  repository was checked.
 - Every broker call is logged, redacted, to
   `/Users/stanleybaptista/Project-secrets/orb-agent/audit.log`.
 
 ### Manual Clipboard Protocol (fallback)
 
-Use this when no broker session is available and Stan does not want to open one.
+Use this when the broker credential is not installed or is refused, and Stan
+does not want to reinstate it.
 
 The encrypted environment is available to the human-unlocked development
 server, not to Codex or Claude shells. Until Stan explicitly replaces this
@@ -153,7 +157,7 @@ The Knowledge Repo stores distilled lessons, decisions, and resolution notes acr
 - **API URL:** `https://livwkbnkdlrbmzgythys.supabase.co`
 - **Agent access:** `orb-agent knowledge search` / `orb-agent knowledge get` (read-only). `SUPABASE_SECRET_KEY` lives only in the encrypted master store; it is **not** in `.env.local` (that file no longer exists) and is never available to an agent shell.
 - **Rule:** Do not construct `curl` calls that expand a secret from a file. Use the broker, or ask Stan.
-- **When the broker has no session:** say so plainly and provide the exact fallback content Stan can run or paste manually. Do not attempt a direct Supabase, `psql`, or Orb API call to work around a missing session, and do not ask Stan to decrypt or expose credentials.
+- **When the broker credential is missing or refused:** say so plainly and provide the exact fallback content Stan can run or paste manually. Do not attempt a direct Supabase, `psql`, or Orb API call to work around it, and do not ask Stan to decrypt or expose credentials.
 - **Schema:** Columns are `id`, `product_id`, `origin_todo_id`, `title`, `content`, `tags` (text[]), `created_at`, `updated_at`. There is no `project_id` column — use `product_id`.
 
 **Database table names:**

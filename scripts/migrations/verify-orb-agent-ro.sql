@@ -53,14 +53,25 @@ BEGIN
     ('A', 'no replication',    'false', CASE WHEN NOT r.rolreplication THEN 'PASS' ELSE 'FAIL' END, r.rolreplication::text),
     ('A', 'cannot bypass RLS', 'false', CASE WHEN NOT r.rolbypassrls   THEN 'PASS' ELSE 'FAIL' END, r.rolbypassrls::text),
     ('A', 'has a password set','true',  CASE WHEN r.rolpassword IS NOT NULL THEN 'PASS' ELSE 'FAIL' END,
-       CASE WHEN r.rolpassword IS NOT NULL THEN 'set' ELSE 'NOT SET — open a session' END),
-    ('A', 'server-side expiry is stamped', 'VALID UNTIL set',
-       CASE WHEN r.rolvaliduntil IS NOT NULL THEN 'PASS' ELSE 'FAIL' END,
-       CASE WHEN r.rolvaliduntil IS NULL
-            THEN 'no VALID UNTIL — the credential never expires server-side. Open a session with orb-agent-session.'
+       CASE WHEN r.rolpassword IS NOT NULL THEN 'set'
+            ELSE 'NOT SET — set one with \\password orb_agent_ro' END),
+    -- ORB-382: this assertion is INVERTED from its original form. It used to
+    -- require VALID UNTIL to be set, because a time-boxed window stamped one on
+    -- every mint. Windows are gone: the credential is standing, so a stamped
+    -- expiry now means a stale value left over from the old scheme, which will
+    -- silently start refusing logins at a date nobody is tracking.
+    --
+    -- Revocation is deliberate and explicit now: set the role NOLOGIN, which
+    -- the 'can log in' check above reports directly.
+    ('A', 'no leftover expiry stamp', 'VALID UNTIL unset',
+       CASE WHEN r.rolvaliduntil IS NULL OR r.rolvaliduntil = 'infinity' THEN 'PASS' ELSE 'FAIL' END,
+       CASE WHEN r.rolvaliduntil IS NULL OR r.rolvaliduntil = 'infinity'
+            THEN 'standing credential, no expiry stamp'
             WHEN r.rolvaliduntil > now()
-            THEN 'active window, expires ' || r.rolvaliduntil::text
-            ELSE 'expired at ' || r.rolvaliduntil::text || ' — database is refusing logins (correct when no window is open)' END);
+            THEN 'STALE window from the old scheme — logins will start failing at '
+                 || r.rolvaliduntil::text || '. Clear it: ALTER ROLE orb_agent_ro VALID UNTIL ''infinity'';'
+            ELSE 'EXPIRED stamp from the old scheme at ' || r.rolvaliduntil::text
+                 || ' — the database is already refusing logins. Clear it: ALTER ROLE orb_agent_ro VALID UNTIL ''infinity'';' END);
 
   -- Only pg_read_all_stats is an acceptable membership.
   SELECT coalesce(string_agg(g.rolname, ', ' ORDER BY g.rolname), '(none)') INTO memberships

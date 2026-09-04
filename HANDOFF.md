@@ -13,14 +13,17 @@
 ## App State
 
 - **Branch:** `main`.
-- **Unpushed:** v0.6.298 is implemented but **not yet committed**. Nothing is
-  pushed; no production deploy has occurred.
+- **Unpushed:** v0.6.298, v0.6.299 and v0.6.300 are **committed and unpushed**;
+  v0.6.301 is this session's work. Nothing is pushed; no production deploy has
+  occurred. **A push therefore deploys four versions at once**, including
+  v0.6.299, whose headline feature this release removes.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.300** — Round 2 remediation: unauthenticated
-  exposure closed, identity forgery closed, revocation now terminates live
-  sessions. v0.6.298–0.6.300 are committed and **unpushed**.
+- **Local version:** **0.6.301** — ORB-382: time-boxed agent sessions removed;
+  `orb_agent_ro` moves to a standing credential with `NOLOGIN` revocation.
+  v0.6.298–0.6.300 are committed and **unpushed**; v0.6.301 is this session's
+  work.
 - **Production maintenance:** off.
 - **Database:** Stan applied
   `scripts/migrations/20260818_statement_import_catalog_models.sql` and
@@ -28,10 +31,22 @@
   `scripts/migrations/20260818_model_request_platform.sql` and reported
   “Success. No rows returned.” Historical request rows deliberately remain
   `unknown`; no production model promotion was made.
-- **Database — ACTION REQUIRED:** `scripts/migrations/20260819_orb_agent_ro_role.sql`
-  has **not** been applied. The broker cannot work until Stan applies it, sets
-  the role password with `\password orb_agent_ro`, and runs
-  `scripts/migrations/verify-orb-agent-ro.sql`.
+- **Database — DONE 2026-09-03.**
+  `scripts/migrations/20260903_orb_agent_ro_standing_credential.sql` is
+  **applied**; Stan set a standing password and installed the pgpass line.
+  Verifier returned **50 passed, 0 failed**. The role reports
+  `expiry_stamp infinity`, `can_log_in true`, `connection_limit 4`,
+  `bypasses_rls false`, `inherits false`.
+- **🟢 THE BROKER IS IN SERVICE.** The first successful end-to-end read in its
+  history happened 2026-09-03. **The pooler question is answered:** a custom role
+  *does* authenticate through Supabase's transaction pooler, as
+  `orb_agent_ro.<project-ref>` on `aws-1-us-west-1.pooler.supabase.com:6543`.
+  That had been the one untested step since 2026-08-19.
+- **ACTION REMAINING (Stan, requires sudo):** the installed launcher
+  `/usr/local/orb-bin/orb-agent-session` is root-owned and still on disk. It is
+  now not merely obsolete but **harmful** — running it would mint a new password
+  and silently break the standing credential. Remove it:
+  `sudo rm /usr/local/orb-bin/orb-agent-session`
 - **ORB-374:** still deferred overall, but its Phase 1 items 4 and 7 (narrow
   brokers; removing inline-secret instructions from both `AGENTS.md` files) are
   now implemented by the capability broker.
@@ -41,9 +56,34 @@
 
 ## Uncommitted Changes
 
+**ORB-382 — session removal (v0.6.301), all mine:**
+
+- `scripts/security/orb-agent-session` — **deleted**
+- `scripts/security/orb-agent` — `require_session` → `require_credential`;
+  reads one standard pgpass line and takes its connection fields from it;
+  `cmd_status` reports what the *database* says rather than what a local file
+  claims, and prints install instructions when the credential is absent
+- `scripts/security/test-orb-agent.sh` — session/expiry sections replaced with
+  malformed-credential, symlink and absence checks; **62/62 across three runs**
+- `scripts/migrations/20260903_orb_agent_ro_standing_credential.sql` — new;
+  clears the expiry stamp and restates the role's intended attributes
+- `scripts/migrations/verify-orb-agent-ro.sql` — the section A expiry assertion
+  is **inverted**: a stamp is now a finding, not a requirement
+- `.claude/settings.json` — the four `orb-agent-session` deny rules removed
+- `AGENTS.md` and `/Users/stanleybaptista/Projects/shared/AGENTS.md` — broker
+  rules rewritten; agents no longer ask Stan to open a window
+- `docs/agent-capability-broker-plan.md` — Layer 3 rewritten; option C retained
+  below it as the superseded evidence trail
+- `docs/agent-castle-threat-model.md` — gates table no longer lists the session
+- `docs/agent-enforcement-hardening.md` — new §14 disposition; §4 reading list
+  corrected. Rounds 1–3 and the F18 record are untouched
+- `docs/object-capability-matrix.md` — broker note updated
+- `package.json`, `lib/version.ts`, `lib/changelog.ts` — v0.6.301
+
+**Not mine — exclude from any commit:**
+
 - `docs/orb-381-model-cost-comparison-plan.md` remains a pre-existing untracked
-  ORB-381 planning file under Codex's separate claim. Not mine; exclude it from
-  any commit.
+  ORB-381 planning file under Codex's separate claim.
 
 **Applied to the database (not represented by git state):**
 `20260819_orb_agent_ro_role.sql`, `20260819b_orb_agent_ro_routine_privileges.sql`,
@@ -55,6 +95,98 @@ is closed in production regardless of whether these commits are pushed.
 ---
 
 ## Last Session Completed
+
+**ORB-382 — removed time-boxed agent sessions — 2026-09-03 (Claude Code, Opus 5)**
+
+Released locally as **v0.6.301**. Stan's judgement, after reviewing the complete
+functionality of both `orb-dev` and `orb-agent`: the session ceremony was
+obstacle rather than protection. `orb-agent-session` is deleted;
+`orb_agent_ro` moves to a standing credential.
+
+**Why it went, in order of weight.** (1) The window was never the boundary —
+Layer 1 is SELECT on eight tables with no write grant anywhere, and the broker's
+own header always said so. (2) Its expiry did not behave as described: F18
+established that the server-side stamp gates logins only, natural expiry fires
+no event, and a held connection survived to the next mint or explicit `--end`.
+(3) It was the only read path that unlocked the master store, so every window
+spent a master-passphrase entry — the F8 exposure the castle model ranks
+highest. The control consumed the asset it existed to protect.
+
+**Design.** One standard pgpass line, mode 600, carrying host/port/db/user as
+well as the password, so there is no second file to drift. The password still
+reaches psql only through `PGPASSFILE`. `cmd_status` now reports what the
+*database* says — it attempts a real `SELECT 1` — rather than trusting a local
+file's claim, and prints the exact install command when the credential is
+absent. Revocation is `ALTER ROLE orb_agent_ro NOLOGIN;`.
+
+**Documented rather than glossed:** `NOLOGIN` is an authentication-time check
+exactly like `VALID UNTIL`. It stops new connections and does **not** sever an
+open one; cutting off a live session needs a `pg_terminate_backend` sweep as
+well. That distinction is written into the migration, the plan, and §14 of the
+hardening doc, because the previous design's central claim failed on precisely
+this point and the same mistake was available again.
+
+**Accepted cost.** A leaked standing credential stays valid until revoked or
+rotated, with no automatic bound. This is a real reduction in defence-in-depth,
+taken deliberately.
+
+**Two bugs I introduced and caught by running things:** `cmd_status` initially
+called `require_credential` inside an `if` with stderr suppressed — but `fail`
+calls `exit`, so a bad-permissions file would have exited silently showing the
+user nothing. And the suite's `status | grep -q` checks failed spuriously under
+`set -o pipefail`: `grep -q` exits on first match and closes the pipe, so the
+broker's remaining output takes SIGPIPE and the pipeline reports failure. The
+second one only surfaced because the suite was actually run rather than assumed
+green.
+
+**Verification — what was and was not established.** Offline suite **62/62
+across three runs**; `npx tsc --noEmit` clean; launcher helper test passes;
+`orb-agent status` exercised directly against a scratch root. The session
+section was replaced with *absence* checks, and they are labelled in the file as
+proving only that a string is gone. **The database side is unproven.** Neither
+`NOLOGIN` revocation nor the SELECT-only boundary is tested by any of the above
+— that needs the migration applied plus
+`scripts/migrations/verify-orb-agent-ro.sql`, and the broker has still never
+completed a single end-to-end live read.
+
+**Eval:** not applicable — no Orb-conversation capability, tool, routing rule,
+prompt, or defined speech behavior changed.
+
+**Live verification, all run by Stan or against the live database this session:**
+
+| Test | Result |
+|---|---|
+| Offline suite | 62/62, three runs |
+| `npx tsc --noEmit` | clean |
+| Boundary verifier | **50 passed, 0 failed** with the inverted expiry assertion |
+| Live reads — status, todos list, todos get, knowledge search, db health | all pass |
+| `NOLOGIN` revocation | read refused, `FATAL`, exit 2; `status` reported REFUSED |
+| `LOGIN` restoration | reads returned, exit 0 |
+
+**Three defects found by running things rather than assuming.** `cmd_status`
+called a function that `exit`s on failure from inside an `if` with stderr
+suppressed — a bad-permissions credential file would have shown the user
+nothing. The suite's `status | grep -q` checks failed spuriously under
+`set -o pipefail`, because `grep -q` closes the pipe on first match and the
+writer takes SIGPIPE. And the migration's attribute-restating line was refused
+by Supabase (see below); it was a no-op nicety and was deleted.
+
+**Supabase gotcha worth remembering.** `ALTER ROLE ... NOSUPERUSER` requires
+superuser **even to set it off**, and Supabase's `postgres` is not one. Note the
+asymmetry: `CREATE ROLE ... NOSUPERUSER` *is* permitted for a `CREATEROLE` role,
+which is why the original role migration applied cleanly while a later `ALTER`
+restating the same attributes did not. Assert attributes in the verifier, not by
+restating them in a migration.
+
+**Misleading error worth remembering.** Supavisor reports `NOLOGIN` as
+`FATAL: (EAUTHQUERY) user not found in the database`. The role exists and was
+readable seconds earlier; only `rolcanlogin` changed. Check
+`pg_roles.rolcanlogin` before believing that wording.
+
+**ORB-382 is closed.** Stan applied the resolution notes and the Knowledge entry
+on 2026-09-03 and confirmed both were saved.
+
+**Prior session:**
 
 **Round 2 remediation — 2026-08-20 (Claude Code, Opus 5)**
 
@@ -811,8 +943,11 @@ enter that surface.
 
 ## Next Priorities
 
-0. **Bring the agent capability broker into service (v0.6.298).** Nothing works
-   until these run, and the boundary is unproven until step (c) passes.
+0. **✅ COMPLETE 2026-09-03 (ORB-382, v0.6.301).** The broker is in service and
+   the boundary is verified 50/50. Steps (a)-(f) below are retained as the
+   historical record of how it was brought up; **none of them is outstanding.**
+   The only remaining action is the `sudo rm` of the obsolete installed
+   launcher, noted in App State above.
    Both SQL files are written for the **Supabase SQL Editor** (no psql
    meta-commands, no `DATABASE_URL` needed) and also run under psql:
    a. **DONE 2026-08-19.** All eight tables already had RLS enabled, so all
@@ -833,17 +968,19 @@ enter that surface.
       the original flow. Option C derives host, port, database, and the correct
       `<role>.<project-ref>` username from the master `DATABASE_URL`, so nothing
       is typed and the pooler form is handled automatically.
-   e. **NEXT ACTION — run `orb-agent-session --hours 8`.** It asks for the
-      **master** passphrase (only it can `ALTER ROLE`), mints a fresh password,
-      stamps `VALID UNTIL`, and self-tests the credential before reporting
-      success. Then ask Claude to run `orb-agent status`,
-      `orb-agent todos list --project ORB --status open`,
+   e. **SUPERSEDED by ORB-382 (v0.6.301) — there is no session to open.**
+      The sequence is now: apply
+      `scripts/migrations/20260903_orb_agent_ro_standing_credential.sql`, set a
+      standing password with `\password orb_agent_ro`, then install the pgpass
+      line (`orb-agent status` prints the exact format). Then ask Claude to run
+      `orb-agent status`, `orb-agent todos list --project ORB --status open`,
       `orb-agent knowledge search "<term>"`, and `orb-agent db health`.
-      This has **not** been run yet — option C is verified offline (56/56) but
-      has never touched the live database.
-   f. Then `orb-agent-session --end` and re-run
-      `scripts/migrations/verify-orb-agent-ro.sql`; the new section A row
-      "server-side expiry is stamped" should show an expiry in the past.
+      **Still never run against the live database** — the broker is verified
+      offline (62/62) and has never completed an end-to-end read.
+   f. Then confirm revocation: `ALTER ROLE orb_agent_ro NOLOGIN;` should make
+      the next read fail, and `LOGIN` should restore it. Re-run
+      `scripts/migrations/verify-orb-agent-ro.sql`; the section A row is now
+      "no leftover expiry stamp" and should PASS with no stamp set.
 1. **🔴 CODEX HAS NO PUSH GATE — TESTED AND CONFIRMED 2026-08-19. Highest
    priority.** Codex ran `git push --dry-run origin main` with **no approval
    prompt, exit 0**. `git ls-remote` independently confirmed the remote did not
@@ -1025,7 +1162,7 @@ enter that surface.
 
 ## AI Tool Used Last Session
 
-`2026-08-20 — Claude Code (Opus 5)`
+`2026-09-03 — Claude Code (Opus 5)`
 
 ---
 

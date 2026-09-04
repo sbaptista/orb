@@ -5,8 +5,9 @@
 # AGENT-RUNNABLE. Plan: docs/agent-capability-broker-plan.md (Layer 2)
 #
 # Holds no credential of its own. Reads execute against the SELECT-only
-# `orb_agent_ro` role through an unexpired session. Writes NEVER execute:
-# they serialise a proposal that only `orb-agent-approve` can apply.
+# `orb_agent_ro` role using a standing credential that only Stan can install.
+# Writes NEVER execute: they serialise a proposal that only
+# `orb-agent-approve` can apply.
 #
 # Read-only is enforced by the database (grants + RLS), not by this file.
 # The verb allowlist below is defence in depth, not the boundary.
@@ -17,8 +18,10 @@ umask 077
 
 readonly SECRET_ROOT="/Users/stanleybaptista/Project-secrets"
 readonly AGENT_DIR="$SECRET_ROOT/orb-agent"
-readonly SESSION_FILE="$AGENT_DIR/session"
-readonly PGPASS_FILE="$AGENT_DIR/session.pgpass"
+# Standard pgpass format, one line: host:port:dbname:user:password.
+# Connection fields are read from it directly, so there is no second file to
+# drift out of step with the credential.
+readonly PGPASS_FILE="$AGENT_DIR/credential.pgpass"
 readonly PROPOSAL_DIR="$AGENT_DIR/proposals"
 readonly AUDIT_FILE="$AGENT_DIR/audit.log"
 readonly PSQL="/opt/homebrew/opt/libpq/bin/psql"
@@ -53,49 +56,50 @@ orb-agent — read-only Orb data access for AI development agents
 Global:
   --json      emit JSON instead of an aligned table
 
-Reads require an unexpired session opened by Stan:
-  orb-agent-session --hours 8
+Reads use a standing SELECT-only credential installed by Stan. If it is
+missing, `orb-agent status` prints what to create. Stan revokes access at any
+time by setting the orb_agent_ro role NOLOGIN.
 
 Writes are never executed here. `propose` records a proposal; Stan applies
 it with `orb-agent-approve <id>`, which requires the master passphrase.
 USAGE
 }
 
-# ---------------------------------------------------------------- session
+# ------------------------------------------------------------- credential
 
-require_session() {
+# ORB-382: time-boxed windows were removed. PostgreSQL's role expiry stamp is
+# an authentication-time check, so it never terminated an established
+# connection, and natural expiry fired no event (F18). The local clock check
+# that used to live here was a cooperating agent declining to try — never a
+# control an attacker faced. The boundary is, and always was, the database:
+# SELECT on eight tables and nothing else.
+#
+# Revocation is now one statement Stan can run at any time:
+#   ALTER ROLE orb_agent_ro NOLOGIN;
+require_credential() {
   [[ -x "$PSQL" ]] || fail "psql is required at $PSQL"
-  [[ -f "$SESSION_FILE" ]] || fail "no active session. Ask Stan to run: orb-agent-session --hours 8"
-  [[ -f "$PGPASS_FILE" ]] || fail "session is incomplete. Ask Stan to run: orb-agent-session --hours 8"
+  [[ -f "$PGPASS_FILE" ]] || fail "no agent credential installed.
+Ask Stan to create $PGPASS_FILE — run 'orb-agent status' for the exact format."
 
-  # Expiry is checked FIRST so an expired credential is always removed,
-  # whatever else is wrong with it.
-  local expires="" now=""
-  expires="$(/usr/bin/awk -F= '$1=="EXPIRES"{print $2}' "$SESSION_FILE")"
-  now="$(/bin/date +%s)"
-  if [[ ! "$expires" =~ ^[0-9]+$ ]] || (( now >= expires )); then
-    /bin/rm -f "$SESSION_FILE" "$PGPASS_FILE"
-    audit "session expired or malformed; removed"
-    fail "session expired — the database is refusing this credential (VALID UNTIL has passed).
-Ask Stan to run: orb-agent-session --hours 8"
-  fi
-
-  # Then fail closed on loose permissions. psql only WARNS about a group-
-  # or world-readable password file and carries on; that is not good enough
-  # for a credential file. A missing control must refuse service.
-  [[ ! -L "$SESSION_FILE" && ! -L "$PGPASS_FILE" ]] || fail "session files must not be symlinks"
+  # Fail closed on loose permissions. psql only WARNS about a group- or
+  # world-readable password file and carries on; that is not good enough for a
+  # credential file. A missing control must refuse service.
+  [[ ! -L "$PGPASS_FILE" ]] || fail "the credential file must not be a symlink"
   [[ "$(/usr/bin/stat -f '%Lp' "$PGPASS_FILE")" == "600" ]] \
-    || fail "session credential file has unsafe permissions — ask Stan to reopen the session"
+    || fail "the credential file has unsafe permissions — it must be mode 600"
   [[ "$(/usr/bin/stat -f '%Su' "$PGPASS_FILE")" == "$(/usr/bin/id -un)" ]] \
-    || fail "session credential file is not owned by the current user"
+    || fail "the credential file is not owned by the current user"
 
-  PGHOST="$(/usr/bin/awk -F= '$1=="PGHOST"{print $2}' "$SESSION_FILE")"
-  PGPORT="$(/usr/bin/awk -F= '$1=="PGPORT"{print $2}' "$SESSION_FILE")"
-  PGDATABASE="$(/usr/bin/awk -F= '$1=="PGDATABASE"{print $2}' "$SESSION_FILE")"
-  PGUSER="$(/usr/bin/awk -F= '$1=="PGUSER"{print $2}' "$SESSION_FILE")"
-  SESSION_EXPIRES="$expires"
+  # Connection fields come from the pgpass line itself. The password is field 5
+  # and is deliberately NOT read here — psql reads it from PGPASSFILE, so it
+  # never enters argv or this shell's memory.
+  local line=""
+  line="$(/usr/bin/head -n 1 "$PGPASS_FILE")"
+  IFS=':' read -r PGHOST PGPORT PGDATABASE PGUSER _ <<< "$line"
+
   [[ -n "$PGHOST" && -n "$PGPORT" && -n "$PGDATABASE" && -n "$PGUSER" ]] \
-    || fail "session file is missing connection fields"
+    || fail "malformed credential file — expected host:port:dbname:user:password"
+  [[ "$PGPORT" =~ ^[0-9]{1,5}$ ]] || fail "malformed credential file — port is not numeric"
 }
 
 # Runs SQL as orb_agent_ro. The password comes from PGPASSFILE, so it
@@ -160,20 +164,45 @@ select_stmt() {
 # ---------------------------------------------------------------- verbs
 
 cmd_status() {
-  if [[ ! -f "$SESSION_FILE" ]]; then
-    printf 'session:  none — ask Stan to run `orb-agent-session --hours 8`\n'
+  local pending=""
+  pending="$(/usr/bin/find "$PROPOSAL_DIR" -name '*.json' 2>/dev/null | /usr/bin/wc -l | /usr/bin/tr -d ' ')"
+
+  if [[ ! -f "$PGPASS_FILE" ]]; then
+    printf 'credential: NOT INSTALLED\n'
+    printf 'proposals pending: %s\n\n' "$pending"
+    cat <<INSTALL
+Stan installs it as a single pgpass line, mode 600:
+
+  umask 077
+  printf '%s:%s:%s:%s:%s\n' \\
+    <pooler-host> <port> postgres orb_agent_ro.<project-ref> <password> \\
+    > $PGPASS_FILE
+  chmod 600 $PGPASS_FILE
+
+Host, port and project-ref come from DATABASE_URL. Set the password in the
+Supabase SQL editor with:  \\password orb_agent_ro
+INSTALL
     return 0
   fi
-  local expires now
-  expires="$(/usr/bin/awk -F= '$1=="EXPIRES"{print $2}' "$SESSION_FILE")"
-  now="$(/bin/date +%s)"
-  if [[ ! "$expires" =~ ^[0-9]+$ ]] || (( now >= expires )); then
-    printf 'session:  expired\n'
-    return 0
+
+  # Permission and format problems are refused loudly here, exactly as they are
+  # for a read verb. Reporting them as "refused by the database" would name the
+  # wrong cause.
+  require_credential
+
+  # Report what the database says, not what the local file claims. A file that
+  # exists proves nothing about whether the role can still log in.
+  if PGPASSFILE="$PGPASS_FILE" PGCONNECT_TIMEOUT=10 "$PSQL" \
+       --host "$PGHOST" --port "$PGPORT" --username "$PGUSER" --dbname "$PGDATABASE" \
+       --no-password --quiet --no-psqlrc --tuples-only --command 'SELECT 1;' >/dev/null 2>&1; then
+    printf 'credential: installed and ACCEPTED by the database\n'
+    printf 'role:       %s (SELECT only)\n' "$PGUSER"
+  else
+    printf 'credential: installed but REFUSED by the database\n'
+    printf 'The role may have been revoked (set NOLOGIN), the password rotated,\n'
+    printf 'or the host may be unreachable.\n'
   fi
-  printf 'session:  active, %d minute(s) remaining\n' "$(( (expires - now) / 60 ))"
-  printf 'role:     %s (SELECT only)\n' "$(/usr/bin/awk -F= '$1=="PGUSER"{print $2}' "$SESSION_FILE")"
-  printf 'proposals pending: %s\n' "$(/usr/bin/find "$PROPOSAL_DIR" -name '*.json' 2>/dev/null | /usr/bin/wc -l | /usr/bin/tr -d ' ')"
+  printf 'proposals pending: %s\n' "$pending"
 }
 
 cmd_todos_list() {
@@ -484,27 +513,27 @@ main() {
       [[ $# -ge 1 ]] || fail "usage: orb-agent todos list|get"
       local sub="$1"; shift
       case "$sub" in
-        list) require_session; cmd_todos_list "$@" ;;
-        get)  require_session; cmd_todos_get "$@" ;;
+        list) require_credential; cmd_todos_list "$@" ;;
+        get)  require_credential; cmd_todos_get "$@" ;;
         *) fail "unknown todos verb: $sub" ;;
       esac ;;
     projects)
       [[ $# -ge 1 && "$1" == "list" ]] || fail "usage: orb-agent projects list"
-      shift; require_session; cmd_projects_list "$@" ;;
+      shift; require_credential; cmd_projects_list "$@" ;;
     tickets)
       [[ $# -ge 1 && "$1" == "list" ]] || fail "usage: orb-agent tickets list"
-      shift; require_session; cmd_tickets_list "$@" ;;
+      shift; require_credential; cmd_tickets_list "$@" ;;
     knowledge)
       [[ $# -ge 1 ]] || fail "usage: orb-agent knowledge search|get"
       local ksub="$1"; shift
       case "$ksub" in
-        search) require_session; cmd_knowledge_search "$@" ;;
-        get)    require_session; cmd_knowledge_get "$@" ;;
+        search) require_credential; cmd_knowledge_search "$@" ;;
+        get)    require_credential; cmd_knowledge_get "$@" ;;
         *) fail "unknown knowledge verb: $ksub" ;;
       esac ;;
     db)
       [[ $# -ge 1 && "$1" == "health" ]] || fail "usage: orb-agent db health"
-      shift; require_session; cmd_db_health "$@" ;;
+      shift; require_credential; cmd_db_health "$@" ;;
     propose)   cmd_propose "$@" ;;
     proposals)
       [[ $# -ge 1 ]] || fail "usage: orb-agent proposals list|show"
