@@ -425,14 +425,51 @@ store and is never available in an agent shell. Do not construct commands that
 read it from `.env.local` — that file no longer exists, and `orb-dev` refuses to
 start while it does.
 
-When an agent needs a migration applied, it writes the `.sql` file under
-`scripts/migrations/` and gives Stan the command to run:
+**`$DATABASE_URL` is not set in Stan's shell either.** It exists only inside
+`orb.env.enc`, and `orb-dev` allowlists six commands, none of which is `psql`.
+An agent that hands Stan `psql "$DATABASE_URL" -f ...` has handed him a command
+that expands to an empty connection string and fails confusingly. This
+instruction previously did exactly that; corrected 2026-09-03 after it wasted a
+round trip.
+
+When an agent needs SQL applied, it writes the `.sql` file under
+`scripts/migrations/` and offers Stan **one of the two paths that actually
+work.**
+
+**Path A — Supabase SQL Editor (default).** Write the file so it can be pasted
+whole: no psql meta-commands (`\password`, `\d`), no `BEGIN`/`COMMIT`, and a
+closing `SELECT` so the result is visible rather than "No rows returned". This
+needs no credential in any shell. It is the right default for DDL, grants,
+policies and role attributes.
+
+Its limits, which decide when to use Path B:
+- psql meta-commands do not exist there. `\password role` must become
+  `ALTER ROLE role WITH PASSWORD '...'`, which puts the secret in the editor's
+  retained query history — clear it afterwards.
+- Statements that cannot run inside a transaction block (`VACUUM`, `ANALYZE`,
+  `CREATE INDEX CONCURRENTLY`, `ALTER TYPE ... ADD VALUE` in older versions)
+  will fail there.
+
+**Path B — psql, with the DSN pulled from the encrypted store.** For the cases
+Path A cannot do. Stan runs this; it prompts for the master passphrase and keeps
+the DSN inside the subshell rather than exporting or printing it:
 
 ```bash
-/opt/homebrew/opt/libpq/bin/psql "$DATABASE_URL" -f scripts/migrations/whatever.sql
+( export DATABASE_URL="$(/opt/homebrew/bin/openssl enc -d -aes-256-cbc -pbkdf2 -iter 210000 -in /Users/stanleybaptista/Project-secrets/orb-secrets/orb.env.enc | grep '^DATABASE_URL=' | cut -d= -f2-)" && /opt/homebrew/opt/libpq/bin/psql "$DATABASE_URL" -f scripts/migrations/whatever.sql )
 ```
 
-Agents read database state with `orb-agent db health` instead.
+Swap `-f <file>` for `-c '<statement>'` for a one-off, including psql
+meta-commands such as `-c '\password orb_agent_ro'` — which is better than the
+editor for a password, because it never enters a query history at all.
+
+**Agents must not run Path B, and must not ask Stan to paste the DSN back.**
+Note that Path B costs one master-passphrase entry; prefer Path A when it can do
+the job. Agents read database state with `orb-agent db health` instead.
+
+**Shell note:** Stan's shell is **zsh**. `read -p 'prompt'` is a bash-ism — in
+zsh `-p` means "read from coprocess" and fails with `read: -p: no coprocess`.
+Use `printf` for the prompt with `read -rs VAR`, or have Python prompt via
+`getpass.getpass()`, which works under either shell.
 
 ---
 
@@ -576,8 +613,19 @@ against the read-only role.
 **Flags:**
 
 - any user table with `seq_tup_read` > 100k and low `idx_scan` needs an index;
-- `dead_pct` > 20% on any table → ask Stan to run
-  `VACUUM ANALYZE public.<table>;` (outside a transaction block);
+- `dead_pct` > 20% **and** `n_dead_tup` > 1000, **in schema `public` only** →
+  ask Stan to run `scripts/maintenance/vacuum-bloated-tables.sql` through psql
+  (Path B above — `VACUUM` cannot run inside a transaction block, so the
+  Supabase editor will refuse it).
+  **The absolute floor and the schema scope both matter.** `dead_pct` is a
+  ratio, so a table with 3 live rows and 50 dead reads as 1666% while holding
+  kilobytes; PostgreSQL's own autovacuum trigger is `50 + 0.2 * n_live_tup`, so
+  a small low-churn table with an empty `last_autovacuum` is usually behaving
+  correctly rather than being neglected. And `auth.*` is owned by
+  `supabase_auth_admin` — it is Supabase's to vacuum, not ours. Before
+  2026-09-03 the report printed bare `relname`, which made `public.users` and
+  `auth.users` indistinguishable and produced an over-stated finding; it is now
+  schema-qualified;
 - any query with `cache_hit_pct` < 95% or dominating `disk_blks`;
 - **any** row from the RLS initplan check = a policy evaluating `auth.uid()`
   per row; rewrite it with `(SELECT auth.uid())`.

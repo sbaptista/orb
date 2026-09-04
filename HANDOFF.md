@@ -21,9 +21,10 @@
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.301** — ORB-382: time-boxed agent sessions removed;
-  `orb_agent_ro` moves to a standing credential with `NOLOGIN` revocation.
-  Pushed and live.
+- **Local version:** **0.6.302** — post-ORB-382 loose ends: psql/`DATABASE_URL`
+  instructions corrected, `db health` schema-qualified with an absolute bloat
+  floor, `shared/` put under version control. **v0.6.302 is committed and
+  NOT pushed.** v0.6.298–0.6.301 are pushed and live.
 - **Production maintenance:** off.
 - **Database:** Stan applied
   `scripts/migrations/20260818_statement_import_catalog_models.sql` and
@@ -55,8 +56,39 @@
 
 ## Uncommitted Changes
 
-**None from ORB-382** — everything below shipped in `630c271` (v0.6.301) and is
-pushed. Retained as the record of what that release contained.
+**None.** v0.6.302 is committed and awaiting a push decision; v0.6.301 and
+earlier are pushed and live.
+
+**v0.6.302 — post-ORB-382 loose ends (committed, unpushed):**
+
+- `AGENTS.md` — the "Direct SQL Access (psql)" section told agents to hand Stan
+  `psql "$DATABASE_URL" -f ...`, but that variable is set in **no shell**: it
+  lives only in `orb.env.enc`, and `orb-dev` allowlists six commands, none of
+  them psql. Every agent following it produced a command that expanded to an
+  empty connection string. Now documents Path A (Supabase editor, with its real
+  limits) and Path B (psql with the DSN pulled into a subshell), plus a note
+  that the shell is **zsh**, where `read -p` is a bash-ism that fails outright.
+- `scripts/security/orb-agent` — `db health` now prints `schemaname`. It reads
+  across every non-system schema, so `public.users` and `auth.users` were two
+  indistinguishable rows; that ambiguity produced an over-stated bloat finding
+  on 2026-09-03 in which four of five flagged tables were `auth.*`.
+- `AGENTS.md` — the bloat rule gains an absolute floor (`n_dead_tup > 1000`)
+  and a `public`-only scope. Percentage alone flags a 3-live/50-dead table at
+  1666% over a few kilobytes, and autovacuum's own trigger
+  (`50 + 0.2 * n_live_tup`) means a small low-churn table with an empty
+  `last_autovacuum` is usually correct, not neglected.
+- `scripts/maintenance/vacuum-bloated-tables.sql` — new. Discovery query
+  reporting absolute *and* relative bloat, the three qualifying public tables,
+  and a verification query. Must run via psql; `VACUUM` cannot run in a
+  transaction block.
+
+**Outside this repository:** `/Users/stanleybaptista/Projects/shared` is now a
+git repository (`02b0f46`) — it governs conventions and the push gate for every
+project in `~/Projects` and was carried by nothing at all. **No remote is
+configured**; adding one is Stan's call, since the file names credential
+variables and internal paths.
+
+**Retained below** as the record of what v0.6.301 contained.
 
 **ORB-382 — session removal (v0.6.301), all mine:**
 
@@ -187,6 +219,20 @@ readable seconds earlier; only `rolcanlogin` changed. Check
 
 **ORB-382 is closed.** Stan applied the resolution notes and the Knowledge entry
 on 2026-09-03 and confirmed both were saved.
+
+**Loose ends closed afterwards, as v0.6.302** — see Uncommitted Changes above
+for detail. Three fixes: the psql/`DATABASE_URL` instructions that handed every
+agent a command expanding to an empty connection string; `db health` printing
+bare table names across multiple schemas, which over-stated a bloat finding
+(four of five flagged tables were `auth.*`, Supabase's to vacuum, not ours);
+and `shared/AGENTS.md` — which governs the push gate for every project in
+`~/Projects` — being under no version control whatsoever.
+
+**The bloat finding, corrected.** Only three `public` tables exceed the ratio,
+holding 47, 35 and 29 dead rows respectively. That is kilobytes.
+`orb_eval_runs` has never auto-vacuumed because it has not reached its trigger
+of 56 dead rows, which is correct behaviour rather than neglect. The actionable
+defect was the alarm rule, not the tables.
 
 **Prior session:**
 

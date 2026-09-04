@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.302',
+    date: '2026-09-03',
+    changes: [
+      'Corrected the documented process for applying SQL by hand, which told agents to hand over a psql command referencing a connection string that is not set in any shell — it exists only inside the encrypted store. Anyone following the instruction received a command that expanded to an empty connection string and failed confusingly. The two paths that actually work are now written out: the Supabase SQL editor as the default, with its real limits named, and psql with the connection string pulled from the encrypted store inside a subshell for the cases the editor cannot handle.',
+      'Made the database health report name the schema of every table it lists. It previously printed bare table names while reading across every non-system schema, so the application\'s own users table and the authentication system\'s users table appeared as two indistinguishable rows. That ambiguity turned a routine bloat check into an over-stated finding: four of the five worst-looking tables belonged to the managed authentication schema and were never ours to act on.',
+      'Added an absolute floor to the dead-row bloat rule, which previously flagged on percentage alone. Percentage is a ratio, so a table holding three live rows and fifty dead ones reported over 1600% while wasting kilobytes, and a small low-churn table that has never been auto-vacuumed is usually behaving correctly rather than being neglected. The rule now requires both a high ratio and a meaningful number of dead rows, and applies only to schemas this project owns.',
+      'Added a dead-row maintenance script covering the three application tables that qualify, with a discovery query that reports current bloat in absolute as well as relative terms and emits the exact statements to run. It documents why it cannot run in the Supabase editor and why the non-blocking form is the right one for a live database.',
+      'Recorded that the shell in use is zsh, where the prompt flag for reading input is a bash-only spelling that fails outright. Internal developer tooling and documentation: no application route, component, or user-facing behavior changed. Eval: not applicable — no Orb-conversation capability, tool, routing rule, prompt, or defined speech behavior changed.',
+    ],
+  },
+  {
     version: 'v0.6.301',
     date: '2026-09-03',
     changes: [

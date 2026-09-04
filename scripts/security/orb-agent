@@ -332,13 +332,21 @@ cmd_db_health() {
   (( $# == 0 )) || fail "'db health' takes no options"
 
   printf '\n=== Sequential scan audit (flag: seq_tup_read > 100k with low idx_scan) ===\n'
-  run_sql "SELECT relname AS table_name, seq_scan, seq_tup_read, idx_scan,
+  # schemaname is NOT optional here: pg_stat_user_tables spans every non-system
+  # schema, and this project has both public.users and auth.users. Printing bare
+  # relname made two different tables indistinguishable in the output, which is
+  # exactly the ambiguity that blocked acting on a bloat finding on 2026-09-03.
+  run_sql "SELECT schemaname AS schema, relname AS table_name, seq_scan, seq_tup_read, idx_scan,
     CASE WHEN seq_scan = 0 THEN NULL ELSE round(seq_tup_read::numeric / seq_scan, 0) END AS avg_rows_per_scan
     FROM pg_stat_user_tables WHERE seq_scan > 0
     ORDER BY seq_tup_read DESC LIMIT 15;" || printf '(unavailable — role lacks stats access)\n'
 
   printf '\n=== Dead row bloat (flag: dead_pct > 20%%) ===\n'
-  run_sql "SELECT relname, n_live_tup, n_dead_tup,
+  printf 'dead_pct is dead/live, matching what autovacuum itself thresholds on,\n'
+  printf 'so values above 100%% are normal on a small table and are not an error.\n'
+  printf 'Only rows in schema "public" are yours to VACUUM; auth.* is owned by\n'
+  printf 'supabase_auth_admin and Supabase vacuums it.\n\n'
+  run_sql "SELECT schemaname AS schema, relname, n_live_tup, n_dead_tup,
     CASE WHEN n_live_tup = 0 THEN NULL ELSE round(100.0 * n_dead_tup / n_live_tup, 1) END AS dead_pct,
     last_autovacuum, last_vacuum
     FROM pg_stat_user_tables ORDER BY n_dead_tup DESC LIMIT 10;" || printf '(unavailable — role lacks stats access)\n'
