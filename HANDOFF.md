@@ -3,17 +3,12 @@
 > **Audience: the next AI tool. Not Stan — he does not read this file.**
 > It exists so one AI tool can bring the next one up to speed on the state of
 > development. Write for a cold parser: current facts an agent can act on, no
-> narrative, no justification, no persuasion.
+> narrative. Every AI reads this in full at session start, so **length is a
+> direct cost**.
 >
-> Every AI reads this in full at session start, so **length is a direct cost**.
-> Every AI updates it at session end. Committed with each session's code changes.
->
-> **History policy:** keep only current, load-bearing context. Durable lessons
-> belong in the Knowledge Repository; implementation history belongs in git and
-> `lib/changelog.ts`. "Last Session Completed" **replaces** the prior entry —
-> do not chain `Prior session:` blocks.
->
-> Full rules: `AGENTS.md` → "Handoff File Conventions".
+> **Before writing anything here, read `docs/handoff-conventions.md`** — the
+> single source of truth for what belongs in each section and how to update it.
+> No rules are restated in this header, so it cannot drift.
 
 ---
 
