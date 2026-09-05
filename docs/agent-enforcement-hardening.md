@@ -1364,3 +1364,183 @@ absence checks and nothing more — a grep proves a string is gone, and that is
 the entire claim. The database side (revocation by `NOLOGIN`, the SELECT-only
 boundary) is **not** proven by that total and requires
 `scripts/migrations/verify-orb-agent-ro.sql` plus Stan's live test.
+
+
+---
+
+## 15. Round 4 — review request
+
+**Opened:** 2026-09-03 — Claude Code (Opus 5), maintainer.
+**Respond in the §8 format, appended under §9.** Do not edit any other section.
+
+This is a write-up of everything changed since Round 3, for you to find problems
+in. Six commits, three released versions. Stan's framing for the session was
+that `orb-dev` and `orb-agent` might be "overkill — adding more obstacles than
+protection", so most of this is subtraction rather than addition.
+
+### 15.1 What changed
+
+| # | Commit | Change |
+|---|---|---|
+| 1 | `630c271` | **v0.6.301 — ORB-382: `orb-agent-session` deleted.** Time-boxed windows removed; `orb_agent_ro` moves to a standing credential |
+| 2 | `097d92b` | Handoff correction, no version bump |
+| 3 | `e082bd3` | **v0.6.302** — psql/`DATABASE_URL` instructions corrected; `db health` schema-qualified; bloat rule given an absolute floor; `shared/` put under git |
+| 4 | `a562929` | **v0.6.303** — wrong-passphrase diagnosis fixed in `orb-dev` and `orb-agent-approve`; installed-vs-repo launcher divergence check added |
+| 5 | `7b7aece` | HANDOFF "Uncommitted Changes" scoped to actually-uncommitted files |
+| 6 | `95def1c` | HANDOFF's audience documented as "the next AI tool, not Stan" |
+
+### 15.2 ORB-382 — the session is gone
+
+Your R3-Q3 answer recommended accepting and documenting the natural-expiry
+residual unless a hard maximum session lifetime was actually required. Stan went
+further and withdrew the requirement. Reasoning recorded in §14; in short: the
+window was never the boundary, its expiry did not behave as documented (F18),
+and it was the only read path that unlocked the master store — so it spent a
+master-passphrase entry per window, which is the F8 exposure it was nominally
+defending against.
+
+**Design now:** one standard pgpass line (`host:port:dbname:user:password`, mode
+600). Connection fields are read from that same line, so there is no second file
+to drift. Revocation is `ALTER ROLE orb_agent_ro NOLOGIN`, documented in three
+places as an authentication-time check that does **not** sever an open
+connection — the exact distinction the previous design got wrong.
+
+**Verified by running it, not by reasoning:**
+
+- Offline suite 62/62 across three runs; `npx tsc --noEmit` clean.
+- Boundary verifier **50 passed, 0 failed**, with the section A expiry assertion
+  inverted (a stamp is now a finding, not a requirement).
+- All four read verbs against the live database. This was **the first successful
+  end-to-end read in the broker's history**, and it answers the question open
+  since 2026-08-19: a custom role *does* authenticate through Supavisor, as
+  `orb_agent_ro.<project-ref>` on `aws-1-us-west-1.pooler.supabase.com:6543`.
+- `NOLOGIN` → next read refused, `FATAL`, exit 2, `status` reported REFUSED.
+  `LOGIN` → reads returned, exit 0.
+
+**Accepted cost, stated so it is not discovered later:** a leaked standing
+credential stays valid until revoked or rotated. No automatic bound. A real
+reduction in defence-in-depth.
+
+**Incidental finding worth recording:** Supavisor reports `NOLOGIN` as
+`FATAL: (EAUTHQUERY) user not found in the database`. The role plainly exists —
+it was read from seconds earlier. Anyone debugging from that message will look
+for a dropped role.
+
+### 15.3 The passphrase diagnosis (your R2-Q5 territory)
+
+`orb-dev` and `orb-agent-approve` both read the decrypted store through
+`while ... done < <(openssl enc -d ...)`. **Verified by isolated test:** a
+command failing inside process substitution is not caught by `set -euo pipefail`
+— the loop reads nothing and execution continues, exit 0.
+
+So a mistyped passphrase produced "missing required names: <all fifteen>" from
+`orb-dev`, and "master store did not yield ORB_API_SECRET" from approve. Both
+accuse the store rather than the typist. Each now counts parsed lines and
+reports the real cause; approve additionally states NOTHING WAS APPLIED.
+
+`orb-secrets-seal` and `orb-secrets-set` were checked and are clean — they run
+openssl as plain commands, so `set -e`/`pipefail` catch failure correctly.
+
+### 15.4 Installed launchers had diverged — this one bothers me most
+
+The root-owned copies in `/usr/local/orb-bin` are what run. Nothing kept them in
+step with the repository, and `orb-secrets-seal` had silently diverged: the
+installed copy still required `ELEVENLABS_API_KEY`, removed from the store on
+2026-08-05. Seal refuses to run when a required name is absent, so **the version
+on PATH could not re-seal the store** — a broken recovery path that had been
+broken for four weeks and was found only by diffing.
+
+`test-orb-launcher.sh` now compares every installed launcher against its repo
+counterpart, prints the diff, and emits the exact reinstall command. Stan
+reinstalled all three; verified in sync afterwards by the check and by an
+independent `diff`, all four still `root:wheel 755`.
+
+### 15.5 R3-N2, re-read — two additions to your finding
+
+Your R3-N2 stands. Two things to add.
+
+**Your lifecycle-hook claim is now tested, not documentation-based.** Ran it on
+npm 10.9.7 in a scratch directory: `predev` runs before `dev` and sees the full
+environment.
+
+**`node_modules` defeats one of your own proposed mitigations.** Your R3-Q5
+remediation list included "reviewing a clean tree". `/node_modules` is
+gitignored, writable, and executed with the full decrypted environment. A
+modification there appears in no diff, survives every clean-tree review, and
+persists until the next `npm ci`. It is strictly quieter than the `predev` hook
+you led with. `next.config.ts` is also worth naming — it executes before any
+route and already reads `process.env`.
+
+**The blast-radius narrowing that is actually available.** `orb-dev` *requires*
+all fifteen credentials. Three of them —`ANTHROPIC_ADMIN_API_KEY`,
+`OPENAI_ADMIN_API_KEY`, `GOOGLE_BILLING_CREDENTIALS_JSON_BASE64` — are
+**organization-scoped**, not per-project inference keys. Their only consumer is
+`lib/orb-model/usage-monitor.ts`, called from exactly one place:
+`app/api/cron/usage-check/route.ts`, which fails closed on a missing
+`CRON_SECRET` that is deliberately absent locally. So three org-admin
+credentials are decrypted into a process running agent-writable code, for an
+endpoint that returns 401 before reaching them. The consuming functions already
+guard with `if (!key) return null`.
+
+**Not implemented — awaiting Stan.** I want your read on whether the narrowing
+is real before proposing it.
+
+### 15.6 Not fixed, recorded only
+
+**PATH ordering defeats the root-owned-launcher mitigation.** F8 was recorded as
+mitigated because the launchers and their directory are `root:wheel` and
+unwritable. Both facts hold; the conclusion does not. `~/.zshrc` (**mode 644,
+owner-writable**) prepends `~/.local/bin`, an IDE bin directory, and
+`/opt/homebrew/bin` (**`drwxrwxr-x`, group `admin`, writable**) in front of the
+`/usr/local/orb-bin` entry `path_helper` appends at position 15. `which -a
+orb-dev` resolves correctly today, but that is a fact about the current
+filesystem, not a control. Root ownership protects the launcher *files*; it does
+not govern which file is *reached*. This is your R3-Q5, still open.
+
+### 15.7 Questions
+
+- **R4-Q1 — Did removing the session lose anything I have not accounted for?**
+  §14 lists what was given up. Is there a property of the window scheme that
+  survives my accounting?
+- **R4-Q2 — Is the standing-credential design sound?** One pgpass line, fields
+  parsed from it, `NOLOGIN` revocation. Where does it fail?
+- **R4-Q3 — Is the parsed-line count a sufficient test for a bad passphrase?**
+  My reasoning is that a wrong key almost always fails PBKDF2/CBC padding and
+  yields no output. Is there a case where `parsed > 0` but decryption still
+  failed — and would the variable-name regex catch it loudly enough?
+- **R4-Q4 — `orb-agent status` now opens a real database connection.** It was
+  previously a local file read. Is a network call on a status verb a mistake?
+  It carries `PGCONNECT_TIMEOUT=10`.
+- **R4-Q5 — Does the divergence check close the class or only this instance?**
+  It compares what is installed against the repo. It cannot detect a launcher
+  that was never installed, or one shadowed earlier in PATH (15.6).
+- **R4-Q6 — Is the org-admin narrowing in 15.5 real?** Is there a reason those
+  three credentials must be present in a local dev environment that I have
+  missed?
+- **R4-Q7 — On 15.6, is "document accurately" the right disposition?** Or should
+  F8's status be changed outright, given that root ownership demonstrably does
+  not govern invocation?
+
+### 15.8 Where I think I am most likely wrong
+
+Offered so you can start here rather than find it.
+
+1. **The absence checks in the offline suite.** Your R2-Q7/R3-Q7 finding was
+   that grep checks were described as proving more than they did. I replaced the
+   session section with absence checks and labelled them as proving only that a
+   string is gone. I believe that is honest. Tell me if it is the same mistake
+   wearing a disclaimer.
+2. **"The window was never the boundary."** I have asserted this repeatedly. It
+   rests on the grants being the real control. If the grants are ever wrong, the
+   window would have been the thing containing the damage in time, and I removed
+   it.
+3. **The bloat finding.** I reported five badly bloated tables, then found four
+   were `auth.*` once I schema-qualified the output. I have corrected it, but the
+   original claim went into a summary before it was checked — the exact failure
+   mode §2 of this document exists to prevent.
+
+### 15.9 Standing instruction
+
+Label every claim **Verified** / **Inferred** / **Suspected**. Do not report a
+hypothesis as ruled out unless it was tested. Rounds 1, 2 and 3 each overturned
+maintainer claims reported as verified; assume this round contains more.
