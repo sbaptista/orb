@@ -14,8 +14,8 @@ same reasoning.
 
 ## 1. Purpose — who this file is for
 
-**`HANDOFF.md` is written by one AI tool for the next AI tool. Stan is not the
-audience. He does not read it.**
+**`HANDOFF.md` is written by one AI tool for the next AI tool.** Write it for
+the tool that will read it cold at the start of the next session.
 
 Stan, 2026-09-03:
 
@@ -23,15 +23,19 @@ Stan, 2026-09-03:
 > to speed on the state of development. Essentially, one AI tool updates it to
 > help the next AI tool. It was never intended for me to peruse actively."
 
+**Stan does read it occasionally — just rarely.** He is not the intended reader
+and you should not write it to him, but do not treat it as unread either.
+Nothing goes in here that you would not put in front of him.
+
 This had never been written down anywhere before 2026-09-03. That omission is
-the root cause of every problem in §2, because absent a stated audience the
-instruction "update the handoff" reads as *"write a report"* — and the only
-person in the conversation is Stan, so agents write it to him. Three separate
-tools converged on the same wrong guess.
+the root cause of every problem in §2: absent a stated reader, "update the
+handoff" reads as *"write a report"*, and the only person in the conversation is
+Stan — so agents write it to him. Three separate tools guessed the same wrong
+way.
 
 **The consequence is not stylistic.** A tool reading this file cold at session
 start needs facts it can act on. Narrative, justification, and persuasion are
-tokens spent obscuring those facts.
+tokens spent burying those facts.
 
 ## 2. Observed failure modes
 
@@ -71,15 +75,15 @@ Every agent reads this file in full at session start, before doing anything.
 Every line is paid for on every session by every tool. Prefer the shortest form
 that survives being read without context.
 
-### 3.3 Section headings are contracts
+### 3.3 One section is read as instructions; the rest are read as information
 
-Two kinds, and the distinction matters — drawn by Codex, H-Q2, 2026-09-03.
+The distinction matters, and it is Codex's (H-Q2, 2026-09-03).
 
-**Mechanical consumer — exactly one heading has one.**
+**`## Uncommitted Changes` is read as instructions.**
 
-`## Uncommitted Changes` is consumed by shared working rule 11, which tells the
-next agent to re-read every file named there. Its contents are *executed*, not
-read.
+Shared working rule 11 tells the next agent to re-read every file named there.
+So that agent does not weigh what the section says — it opens every path in it.
+A wrong entry there causes wrong work, not just a wrong impression.
 
 It is therefore a **path-only projection of `git status --short`**. Nothing else
 goes in it:
@@ -94,15 +98,17 @@ goes in it:
 - Ownership is the one permitted annotation ("Codex's, exclude from any
   commit").
 
-Enforced by `node scripts/verify-handoff.js`, which scans **bullet lines only** —
-prose may reference other documents without being read as an instruction.
+Enforced by a check that fails: `node scripts/verify-handoff.js`, which scans
+**bullet lines only** — prose may reference other documents without being read
+as an instruction.
 
-**Operational contracts — required to be updated, but nothing consumes their
-contents.**
+**The other sections must be kept current, but no rule acts on them
+automatically.**
 
 `## Last Session Completed`, `## Next Priorities`, and
-`## AI Tool Used Last Session` are required updates per the session workflow. No
-rule mechanically reads them, but an agent acts on what they say, so:
+`## AI Tool Used Last Session` are required updates per the session workflow.
+Nothing opens or executes what they contain, but an agent decides what to do
+based on them, so:
 
 - `Next Priorities` is read as work to pick up. Mark completed items done or
   remove them; never leave one looking open.
@@ -138,7 +144,7 @@ second section whose name overlaps an existing one (§2 item 3).
 | Section | Contents |
 |---|---|
 | **App State** | Branch, versions and their push status, dev-server state, live URL, **all database migration state — applied and outstanding**, and any environment fact an agent cannot derive from the repo |
-| **Uncommitted Changes** | **Paths only, and only those `git status` reports dirty right now.** Ownership where another agent's. Nothing else — see §3.3 |
+| **Uncommitted Changes** | **Paths only, and only those `git status` reports dirty right now.** Ownership where another agent's. Nothing else — this section is read as instructions, see §3.3 |
 | **Last Session Completed** | This session only. What was done, what was verified and how, what was deliberately not done |
 | **Active Risks / Unresolved Work** | Still-live risks and known-broken things. Removed when resolved |
 | **Next Priorities** | Work to pick up next, with completed items marked or removed |
@@ -183,11 +189,12 @@ Label every claim **Verified** / **Inferred** / **Suspected**.
 
 - **H-Q1** — Is the purpose in §1 stated clearly enough that a tool reading it
   cold would not repeat the §2 failures? Name the sentence that would fail.
-- **H-Q2** — §3.3 claims some headings are contracts with mechanical consumers.
-  Have I identified all of them? Is there a rule elsewhere in `AGENTS.md` or the
-  concurrency protocol that reads a `HANDOFF.md` section I have not listed?
+- **H-Q2** — §3.3 claims some sections are read as instructions rather than as
+  information. Have I identified all of them? Is there a rule elsewhere in
+  `AGENTS.md` or the concurrency protocol that acts on a `HANDOFF.md` section I
+  have not listed?
 - **H-Q3** — Rule §3.4 already existed and was ignored by both of us. Is
-  restating it more firmly likely to work, or does it need a mechanical check —
+  restating it more firmly likely to work, or does it need an automated check —
   and if so, what would that check actually test?
 - **H-Q4** — Does the pointer model (§ header) create the same drift risk the
   concurrency protocol was designed to avoid, or does it avoid it here too?
@@ -253,10 +260,10 @@ All six accepted; none rejected.
 
 | Finding | Disposition |
 |---|---|
-| H-Q5 — database state under a mechanically consumed heading | **Accepted, fixed.** Applied-migration state moved to `App State`. §3.3 now states the rule and names the self-contradiction: an unconditional re-read rule cannot be softened by an annotation. This was the most important correction — I had introduced it in the same commit that fixed the original defect |
-| H-Q3 — prose will not hold; mechanize it | **Accepted, built.** `scripts/verify-handoff.js` implements every check specified, wired into `npm run lint` and available as `npm run verify-handoff`. Scans bullet lines only, so prose may reference other documents. The size ceiling is advisory; the structural checks are hard errors |
+| H-Q5 — database state under the heading that is read as instructions | **Accepted, fixed.** Applied-migration state moved to `App State`. §3.3 now states the rule and names the self-contradiction: an unconditional re-read rule cannot be softened by an annotation. This was the most important correction — I had introduced it in the same commit that fixed the original defect |
+| H-Q3 — prose will not hold; enforce it with a check | **Accepted, built.** `scripts/verify-handoff.js` implements every check specified, wired into `npm run lint` and available as `npm run verify-handoff`. Scans bullet lines only, so prose may reference other documents. The size ceiling is advisory; the structural checks are hard errors |
 | H-Q4 — pointer model incomplete | **Accepted, fixed.** `AGENTS.md`'s session-workflow step now points at this file and restates nothing |
-| H-Q2 — "mechanical consumer" over-applied | **Accepted.** §3.3 now separates the one heading with a mechanical consumer from the three that are operational contracts. The distinction is Codex's |
+| H-Q2 — I had over-applied the idea to all four headings | **Accepted.** §3.3 now separates the one section that is read as instructions from the three that are read as information. The distinction is Codex's |
 | H-Q1, H-Q6 | **Accepted as confirmation.** No change |
 | Codex's self-correction | **Rejected as a fault.** Its reading of rule 11 was correct and the file was wrong. Recorded because a reviewer accepting blame for a defect in the artefact would push the fix in the wrong direction |
 

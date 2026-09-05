@@ -1,10 +1,10 @@
 # HANDOFF.md
 
-> **Audience: the next AI tool. Not Stan — he does not read this file.**
-> It exists so one AI tool can bring the next one up to speed on the state of
-> development. Write for a cold parser: current facts an agent can act on, no
-> narrative. Every AI reads this in full at session start, so **length is a
-> direct cost**.
+> **Written by one AI tool for the next one.** It exists so a tool starting a
+> session can get up to speed on the state of development. Write for the tool
+> that reads it cold: current facts it can act on, no narrative. Stan reads it
+> occasionally but rarely — not the intended reader, but not never either.
+> Every AI reads this in full at session start, so **length is a direct cost**.
 >
 > **Before writing anything here, read `docs/handoff-conventions.md`** — the
 > single source of truth for what belongs in each section and how to update it.
@@ -24,8 +24,8 @@
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
 - **Local version:** **0.6.304** — handoff purpose/conventions documented in
-  `docs/handoff-conventions.md` (single source of truth) and mechanised by
-  `scripts/verify-handoff.js`. **v0.6.298–0.6.303 are pushed and live**
+  `docs/handoff-conventions.md` (single source of truth) and enforced by
+  `scripts/verify-handoff.js`, which fails when they are broken. **v0.6.298–0.6.303 are pushed and live**
   (`a562929`); v0.6.304 and the doc commits after it are **committed, unpushed**.
 - **🔴 `npm run lint` currently FAILS**, by design. `scripts/verify-handoff.js`
   reports twelve `Prior session:` blocks in this file — the defect it was built

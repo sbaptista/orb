@@ -405,9 +405,11 @@ The source of truth is always `/Users/stanleybaptista/Projects/orb/` (the **main
 The handoff is `/Users/stanleybaptista/Projects/orb/HANDOFF.md` — a single
 living file in the repo root, committed with each session's code changes.
 
-**`HANDOFF.md` is written by one AI tool for the next AI tool. Stan is not the
-audience — he does not read it.** Write for a tool parsing it cold at session
-start: current facts it can act on, no narrative.
+**`HANDOFF.md` is written by one AI tool for the next AI tool.** Write for the
+tool that reads it cold at the start of the next session: current facts it can
+act on, no narrative. Stan reads it occasionally but rarely — he is not the
+intended reader, so do not write it to him, but do not treat it as unread
+either.
 
 **All rules for what goes in it and how to update it live in
 `docs/handoff-conventions.md` — the single source of truth. Read it before

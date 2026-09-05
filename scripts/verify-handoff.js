@@ -1,19 +1,20 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 //
-// verify-handoff.js — mechanises the HANDOFF.md invariants.
+// verify-handoff.js — checks the HANDOFF.md rules and fails when they are broken.
 //
 // Rules and rationale: docs/handoff-conventions.md (single source of truth).
 //
-// Why this exists: docs/handoff-conventions.md §3.4 already existed as prose in
+// Why this exists: the "replaces prior" rule already existed as prose in
 // AGENTS.md and was ignored by two separate AI tools for twelve consecutive
 // sessions. Codex's review (H-Q3) concluded that stronger wording alone was
-// unlikely to prevent recurrence and specified the checks below. Prose did not
-// hold; this does.
+// unlikely to prevent recurrence, and specified the checks below. Writing the
+// rule down did not hold. A check that fails does.
 //
-// The central invariant is that `## Uncommitted Changes` is a PATH-ONLY
-// PROJECTION OF `git status`. Anything named there is re-read by the next agent
-// under shared working rule 11, so a path that is not actually dirty costs that
-// agent a wasted read — 25 of them on 2026-09-03.
+// The main rule: `## Uncommitted Changes` lists paths that `git status` reports
+// as dirty, and nothing else. That section is read as instructions — shared
+// working rule 11 tells the next agent to re-read every file named there — so a
+// path that is not actually dirty costs that agent a wasted read. 25 of them on
+// 2026-09-03.
 
 const { execSync } = require('child_process');
 const fs = require('fs');
