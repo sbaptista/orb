@@ -23,24 +23,17 @@
 - **Live URL:** https://orb-eight-lake.vercel.app
 - **Local version:** **0.6.303** — accurate failure message on a wrong unlock
   passphrase, plus an installed-vs-repo divergence check for the security
-  launchers. **v0.6.303 is committed and NOT pushed.** v0.6.298–0.6.302 are
-  pushed and live.
-- **🔴 ACTION REQUIRED (Stan, needs sudo).** Three installed launchers in
-  `/usr/local/orb-bin` differ from this repository and **the installed copy is
-  what runs**. `npm run test:security-launcher` now fails until they match:
-
-  ```
-  sudo install -o root -g wheel -m 755 scripts/security/orb-agent-approve /usr/local/orb-bin/orb-agent-approve
-  sudo install -o root -g wheel -m 755 scripts/security/orb-dev /usr/local/orb-bin/orb-dev
-  sudo install -o root -g wheel -m 755 scripts/security/orb-secrets-seal /usr/local/orb-bin/orb-secrets-seal
-  ```
-
-  `orb-secrets-seal` is the important one and its divergence **pre-dates this
-  session**: the installed copy still requires `ELEVENLABS_API_KEY`, removed
-  from the store on 2026-08-05. Seal refuses to run when a required name is
-  absent, so the version on PATH **cannot re-seal the store** — a broken
-  recovery path found only by diffing. The other two carry this session's
-  passphrase-message fix.
+  launchers. **v0.6.298–0.6.303 are all pushed and live** (`a562929`).
+- **Installed launchers: IN SYNC (verified 2026-09-03).** Stan reinstalled all
+  three diverged copies; `npm run test:security-launcher` reports "Installed
+  launchers match the repository (4 checked)" and an independent `diff` of each
+  agrees. All four remain `root:wheel 755`.
+  **Standing note:** the copies in `/usr/local/orb-bin` are what actually run,
+  and version control does not keep them in step — only that test does. Run it
+  after editing anything in `scripts/security/`. `orb-secrets-seal` had drifted
+  since 2026-08-05 (it still required the removed `ELEVENLABS_API_KEY`, so the
+  version on PATH could not re-seal the store) and nothing noticed for four
+  weeks.
 - **Production maintenance:** off.
 - **Database:** Stan applied
   `scripts/migrations/20260818_statement_import_catalog_models.sql` and
@@ -72,89 +65,29 @@
 
 ## Uncommitted Changes
 
-**None.** v0.6.303 is committed and awaiting a push decision; v0.6.302 and
-earlier are pushed and live.
+**Scope of this section, restated 2026-09-03.** It lists ONLY files with an
+actual uncommitted diff in the working tree, because the session-start rule
+tells the next agent to re-read everything named here. It is not a per-release
+manifest. It was written as one on 2026-09-03 and Codex duly re-read 25
+already-committed files at the next session start before reporting the error.
+Per-file release history belongs in `lib/changelog.ts` and git, per this file's
+own history policy — do not put it back here.
 
-**v0.6.303 — launcher integrity and passphrase diagnostics (committed, unpushed):**
-
-- `scripts/security/orb-dev`, `scripts/security/orb-agent-approve` — a command
-  that fails inside `< <(process substitution)` is **not** caught by
-  `set -euo pipefail`; the loop reads nothing and execution continues.
-  **Verified by isolated test 2026-09-03**, not reasoned. A wrong passphrase
-  therefore surfaced as "missing required names: <all fifteen>" in `orb-dev`
-  and "master store did not yield ORB_API_SECRET" in approve — both of which
-  accuse the store rather than the typist. Each now counts parsed lines and
-  reports the real cause; approve also states that nothing was applied.
-- `scripts/security/test-orb-launcher.sh` — new installed-vs-repo divergence
-  check. Version control was never the control here: the root-owned copies in
-  `/usr/local/orb-bin` are what run, and nothing kept them in step.
-
-**v0.6.302 — post-ORB-382 loose ends (committed, unpushed):**
-
-- `AGENTS.md` — the "Direct SQL Access (psql)" section told agents to hand Stan
-  `psql "$DATABASE_URL" -f ...`, but that variable is set in **no shell**: it
-  lives only in `orb.env.enc`, and `orb-dev` allowlists six commands, none of
-  them psql. Every agent following it produced a command that expanded to an
-  empty connection string. Now documents Path A (Supabase editor, with its real
-  limits) and Path B (psql with the DSN pulled into a subshell), plus a note
-  that the shell is **zsh**, where `read -p` is a bash-ism that fails outright.
-- `scripts/security/orb-agent` — `db health` now prints `schemaname`. It reads
-  across every non-system schema, so `public.users` and `auth.users` were two
-  indistinguishable rows; that ambiguity produced an over-stated bloat finding
-  on 2026-09-03 in which four of five flagged tables were `auth.*`.
-- `AGENTS.md` — the bloat rule gains an absolute floor (`n_dead_tup > 1000`)
-  and a `public`-only scope. Percentage alone flags a 3-live/50-dead table at
-  1666% over a few kilobytes, and autovacuum's own trigger
-  (`50 + 0.2 * n_live_tup`) means a small low-churn table with an empty
-  `last_autovacuum` is usually correct, not neglected.
-- `scripts/maintenance/vacuum-bloated-tables.sql` — new. Discovery query
-  reporting absolute *and* relative bloat, the three qualifying public tables,
-  and a verification query. Must run via psql; `VACUUM` cannot run in a
-  transaction block.
-
-**Outside this repository:** `/Users/stanleybaptista/Projects/shared` is now a
-git repository (`02b0f46`) — it governs conventions and the push gate for every
-project in `~/Projects` and was carried by nothing at all. **No remote is
-configured**; adding one is Stan's call, since the file names credential
-variables and internal paths.
-
-**Retained below** as the record of what v0.6.301 contained.
-
-**ORB-382 — session removal (v0.6.301), all mine:**
-
-- `scripts/security/orb-agent-session` — **deleted**
-- `scripts/security/orb-agent` — `require_session` → `require_credential`;
-  reads one standard pgpass line and takes its connection fields from it;
-  `cmd_status` reports what the *database* says rather than what a local file
-  claims, and prints install instructions when the credential is absent
-- `scripts/security/test-orb-agent.sh` — session/expiry sections replaced with
-  malformed-credential, symlink and absence checks; **62/62 across three runs**
-- `scripts/migrations/20260903_orb_agent_ro_standing_credential.sql` — new;
-  clears the expiry stamp and restates the role's intended attributes
-- `scripts/migrations/verify-orb-agent-ro.sql` — the section A expiry assertion
-  is **inverted**: a stamp is now a finding, not a requirement
-- `.claude/settings.json` — the four `orb-agent-session` deny rules removed
-- `AGENTS.md` and `/Users/stanleybaptista/Projects/shared/AGENTS.md` — broker
-  rules rewritten; agents no longer ask Stan to open a window
-- `docs/agent-capability-broker-plan.md` — Layer 3 rewritten; option C retained
-  below it as the superseded evidence trail
-- `docs/agent-castle-threat-model.md` — gates table no longer lists the session
-- `docs/agent-enforcement-hardening.md` — new §14 disposition; §4 reading list
-  corrected. Rounds 1–3 and the F18 record are untouched
-- `docs/object-capability-matrix.md` — broker note updated
-- `package.json`, `lib/version.ts`, `lib/changelog.ts` — v0.6.301
+**Nothing of mine is uncommitted.** Everything through **v0.6.303** is committed
+and pushed (`a562929`). `git log --oneline origin/main..main` is empty.
 
 **Not mine — exclude from any commit:**
 
-- `docs/orb-381-model-cost-comparison-plan.md` remains a pre-existing untracked
-  ORB-381 planning file under Codex's separate claim.
+- `docs/orb-381-model-cost-comparison-plan.md` — untracked ORB-381 planning
+  file under Codex's separate claim.
 
 **Applied to the database (not represented by git state):**
 `20260819_orb_agent_ro_role.sql`, `20260819b_orb_agent_ro_routine_privileges.sql`,
 `20260820_routine_least_privilege.sql`, `20260820b_anon_definer_sweep.sql`,
-`20260820c_is_admin_and_authenticated_lockdown.sql`, and
-`20260820d_todos_agent_policy_fold.sql` are all **applied**. The `anon` exposure
-is closed in production regardless of whether these commits are pushed.
+`20260820c_is_admin_and_authenticated_lockdown.sql`,
+`20260820d_todos_agent_policy_fold.sql`, and
+`20260903_orb_agent_ro_standing_credential.sql` are all **applied**. These are
+listed as state, not as files to re-read.
 
 ---
 
@@ -977,18 +910,6 @@ shipped as v0.6.283: adapter, Voice Settings option, usage polling, and
 encrypted-launch requirement removed; historical records intact; Stan verified
 Voice Settings, AI Metrics, and Realtime voice. Eval: Tier 1 voice + smoke
 **11/11**, Tier 2 voice **6/6**.
-
----
-
-## Current Uncommitted Changes
-
-**None after the v0.6.296 release commit.** The completed Kimi, active-model
-identity, and Release bookkeeping claims are removed in that commit.
-
-`ACTIVE_WORK/claude-code.md` remains `*(none)*`. Codex's separate long-running
-instruction-architecture proposal claim remains stale and unchanged; its stale
-notice remains in Codex's ledger because this release does not complete or
-enter that surface.
 
 ---
 
