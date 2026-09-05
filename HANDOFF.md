@@ -252,11 +252,6 @@ were the only record of either.*
   transcript as genuine user speech, and `:638` discards the canonical receipt
   when a completed write resolves after the user has started a new turn — the
   write commits and Orb never says so.
-- **ORB-378 is open and awaiting Stan's manual closure.** Codex's; it describes
-  the manual clipboard bridge and needs Stan's live verification. Codex prepared
-  Resolution notes and Knowledge fields in chat. Neither database write should
-  be reported as complete until Stan confirms saving them. Migrated here
-  2026-09-03 from the trimmed session history.
 
 - **Kimi K3 is experimental and development-only.** It passed the accepted
   evidence above but did not achieve deterministic 65/65 Tier 1 behavior.
