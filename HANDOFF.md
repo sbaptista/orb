@@ -1,12 +1,19 @@
 # HANDOFF.md
 
-> Living session-to-session context for the Orb project.
-> Every AI reads at session start. Every AI updates it at session end.
-> Committed with each session's code changes.
+> **Audience: the next AI tool. Not Stan — he does not read this file.**
+> It exists so one AI tool can bring the next one up to speed on the state of
+> development. Write for a cold parser: current facts an agent can act on, no
+> narrative, no justification, no persuasion.
+>
+> Every AI reads this in full at session start, so **length is a direct cost**.
+> Every AI updates it at session end. Committed with each session's code changes.
 >
 > **History policy:** keep only current, load-bearing context. Durable lessons
 > belong in the Knowledge Repository; implementation history belongs in git and
-> `lib/changelog.ts`.
+> `lib/changelog.ts`. "Last Session Completed" **replaces** the prior entry —
+> do not chain `Prior session:` blocks.
+>
+> Full rules: `AGENTS.md` → "Handoff File Conventions".
 
 ---
 

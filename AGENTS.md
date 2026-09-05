@@ -372,7 +372,10 @@ When Stan asks "update the handoff" OR at natural session end:
 1. **Update `/Users/stanleybaptista/Projects/orb/HANDOFF.md`** with:
    - Current version (if bumped)
    - Complete list of uncommitted changes (file-by-file)
-   - "Last Session Completed" — what was done this session (replaces prior)
+   - "Last Session Completed" — what was done this session. **Replaces the
+     prior entry outright — it is not prepended to it.** Do not chain
+     `Prior session:` blocks; git and `lib/changelog.ts` already hold that
+     history, and an agent can query either precisely
    - "Key Lesson" (if applicable)
    - "Next Priorities"
    - "AI Tool Used Last Session" (`YYYY-MM-DD — Tool (model)`)
@@ -403,6 +406,37 @@ The source of truth is always `/Users/stanleybaptista/Projects/orb/` (the **main
 # Handoff File Conventions
 
 The handoff is `/Users/stanleybaptista/Projects/orb/HANDOFF.md` — a single living file in the repo root, committed with each session's code changes.
+
+## Who it is for — read this before writing a single line into it
+
+**The audience is the next AI tool. It is not Stan.** He does not read it. It
+exists so one AI tool can bring the next one up to speed on the state of
+development, and nothing else. Stated explicitly on 2026-09-03 because it had
+never been written down, and every agent that guessed guessed wrong: absent an
+audience, "update the handoff" reads as "write a report", and the only person
+in the conversation is Stan — so agents write it to him.
+
+What follows from that, and it is not stylistic:
+
+- **Write for a cold parser, not a reader.** State current facts an agent can
+  act on. Do not explain, justify, persuade, or narrate. Reasoning belongs in
+  the Knowledge Repository, where it is searchable and is not re-read every
+  session. Implementation history belongs in git and `lib/changelog.ts`.
+- **Length is a real cost.** Every agent reads the whole file at session start,
+  before doing anything. On 2026-09-03 it stood at 1,197 lines (~13k tokens),
+  of which 69% was accumulated session history that the rules below already
+  forbade.
+- **Section headings are contracts with a mechanical consumer.** "Uncommitted
+  Changes" drives the session-start re-read rule, so it lists **only** files
+  with an actual working-tree diff — never a record of what a release
+  contained. On 2026-09-03 Codex re-read 25 already-committed files because it
+  had been written as a per-release manifest.
+- **Verify before writing.** Check `git status --short` and
+  `git log --oneline origin/main..main` before claiming anything is
+  uncommitted, unpushed, or outstanding. A stale "ACTION REQUIRED" misdirects
+  the next agent as effectively as a wrong instruction.
+- **"Replaces prior" means replaces.** See the session workflow above. Do not
+  chain `Prior session:` blocks. Twelve had accumulated by 2026-09-03.
 
 It contains:
 - App state (branch, dev server status)
