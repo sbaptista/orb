@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.304',
+    date: '2026-09-03',
+    changes: [
+      'Documented what the session handoff file is actually for, which had never been written down. It is written by one AI tool for the next one and is not read by a human, but absent a stated audience every tool guessed it was a report and wrote narrative into it. The rules for what belongs in each section now live in one authoritative document, with the two files that previously described them reduced to pointers so they cannot drift apart.',
+      'Fixed a section that was instructing tools to do pointless work. One heading is consumed by a rule telling the next tool to re-read every file named beneath it, and it had been written as a record of what each release contained — so a tool correctly following the rule re-read twenty-five files that had no pending changes. That section is now a list of genuinely uncommitted paths and nothing else.',
+      'Moved applied-database state out of that same section, where it had been annotated as not needing to be re-read. The re-read rule is unconditional, so the annotation contradicted the instruction rather than softening it. Database state now sits with the rest of the environment facts.',
+      'Added an automated check for all of it, because the rule that was most often broken had been written down for months and ignored anyway by more than one tool. It verifies that every listed path is genuinely uncommitted, that canonical headings appear exactly once, that no duplicate near-identical sections exist, that accumulated session history has not been chained on, and that the file says so plainly when nothing is uncommitted. It runs as part of linting.',
+      'Adopted the review corrections in full: the check itself, the relocation of database state, completing the pointer structure, and a sharper distinction between the one section whose contents drive an automated rule and those merely required to be kept current. Internal developer tooling and documentation: no application route, component, or user-facing behavior changed. Eval: not applicable — no Orb-conversation capability, tool, routing rule, prompt, or defined speech behavior changed.',
+    ],
+  },
+  {
     version: 'v0.6.303',
     date: '2026-09-03',
     changes: [

@@ -369,15 +369,13 @@ Production continues to fall back to the accepted Haiku/Gemini policy if an expe
 
 When Stan asks "update the handoff" OR at natural session end:
 
-1. **Update `/Users/stanleybaptista/Projects/orb/HANDOFF.md`** with:
-   - Current version (if bumped)
-   - Complete list of uncommitted changes (file-by-file)
-   - "Last Session Completed" — what was done this session. **Replaces the
-     prior entry outright; it is not prepended.** See
-     `docs/handoff-conventions.md` §3.4
-   - "Key Lesson" (if applicable)
-   - "Next Priorities"
-   - "AI Tool Used Last Session" (`YYYY-MM-DD — Tool (model)`)
+1. **Update `/Users/stanleybaptista/Projects/orb/HANDOFF.md`** per
+   `docs/handoff-conventions.md`, which states what each section must contain
+   and how. No rules are restated here. Then run:
+
+   ```bash
+   node scripts/verify-handoff.js
+   ```
 
 2. **Request permission to commit & push** — ask Stan for permission/approval before executing the git commit and push command (do not commit/push silently).
 

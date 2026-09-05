@@ -23,9 +23,16 @@
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.303** — accurate failure message on a wrong unlock
-  passphrase, plus an installed-vs-repo divergence check for the security
-  launchers. **v0.6.298–0.6.303 are all pushed and live** (`a562929`).
+- **Local version:** **0.6.304** — handoff purpose/conventions documented in
+  `docs/handoff-conventions.md` (single source of truth) and mechanised by
+  `scripts/verify-handoff.js`. **v0.6.298–0.6.303 are pushed and live**
+  (`a562929`); v0.6.304 and the doc commits after it are **committed, unpushed**.
+- **🔴 `npm run lint` currently FAILS**, by design. `scripts/verify-handoff.js`
+  reports twelve `Prior session:` blocks in this file — the defect it was built
+  to catch. `docs/handoff-conventions.md` §3.4 says the latest session
+  *replaces* the prior entry. Removing them applies that rule rather than
+  deciding anything new, but deletes ~800 lines of 1,191 and **needs Stan's
+  authorisation**. Until then, lint fails on this one check only.
 - **Installed launchers: IN SYNC (verified 2026-09-03).** Stan reinstalled all
   three diverged copies; `npm run test:security-launcher` reports "Installed
   launchers match the repository (4 checked)" and an independent `diff` of each
@@ -43,6 +50,15 @@
   `scripts/migrations/20260818_model_request_platform.sql` and reported
   “Success. No rows returned.” Historical request rows deliberately remain
   `unknown`; no production model promotion was made.
+- **Database — applied migrations (state, not files to re-read).** All of
+  `20260819_orb_agent_ro_role.sql`, `20260819b_orb_agent_ro_routine_privileges.sql`,
+  `20260820_routine_least_privilege.sql`, `20260820b_anon_definer_sweep.sql`,
+  `20260820c_is_admin_and_authenticated_lockdown.sql`,
+  `20260820d_todos_agent_policy_fold.sql` and
+  `20260903_orb_agent_ro_standing_credential.sql` are **applied**. The `anon`
+  exposure is closed in production. Moved here from Uncommitted Changes on
+  2026-09-03: naming them under that heading told the next agent to re-read
+  them, which was never the intent.
 - **Database — DONE 2026-09-03.**
   `scripts/migrations/20260903_orb_agent_ro_standing_credential.sql` is
   **applied**; Stan set a standing password and installed the pgpass line.
@@ -67,29 +83,11 @@
 
 ## Uncommitted Changes
 
-**Scope of this section, restated 2026-09-03.** It lists ONLY files with an
-actual uncommitted diff in the working tree, because the session-start rule
-tells the next agent to re-read everything named here. It is not a per-release
-manifest. It was written as one on 2026-09-03 and Codex duly re-read 25
-already-committed files at the next session start before reporting the error.
-Per-file release history belongs in `lib/changelog.ts` and git, per this file's
-own history policy — do not put it back here.
+Path-only projection of `git status --short`. Enforced by
+`node scripts/verify-handoff.js`. Rules: `docs/handoff-conventions.md` §3.3.
 
-**Nothing of mine is uncommitted.** Everything through **v0.6.303** is committed
-and pushed (`a562929`). `git log --oneline origin/main..main` is empty.
-
-**Not mine — exclude from any commit:**
-
-- `docs/orb-381-model-cost-comparison-plan.md` — untracked ORB-381 planning
-  file under Codex's separate claim.
-
-**Applied to the database (not represented by git state):**
-`20260819_orb_agent_ro_role.sql`, `20260819b_orb_agent_ro_routine_privileges.sql`,
-`20260820_routine_least_privilege.sql`, `20260820b_anon_definer_sweep.sql`,
-`20260820c_is_admin_and_authenticated_lockdown.sql`,
-`20260820d_todos_agent_policy_fold.sql`, and
-`20260903_orb_agent_ro_standing_credential.sql` are all **applied**. These are
-listed as state, not as files to re-read.
+- `docs/orb-381-model-cost-comparison-plan.md` — untracked. Codex's ORB-381
+  planning file, under its separate claim. Not mine; exclude from any commit.
 
 ---
 

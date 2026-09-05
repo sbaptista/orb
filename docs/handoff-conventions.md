@@ -71,19 +71,43 @@ Every agent reads this file in full at session start, before doing anything.
 Every line is paid for on every session by every tool. Prefer the shortest form
 that survives being read without context.
 
-### 3.3 Section headings are contracts with mechanical consumers
+### 3.3 Section headings are contracts
 
-Some headings drive rules elsewhere. Writing something under them *instructs*
-the next agent, whether you meant it to or not.
+Two kinds, and the distinction matters — drawn by Codex, H-Q2, 2026-09-03.
 
-- **`## Uncommitted Changes`** drives the session-start re-read rule (shared
-  working rule 11). It lists **only** files with an actual working-tree diff.
-  Never a record of what a release contained. Verify with `git status --short`
-  immediately before writing it.
-- **`## Next Priorities`** is read as work to pick up. Completed items are
-  marked done or removed, never left looking open.
-- **`## Active Risks / Unresolved Work`** is read as still-live. Resolved items
-  are removed, not annotated in place and left.
+**Mechanical consumer — exactly one heading has one.**
+
+`## Uncommitted Changes` is consumed by shared working rule 11, which tells the
+next agent to re-read every file named there. Its contents are *executed*, not
+read.
+
+It is therefore a **path-only projection of `git status --short`**. Nothing else
+goes in it:
+
+- Every path listed must be dirty right now. Verify immediately before writing.
+- No per-release manifests, no historical file lists, no version numbers.
+- **No applied-database state.** That belongs in `App State`. Listing migration
+  filenames here and adding "not files to re-read" does not help: the re-read
+  rule is unconditional, so the annotation contradicts the instruction. This is
+  exactly what caused Codex to re-read 25 files on 2026-09-03.
+- When `git status` is clean, the section says `None`.
+- Ownership is the one permitted annotation ("Codex's, exclude from any
+  commit").
+
+Enforced by `node scripts/verify-handoff.js`, which scans **bullet lines only** —
+prose may reference other documents without being read as an instruction.
+
+**Operational contracts — required to be updated, but nothing consumes their
+contents.**
+
+`## Last Session Completed`, `## Next Priorities`, and
+`## AI Tool Used Last Session` are required updates per the session workflow. No
+rule mechanically reads them, but an agent acts on what they say, so:
+
+- `Next Priorities` is read as work to pick up. Mark completed items done or
+  remove them; never leave one looking open.
+- `Active Risks / Unresolved Work` is read as still-live. Remove resolved items
+  rather than annotating them in place.
 
 ### 3.4 "Replaces prior" means replaces
 
@@ -113,8 +137,8 @@ second section whose name overlaps an existing one (§2 item 3).
 
 | Section | Contents |
 |---|---|
-| **App State** | Branch, versions and their push status, dev-server state, live URL, database migrations applied or outstanding, environment facts an agent cannot derive from the repo |
-| **Uncommitted Changes** | Only files with a real working-tree diff. Whose they are, if another agent's. Database state not represented in git |
+| **App State** | Branch, versions and their push status, dev-server state, live URL, **all database migration state — applied and outstanding**, and any environment fact an agent cannot derive from the repo |
+| **Uncommitted Changes** | **Paths only, and only those `git status` reports dirty right now.** Ownership where another agent's. Nothing else — see §3.3 |
 | **Last Session Completed** | This session only. What was done, what was verified and how, what was deliberately not done |
 | **Active Risks / Unresolved Work** | Still-live risks and known-broken things. Removed when resolved |
 | **Next Priorities** | Work to pick up next, with completed items marked or removed |
@@ -174,3 +198,69 @@ Label every claim **Verified** / **Inferred** / **Suspected**.
   does not give you? You are the primary consumer as much as I am, and these
   conventions were written by one of the two tools that has been getting them
   wrong.
+
+---
+
+## 8. Review log
+
+### Codex (GPT-5.6 Sol) — 2026-09-03 — Round 1
+
+Relayed by Stan. Reproduced faithfully; dispositions follow in §9.
+
+Codex opened by identifying its own side of the failure: *"I treated every
+filename appearing anywhere in `Uncommitted Changes` as an instruction to reload
+it. Only actual working-tree changes belong there. The historical release files
+and applied migration names should never have been interpreted as current
+inputs."* — The maintainer's note: that reading was **correct**, not a mistake.
+Shared working rule 11 is unconditional. The file was wrong, not the parser.
+
+- **H-Q1 — Verified.** Purpose is clear. Strongest sentence: *"`HANDOFF.md` is
+  written by one AI tool for the next AI tool."* No sentence in §1 likely to
+  recreate the original misunderstanding.
+- **H-Q2 — Verified.** `Uncommitted Changes` is the **only** heading with a
+  direct external consumption rule. `AGENTS.md` requires updating
+  `Last Session Completed`, `Next Priorities` and `AI Tool Used Last Session`,
+  but nothing mechanically consumes their contents — those are *operational
+  contracts*, not mechanical consumers.
+- **H-Q3 — Inferred.** Stronger wording alone is unlikely to prevent
+  recurrence; the prior rule was already explicit. Specified a verifier:
+  exactly one instance of every canonical heading; no `Prior session:` blocks;
+  no duplicate or near-duplicate uncommitted headings; every path listed in
+  `Uncommitted Changes` present in `git status --short`; `None` when git is
+  clean; optionally reject release-manifest language; a section-size ceiling.
+  Noted that "describes only the latest session" cannot be fully automated.
+- **H-Q4 — Verified, and the pointer model was not fully implemented.**
+  `AGENTS.md`'s Session Workflow still restated the uncommitted list,
+  replacement behaviour, next priorities and attribution — "precisely the drift
+  surface the document says to avoid."
+- **H-Q5 — Verified, and §4 was wrong.** Database state does not belong under a
+  mechanically consumed heading; it belongs in `App State`. Listing applied
+  migration filenames there and then saying they are "not files to re-read"
+  *"conflicts directly with the unconditional session-start reread rule."*
+- **H-Q6 — Inferred.** The structure provides what Codex needs. Active claims
+  should remain exclusively in `ACTIVE_WORK/`.
+- **Current-state nuance.** `docs/orb-381-model-cost-comparison-plan.md` is
+  untracked and legitimately belongs in `Uncommitted Changes`; the 25
+  committed/historical files did not.
+
+> **Codex's summary:** "move all applied-database state into `App State`, make
+> `Uncommitted Changes` a path-only projection of `git status`, and mechanize
+> that invariant."
+
+## 9. Dispositions — Round 1
+
+All six accepted; none rejected.
+
+| Finding | Disposition |
+|---|---|
+| H-Q5 — database state under a mechanically consumed heading | **Accepted, fixed.** Applied-migration state moved to `App State`. §3.3 now states the rule and names the self-contradiction: an unconditional re-read rule cannot be softened by an annotation. This was the most important correction — I had introduced it in the same commit that fixed the original defect |
+| H-Q3 — prose will not hold; mechanize it | **Accepted, built.** `scripts/verify-handoff.js` implements every check specified, wired into `npm run lint` and available as `npm run verify-handoff`. Scans bullet lines only, so prose may reference other documents. The size ceiling is advisory; the structural checks are hard errors |
+| H-Q4 — pointer model incomplete | **Accepted, fixed.** `AGENTS.md`'s session-workflow step now points at this file and restates nothing |
+| H-Q2 — "mechanical consumer" over-applied | **Accepted.** §3.3 now separates the one heading with a mechanical consumer from the three that are operational contracts. The distinction is Codex's |
+| H-Q1, H-Q6 | **Accepted as confirmation.** No change |
+| Codex's self-correction | **Rejected as a fault.** Its reading of rule 11 was correct and the file was wrong. Recorded because a reviewer accepting blame for a defect in the artefact would push the fix in the wrong direction |
+
+**Open, needing Stan.** The verifier currently **fails** on twelve
+`Prior session:` blocks — the defect it was built to catch. Removing them
+applies §3.4 rather than deciding anything new, but deletes roughly 800 lines of
+a 1,191-line file. Not done without authorisation.
