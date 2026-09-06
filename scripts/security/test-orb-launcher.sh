@@ -82,7 +82,7 @@ printf 'Installed launchers match the repository (%d checked, owner and mode ass
 # Reported, never asserted: which command the shell would actually run. This
 # cannot be fixed by reinstalling -- PATH order is set by owner-writable
 # ~/.zshrc, so a shadowing copy earlier in PATH wins over the root-owned one
-# (§15.6 of docs/agent-enforcement-hardening.md, Codex R3-Q5, still open).
+# (docs/agent-enforcement-hardening.md §2, still open).
 for name in "${expected_launchers[@]}"; do
   resolved="$(command -v "$name" 2>/dev/null || true)"
   if [[ -n "$resolved" && "$resolved" != "$installed_dir/$name" ]]; then

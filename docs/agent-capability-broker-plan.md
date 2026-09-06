@@ -263,7 +263,7 @@ Consequences of the change:
   is not a new class of exposure — but it makes **root-owned launchers a
   prerequisite rather than an option**, since a trojaned prompt would now
   capture it on more occasions (finding F8 in
-  `docs/agent-enforcement-hardening.md`).
+  `docs/agent-enforcement-hardening.md` §2).
 - The `ALTER ROLE` statement travels on **stdin**, never argv, because it
   carries the password.
 - A session is not reported open until the new credential is **proven to

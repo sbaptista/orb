@@ -1,8 +1,10 @@
 # The Castle — a spatial threat model for AI agents
 
-**Status:** Analysis. Organizing frame for the enforcement rework in `docs/agent-enforcement-hardening.md`.
+**Status:** Analysis. Organizing frame for the agent-security work; open items are
+listed in `docs/agent-enforcement-hardening.md`.
 **Created:** 2026-08-20 — Claude Code (Opus 5), at Stan's request
-**Companion:** every claim here traces to a verified finding F1–F14 in the hardening packet.
+**Companion:** claims here trace to findings F1–F18. The four review rounds that
+produced them were deleted on 2026-09-06 and are in git at `6e47488`.
 
 ---
 
@@ -18,8 +20,11 @@
 | **Visitors** | Claude Code, Codex, any future tool | Invited. Also potentially carrying something they cannot detect |
 
 The keep sits **on** the grounds. That dependency is the whole story: the
-castle's defenses are excellent, the keep's crypto is excellent, and both
-depend on ground that is currently open to anyone who can walk on it.
+castle's defenses hold, the keep's crypto gives confidentiality but **no
+integrity** (§1 — AES-CBC with no MAC), and both depend on ground that is open
+to anyone who can walk on it. *Corrected 2026-09-06 (R3-N4): this said "the
+keep's crypto is excellent" four lines after §1 recorded that it authenticates
+nothing.*
 
 ## 2. Land — through the front gate
 
@@ -27,7 +32,7 @@ Direct, sanctioned-looking approach. An agent runs `psql`, `curl`, `git push`.
 
 | | Status |
 |---|---|
-| Into the castle | ✅ **Held.** `orb_agent_ro` cannot write, cannot reach `audit_log`, `auth.users`, `public.users`. Verified 42/42, including routine privileges after F11 |
+| Into the castle | ✅ **Held.** `orb_agent_ro` cannot write, cannot reach `audit_log`, `auth.users`, `public.users`. Verified **50/50** (2026-09-03), including routine privileges after F11 |
 | Out to production | ❌ **Open.** Codex executes `git push` with no prompt (F3). Credentials answer non-interactively (F6). No `pre-push` hook (F7) |
 
 **The land route carries legitimate traffic too.** You asking an agent to close
@@ -67,7 +72,7 @@ Not attacking the castle. **Replacing the gatehouse.**
 
 | | Status |
 |---|---|
-| Tunnelling | ❌ **Completely open.** The launchers are owner-writable, `~/.local/bin` is owner-writable — so even root-owned files can be unlinked and replaced — and no deny rule mentions the path |
+| Tunnelling | ⚠️ **Narrowed, still open.** *Corrected 2026-09-06 (R3-N4): the launchers are no longer owner-writable — they and their directory are `root:wheel` in `/usr/local/orb-bin`.* But root ownership protects the launcher **files**, not which file is **reached**: `~/.zshrc` is mode 644 and prepends three owner-writable directories ahead of `/usr/local/orb-bin` in PATH, and `orb-dev` hands the decrypted environment to writable repository code by design (F8, R3-N2) |
 
 **A tunnel under the keep beats every wall.** Capture the passphrase and the
 encryption, the read-only role, `VALID UNTIL`, and propose/approve all become
@@ -134,7 +139,7 @@ and be re-exercised on a schedule. A wall nobody has pushed on is a painting.
 
 | Zone | Land | Air | Tunnel |
 |---|:-:|:-:|:-:|
-| **Castle** (database) | ✅ grants + RLS, verified 42/42 | ✅ same grants apply | ✅ needs owner privileges |
+| **Castle** (database) | ✅ grants + RLS, verified 50/50 | ✅ same grants apply | ✅ needs owner privileges |
 | **Grounds** (files) | ⚠️ same-user perms only | ❌ no filter possible | ❌ **open** |
 | **Keep** (master store) | ✅ AES at rest | — | ❌ **passphrase capture** |
 
