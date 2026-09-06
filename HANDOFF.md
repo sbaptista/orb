@@ -14,90 +14,48 @@
 
 ## App State
 
-- **Branch:** `main`.
-- **Pushed:** v0.6.298 through **v0.6.301 are pushed** (`630c271`, 2026-09-03)
-  and deployed by Vercel. Four versions went out together, including v0.6.299,
-  whose headline feature v0.6.301 removes — so the deployed changelog shows the
-  session mechanism introduced and withdrawn in one batch. Nothing is
-  outstanding.
+- **Branch:** `main`. **Everything is pushed** — `git log --oneline
+  origin/main..main` is empty as of 2026-09-05, HEAD `71f69ba`.
+- **Version:** **0.6.305**. v0.6.298–v0.6.305 are all deployed.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.305** — Codex Round 4 remediation. **R4-N1 was a
-  real defect in shipped v0.6.303 code**: the parsed-line count could not
-  authenticate a decrypt, so a truncated store loaded a half-read environment
-  silently. Both launchers now check the decrypt exit status. Also fixed:
-  `status` conflating refusal with unreachability, the launcher integrity check
-  failing open three ways, and three overstated claims (window/boundary, F8,
-  "bloat").
-- **🔴 ACTION REQUIRED (Stan, needs sudo).** `orb-dev` and `orb-agent-approve`
-  carry the R4-N1 fix and must be reinstalled — **the installed copy is what
-  runs, and the installed copies still have the defect**:
-
-  ```
-  sudo install -o root -g wheel -m 755 scripts/security/orb-dev /usr/local/orb-bin/orb-dev
-  sudo install -o root -g wheel -m 755 scripts/security/orb-agent-approve /usr/local/orb-bin/orb-agent-approve
-  ```
-
-  `bash scripts/security/test-orb-launcher.sh` fails until both are done.
-- **Previous version:** 0.6.304 — handoff purpose/conventions documented in
-  `docs/handoff-conventions.md` (single source of truth) and enforced by
-  `scripts/verify-handoff.js`, which fails when they are broken. **v0.6.298–0.6.303 are pushed and live**
-  (`a562929`); v0.6.304 and the doc commits after it are **committed, unpushed**.
-- **🔴 `npm run lint` currently FAILS**, by design. `scripts/verify-handoff.js`
-  reports twelve `Prior session:` blocks in this file — the defect it was built
-  to catch. `docs/handoff-conventions.md` §3.4 says the latest session
-  *replaces* the prior entry. Removing them applies that rule rather than
-  deciding anything new, but deletes ~800 lines of 1,191 and **needs Stan's
-  authorisation**. Until then, lint fails on this one check only.
-- **Installed launchers: IN SYNC (verified 2026-09-03).** Stan reinstalled all
-  three diverged copies; `npm run test:security-launcher` reports "Installed
-  launchers match the repository (4 checked)" and an independent `diff` of each
-  agrees. All four remain `root:wheel 755`.
-  **Standing note:** the copies in `/usr/local/orb-bin` are what actually run,
-  and version control does not keep them in step — only that test does. Run it
-  after editing anything in `scripts/security/`. `orb-secrets-seal` had drifted
-  since 2026-08-05 (it still required the removed `ELEVENLABS_API_KEY`, so the
-  version on PATH could not re-seal the store) and nothing noticed for four
-  weeks.
 - **Production maintenance:** off.
-- **Database:** Stan applied
-  `scripts/migrations/20260818_statement_import_catalog_models.sql` and
-  reported success. Stan also applied
-  `scripts/migrations/20260818_model_request_platform.sql` and reported
-  “Success. No rows returned.” Historical request rows deliberately remain
-  `unknown`; no production model promotion was made.
-- **Database — applied migrations (state, not files to re-read).** All of
-  `20260819_orb_agent_ro_role.sql`, `20260819b_orb_agent_ro_routine_privileges.sql`,
+- **Installed launchers: IN SYNC — verified 2026-09-05** by
+  `bash scripts/security/test-orb-launcher.sh` (4 checked; bytes, owner and mode
+  asserted) and an independent `diff`. All four `root:wheel 755`.
+  **Standing note:** the copies in `/usr/local/orb-bin` are what run. Version
+  control does not keep them in step — only that check does. **Run it after
+  editing anything in `scripts/security/`, and reinstall before assuming a fix
+  is live.** Two separate divergences were found this way: `orb-secrets-seal`
+  had been unable to re-seal the store for four weeks, and the R4-N1 decrypt fix
+  sat un-installed until reinstalled.
+- **Agent broker: IN SERVICE.** Standing credential at
+  `~/Project-secrets/orb-agent/credential.pgpass` (mode 600), reaching
+  `orb_agent_ro.<project-ref>` on the pooler, port 6543. `orb-agent status`
+  reports ACCEPTED. Revoke with `ALTER ROLE orb_agent_ro NOLOGIN;` — pair with
+  `pg_terminate_backend` to cut off an already-open connection.
+- **`npm run lint` exits non-zero** on **6 pre-existing ESLint errors** in
+  `app/prototype/voice/page.tsx`, unchanged since v0.6.17.
+  `scripts/verify-handoff.js` and `scripts/verify-ui-catalog.js` both pass.
+- **Database — applied migrations (state, not files to re-read).**
+  `20260819_orb_agent_ro_role.sql`,
+  `20260819b_orb_agent_ro_routine_privileges.sql`,
   `20260820_routine_least_privilege.sql`, `20260820b_anon_definer_sweep.sql`,
   `20260820c_is_admin_and_authenticated_lockdown.sql`,
-  `20260820d_todos_agent_policy_fold.sql` and
-  `20260903_orb_agent_ro_standing_credential.sql` are **applied**. The `anon`
-  exposure is closed in production. Moved here from Uncommitted Changes on
-  2026-09-03: naming them under that heading told the next agent to re-read
-  them, which was never the intent.
-- **Database — DONE 2026-09-03.**
-  `scripts/migrations/20260903_orb_agent_ro_standing_credential.sql` is
-  **applied**; Stan set a standing password and installed the pgpass line.
-  Verifier returned **50 passed, 0 failed**. The role reports
-  `expiry_stamp infinity`, `can_log_in true`, `connection_limit 4`,
-  `bypasses_rls false`, `inherits false`.
-- **🟢 THE BROKER IS IN SERVICE.** The first successful end-to-end read in its
-  history happened 2026-09-03. **The pooler question is answered:** a custom role
-  *does* authenticate through Supabase's transaction pooler, as
-  `orb_agent_ro.<project-ref>` on `aws-1-us-west-1.pooler.supabase.com:6543`.
-  That had been the one untested step since 2026-08-19.
-- **DONE 2026-09-03:** the obsolete `/usr/local/orb-bin/orb-agent-session` was
-  removed by Stan. The four remaining launchers (`orb-agent-approve`, `orb-dev`,
-  `orb-secrets-seal`, `orb-secrets-set`) are all `root:wheel`, all
-  passphrase-bearing, and all denied to Claude Code.
-- **ORB-374:** still deferred overall, but its Phase 1 items 4 and 7 (narrow
-  brokers; removing inline-secret instructions from both `AGENTS.md` files) are
-  now implemented by the capability broker.
-- **ORB-375:** implementation and credential rotation are in progress.
-
----
-
+  `20260820d_todos_agent_policy_fold.sql`,
+  `20260903_orb_agent_ro_standing_credential.sql`, and the two 20260818
+  statement-import/platform migrations are all **applied**. The `anon` exposure
+  is closed in production. Boundary verifier last run 2026-09-03: **50 passed,
+  0 failed**.
+- **No migration is outstanding.**
+- **`~/Projects/shared` is now a git repository** (`02b0f46`) with **no remote
+  configured**. It holds the shared `AGENTS.md` governing every project in
+  `~/Projects`. Adding a remote is Stan's decision — it names credential
+  variables and internal paths.
+- **ORB-374:** deferred overall; Phase 1 items 4 and 7 are implemented by the
+  broker.
+- **ORB-375:** implementation and credential rotation still in progress.
 ## Uncommitted Changes
 
 Path-only projection of `git status --short`. Enforced by
@@ -110,156 +68,64 @@ Path-only projection of `git status --short`. Enforced by
 
 ## Last Session Completed
 
-**ORB-382 — removed time-boxed agent sessions — 2026-09-03 (Claude Code, Opus 5)**
+**2026-09-03/05 — Claude Code (Opus 5). ORB-382 + follow-on. v0.6.301–v0.6.305,
+all pushed.**
 
-Released locally as **v0.6.301**. Stan's judgement, after reviewing the complete
-functionality of both `orb-dev` and `orb-agent`: the session ceremony was
-obstacle rather than protection. `orb-agent-session` is deleted;
-`orb_agent_ro` moves to a standing credential.
+**ORB-382 — `orb-agent-session` deleted.** Time-boxed windows removed;
+`orb_agent_ro` moved to a standing credential (one pgpass line, mode 600,
+connection fields read from it). Revocation is `ALTER ROLE orb_agent_ro
+NOLOGIN` — an authentication-time check that does NOT sever an open connection;
+pair it with `pg_terminate_backend` to cut off a live session. Todo closed;
+Knowledge entry saved.
 
-**Why it went, in order of weight.** (1) The window was never the
-*authorization* boundary and enforced no hard maximum lifetime — though it did
-reduce off-window credential availability, which Codex R4-Q1 corrected me on —
-Layer 1 is SELECT on eight tables with no write grant anywhere, and the broker's
-own header always said so. (2) Its expiry did not behave as described: F18
-established that the server-side stamp gates logins only, natural expiry fires
-no event, and a held connection survived to the next mint or explicit `--end`.
-(3) It was the only read path that unlocked the master store, so every window
-spent a master-passphrase entry — the F8 exposure the castle model ranks
-highest. The control consumed the asset it existed to protect.
+**The broker is in service.** First successful end-to-end read in its history.
+A custom role DOES authenticate through Supavisor, as
+`orb_agent_ro.<project-ref>` on `aws-1-us-west-1.pooler.supabase.com:6543` —
+the step untested since 2026-08-19.
 
-**Design.** One standard pgpass line, mode 600, carrying host/port/db/user as
-well as the password, so there is no second file to drift. The password still
-reaches psql only through `PGPASSFILE`. `cmd_status` now reports what the
-*database* says — it attempts a real `SELECT 1` — rather than trusting a local
-file's claim, and prints the exact install command when the credential is
-absent. Revocation is `ALTER ROLE orb_agent_ro NOLOGIN;`.
+**Defects found and fixed this session:**
 
-**Documented rather than glossed:** `NOLOGIN` is an authentication-time check
-exactly like `VALID UNTIL`. It stops new connections and does **not** sever an
-open one; cutting off a live session needs a `pg_terminate_backend` sweep as
-well. That distinction is written into the migration, the plan, and §14 of the
-hardening doc, because the previous design's central claim failed on precisely
-this point and the same mistake was available again.
+| Defect | Was |
+|---|---|
+| `orb-secrets-seal` installed copy required `ELEVENLABS_API_KEY` | Could not re-seal the store. Broken 4 weeks; found by diffing installed vs repo |
+| Decrypt failure not detected (**R4-N1**) | Shipped in v0.6.303. Parsed-line count cannot authenticate a decrypt — a truncated store yields 880 bytes of genuine plaintext and 60 valid assignments before failing. Fixed: command substitution propagates exit status |
+| `db health` printed bare `relname` across schemas | `public.users` and `auth.users` indistinguishable; produced an overstated bloat finding |
+| `orb-agent status` said "REFUSED by the database" for any failure | Merged auth refusal with DNS/timeout/outage. Now classified; INDETERMINATE otherwise |
+| Launcher integrity check failed open 3 ways | Missing launcher unvisited, extra file warned only, absent directory passed. Rebuilt from a manifest |
+| `AGENTS.md` told agents to run `psql "$DATABASE_URL"` | That variable is set in no shell. Two working paths now documented |
 
-**Accepted cost.** A leaked standing credential stays valid until revoked or
-rotated, with no automatic bound. This is a real reduction in defence-in-depth,
-taken deliberately.
+**Handoff conventions.** `docs/handoff-conventions.md` is the single source of
+truth; `AGENTS.md` and this file's header are pointers. Enforced by
+`node scripts/verify-handoff.js` (in `npm run lint`). Twelve chained
+`Prior session:` blocks removed: 1,191 → ~555 lines.
 
-**Two bugs I introduced and caught by running things:** `cmd_status` initially
-called `require_credential` inside an `if` with stderr suppressed — but `fail`
-calls `exit`, so a bad-permissions file would have exited silently showing the
-user nothing. And the suite's `status | grep -q` checks failed spuriously under
-`set -o pipefail`: `grep -q` exits on first match and closes the pipe, so the
-broker's remaining output takes SIGPIPE and the pipeline reports failure. The
-second one only surfaced because the suite was actually run rather than assumed
-green.
+**Verification, this session:** offline suite 62/62 ×3; boundary verifier 50/50;
+launcher integrity 4/4 with owner and mode asserted; `tsc` clean; R4-N1 measured
+old-vs-new against intact and truncated stores; both `status` branches and all
+three launcher fail-open paths exercised.
 
-**Verification — what was and was not established.** Offline suite **62/62
-across three runs**; `npx tsc --noEmit` clean; launcher helper test passes;
-`orb-agent status` exercised directly against a scratch root. The session
-section was replaced with *absence* checks, and they are labelled in the file as
-proving only that a string is gone. **The database side is unproven.** Neither
-`NOLOGIN` revocation nor the SELECT-only boundary is tested by any of the above
-— that needs the migration applied plus
-`scripts/migrations/verify-orb-agent-ro.sql`, and the broker has still never
-completed a single end-to-end live read.
+**Not verified:** `npm run lint` exits non-zero on **6 pre-existing ESLint
+errors** in `app/prototype/voice/page.tsx` (since v0.6.17, untouched).
+`verify-handoff` and `verify-ui-catalog` both pass.
 
 **Eval:** not applicable — no Orb-conversation capability, tool, routing rule,
-prompt, or defined speech behavior changed.
+prompt, or defined speech behavior changed in any release this session.
 
-**Live verification, all run by Stan or against the live database this session:**
+**Codex Round 4** is complete: review under §9 of
+`docs/agent-enforcement-hardening.md`, dispositions in §16. All findings
+accepted, none rejected. Codex cleared its ledger claim on 2026-09-05.
 
-| Test | Result |
-|---|---|
-| Offline suite | 62/62, three runs |
-| `npx tsc --noEmit` | clean |
-| Boundary verifier | **50 passed, 0 failed** with the inverted expiry assertion |
-| Live reads — status, todos list, todos get, knowledge search, db health | all pass |
-| `NOLOGIN` revocation | read refused, `FATAL`, exit 2; `status` reported REFUSED |
-| `LOGIN` restoration | reads returned, exit 0 |
-
-**Three defects found by running things rather than assuming.** `cmd_status`
-called a function that `exit`s on failure from inside an `if` with stderr
-suppressed — a bad-permissions credential file would have shown the user
-nothing. The suite's `status | grep -q` checks failed spuriously under
-`set -o pipefail`, because `grep -q` closes the pipe on first match and the
-writer takes SIGPIPE. And the migration's attribute-restating line was refused
-by Supabase (see below); it was a no-op nicety and was deleted.
-
-**Supabase gotcha worth remembering.** `ALTER ROLE ... NOSUPERUSER` requires
-superuser **even to set it off**, and Supabase's `postgres` is not one. Note the
-asymmetry: `CREATE ROLE ... NOSUPERUSER` *is* permitted for a `CREATEROLE` role,
-which is why the original role migration applied cleanly while a later `ALTER`
-restating the same attributes did not. Assert attributes in the verifier, not by
-restating them in a migration.
-
-**Misleading error worth remembering.** Supavisor reports `NOLOGIN` as
-`FATAL: (EAUTHQUERY) user not found in the database`. The role exists and was
-readable seconds earlier; only `rolcanlogin` changed. Check
-`pg_roles.rolcanlogin` before believing that wording.
-
-**ORB-382 is closed.** Stan applied the resolution notes and the Knowledge entry
-on 2026-09-03 and confirmed both were saved.
-
-**Loose ends closed afterwards, as v0.6.302** — see Uncommitted Changes above
-for detail. Three fixes: the psql/`DATABASE_URL` instructions that handed every
-agent a command expanding to an empty connection string; `db health` printing
-bare table names across multiple schemas, which over-stated a bloat finding
-(four of five flagged tables were `auth.*`, Supabase's to vacuum, not ours);
-and `shared/AGENTS.md` — which governs the push gate for every project in
-`~/Projects` — being under no version control whatsoever.
-
-**The bloat finding, corrected.** Only three `public` tables exceed the ratio,
-holding 47, 35 and 29 dead rows respectively. That is kilobytes.
-`orb_eval_runs` has never auto-vacuumed because it has not reached its trigger
-of 56 dead rows, which is correct behaviour rather than neglect. The actionable
-defect was the alarm rule, not the tables.
-
-**Fresh-eyes re-read of `orb-dev` (2026-09-03), findings not otherwise
-recorded:**
-
-- **PATH ordering defeats the root-owned-launcher mitigation.** F8 was recorded
-  as mitigated because the launchers and their directory are `root:wheel` and
-  unwritable. Both facts are true; the conclusion does not follow. `~/.zshrc`
-  (**mode 644, owner-writable**) prepends `~/.local/bin`,
-  `~/.antigravity-ide/…/bin` and — via Homebrew — `/opt/homebrew/bin`
-  (**`drwxrwxr-x`, group `admin`, writable**) *in front of* the
-  `/usr/local/orb-bin` entry that `path_helper` appends at position 15.
-  `which -a orb-dev` resolves correctly **today**, so nothing is shadowing it —
-  but that is a fact about the current filesystem, not a control. One file
-  written into `~/.local/bin`, with no `.zshrc` edit and no sudo, captures the
-  master passphrase on the next invocation. This is Codex's R3-Q5, still open.
-  Root ownership protects the launcher *files*; it does not govern which file
-  is *reached*. **Not fixed — the honest options are "document accurately" or
-  "stop calling F8 mitigated", and that is Stan's call.**
-- Same applies inside the script: `exec /usr/bin/env npm run dev` resolves npm
-  through that PATH. `npm` itself is `/usr/local/bin/npm` (root-owned, not
-  writable) at position 6, behind three writable directories. `package.json`
-  already defines a `prebuild` script, so npm lifecycle hooks are in active use
-  and an added `predev` would not look out of place in a diff (R3-N2).
-- `load_encrypted_environment` exports **every** name in the store, not only
-  the fifteen required. The required list is a floor, not a ceiling.
-- `orb-dev --check` takes no passphrase and touches no secret — it is purely a
-  filesystem/network posture check. It is nonetheless caught by the blanket
-  `Bash(orb-dev *)` deny, so an agent cannot use it to verify posture. Not
-  necessarily wrong, but worth a deliberate decision rather than an accident.
-
-*Session history before 2026-09-03 was removed on 2026-09-03 under
-`docs/handoff-conventions.md` §3.4 — "Last Session Completed" replaces the prior
-entry rather than being prepended to it. Twelve chained blocks had accumulated,
-687 lines. That history is in `git log` and `lib/changelog.ts`, both queryable
-precisely. Two live constraints found inside it — the Realtime `Cancel. Stop.`
-sequencing hazard and open ORB-378 — were migrated to Active Risks first; they
-were the only record of either.*
-
----
-
+**Protocol note:** I edited `docs/agent-enforcement-hardening.md` while it was
+under Codex's active claim. Codex's review was complete on disk and my
+dispositions append after it, so nothing was at risk — but the overlap rule says
+pick different work or ask Stan. I did neither.
 ## Active Risks / Unresolved Work
 
 - **🔴 Realtime voice — sequencing hazard in the mutation-approval hint.**
-  Migrated here 2026-09-03 from the trimmed session history; it was the only
-  record. Narrowing the confirmation hint to remove the words `Cancel. Stop.`
+  **UNCONFIRMED — Stan has not verified this is still live.** Migrated here
+  2026-09-03 from trimmed session history where it was the only record; the
+  other item rescued the same way (ORB-378) turned out to have been closed three
+  weeks earlier. Content rescued from stale prose inherits the staleness. Narrowing the confirmation hint to remove the words `Cancel. Stop.`
   would convert a loud failure into a **silent unauthorized mutation**: with the
   negation words gone, `failsMutationApprovalGuards` passes and
   `MUTATION_APPROVAL_ACT` matches `\bconfirm\b`, so a phantom transcript would
@@ -328,44 +194,32 @@ were the only record of either.*
 
 ## Next Priorities
 
-0. **✅ COMPLETE 2026-09-03 (ORB-382, v0.6.301).** The broker is in service and
-   the boundary is verified 50/50. Steps (a)-(f) below are retained as the
-   historical record of how it was brought up; **none of them is outstanding.**
-   The only remaining action is the `sudo rm` of the obsolete installed
-   launcher, noted in App State above.
-   Both SQL files are written for the **Supabase SQL Editor** (no psql
-   meta-commands, no `DATABASE_URL` needed) and also run under psql:
-   a. **DONE 2026-08-19.** All eight tables already had RLS enabled, so all
-      eight `agent_ro: select` policies were created; `pg_stat_statements` was
-      granted and `pg_read_all_stats` was refused (see above).
-   b. **DONE 2026-08-19** — password set via
-      `ALTER ROLE orb_agent_ro WITH PASSWORD '<random>'`. For a future rotation:
-      generate locally with `openssl rand -base64 32`, and clear the SQL Editor
-      afterwards since it retains recent queries.
-   b2. **DONE 2026-08-19** — the `tickets` agent policy was changed from
-      `deleted_at IS NULL` to `true`. See "RLS OR-evaluation finding" below.
-      The committed migration already encodes this for a fresh setup.
-   c. **DONE 2026-08-19 — 36 passed, 0 failed, BOUNDARY VERIFIED.** Rerun
-      `scripts/migrations/verify-orb-agent-ro.sql` after any policy or grant
-      change; every row must read PASS.
-   d. **OBSOLETE — sealing was removed in v0.6.299.** The direct host
-      `db.<ref>.supabase.co` is IPv6-only without the IPv4 add-on, which blocked
-      the original flow. Option C derives host, port, database, and the correct
-      `<role>.<project-ref>` username from the master `DATABASE_URL`, so nothing
-      is typed and the pooler form is handled automatically.
-   e. **SUPERSEDED by ORB-382 (v0.6.301) — there is no session to open.**
-      The sequence is now: apply
-      `scripts/migrations/20260903_orb_agent_ro_standing_credential.sql`, set a
-      standing password with `\password orb_agent_ro`, then install the pgpass
-      line (`orb-agent status` prints the exact format). Then ask Claude to run
-      `orb-agent status`, `orb-agent todos list --project ORB --status open`,
-      `orb-agent knowledge search "<term>"`, and `orb-agent db health`.
-      **Still never run against the live database** — the broker is verified
-      offline (62/62) and has never completed an end-to-end read.
-   f. Then confirm revocation: `ALTER ROLE orb_agent_ro NOLOGIN;` should make
-      the next read fail, and `LOGIN` should restore it. Re-run
-      `scripts/migrations/verify-orb-agent-ro.sql`; the section A row is now
-      "no leftover expiry stamp" and should PASS with no stamp set.
+0. **Security findings still open** — full detail in
+   `docs/agent-enforcement-hardening.md`; §16 lists what Round 4 closed.
+   - **R3-N2 / §15.6 — same-user post-unlock capture.** `orb-dev` hands every
+     decrypted value to writable `node_modules`, npm lifecycle hooks and server
+     code, and PATH order is set by owner-writable `~/.zshrc`, so the
+     root-owned launchers protect the *files* but not which file is *reached*.
+     Not fixable without a separate execution identity. **The available lever is
+     blast-radius reduction (R4-N4), not isolation.**
+   - **R4-N4 — org-admin credential narrowing.** `ANTHROPIC_ADMIN_API_KEY`,
+     `OPENAI_ADMIN_API_KEY` and `GOOGLE_BILLING_CREDENTIALS_JSON_BASE64` are
+     decrypted locally for a cron route that cannot run locally. **Removing them
+     from `orb-dev`'s `required_environment` would narrow NOTHING** — the loader
+     exports every name in the store. Needs a runtime allowlist in the loader,
+     or removal from the local store plus matching `orb-secrets-seal`/`-set`
+     changes. Not implemented; needs Stan's decision.
+   - **R3-N1 — post-confirmation TOCTOU in `orb-agent-approve`.** The proposal
+     path is reopened after the final hash check.
+   - **F17** — deleted todos are reachable by anyone holding the standing
+     credential outside the broker.
+   - **R2-Q6** — the master store is AES-CBC with no MAC. Anyone able to write
+     it can truncate or tamper with it undetected.
+   - **Bash/deny-rule gap** — `.claude/settings.json` denies `Read()` on
+     `Project-secrets/**`; Bash is not covered and can read the same files.
+     Claude Code used this gap on 2026-09-05 to build a test. Needs a decision.
+1. **6 pre-existing ESLint errors** in `app/prototype/voice/page.tsx` keep
+   `npm run lint` non-zero. Unchanged since v0.6.17.
 1. **🔴 CODEX HAS NO PUSH GATE — TESTED AND CONFIRMED 2026-08-19. Highest
    priority.** Codex ran `git push --dry-run origin main` with **no approval
    prompt, exit 0**. `git ls-remote` independently confirmed the remote did not
@@ -547,7 +401,7 @@ were the only record of either.*
 
 ## AI Tool Used Last Session
 
-`2026-09-03 — Claude Code (Opus 5)`
+`2026-09-05 — Claude Code (Opus 5)`
 
 ---
 
