@@ -23,7 +23,24 @@
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
-- **Local version:** **0.6.304** — handoff purpose/conventions documented in
+- **Local version:** **0.6.305** — Codex Round 4 remediation. **R4-N1 was a
+  real defect in shipped v0.6.303 code**: the parsed-line count could not
+  authenticate a decrypt, so a truncated store loaded a half-read environment
+  silently. Both launchers now check the decrypt exit status. Also fixed:
+  `status` conflating refusal with unreachability, the launcher integrity check
+  failing open three ways, and three overstated claims (window/boundary, F8,
+  "bloat").
+- **🔴 ACTION REQUIRED (Stan, needs sudo).** `orb-dev` and `orb-agent-approve`
+  carry the R4-N1 fix and must be reinstalled — **the installed copy is what
+  runs, and the installed copies still have the defect**:
+
+  ```
+  sudo install -o root -g wheel -m 755 scripts/security/orb-dev /usr/local/orb-bin/orb-dev
+  sudo install -o root -g wheel -m 755 scripts/security/orb-agent-approve /usr/local/orb-bin/orb-agent-approve
+  ```
+
+  `bash scripts/security/test-orb-launcher.sh` fails until both are done.
+- **Previous version:** 0.6.304 — handoff purpose/conventions documented in
   `docs/handoff-conventions.md` (single source of truth) and enforced by
   `scripts/verify-handoff.js`, which fails when they are broken. **v0.6.298–0.6.303 are pushed and live**
   (`a562929`); v0.6.304 and the doc commits after it are **committed, unpushed**.
@@ -100,7 +117,9 @@ functionality of both `orb-dev` and `orb-agent`: the session ceremony was
 obstacle rather than protection. `orb-agent-session` is deleted;
 `orb_agent_ro` moves to a standing credential.
 
-**Why it went, in order of weight.** (1) The window was never the boundary —
+**Why it went, in order of weight.** (1) The window was never the
+*authorization* boundary and enforced no hard maximum lifetime — though it did
+reduce off-window credential availability, which Codex R4-Q1 corrected me on —
 Layer 1 is SELECT on eight tables with no write grant anywhere, and the broker's
 own header always said so. (2) Its expiry did not behave as described: F18
 established that the server-side stamp gates logins only, natural expiry fires

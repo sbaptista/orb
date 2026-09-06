@@ -126,10 +126,34 @@ load_encrypted_environment() {
   local line=""
   local name=""
   local value=""
+  local decrypted=""
   local parsed=0
   local missing=()
 
   printf 'orb-dev: unlock the encrypted Orb development environment.\n'
+
+  # The decrypt runs in COMMAND substitution, which propagates its exit status,
+  # rather than PROCESS substitution, which does not.
+  #
+  # R4-N1 (Codex, 2026-09-05), reproduced here before fixing: an earlier version
+  # of this function read the plaintext through `done < <(openssl ...)` and then
+  # inferred success from the number of lines parsed. That inference is wrong.
+  # With the CORRECT passphrase and a truncated store, openssl decrypts every
+  # complete block, emits genuine plaintext, and only then fails on the final
+  # block — measured at 880 bytes and 60 valid assignments before exit 1. The
+  # required-name check is satisfied from that prefix and the launcher proceeds
+  # with a half-read environment.
+  #
+  # This matters beyond accident: the store is AES-CBC with no MAC (castle model
+  # §1), so anyone able to write the file can truncate it. A count of parsed
+  # lines authenticates nothing. Only the exit status does.
+  if ! decrypted="$(/opt/homebrew/bin/openssl enc -d -aes-256-cbc -pbkdf2 -iter 210000 -in "$ORB_SECRET_FILE")"; then
+    fail "could not decrypt the encrypted environment — NOTHING was loaded.
+Usually a wrong passphrase; openssl prints its own 'bad decrypt' above when so.
+It also fires if $ORB_SECRET_FILE is truncated or corrupt, in which case a
+partial decrypt may have succeeded and is being discarded deliberately."
+  fi
+
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "$line" || "$line" == \#* ]] && continue
     [[ "$line" == *=* ]] || fail "encrypted environment contains a malformed line"
@@ -138,18 +162,12 @@ load_encrypted_environment() {
     [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fail "encrypted environment contains an invalid variable name"
     export "$name=$value"
     parsed=$(( parsed + 1 ))
-  done < <(/opt/homebrew/bin/openssl enc -d -aes-256-cbc -pbkdf2 -iter 210000 -in "$ORB_SECRET_FILE")
+  done < <(printf '%s\n' "$decrypted")
+  unset decrypted
 
-  # A command that fails inside process substitution is NOT caught by
-  # `set -euo pipefail`: the loop simply reads nothing and execution carries on.
-  # Verified by isolated test 2026-09-03. Without this check, a mistyped
-  # passphrase surfaced as "missing required names: <all fifteen>", which reads
-  # like a corrupted or half-written store rather than a typo — the wrong thing
-  # to go debugging at the moment you most want to get on with work.
   if (( parsed == 0 )); then
-    fail "read nothing from the encrypted environment — the passphrase was almost
-certainly wrong. openssl prints its own 'bad decrypt' above when that is the
-cause. If the passphrase was right, $ORB_SECRET_FILE may be empty or corrupt."
+    fail "the encrypted environment decrypted successfully but contained no
+variable assignments. $ORB_SECRET_FILE appears to be empty."
   fi
 
   for name in "${required_environment[@]}"; do

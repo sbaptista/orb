@@ -6,6 +6,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.305',
+    date: '2026-09-05',
+    changes: [
+      'Fixed a real defect in the previous release, found by external model review. The check meant to detect a failed unlock counted how many settings it had read, and inferred success from a non-zero count. That inference is wrong: with the correct passphrase and a truncated store, decryption succeeds for every complete block and emits genuine settings before failing on the last one. Measured at 880 bytes and 60 valid settings before failure, which is more than enough to satisfy every required name — so the launcher would have started with a half-read environment and said nothing. Both the development launcher and the human approval gate now check the decrypt operation\'s own success and discard everything unless it succeeded. The catch matters beyond accident: the encrypted store has no tamper detection, so anyone able to write the file can truncate it.',
+      'Stopped the agent status command reporting an unreachable database as a refused credential. It discarded the underlying error and called every failure a refusal, merging authentication rejection with DNS failure, timeouts and outages. It now keeps the error, reports a refusal only when the database actually refused, and otherwise says the result is indeterminate and explicitly not a statement about the credential.',
+      'Rebuilt the installed-launcher integrity check, which closed the one problem it was written for but failed silently in three other directions: a launcher missing from the install location was never examined, an unexpected extra file only warned, and an absent install directory passed outright. It now works from an expected list, asserts ownership and permissions as well as file contents, and fails on any of those. It also reports, without asserting, which command the shell would actually run — that cannot be fixed by reinstalling.',
+      'Corrected three claims that were stronger than their evidence. The retired time-boxed credential window was never the authorization boundary and never enforced a hard maximum lifetime, but it did reduce credential availability between windows, and saying it "was never the boundary" overstated the case for removing it. The launcher-tampering finding is now marked partially rather than fully addressed, because protecting the launcher files does not prevent capture of secrets after unlocking. And the database health report no longer calls dead-tuple statistics "bloat", which is a different property that nothing here measures.',
+      'Corrected a test that asserted something an earlier review had already disproven — that the approval gate binds the reviewed content to the applied content — and narrowed its description to what it actually verifies. Internal developer tooling and documentation: no application route, component, or user-facing behavior changed. Eval: not applicable — no Orb-conversation capability, tool, routing rule, prompt, or defined speech behavior changed.',
+    ],
+  },
+  {
     version: 'v0.6.304',
     date: '2026-09-03',
     changes: [

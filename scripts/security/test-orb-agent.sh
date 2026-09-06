@@ -179,8 +179,15 @@ check "/usr/bin/grep -q 'validate_proposal' '$HERE/orb-agent-approve'" \
   "approve revalidates the complete proposal before applying"
 check "/usr/bin/grep -q 'knowledge entry is MISSING' '$HERE/orb-agent-approve'" \
   "a stored proposal with null knowledge is rejected at apply time"
+# R4-N5 (Codex, 2026-09-05): this check previously described itself as proving
+# "the bytes confirmed are bound to the bytes applied". Round 3 (R3-N1)
+# established that the proposal path is REOPENED after the final hash check, so
+# that binding does not hold and the suite was asserting a disproven claim —
+# the exact over-claim §15.8 was hunting for, two sections away from where I
+# looked. The check is kept because the re-hash does close the display-to-
+# confirmation window; only its description was wrong.
 check "/usr/bin/grep -q 'proposal file changed after it was displayed' '$HERE/orb-agent-approve'" \
-  "the bytes confirmed are bound to the bytes applied (hash re-check)"
+  "a change between DISPLAY and CONFIRMATION is refused (does NOT cover the post-confirmation reopen — R3-N1 open)"
 check "/usr/bin/grep -q 'Writing the Knowledge entry first' '$HERE/orb-agent-approve'" \
   "Knowledge is written BEFORE the todo closes (recoverable half-state)"
 check_fails "/usr/bin/grep -q 'Knowledge write could not be confirmed.*todo IS closed' '$HERE/orb-agent-approve'" \

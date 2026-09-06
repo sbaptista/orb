@@ -1,5 +1,9 @@
 -- ============================================================
--- Dead-row maintenance — public schema only
+-- Dead-tuple maintenance — public schema only
+--
+-- NAMING (corrected 2026-09-05, Codex R4): these are dead TUPLES awaiting
+-- vacuum, not a measurement of physical table or index bloat. The two are
+-- different properties; nothing here measures the latter.
 -- Date: 2026-09-03 — Claude Code (Opus 5)
 --
 -- MUST RUN VIA psql, NOT the Supabase SQL Editor.

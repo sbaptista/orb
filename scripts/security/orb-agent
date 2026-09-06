@@ -192,16 +192,32 @@ INSTALL
 
   # Report what the database says, not what the local file claims. A file that
   # exists proves nothing about whether the role can still log in.
-  if PGPASSFILE="$PGPASS_FILE" PGCONNECT_TIMEOUT=10 "$PSQL" \
+  #
+  # R4-N2 (Codex, 2026-09-05): this previously printed "REFUSED by the database"
+  # for every non-zero exit, having discarded stderr — merging authentication
+  # refusal with DNS failure, timeout, TLS failure and server outage. Only the
+  # first of those is a statement about the credential. The error is now kept
+  # and classified, and anything unrecognised is reported as INDETERMINATE
+  # rather than as a refusal that was never observed.
+  local probe_err="" probe_rc=0
+  probe_err="$(PGPASSFILE="$PGPASS_FILE" PGCONNECT_TIMEOUT=10 "$PSQL" \
        --host "$PGHOST" --port "$PGPORT" --username "$PGUSER" --dbname "$PGDATABASE" \
-       --no-password --quiet --no-psqlrc --tuples-only --command 'SELECT 1;' >/dev/null 2>&1; then
+       --no-password --quiet --no-psqlrc --tuples-only --command 'SELECT 1;' 2>&1 >/dev/null)" || probe_rc=$?
+
+  if (( probe_rc == 0 )); then
     printf 'credential: installed and ACCEPTED by the database\n'
     printf 'role:       %s (SELECT only)\n' "$PGUSER"
+  elif printf '%s' "$probe_err" | /usr/bin/grep -qiE 'password authentication failed|role .* does not exist|not permitted to log in|user not found in the database|no pg_hba.conf entry'; then
+    printf 'credential: installed but REFUSED by the database (authentication)\n'
+    printf 'The role may have been revoked (set NOLOGIN) or the password rotated.\n'
+    printf 'NOTE: Supavisor reports NOLOGIN as "user not found in the database"\n'
+    printf 'even though the role exists — check pg_roles.rolcanlogin.\n'
   else
-    printf 'credential: installed but REFUSED by the database\n'
-    printf 'The role may have been revoked (set NOLOGIN), the password rotated,\n'
-    printf 'or the host may be unreachable.\n'
+    printf 'credential: INDETERMINATE — could not reach the database\n'
+    printf 'This is NOT a statement about the credential. The host may be\n'
+    printf 'unreachable, the connection timed out, or TLS failed.\n'
   fi
+  [[ -n "$probe_err" ]] && printf 'psql said: %s\n' "$(printf '%s' "$probe_err" | /usr/bin/head -n 1)"
   printf 'proposals pending: %s\n' "$pending"
 }
 
@@ -341,7 +357,10 @@ cmd_db_health() {
     FROM pg_stat_user_tables WHERE seq_scan > 0
     ORDER BY seq_tup_read DESC LIMIT 15;" || printf '(unavailable — role lacks stats access)\n'
 
-  printf '\n=== Dead row bloat (flag: dead_pct > 20%%) ===\n'
+  printf '\n=== Dead tuples / autovacuum signal (flag: dead_pct > 20%%) ===\n'
+  printf 'NOT a bloat measurement. n_dead_tup is an estimate of tuples awaiting\n'
+  printf 'vacuum; physical table and index bloat is a different property and is\n'
+  printf 'not measured here (renamed 2026-09-05 after Codex R4).\n'
   printf 'dead_pct is dead/live, matching what autovacuum itself thresholds on,\n'
   printf 'so values above 100%% are normal on a small table and are not an error.\n'
   printf 'Only rows in schema "public" are yours to VACUUM; auth.* is owned by\n'

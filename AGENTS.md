@@ -620,7 +620,11 @@ against the read-only role.
 **Flags:**
 
 - any user table with `seq_tup_read` > 100k and low `idx_scan` needs an index;
-- `dead_pct` > 20% **and** `n_dead_tup` > 1000, **in schema `public` only** →
+- **Dead tuples are not a bloat measurement** (corrected 2026-09-05, Codex R4).
+  `n_dead_tup` estimates tuples awaiting vacuum; physical table and index bloat
+  is a different property this report does not measure. Treat the numbers below
+  as an autovacuum signal, not proof a table is or is not bloated.
+  `dead_pct` > 20% **and** `n_dead_tup` > 1000, **in schema `public` only** →
   ask Stan to run `scripts/maintenance/vacuum-bloated-tables.sql` through psql
   (Path B above — `VACUUM` cannot run inside a transaction block, so the
   Supabase editor will refuse it).

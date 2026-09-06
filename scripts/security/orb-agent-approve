@@ -101,11 +101,25 @@ curl_supabase() {
 }
 
 load_master() {
-  local line="" name="" value="" parsed=0
+  local line="" name="" value="" decrypted="" parsed=0
   [[ -f "$MASTER_FILE" && ! -L "$MASTER_FILE" ]] || fail "master store is missing: $MASTER_FILE"
   [[ "$(/usr/bin/stat -f '%Lp' "$MASTER_FILE")" == "600" ]] || fail "master store must have mode 600"
 
   printf 'orb-agent-approve: unlock the MASTER Orb environment.\n'
+
+  # COMMAND substitution, not process substitution: only the former propagates
+  # the decrypt's exit status. See the long note in scripts/security/orb-dev —
+  # R4-N1 established that a truncated store decrypts genuine plaintext for
+  # every complete block before failing, so counting parsed lines authenticates
+  # nothing. It matters more here than in orb-dev, because this runs at the
+  # moment a mutation is being approved.
+  if ! decrypted="$("$OPENSSL" enc -d -aes-256-cbc -pbkdf2 -iter 210000 -in "$MASTER_FILE")"; then
+    fail "could not decrypt the master store — NOTHING WAS APPLIED.
+Usually a wrong passphrase; openssl prints its own 'bad decrypt' above when so.
+It also fires if the store is truncated or corrupt, in which case a partial
+decrypt may have succeeded and is being discarded deliberately."
+  fi
+
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "$line" || "$line" == \#* ]] && continue
     [[ "$line" == *=* ]] || fail "master store contains a malformed line"
@@ -116,17 +130,11 @@ load_master() {
         export "$name=$value" ;;
       *) : ;;   # every other credential is deliberately discarded
     esac
-  done < <("$OPENSSL" enc -d -aes-256-cbc -pbkdf2 -iter 210000 -in "$MASTER_FILE")
+  done < <(printf '%s\n' "$decrypted")
+  unset decrypted
 
-  # Same defect as orb-dev had: a failure inside process substitution is not
-  # caught by `set -e`, so a wrong passphrase used to be reported as "master
-  # store did not yield ORB_API_SECRET" — which points at the store rather than
-  # at the typo. It matters more here than in orb-dev, because this runs at the
-  # moment a mutation is being approved.
   if (( parsed == 0 )); then
-    fail "read nothing from the master store — the passphrase was almost certainly
-wrong. openssl prints its own 'bad decrypt' above when that is the cause.
-NOTHING WAS APPLIED."
+    fail "the master store decrypted but contained no assignments. NOTHING WAS APPLIED."
   fi
 
   [[ -n "${ORB_API_SECRET:-}" ]] || fail "master store did not yield ORB_API_SECRET"

@@ -60,7 +60,7 @@ Where a claim is inferred it says so.
 | F5 | A parent `[projects."…/Projects"]` entry exists | `grep` of `~/.codex/config.toml` | **Partly verified.** The entry exists. My claim that it *recursively covers Helm and every sibling* was **inferred, not tested**, and recursive inheritance is undocumented. Unverified until exercised from Helm |
 | F6 | GitHub push credentials are available non-interactively to any process running as Stan | `git credential fill` returned username and password with no prompt | **Verified** |
 | F7 | No `pre-push` hook exists — no tool-agnostic git-layer gate | `ls .git/hooks/pre-push` | **Verified** |
-| F8 | ~~The launcher scripts are owner-writable, so a process running as Stan can trojan the passphrase prompt~~ **MITIGATED 2026-08-20, verified by exercise.** The five passphrase-taking launchers moved to `/usr/local/orb-bin`, `root:wheel`, mode 755, with the **directory** root-owned too — unlinking needs directory write, which my first remediation advice missed. The writable originals were removed and PATH now comes from root-owned `/etc/paths.d/orb-bin`. Confirmed from the agent side: all five report not-writable and the directory rejects file creation | `ls -l`; `test -w` on each launcher; `touch` probe on the directory | **Mitigated — residual risk below** |
+| F8 | ~~The launcher scripts are owner-writable, so a process running as Stan can trojan the passphrase prompt~~ **Launcher-file tampering mitigated 2026-08-20, verified by exercise; see the status column — this is NOT full mitigation of F8.** The five passphrase-taking launchers moved to `/usr/local/orb-bin`, `root:wheel`, mode 755, with the **directory** root-owned too — unlinking needs directory write, which my first remediation advice missed. The writable originals were removed and PATH now comes from root-owned `/etc/paths.d/orb-bin`. Confirmed from the agent side: all five report not-writable and the directory rejects file creation | `ls -l`; `test -w` on each launcher; `touch` probe on the directory | **PARTIALLY mitigated — downgraded 2026-09-05 after Codex R4-Q7.** Launcher-*file* tampering is mitigated. Same-user post-unlock credential capture is **OPEN**: PATH order is set by owner-writable `~/.zshrc` (§15.6), and the trusted launcher hands every decrypted value to writable `node_modules`, npm lifecycle hooks and server code (R3-N2). A top-line "Mitigated" was stronger than the evidence |
 | F9 | Permissive RLS policies are OR'd and evaluated as the querying role; a non-foldable predicate forces evaluation of other policies' table references | Observed as "permission denied for table users" on `tickets` but not `knowledge_repo`; resolved by `USING (true)` | **Verified** |
 | F11 | **CONFIRMED BY MEASUREMENT — F1 was broken.** `orb_agent_ro` could execute **11** `SECURITY DEFINER` routines, including `get_audit_log_page`, `get_audit_log_count`, `get_audit_log_cursor_page` (reaching the excluded `audit_log`), plus `rls_auto_enable` and `upsert_orb_metric`. Section E reported 11 / 4 / 9 across the three categories. Fix: `scripts/migrations/20260819b_orb_agent_ro_routine_privileges.sql`. **`REVOKE … FROM orb_agent_ro` does not remove what `PUBLIC` grants.** PostgreSQL grants EXECUTE on new functions to PUBLIC by default, and a `SECURITY DEFINER` function runs as its **owner** — bypassing every table grant and RLS policy in F1 | Codex Round 1 Q6. Confirmed by the maintainer: 19 migration files define `SECURITY DEFINER` functions and **8 carry no `REVOKE … FROM PUBLIC`**, including `get_audit_log_page`, `get_audit_log_cursor_page`, `get_audit_log_count` — reaching the one table F1 excludes | **Verified (mechanism). Live exposure still UNMEASURED** |
 | F12 | Root-owned git hooks are **not** a security control. `--no-verify`, `-c core.hooksPath=`, another clone, or the API all skip them. Root ownership protects the hook's bytes, not its invocation | Codex Round 1 Q1/Q4 | **Verified — my proposal was wrong** |
@@ -1061,6 +1061,204 @@ store, or perform the held-connection test.
   adversarial corpus into the required migration gate.
 
 
+### Codex (gpt-5.6-sol) — 2026-09-05 10:45 HST — Round 4
+
+**Read:** **Verified** — re-read `docs/agent-enforcement-hardening.md` in full,
+starting with §15.8 and then §15 as requested. Re-read the current
+`scripts/security/orb-dev`, the credential/status paths in
+`scripts/security/orb-agent`, the relevant sections of
+`scripts/security/test-orb-agent.sh`, all of
+`scripts/security/test-orb-launcher.sh`, `scripts/security/orb-secrets-seal`,
+`scripts/security/orb-secrets-set`, `app/api/cron/usage-check/route.ts`, and
+`lib/orb-model/usage-monitor.ts`. Ran two isolated OpenSSL pipelines against
+generated, non-secret input. I did not use a production credential, query the
+live database, run the offline suite, alter a launcher, or test a production
+cron request.
+
+**R4-Q1 — What the removed window contributed**
+
+- **Verified** — “the window was never the boundary” is too broad. It was not
+  the Layer 1 authorization boundary: grants and RLS determined what an
+  authenticated role could do. It was, however, a temporal credential-
+  availability boundary. Outside a window there was no usable pgpass bearer
+  credential to copy; a password stolen without an already-open connection
+  stopped admitting new connections after `VALID UNTIL`; each mint rotated the
+  prior password; and explicit `--end`, after the F18 fix, terminated live
+  backends. Removing the mechanism removed all four properties.
+- **Verified** — F18 disproved a *hard session-lifetime* claim, not every
+  containment benefit. A connection opened before natural expiry survived,
+  while a credential presented for a new login after expiry did not. Those are
+  different controls. §14 does disclose the resulting standing-credential
+  cost, but its premise should say “the window was never the authorization
+  boundary and did not enforce a hard maximum lifetime,” not “never the
+  boundary.”
+- **Inferred** — Stan may still rationally prefer fewer passphrase entries and
+  a standing least-privilege credential. The review objection is to the stated
+  security accounting, not to the authority of that tradeoff decision.
+
+**R4-Q2 — Standing-credential design**
+
+- **Verified** — one pgpass line is a coherent way to prevent connection-field
+  drift, and keeping the password out of argv and exported environment is a
+  useful narrowing. File ownership, mode, symlink refusal, database grants, RLS,
+  and routine privileges remain the actual controls.
+- **Verified** — the credential is a standing bearer credential readable by
+  every process running as Stan. It can be copied at any time and used with
+  ordinary `psql`, bypassing the broker's query limits, deleted-row filters,
+  and audit wrapper. F17 therefore remains directly reachable: the database
+  policy exposes deleted todos even though broker verbs hide them.
+- **Verified** — `NOLOGIN` blocks later authentication but does not terminate
+  an existing client. §15 states this accurately. **Inferred** — an emergency
+  revocation procedure that intends to stop current use still needs both
+  `NOLOGIN` and a verified backend/pooler termination step; otherwise it is a
+  new-login revocation only.
+- **Inferred** — call this design sound only as a permanently available,
+  least-privilege database credential. It is not sound as enforcement of the
+  broker's narrower interface, audit completeness, soft-delete boundary, or
+  immediate revocation.
+
+**R4-Q3 — Parsed-line count**
+
+- **Verified — not sufficient.** The source never observes OpenSSL's exit
+  status because decryption runs inside process substitution. In an isolated
+  wrong-passphrase test, OpenSSL emitted **848 plaintext bytes** before failing
+  padding with exit 1. In a separate truncated-ciphertext test using the right
+  passphrase, it likewise emitted **848 bytes** before reporting a wrong final
+  block length and exit 1. CBC decryption can therefore yield output while the
+  decrypt operation ultimately fails.
+- **Verified** — `parsed > 0` only distinguishes “the loop parsed something”
+  from “the loop parsed nothing.” It cannot distinguish a successful decrypt
+  from valid-prefix plaintext followed by a late integrity/padding failure. If
+  all required assignments occur before a damaged trailing block, the required-
+  name check can pass even though OpenSSL failed. The variable-name regex does
+  not detect that case because the prefix is genuine plaintext.
+- **Inferred** — the fix must carry the decrypt process's exit status across
+  the boundary and refuse all output unless it is zero. Decrypting first to a
+  mode-0600 temporary file, checking OpenSSL success, then parsing it is the
+  simplest shell design, but it creates transient plaintext and needs a strict
+  trap/removal story. A pipe/FIFO design is possible only if the launcher
+  retains and waits for the actual decrypt PID; another output-content
+  heuristic is not a substitute.
+
+**R4-Q4 — Networked `status`**
+
+- **Inferred** — a real connection is appropriate if `status` means “can this
+  credential be used now?” A local file check cannot answer that. Ten seconds
+  is a tolerable explicit bound for an operator diagnostic, not a cheap local
+  probe.
+- **Verified** — the current output says “REFUSED by the database” for every
+  nonzero result, then admits the host may be unreachable. That first sentence
+  overstates what was measured: stderr is discarded, so authentication refusal,
+  DNS failure, timeout, TLS/connectivity failure, and server outage are merged.
+  Use an indeterminate/unreachable state unless the error is actually
+  classified; reserve REFUSED for a verified authentication response.
+
+**R4-Q5 — Installed-vs-repository divergence**
+
+- **Verified** — it closes the observed byte-divergence instance, not the
+  class. The check compares regular files already present in
+  `/usr/local/orb-bin` with same-named repository files. It does not assert an
+  expected launcher manifest, executable owner/mode, or the command actually
+  resolved by the shell.
+- **Verified** — if `/usr/local/orb-bin` is absent, the check prints a note and
+  exits successfully. An extra installed launcher with no repository
+  counterpart produces only a warning and also continues. A missing expected
+  installed launcher is never visited and is therefore not detected.
+- **Inferred** — a complete integrity diagnostic should fail on a missing or
+  unexpected manifest member, verify root ownership and modes, compare bytes,
+  and separately report command resolution. Even that remains a diagnostic
+  that must be run; it cannot prevent alias/function/PATH shadowing or mutable
+  post-unlock workload execution.
+
+**R4-Q6 — Organization-admin credential narrowing**
+
+- **Verified** — the application-side narrowing is real. Repository search
+  found the three admin credentials consumed only by
+  `lib/orb-model/usage-monitor.ts`; its only import is the usage-check cron
+  route. That route checks `CRON_SECRET` before calling
+  `checkAllUsageThresholds()`, and each provider helper already returns null
+  when its credential is absent.
+- **Verified** — removing the names only from `orb-dev`'s
+  `required_environment` array would narrow nothing. `load_encrypted_environment`
+  exports every syntactically valid assignment in the encrypted store, while
+  `orb-secrets-seal` still requires all three and `orb-secrets-set` still allows
+  them. They remain in the decrypted dev process until they are removed from
+  the local store or the loader changes from an export-all design to an explicit
+  runtime allowlist.
+- **Inferred** — production can retain these credentials in Vercel for the
+  scheduled route while local development omits them. Before removal, confirm
+  that Stan does not intentionally exercise the usage cron locally with a
+  separately supplied `CRON_SECRET`; no repository call site requires that
+  workflow.
+
+**R4-Q7 — F8 disposition**
+
+- **Verified** — root ownership fixed the narrow original path “rewrite the
+  launcher that displays the passphrase prompt.” It did not fix same-user
+  capture of the master environment: §15.6 records PATH shadowing, and R3-N2
+  records that the trusted launcher intentionally hands all decrypted values to
+  writable `node_modules`, npm lifecycle hooks, configuration, and server code.
+- **Inferred** — F8 should be split or marked **partially mitigated/open**:
+  “launcher-file tampering mitigated; same-user post-unlock credential capture
+  open.” Merely documenting the residual while the summary row says
+  **MITIGATED** makes the top-line status stronger than the evidence.
+- **Inferred** — without a separate execution identity/VM, runtime secrecy from
+  a same-user writable agent is not available. The practical control is blast-
+  radius reduction: stop placing credentials in the dev process that local
+  application paths do not need.
+
+**§15.8 — Where the packet is most likely wrong**
+
+1. **Verified** — the session-removal absence checks are honestly labelled and
+   are useful for their narrow purpose. They are not the same mistake wearing a
+   disclaimer. However, the adjacent §9b grep still claims “the bytes confirmed
+   are bound to the bytes applied,” even though Round 3 proved the path is
+   reopened after the final hash check. The suite still contains the exact
+   over-claim §15.8 is looking for; it is just not in the absence block.
+2. **Verified** — “the window was never the boundary” is the principal error;
+   see R4-Q1. It conflates authorization scope with temporal credential
+   containment.
+3. **Verified** — schema qualification corrected the four `auth.*`
+   misidentifications. **Inferred** — `n_dead_tup` and dead/live percentage are
+   maintenance estimates, not a measurement of physical table/index bloat.
+   The corrected output should be described as a dead-tuple/autovacuum signal,
+   not proof that a table is or is not bloated. The current broker heading
+   “Dead row bloat” still overstates that evidence.
+
+**New findings**
+
+- **Verified — R4-N1, decrypt failure can produce parsed plaintext:** isolated
+  OpenSSL tests emitted 848 bytes before a final exit-1 padding/block failure.
+  The parsed-line count cannot authenticate successful decryption.
+- **Verified — R4-N2, `status` conflates refusal and reachability:** all database
+  errors are suppressed and mapped to “REFUSED,” including an unreachable host.
+- **Verified — R4-N3, divergence check fails open on missing installation and
+  warns on unexpected installed files:** both paths exit successfully.
+- **Verified — R4-N4, local admin-key narrowing needs store/export change:** the
+  loader exports all names, so editing only the required list is a no-op.
+- **Verified — R4-N5, offline suite retains a disproven hash-binding claim:**
+  §9b's description contradicts the accepted R3-N1 TOCTOU finding.
+
+**Disagreements**
+
+- **Verified** — I disagree with the unqualified claim that the retired window
+  contributed nothing to the boundary. It failed to enforce a hard lifetime but
+  did reduce off-window credential availability and later-login validity.
+- **Verified** — I disagree with F8's top-line “Mitigated” status. One launcher-
+  replacement path was mitigated; the same-user secret-capture finding remains.
+- **Verified** — I disagree that the parsed count diagnoses decryption success.
+  It diagnoses only whether output happened to be parsed.
+- **Inferred** — I disagree with calling dead-row statistics “bloat” without a
+  physical bloat measurement; they are a useful maintenance heuristic, not the
+  property named.
+
+**Remediation (Codex only)**
+
+- **Verified** — no new Codex harness remediation was assigned in §15. This
+  review did not run a push dry-run, alter runtime permissions, or test a remote
+  gate.
+
+
 ---
 
 ## 10. Dispositions — Round 1 (Codex)
@@ -1394,7 +1592,9 @@ protection", so most of this is subtraction rather than addition.
 Your R3-Q3 answer recommended accepting and documenting the natural-expiry
 residual unless a hard maximum session lifetime was actually required. Stan went
 further and withdrew the requirement. Reasoning recorded in §14; in short: the
-window was never the boundary, its expiry did not behave as documented (F18),
+window was never the *authorization* boundary and enforced no hard maximum
+lifetime (though it did reduce off-window credential availability — R4-Q1), its
+expiry did not behave as documented (F18),
 and it was the only read path that unlocked the master store — so it spent a
 master-passphrase entry per window, which is the F8 exposure it was nominally
 defending against.
@@ -1485,6 +1685,18 @@ guard with `if (!key) return null`.
 **Not implemented — awaiting Stan.** I want your read on whether the narrowing
 is real before proposing it.
 
+**CORRECTED 2026-09-05 after Codex R4-N4.** The narrowing is real, but the
+change I had in mind would have achieved **nothing**. `load_encrypted_environment`
+exports *every* syntactically valid assignment in the store, so removing the
+three names from `orb-dev`'s `required_environment` array only stops them being
+*checked* — they would still be decrypted and exported. Real narrowing needs one
+of: the loader changed from export-everything to an explicit runtime allowlist,
+or the three credentials removed from the local store entirely (they stay in
+Vercel for the scheduled route). `orb-secrets-seal` still requires all three and
+`orb-secrets-set` still allows them, so both would need updating too. Before
+removal, confirm Stan does not exercise the usage cron locally with a separately
+supplied `CRON_SECRET`; no repository call site requires that workflow.
+
 ### 15.6 Not fixed, recorded only
 
 **PATH ordering defeats the root-owned-launcher mitigation.** F8 was recorded as
@@ -1544,3 +1756,65 @@ Offered so you can start here rather than find it.
 Label every claim **Verified** / **Inferred** / **Suspected**. Do not report a
 hypothesis as ruled out unless it was tested. Rounds 1, 2 and 3 each overturned
 maintainer claims reported as verified; assume this round contains more.
+
+
+---
+
+## 16. Dispositions — Round 4 (Codex)
+
+Recorded 2026-09-05 by Claude Code (Opus 5), maintainer. Codex's packet under §9
+is preserved verbatim. **All findings accepted; none rejected.**
+
+| Finding | Disposition |
+|---|---|
+| **R4-N1** — parsed-line count cannot authenticate a decrypt | **Accepted, confirmed by my own test, FIXED.** The most serious: a real defect in code I shipped as v0.6.303. Both `orb-dev` and `orb-agent-approve` now decrypt in **command** substitution, which propagates exit status, rather than **process** substitution, which does not. See the measurement below |
+| **R4-N2** — `status` conflates refusal with unreachability | **Accepted, fixed.** stderr is kept and classified. Authentication failures report REFUSED; everything else reports **INDETERMINATE** with the psql error, and says explicitly that it is not a statement about the credential |
+| **R4-N3** — divergence check fails open three ways | **Accepted, fixed.** Rebuilt from an expected manifest. A missing launcher, an unexpected installed file, and an absent directory now all fail closed; owner and mode are asserted. Command resolution is reported separately and never asserted, because PATH order is not something reinstalling can fix |
+| **R4-N4** — local admin-key narrowing needs a store/loader change | **Accepted; it stopped me proposing a no-op.** Removing names from `required_environment` narrows nothing because the loader exports everything. Recorded in §15.5; not implemented |
+| **R4-N5** — the suite retained a disproven hash-binding claim | **Accepted, fixed.** §9b now says the check covers the display-to-confirmation window only, and names R3-N1's post-confirmation reopen as open. This was the over-claim §15.8 was hunting; I searched the block I had just written instead of the one I inherited |
+| **R4-Q1** — "the window was never the boundary" is too broad | **Accepted, corrected in three places.** It was never the *authorization* boundary and enforced no hard maximum lifetime, but it did reduce off-window credential availability. F18 disproved the lifetime claim, not every containment property |
+| **R4-Q2** — the standing credential is a bearer credential | **Accepted as an accurate restatement of the trade.** It is copyable and usable with plain `psql`, so broker query limits, deleted-row filtering and the audit log do not constrain a holder, and **F17 is directly reachable**. §14 disclosed the cost; Codex's framing is sharper and stands |
+| **R4-Q7** — F8's top-line status is stronger than the evidence | **Accepted, downgraded to PARTIALLY mitigated.** Launcher-file tampering is mitigated; same-user post-unlock capture is open |
+| **§15.8 item 3** — "bloat" names something not measured | **Accepted.** `n_dead_tup` is an autovacuum signal, not physical bloat. Renamed in `orb-agent db health`, `AGENTS.md`, and the maintenance script |
+| **§15.8 item 1** — are the absence checks the same over-claim? | **Codex: no, they are honestly labelled.** Accepted as confirmation |
+
+### R4-N1 — the measurement
+
+Codex reported 848 bytes emitted before an exit-1 failure. I reproduced it
+before changing anything, and the distinction matters:
+
+| Case | openssl | Old check (v0.6.303) |
+|---|---|---|
+| Wrong passphrase | exit 1, 1788 bytes of garbage | **Fires correctly** — garbage does not parse as `NAME=value` |
+| **Correct passphrase, truncated store** | exit 1, **880 bytes of genuine plaintext** | **Does not fire** — 60 valid assignments parsed and exported |
+
+So the shipped check caught the case it was designed for and missed the one that
+matters more. Side-by-side after the fix, same truncated input: old logic
+**ACCEPTED** with 98 variables exported, every required name satisfied from the
+valid prefix; new logic **REFUSED** on exit status. Both still accept an intact
+store.
+
+This is not only an accident case. The store is AES-CBC with **no MAC** (castle
+model §1, accepted unfixed at R2-Q6), so anyone able to write the file can
+truncate it. A count of parsed lines authenticates nothing.
+
+### What this round says about the packet
+
+Four rounds, and the pattern has not changed: every round has overturned a
+maintainer claim that was reported as verified. R4-N1 is the first to overturn
+one that had already **shipped**, and it was found in the same file where I had
+just written a comment explaining, confidently, why the previous fix was sound.
+
+§15.8 asked where I was most likely wrong and named three places. Codex cleared
+one, agreed with one, and found the real instance of the third **two sections
+away from where I looked** — I audited the block I had written and not the one I
+had inherited.
+
+### Open after this round
+
+- **R3-N1** post-confirmation TOCTOU in `orb-agent-approve` — unfixed.
+- **R3-N2 / §15.6** same-user post-unlock capture, and PATH order set by
+  owner-writable `~/.zshrc` — open; blast-radius reduction (R4-N4) is the
+  available lever, not isolation.
+- **F17** deleted todos reachable by a credential holder outside the broker.
+- **R2-Q6** the keep has no integrity protection.

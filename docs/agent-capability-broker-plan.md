@@ -164,7 +164,15 @@ distinction.
 
 **Why option C was withdrawn.** Three reasons, in order of weight:
 
-1. **The window was never the boundary.** Layer 1 is: SELECT on eight tables,
+1. **The window was never the AUTHORIZATION boundary, and did not enforce a
+   hard maximum session lifetime.** *(Corrected 2026-09-05 after Codex R4-Q1;
+   the original said simply "never the boundary", which was too broad. It WAS a
+   temporal credential-availability boundary: outside a window no usable pgpass
+   credential existed to copy, a stolen password stopped admitting new logins
+   after `VALID UNTIL`, each mint rotated the previous password, and `--end`
+   terminated live backends. Removing it removed all four. What F18 disproved
+   was the hard-lifetime claim, not every containment property.)*
+   Layer 1 is: SELECT on eight tables,
    no write grant anywhere, `NOBYPASSRLS`, `CONNECTION LIMIT 4`. Handing an
    agent the raw credential with every line of session shell deleted still does
    not let it write.
