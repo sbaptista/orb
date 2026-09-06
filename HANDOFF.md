@@ -121,22 +121,28 @@ dispositions append after it, so nothing was at risk — but the overlap rule sa
 pick different work or ask Stan. I did neither.
 ## Active Risks / Unresolved Work
 
-- **🔴 Realtime voice — sequencing hazard in the mutation-approval hint.**
-  **UNCONFIRMED — Stan has not verified this is still live.** Migrated here
-  2026-09-03 from trimmed session history where it was the only record; the
-  other item rescued the same way (ORB-378) turned out to have been closed three
-  weeks earlier. Content rescued from stale prose inherits the staleness. Narrowing the confirmation hint to remove the words `Cancel. Stop.`
-  would convert a loud failure into a **silent unauthorized mutation**: with the
-  negation words gone, `failsMutationApprovalGuards` passes and
-  `MUTATION_APPROVAL_ACT` matches `\bconfirm\b`, so a phantom transcript would
-  authorize whatever proposal is pending. `Cancel. Stop.` inside the hint is
-  currently the only reason phantom confirmations fail loudly rather than
-  committing — **load-bearing by accident**. Dropping the hint entirely is safe
-  in any order; narrowing it before the boundary rejection lands is not.
-  Related, same review: `useRealtimeVoiceSpike.ts:774` accepts any non-empty
-  transcript as genuine user speech, and `:638` discards the canonical receipt
-  when a completed write resolves after the user has started a new turn — the
-  write commits and Orb never says so.
+- **🔴 Realtime voice — the transcription vocabulary hint is load-bearing for
+  authorization. VERIFIED STILL LIVE 2026-09-05** against the current regexes
+  in `lib/orb-model/mutation-authorization.ts`:
+
+  | `app/api/orb-realtime/session/route.ts:59` hint | Result |
+  |---|---|
+  | current (`… Cancel. Stop. …`) | negation guard fires → rejected |
+  | `Cancel. Stop.` removed | **AUTHORIZES the pending mutation** |
+  | hint dropped entirely | no approval act → rejected |
+
+  On non-speech audio the transcriber can reproduce its own `prompt` as a
+  phantom transcript; `useRealtimeVoiceSpike.ts:774` accepts any non-empty
+  transcript as genuine user speech and forwards it as the authorization
+  utterance. `Cancel`/`Stop` match the `NEGATION` guard, which runs before the
+  approval check — that is the only reason phantoms fail.
+  **Mitigation so far: a warning comment at the line (v0.6.306). Not a fix.**
+  Deleting the hint outright is safe in any order; narrowing it is not, until
+  phantom transcripts are rejected at the boundary rather than by the accidental
+  content of a vocabulary hint.
+  Related, same review, unverified: `useRealtimeVoiceSpike.ts:638` discards the
+  canonical receipt when a completed write resolves after the user has started a
+  new turn — the write commits and Orb never says so.
 
 - **Kimi K3 is experimental and development-only.** It passed the accepted
   evidence above but did not achieve deterministic 65/65 Tier 1 behavior.

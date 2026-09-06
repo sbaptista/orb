@@ -56,6 +56,34 @@ export async function POST(request: Request) {
         // model to English; multilingual understanding is a deliberate,
         // separate decision and stays on. Reduces, does not eliminate,
         // mistranscription — ASR remains probabilistic.
+        //
+        // ⚠️  DO NOT NARROW THIS HINT. The words `Cancel.` and `Stop.` are
+        //     LOAD-BEARING FOR AUTHORIZATION, by accident — they are not here
+        //     for transcription accuracy alone.
+        //
+        // For this model family `prompt` is prior-context conditioning text.
+        // On non-speech audio the audio cross-attention contributes nothing and
+        // the decoder reproduces its own context, so a PHANTOM TRANSCRIPT can
+        // come back that is essentially this string. `useRealtimeVoiceSpike.ts`
+        // accepts any non-empty transcript as genuine user speech and forwards
+        // it as the authorization utterance for a pending mutation.
+        //
+        // That string is then evaluated by isExplicitMutationApproval() in
+        // lib/orb-model/mutation-authorization.ts. `Cancel`/`Stop` match its
+        // NEGATION guard, which runs BEFORE the approval check — so the phantom
+        // is rejected. Remove them and `Confirm`/`Confirmed` still match
+        // MUTATION_APPROVAL_ACT, and the phantom AUTHORIZES WHATEVER MUTATION
+        // IS PENDING. Measured against the live regexes on 2026-09-05:
+        //
+        //   current hint                    negation=true   -> rejected
+        //   'Cancel. Stop.' removed         negation=false  -> *** AUTHORIZES ***
+        //   hint dropped entirely           no approval act -> rejected
+        //
+        // So DELETING this hint outright is safe in any order; NARROWING it is
+        // not, until phantom transcripts are rejected at the boundary rather
+        // than by the accidental content of a vocabulary hint. Until then these
+        // two words are the only thing standing between a hallucinated
+        // transcript and a silent unauthorized database write.
         transcription: { model: 'gpt-4o-mini-transcribe', prompt: 'Orb. Confirmed. Confirm. Yes. Cancel. Stop. Todo. Project.' },
         turn_detection: {
           type: 'server_vad',
