@@ -17,15 +17,18 @@
 - **Branch:** `codex/voice-command-contract`; pushed `main` is `cf6fda9`, with
   one local post-deployment handoff commit still to push. The v0.6.307 Voice
   contract and preceding `8c51efb` hardening-doc cleanup are deployed.
-- **Version:** **0.6.307** locally and in production, verified through
-  `/api/version` on 2026-09-06; maintenance is off.
+- **Version:** **0.6.308** local (docs/tooling only, unpushed). **0.6.307** in
+  production, verified through `/api/version` on 2026-09-06.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
 - **Production maintenance:** off.
-- **Installed launchers: IN SYNC — verified 2026-09-05** by
-  `bash scripts/security/test-orb-launcher.sh` (4 checked; bytes, owner and mode
-  asserted) and an independent `diff`. All four `root:wheel 755`.
+- **Installed launchers: IN SYNC — verified 2026-09-06** by
+  `bash scripts/security/test-orb-launcher.sh` (**5 checked**; bytes, owner and
+  mode asserted). All five `root:wheel 755`. `orb-agent` joined the manifest on
+  2026-09-06 after being installed root-owned — it is the one agent-runnable
+  launcher and holds no credential, but root ownership means an agent can no
+  longer rewrite its own broker.
   **Standing note:** the copies in `/usr/local/orb-bin` are what run. Version
   control does not keep them in step — only that check does. **Run it after
   editing anything in `scripts/security/`, and reinstall before assuming a fix
@@ -208,8 +211,9 @@ Path-only projection of `git status --short`. Enforced by
 ## Next Priorities
 
 0. **Security findings still open** — full detail in
-   `docs/agent-enforcement-hardening.md`; §16 lists what Round 4 closed.
-   - **R3-N2 / §15.6 — same-user post-unlock capture.** `orb-dev` hands every
+   `docs/agent-enforcement-hardening.md`, reduced 2026-09-06 from a 1,820-line
+   review transcript to a 120-line open-findings register. History at `6e47488`.
+   - **R3-N2 — same-user post-unlock capture.** `orb-dev` hands every
      decrypted value to writable `node_modules`, npm lifecycle hooks and server
      code, and PATH order is set by owner-writable `~/.zshrc`, so the
      root-owned launchers protect the *files* but not which file is *reached*.

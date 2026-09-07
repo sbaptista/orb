@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.308',
+    date: '2026-09-06',
+    changes: [
+      'Cut the agent security document from eighteen hundred lines to a hundred and twenty. It had become a transcript of four rounds of cross-model review — the questions, the reviewers\' replies, the rulings on those replies, and rulings on the rulings — and every AI tool read all of it at the start of every session to learn nine unresolved items. Those nine are now listed plainly, grouped by theme rather than by which review found them, each saying what is wrong, what established it, and why it is not fixed. The full history remains in version control.',
+      'Checking each finding against the code rather than trusting the summary changed two of them: one recorded as awaiting re-verification was already verified, and one assumed fixed is still open — a privilege sweep skips stored procedures while reporting success, because it asks for the wrong object kind and swallows the resulting error.',
+      'Corrected the threat model, which still contradicted itself in the ways an earlier review had reported: describing the encrypted store\'s cryptography as excellent four lines after recording that it detects no tampering, carrying two stale verification counts, and stating that the security launchers are user-writable when they had since been made root-owned.',
+      'Added the read-only agent broker to the set of installed programs whose integrity is checked, now that it is installed root-owned. An agent can no longer rewrite its own broker, and that is now asserted on every run rather than assumed. Internal developer tooling and documentation: no application route, component, or user-facing behavior changed. Eval: not applicable — no Orb-conversation capability, tool, routing rule, prompt, or defined speech behavior changed.',
+    ],
+  },
+  {
     version: 'v0.6.307',
     date: '2026-09-06',
     changes: [

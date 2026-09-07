@@ -37,7 +37,11 @@ is_removable_name ELEVENLABS_API_KEY
 # expected manifest and fails closed.
 # ------------------------------------------------------------------
 installed_dir="/usr/local/orb-bin"
-expected_launchers=(orb-dev orb-secrets-seal orb-secrets-set orb-agent-approve)
+# orb-agent joined this list on 2026-09-06, when it was installed root-owned.
+# It is the one AGENT-RUNNABLE launcher here and holds no credential, so it is
+# not passphrase-bearing like the other four — but root ownership means an agent
+# can no longer rewrite its own broker, which is worth asserting.
+expected_launchers=(orb-dev orb-secrets-seal orb-secrets-set orb-agent-approve orb-agent)
 integrity_errors=()
 
 if [[ ! -d "$installed_dir" ]]; then
