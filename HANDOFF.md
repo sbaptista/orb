@@ -14,10 +14,11 @@
 
 ## App State
 
-- **Branch:** `codex/voice-command-contract`; pushed `main` is `6e47488`. Local
-  HEAD is the unpushed v0.6.307 Voice contract commit and also contains
-  `8c51efb` (separate hardening-doc cleanup). The Voice change is undeployed.
-- **Version:** **0.6.307** in the working tree; production remains v0.6.306.
+- **Branch:** `codex/voice-command-contract`; pushed `main` is `cf6fda9`, with
+  one local post-deployment handoff commit still to push. The v0.6.307 Voice
+  contract and preceding `8c51efb` hardening-doc cleanup are deployed.
+- **Version:** **0.6.307** locally and in production, verified through
+  `/api/version` on 2026-09-06; maintenance is off.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -73,7 +74,7 @@ Path-only projection of `git status --short`. Enforced by
 
 ## Last Session Completed
 
-**2026-09-06 — Codex (GPT-5). Voice command contract, v0.6.307 committed.**
+**2026-09-06 — Codex (GPT-5). Voice command contract, v0.6.307 deployed.**
 
 - Every exposed conversational C/U/D now persists a proposal on the requesting
   turn and requires explicit approval in a distinct later turn in both text and
