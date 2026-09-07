@@ -13,13 +13,14 @@ import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_FOUNDATIONAL_DEFINITIONS, ORB_
 import { resolveProjectByReference } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
-import { createTicket, getTickets } from '@/app/actions/ticket-actions'
+import { createTicket, getTickets, notifyCreatedTicket } from '@/app/actions/ticket-actions'
 import { sendAdaptationEmail } from '@/lib/email'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 import { PROJECT_MUTATIONS, KNOWLEDGE_MUTATIONS, getPendingMutation, storePendingMutation, clearPendingMutation, proposeProjectMutation, proposeKnowledgeMutation, resolveKnowledgeReference, type PendingMutationRow } from '@/lib/orb-mutations'
 import { confirmOrbMutation } from '@/lib/orb-operations/confirmation'
 import { proposeSerialTodoOperations } from '@/lib/orb-operations/serial-todos'
+import { queryOrbInvitations, queryOrbUsers } from '@/lib/orb-operations/admin-directory'
 import { DB_SCHEMA, ALLOWED_TABLES, SOFT_DELETE_TABLES, ALLOWED_OPS, COLUMN_NAME_RE } from '@/lib/db-schema'
 import { fuzzyMatch, scoreTextMatch } from '@/lib/fuzzy-search'
 import { CHANGELOG } from '@/lib/changelog'
@@ -36,7 +37,7 @@ import type { OrbModelProviderId } from '@/lib/orb-model/types'
 import { extractCitedCodes, isFalseCompletionClaim } from '@/lib/orb-model/false-claim-guard'
 import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, pendingTodoUndercount, resolveActionSetReference, todoCode } from '@/lib/orb-model/context'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
-import { authorizesPendingMutation, buildPendingMutationConfirmationInstruction, grantsUpfrontMutationPermission, isBareMutationDecline } from '@/lib/orb-model/mutation-authorization'
+import { authorizesPendingMutation, buildPendingMutationConfirmationInstruction, isBareMutationDecline } from '@/lib/orb-model/mutation-authorization'
 import { activeModelIdentitySpeech, isActiveModelIdentityQuestion } from '@/lib/orb-model/model-identity'
 import type { ClientEnvironmentSnapshot } from '@/lib/client-environment'
 
@@ -66,7 +67,7 @@ export type OrbResponse = {
   thought?: string // A discrete "work step" completed by the Orb
   refresh?: boolean
   mutatedProductId?: string
-  mutationType?: 'create' | 'update' | 'delete' | 'project_create' | 'project_update' | 'project_delete' | 'dormancy' | 'knowledge_update'
+  mutationType?: 'create' | 'update' | 'delete' | 'project_create' | 'project_update' | 'project_delete' | 'dormancy' | 'knowledge_update' | 'ticket_create'
   clientAction?: { action: string; target?: string }
   error?: string
   isServiceError?: boolean // True when the error is a service-level issue (billing, overloaded, network)
@@ -89,6 +90,10 @@ type OrbInsight = NonNullable<OrbResponse['insight']>
 const GATED_MUTATIONS = new Set([
   'create_todo', 'update_todo', 'delete_todo', 'move_todo',
 ])
+
+function isNamedPendingMutation(tool: string) {
+  return PROJECT_MUTATIONS.has(tool) || KNOWLEDGE_MUTATIONS.has(tool) || tool === 'create_ticket'
+}
 
 // ── Structural mutation guard (false-claim detection) ──
 // Instead of guessing intent from user input (fragile regex), we check what
@@ -534,7 +539,7 @@ export async function orbConverse(req: OrbRequest) {
       const userRole = req.roleOverride || auth.role
       const availableOrbTools = ORB_TOOLS.filter(tool =>
         (tool.name !== 'query_repository' || auth.canInspectRepository) &&
-        (tool.name !== 'query_tickets' || auth.isAdmin)
+        (!['query_tickets', 'query_users', 'query_invitations'].includes(tool.name) || auth.isAdmin)
       )
       const repositoryAccessPrompt = auth.canInspectRepository
         ? process.env.NODE_ENV === 'production'
@@ -702,12 +707,12 @@ export async function orbConverse(req: OrbRequest) {
       // Server-held canonical mutation proposal. The browser never holds the
       // mutation intent; confirmation executes the exact persisted proposal.
       // echoes nothing — the server is the source of truth for what's awaiting confirmation.
-      const hasProjectOrKnowledgePending = Boolean(
+      const hasNamedPendingMutation = Boolean(
         pendingMutation
-        && (PROJECT_MUTATIONS.has(pendingMutation.tool) || KNOWLEDGE_MUTATIONS.has(pendingMutation.tool)),
+        && isNamedPendingMutation(pendingMutation.tool),
       )
-      const projectConfirmationAllowed = hasProjectOrKnowledgePending && (await authorizesPendingMutation(req.input))
-      if (pendingMutation && hasProjectOrKnowledgePending) {
+      const namedConfirmationAllowed = hasNamedPendingMutation && (await authorizesPendingMutation(req.input))
+      if (pendingMutation && hasNamedPendingMutation) {
         messages.push({ role: 'user', content: buildPendingMutationConfirmationInstruction(pendingMutation.summary) })
       }
 
@@ -937,7 +942,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         const turnTools = routeRole === 'strategic'
           ? []
           : [
-              ...availableOrbTools.filter(tool => tool.name !== 'confirm_mutation' || projectConfirmationAllowed),
+              ...availableOrbTools.filter(tool => tool.name !== 'confirm_mutation' || namedConfirmationAllowed),
               ...ORB_PREFERENCE_TOOLS,
               ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []),
               ORB_CAPABILITIES_TOOL,
@@ -1029,7 +1034,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         messages.push(assistantMessage)
 
         if (toolCalls.length === 0) {
-          if (pendingMutation && hasProjectOrKnowledgePending) {
+          if (pendingMutation && hasNamedPendingMutation) {
             await clearPendingMutation(auth.admin, auth.user.id)
             pendingMutation = null
           }
@@ -1113,7 +1118,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               const list = proposal.candidates.map(c => c.code ? `${c.name} (${c.code})` : c.name).join(', ')
               output = { needs_disambiguation: true, candidates: proposal.candidates, _instruction: `More than one project matches: ${list}. Ask the user which one they mean — refer to them by name. Do not act yet.` }
             } else {
-              const persisted = await storePendingMutation(auth, {
+              await storePendingMutation(auth, {
                 tool: tc.name,
                 target_id: proposal.target_id,
                 project_id: proposal.project_id,
@@ -1121,23 +1126,6 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
                 summary: proposal.summary,
                 title: proposal.title,
               })
-              if (grantsUpfrontMutationPermission(req.input)) {
-                const confirmation = await confirmOrbMutation(auth, persisted.proposalId)
-                const receipt = confirmation.receipt
-                hasMutated = true
-                hasActed = true
-                if (receipt.code) toolProducedCodes.add(receipt.code)
-                output = {
-                  ok: true,
-                  summary: receipt.spokenText,
-                  preAuthorized: true,
-                  _instruction: `Done: ${receipt.spokenText} Tell the user plainly. Do not ask for confirmation again.`,
-                }
-                accumulatedSpeech = ''
-                stream.update({ speech: '', thought: receipt.spokenText, refresh: true })
-                toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
-                continue
-              }
               const targetVerification = KNOWLEDGE_MUTATIONS.has(tc.name)
                 ? ` You MUST include the exact resolved entry title in quotes in your confirmation, verbatim from "${proposal.summary}" — this is the only way the user can catch a wrong-entry resolution before it executes. Do not paraphrase or shorten the title.`
                 : ''
@@ -1176,13 +1164,20 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               continue
             }
             const receipt = confirmation.receipt
+            if (receipt.kind === 'create_ticket' && receipt.ticketId && !confirmation.replayed) {
+              notifyCreatedTicket(receipt.ticketId).catch(error =>
+                console.error('[orbConverse] Ticket notification failed:', error),
+              )
+            }
             const mutationType = receipt.kind === 'create_project'
               ? 'project_create'
               : receipt.kind === 'update_project'
                 ? 'project_update'
                 : receipt.kind === 'delete_project'
                   ? 'project_delete'
-                  : 'knowledge_update'
+                  : receipt.kind === 'create_ticket'
+                    ? 'ticket_create'
+                    : 'knowledge_update'
             let newProject
             if (receipt.kind === 'create_project') {
               const { data } = await auth.admin
@@ -1352,6 +1347,21 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             }
             output = { count: results.length + dormantMatches.length, returned }
             stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length + dormantMatches.length} projects` })
+          } else if (tc.name === 'query_users') {
+            const packet = await queryOrbUsers(auth, {
+              search: input.search,
+              maxResults: input.max_results,
+            })
+            output = { count: packet.count, returned: packet.users, observed_at: packet.observedAt }
+            stream.update({ speech: accumulatedSpeech, thought: `Found ${packet.count} user${packet.count === 1 ? '' : 's'}` })
+          } else if (tc.name === 'query_invitations') {
+            const packet = await queryOrbInvitations(auth, {
+              status: input.status,
+              search: input.search,
+              maxResults: input.max_results,
+            })
+            output = { count: packet.count, returned: packet.invitations, observed_at: packet.observedAt }
+            stream.update({ speech: accumulatedSpeech, thought: `Found ${packet.count} invitation${packet.count === 1 ? '' : 's'}` })
           } else if (tc.name === 'query_tickets') {
             // Admin-only (also enforced by getTickets -> requireAdmin, and by
             // availableOrbTools filtering the tool out of non-admin requests
@@ -1648,19 +1658,36 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               }
             }
           } else if (tc.name === 'create_ticket') {
-            const res = await createTicket({
-              source: 'orb-auto',
-              type: input.type as any,
-              summary: input.summary,
-              detail: input.detail ? { detail: input.detail } : {},
-              conversation_snippet: req.input,
-              reportedBy: auth.user.id,
-              systemInfo: req.systemInfo,
-            })
-            if (res.error) output = { error: res.error }
-            else {
-              output = { ok: true, code: res.data?.code }
-              stream.update({ speech: accumulatedSpeech, thought: `Noted ${res.data?.code || ''}`.trim() })
+            const ticketType = String(input.type ?? '')
+            const ticketSummary = String(input.summary ?? '').trim().slice(0, 500)
+            if (!['bug', 'suggestion', 'capability_gap', 'workflow_friction'].includes(ticketType) || !ticketSummary) {
+              output = { error: 'A valid ticket type and summary are required.' }
+            } else {
+              const detail = {
+                ...(input.detail ? { detail: String(input.detail).slice(0, 4000) } : {}),
+                ...(req.systemInfo ? { system: req.systemInfo } : {}),
+              }
+              await storePendingMutation(auth, {
+                tool: 'create_ticket',
+                target_id: null,
+                params: {
+                  source: 'orb-auto',
+                  type: ticketType,
+                  summary: ticketSummary,
+                  detail,
+                  conversation_snippet: req.input.slice(0, 4000),
+                },
+                summary: `file a ${ticketType.replace(/_/g, ' ')} ticket: “${ticketSummary}”`,
+                title: ticketSummary,
+              })
+              output = {
+                proposed: true,
+                _instruction: `Tell the user you're about to file a ${ticketType.replace(/_/g, ' ')} ticket titled “${ticketSummary}”, and ask whether they want you to go ahead. End by asking for the go-ahead. Do not claim it was filed; it has not run yet.`,
+              }
+              accumulatedSpeech = ''
+              stream.update({ speech: '', thought: 'Ticket ready for confirmation' })
+              toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
+              continue
             }
 
           } else if (tc.name === 'get_preferences') {
@@ -1855,23 +1882,13 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         }
         if (heldTodoOperations.length > 0) {
           const summary = summarizeTodoOperations(heldTodoOperations)
-          const proposal = await proposeSerialTodoOperations(auth, heldTodoOperations, {
+          await proposeSerialTodoOperations(auth, heldTodoOperations, {
             currentProjectId: req.productId,
             requestZone,
             summary,
           })
-          // Permission granted in the requesting message itself still travels
-          // through the same persisted proposal and transactional RPC.
-          if (grantsUpfrontMutationPermission(req.input)) {
-            const confirmation = await confirmOrbMutation(auth, proposal.proposalId)
-            const receipt = confirmation.receipt
-            const mutationType = receipt.kind === 'delete_todo' ? 'delete' : receipt.kind === 'create_todo' ? 'create' : 'update'
-            const speech = receipt.spokenText
-            recordModelRequest(speech)
-            recordMetrics(speech.length)
-            stream.done({ speech, isStreaming: false, refresh: true, mutationType })
-            return
-          }
+          // Permission in the requesting message never executes the proposal;
+          // the user must confirm it in a distinct following turn.
           const speech = `Confirm: ${summary}?\n\n${listTodoOperationLines(heldTodoOperations)}`
           recordModelRequest(speech)
           recordMetrics(speech.length)

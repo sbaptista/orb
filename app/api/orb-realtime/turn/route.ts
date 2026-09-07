@@ -1,12 +1,12 @@
 import { logAuditEvent } from '@/lib/audit'
 import { getAuthContext, type AuthContext } from '@/lib/auth'
-import { createTicket } from '@/app/actions/ticket-actions'
+import { notifyCreatedTicket } from '@/app/actions/ticket-actions'
 import { sendAdaptationEmail } from '@/lib/email'
 import { ALLOWED_OPS, ALLOWED_TABLES, COLUMN_NAME_RE, SOFT_DELETE_TABLES } from '@/lib/db-schema'
 import { getNextStepPacket, getProjectDirectoryPacket, getTaskCountPacket, getTodoDetailsPacket, getTodoListPacket, getOrbStatePacket } from '@/lib/orb-realtime/fact-gateway'
 import { fuzzyMatch, scoreTextMatch } from '@/lib/fuzzy-search'
 import { selectTodoByReference, describeTodoCandidates, isCodeLikeReference } from '@/lib/orb-operations/todo-reference'
-import { authorizesPendingMutation, grantsUpfrontMutationPermission } from '@/lib/orb-model/mutation-authorization'
+import { authorizesPendingMutation } from '@/lib/orb-model/mutation-authorization'
 import { resolveKnowledgeReference } from '@/lib/orb-mutations'
 import { getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 import { generateUniqueCode } from '@/lib/project-codes'
@@ -20,6 +20,7 @@ import {
 } from '@/lib/orb-operations/capabilities'
 import { confirmOrbMutation } from '@/lib/orb-operations/confirmation'
 import { persistOrbMutationProposal } from '@/lib/orb-operations/proposals'
+import { queryOrbInvitations, queryOrbUsers } from '@/lib/orb-operations/admin-directory'
 
 export const runtime = 'nodejs'
 
@@ -165,6 +166,7 @@ export async function POST(request: Request) {
       query?: string
       ticketCode?: string
       ticketStatus?: string
+      invitationStatus?: string
       ticketScope?: 'active' | 'all'
       ticketType?: string
       search?: string
@@ -277,6 +279,23 @@ export async function POST(request: Request) {
           ? 'I found no matching accessible projects.'
           : `I found ${readableProjects.length} ${readableProjects.length === 1 ? 'project' : 'projects'}: ${projectFacts.join(', ')}.`,
       }
+      return Response.json({ packet, gatewayMs: Math.round(performance.now() - startedAt) })
+    }
+    if (body.operation === 'query_users') {
+      if (!auth.isAdmin) return Response.json({ error: 'query_users is admin-only.' }, { status: 403 })
+      const packet = await queryOrbUsers(auth, {
+        search: body.search,
+        maxResults: body.maxResults,
+      })
+      return Response.json({ packet, gatewayMs: Math.round(performance.now() - startedAt) })
+    }
+    if (body.operation === 'query_invitations') {
+      if (!auth.isAdmin) return Response.json({ error: 'query_invitations is admin-only.' }, { status: 403 })
+      const packet = await queryOrbInvitations(auth, {
+        status: body.invitationStatus,
+        search: body.search,
+        maxResults: body.maxResults,
+      })
       return Response.json({ packet, gatewayMs: Math.round(performance.now() - startedAt) })
     }
     if (body.operation === 'query_db') {
@@ -814,19 +833,28 @@ export async function POST(request: Request) {
       if (!type || !body.ticketSummary?.trim()) {
         return Response.json({ error: 'Ticket type and summary are required.' }, { status: 400 })
       }
-      const result = await createTicket({
-        source: 'user-request',
-        type,
-        summary: body.ticketSummary.trim().slice(0, 500),
-        detail: body.ticketDetail?.trim().slice(0, 4000) || undefined,
-        conversation_snippet: body.userUtterance?.slice(0, 4000),
-        reportedBy: auth.user.id,
+      const summary = body.ticketSummary.trim().slice(0, 500)
+      const persisted = await persistOrbMutationProposal(auth, {
+        kind: 'create_ticket',
+        title: summary,
+        params: {
+          source: 'user-request',
+          type,
+          summary,
+          detail: body.ticketDetail?.trim()
+            ? { detail: body.ticketDetail.trim().slice(0, 4000) }
+            : {},
+          conversation_snippet: body.userUtterance?.slice(0, 4000) ?? '',
+        },
       })
-      if (result.error) throw new Error(result.error)
+      const proposal: OrbRealtimeProposal = {
+        kind: 'create_ticket',
+        proposalToken: persisted.proposalToken,
+        title: summary,
+        spokenText: `Confirm: file a ${type.replace(/_/g, ' ')} ticket titled “${summary}”?`,
+      }
       return Response.json({
-        mutated: true,
-        ticketCode: result.data?.code,
-        spokenText: `Noted ${result.data?.code}.`,
+        proposal,
         gatewayMs: Math.round(performance.now() - startedAt),
       })
     }
@@ -886,10 +914,6 @@ export async function POST(request: Request) {
         title,
         projectId: project.id,
       })
-      if (grantsUpfrontMutationPermission(body.userUtterance ?? '')) {
-        const result = await confirmOrbMutation(auth, persisted.proposalId)
-        return Response.json({ ...result, preAuthorized: true, gatewayMs: Math.round(performance.now() - startedAt) })
-      }
       const proposal: OrbRealtimeProposal = {
         kind: 'create_todo', proposalToken: persisted.proposalToken, title,
         project: { id: project.id, name: project.name, code: project.code },
@@ -983,10 +1007,6 @@ export async function POST(request: Request) {
         projectId: proposalProject.id || null,
         params,
       })
-      if (grantsUpfrontMutationPermission(body.userUtterance ?? '')) {
-        const result = await confirmOrbMutation(auth, proposalId)
-        return Response.json({ ...result, preAuthorized: true, gatewayMs: Math.round(performance.now() - startedAt) })
-      }
       const proposal: OrbRealtimeProposal = {
         kind,
         proposalToken: persisted.proposalToken,
@@ -1090,10 +1110,6 @@ export async function POST(request: Request) {
         projectId: project.id || null,
         params,
       })
-      if (grantsUpfrontMutationPermission(body.userUtterance ?? '')) {
-        const result = await confirmOrbMutation(auth, proposalId)
-        return Response.json({ ...result, preAuthorized: true, gatewayMs: Math.round(performance.now() - startedAt) })
-      }
       const proposal: OrbRealtimeProposal = {
         kind,
         proposalToken: persisted.proposalToken,
@@ -1206,10 +1222,6 @@ export async function POST(request: Request) {
         targetTodoId: todo.id,
         destinationProjectId: destinationProject?.id ?? null,
       })
-      if (grantsUpfrontMutationPermission(body.userUtterance ?? '')) {
-        const result = await confirmOrbMutation(auth, proposalId)
-        return Response.json({ ...result, preAuthorized: true, gatewayMs: Math.round(performance.now() - startedAt) })
-      }
       const proposal: OrbRealtimeProposal = {
         kind,
         proposalToken: persisted.proposalToken,
@@ -1347,10 +1359,6 @@ export async function POST(request: Request) {
         projectId: uniformProjectId,
         params: { operations: resolvedOps.map(op => op.params) },
       })
-      if (grantsUpfrontMutationPermission(body.userUtterance ?? '')) {
-        const result = await confirmOrbMutation(auth, proposalId)
-        return Response.json({ ...result, preAuthorized: true, gatewayMs: Math.round(performance.now() - startedAt) })
-      }
       const proposal: OrbRealtimeProposal = {
         kind: 'batch_todo_action',
         proposalToken: persisted.proposalToken,
@@ -1368,6 +1376,11 @@ export async function POST(request: Request) {
       const payload = readOrbProposalCapability(body.proposalToken)
       if (payload.userId !== auth.user.id) return Response.json({ error: 'Proposal belongs to another user.' }, { status: 403 })
       const result = await confirmOrbMutation(auth, payload.proposalId)
+      if (result.receipt.kind === 'create_ticket' && result.receipt.ticketId && !result.replayed) {
+        notifyCreatedTicket(result.receipt.ticketId).catch(error =>
+          console.error('[orb-realtime] Ticket notification failed:', error),
+        )
+      }
       return Response.json({ ...result, gatewayMs: Math.round(performance.now() - startedAt) })
     }
     return Response.json({ error: 'Unsupported operation.' }, { status: 400 })

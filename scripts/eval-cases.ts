@@ -335,6 +335,20 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
   },
 
   {
+    id: 'confirm-ticket-create-executes-on-yes',
+    description: 'Affirming a pending ticket creation calls the same canonical confirm_mutation tool used by other conversational writes',
+    productCode: 'ORB',
+    pendingSummary: 'file a bug ticket: “Voice confirmation stopped responding”',
+    history: [
+      { role: 'user', text: 'File a bug ticket titled Voice confirmation stopped responding.' },
+      { role: 'assistant', text: 'I’m about to file that bug ticket. Want me to go ahead?' },
+    ],
+    input: 'Yes, go ahead.',
+    tier: 1,
+    expectTool: { name: 'confirm_mutation' },
+  },
+
+  {
     id: 'no-session-record-looks-up-before-delete',
     description: 'With a cleared session record, "delete the todos you created" triggers a lookup — the model must not fabricate task codes by sequence',
     productCode: 'ORB',
@@ -349,7 +363,7 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
 
   {
     id: 'upfront-permission-still-emits-creates',
-    description: 'Granting permission in the requesting message still emits create_todo calls (the server then executes them pre-authorized instead of asking to confirm)',
+    description: 'Granting permission in the requesting message still emits create_todo calls, but the production server now holds them for a distinct second-turn confirmation',
     productCode: 'ORB',
     mutationApproval: 'ask',
     // This case protects upfront authorization, not project choice. Reading the
@@ -631,6 +645,24 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
   },
 
   {
+    id: 'query-users-admin-read',
+    description: 'A current registered-user directory question uses the dedicated admin-only query_users read instead of stale prompt context or generic query_db',
+    productCode: 'ORB',
+    input: 'Show me the current registered users and their roles.',
+    tier: 1,
+    expectTool: { name: 'query_users' },
+  },
+
+  {
+    id: 'query-invitations-admin-read',
+    description: 'A current pending-invitation question uses the dedicated admin-only query_invitations read instead of stale prompt context or generic query_db',
+    productCode: 'ORB',
+    input: 'Show me the pending invitations right now.',
+    tier: 1,
+    expectTool: { name: 'query_invitations', params: { status: 'pending' } },
+  },
+
+  {
     id: 'query-tickets-admin-lookup',
     description: 'A ticket status question calls query_tickets (admin-only, ORB-303), not query_todos or query_db — tickets are the reporter-facing feedback queue, distinct from engineering todos',
     productCode: 'ORB',
@@ -755,7 +787,7 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
 
   {
     id: 'repository-inspection-tool',
-    description: 'Asking about implementation routes to the repository inspection tool',
+    description: 'Asking about local implementation routes to repository inspection and preserves the explicitly requested local source',
     productCode: 'ORB',
     input: 'Inspect the local source code and find where the Orb More menu commands are implemented.',
     tier: 1,
@@ -958,14 +990,13 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
 
   {
     id: 'ambiguous-todo-title-does-not-mutate-silently',
-    description: 'ORB-339: a todo reference matching several titles equally must not be resolved by guessing — the server fails closed and the Orb asks which one rather than reporting a change',
+    description: 'ORB-339: an exact title shared by two visible todos must not be resolved by guessing — the Orb asks which one rather than reporting a change',
     productCode: 'ORB',
     backlogOverride: `Orb [code: ORB]:
-  SUMMARY: active_count=3 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
-  ORB-251 True voice conversation with Orb (not just text dictation) [open]
-  ORB-328 Test voice architecture [open]
-  ORB-336 Voice Permission Test [open]`,
-    input: 'Set the voice one to in progress.',
+  SUMMARY: active_count=2 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ORB-701 Voice Confirmation Test [open]
+  ORB-702 Voice Confirmation Test [open]`,
+    input: 'Set the task titled "Voice Confirmation Test" to in progress.',
     tier: 2,
     // >3 entries = any-of: any request to disambiguate counts.
     speechContains: ['which', 'ambiguous', 'more than one', 'several', 'clarify', 'do you mean'],
@@ -1169,11 +1200,15 @@ DORMANT:
 
   {
     id: 'mutation-approval',
-    description: 'The Orb proposes mutations before executing (asks for confirmation)',
+    description: 'The first turn of an exact delete request calls delete_todo immediately so the server, not model speech, creates the confirmation proposal',
     productCode: 'ORB',
-    input: 'Delete all my closed tasks',
-    tier: 2,
-    speechContains: ['confirm', 'sure', 'proceed', 'go ahead', 'approve', 'want me to'],
+    mutationApproval: 'ask',
+    backlogOverride: `Orb [code: ORB]:
+  SUMMARY: active_count=1 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ORB-901 Confirmation boundary test [open]`,
+    input: 'Delete ORB-901.',
+    tier: 1,
+    expectTool: { name: 'delete_todo', params: { code: 'ORB-901' } },
   },
 
   {
@@ -1240,7 +1275,7 @@ DORMANT:
 
   {
     id: 'ticket-no-premature-success',
-    description: 'The Orb uses future/progressive tense and does not claim completion before the tool runs',
+    description: 'Ticket creation calls the proposal tool without claiming the ticket is already filed',
     productCode: 'ORB',
     input: 'There is a bug: the login page submit button does nothing. Please file it.',
     tier: 2,
@@ -1662,6 +1697,8 @@ const SERIAL_TOOL_CONTRACT_CASE_BY_TOOL = {
   query_repository: 'repository-inspection-tool',
   query_todos: 'exact-task-read-no-invented-blockers',
   query_projects: 'query-projects-tool',
+  query_users: 'query-users-admin-read',
+  query_invitations: 'query-invitations-admin-read',
   query_tickets: 'query-tickets-admin-lookup',
   query_db: 'realtime-query-db-schema-column-intent-analogue',
   client_action: 'switch-project-partial-name-resolves',

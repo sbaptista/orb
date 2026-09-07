@@ -14,9 +14,10 @@
 
 ## App State
 
-- **Branch:** `main`. **Everything is pushed** — `git log --oneline
-  origin/main..main` is empty as of 2026-09-05, HEAD `71f69ba`.
-- **Version:** **0.6.305**. v0.6.298–v0.6.305 are all deployed.
+- **Branch:** `codex/voice-command-contract`; pushed `main` is `6e47488`. Local
+  HEAD is the unpushed v0.6.307 Voice contract commit and also contains
+  `8c51efb` (separate hardening-doc cleanup). The Voice change is undeployed.
+- **Version:** **0.6.307** in the working tree; production remains v0.6.306.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -45,10 +46,14 @@
   `20260820c_is_admin_and_authenticated_lockdown.sql`,
   `20260820d_todos_agent_policy_fold.sql`,
   `20260903_orb_agent_ro_standing_credential.sql`, and the two 20260818
-  statement-import/platform migrations are all **applied**. The `anon` exposure
+  statement-import/platform migrations and
+  `20260906_orb_ticket_confirmation.sql` are all **applied**. The `anon` exposure
   is closed in production. Boundary verifier last run 2026-09-03: **50 passed,
   0 failed**.
-- **No migration is outstanding.**
+- **Ticket confirmation migration:** Stan applied it 2026-09-06. Its closing
+  query showed `create_ticket` in the proposal-kind constraint,
+  `service_can_confirm_ticket = true`, and
+  `authenticated_can_confirm_ticket = false`.
 - **`~/Projects/shared` is now a git repository** (`02b0f46`) with **no remote
   configured**. It holds the shared `AGENTS.md` governing every project in
   `~/Projects`. Adding a remote is Stan's decision — it names credential
@@ -61,65 +66,66 @@
 Path-only projection of `git status --short`. Enforced by
 `node scripts/verify-handoff.js`. Rules: `docs/handoff-conventions.md` §3.3.
 
-- `docs/orb-381-model-cost-comparison-plan.md` — untracked. Codex's ORB-381
-  planning file, under its separate claim. Not mine; exclude from any commit.
+- `docs/orb-381-model-cost-comparison-plan.md` — separate Codex ORB-381 claim;
+  exclude from this change.
 
 ---
 
 ## Last Session Completed
 
-**2026-09-03/05 — Claude Code (Opus 5). ORB-382 + follow-on. v0.6.301–v0.6.305,
-all pushed.**
+**2026-09-06 — Codex (GPT-5). Voice command contract, v0.6.307 committed.**
 
-**ORB-382 — `orb-agent-session` deleted.** Time-boxed windows removed;
-`orb_agent_ro` moved to a standing credential (one pgpass line, mode 600,
-connection fields read from it). Revocation is `ALTER ROLE orb_agent_ro
-NOLOGIN` — an authentication-time check that does NOT sever an open connection;
-pair it with `pg_terminate_backend` to cut off a live session. Todo closed;
-Knowledge entry saved.
-
-**The broker is in service.** First successful end-to-end read in its history.
-A custom role DOES authenticate through Supavisor, as
-`orb_agent_ro.<project-ref>` on `aws-1-us-west-1.pooler.supabase.com:6543` —
-the step untested since 2026-08-19.
-
-**Defects found and fixed this session:**
-
-| Defect | Was |
-|---|---|
-| `orb-secrets-seal` installed copy required `ELEVENLABS_API_KEY` | Could not re-seal the store. Broken 4 weeks; found by diffing installed vs repo |
-| Decrypt failure not detected (**R4-N1**) | Shipped in v0.6.303. Parsed-line count cannot authenticate a decrypt — a truncated store yields 880 bytes of genuine plaintext and 60 valid assignments before failing. Fixed: command substitution propagates exit status |
-| `db health` printed bare `relname` across schemas | `public.users` and `auth.users` indistinguishable; produced an overstated bloat finding |
-| `orb-agent status` said "REFUSED by the database" for any failure | Merged auth refusal with DNS/timeout/outage. Now classified; INDETERMINATE otherwise |
-| Launcher integrity check failed open 3 ways | Missing launcher unvisited, extra file warned only, absent directory passed. Rebuilt from a manifest |
-| `AGENTS.md` told agents to run `psql "$DATABASE_URL"` | That variable is set in no shell. Two working paths now documented |
-
-**Handoff conventions.** `docs/handoff-conventions.md` is the single source of
-truth; `AGENTS.md` and this file's header are pointers. Enforced by
-`node scripts/verify-handoff.js` (in `npm run lint`). Twelve chained
-`Prior session:` blocks removed: 1,191 → ~555 lines.
-
-**Verification, this session:** offline suite 62/62 ×3; boundary verifier 50/50;
-launcher integrity 4/4 with owner and mode asserted; `tsc` clean; R4-N1 measured
-old-vs-new against intact and truncated stores; both `status` branches and all
-three launcher fail-open paths exercised.
-
-**Not verified:** `npm run lint` exits non-zero on **6 pre-existing ESLint
-errors** in `app/prototype/voice/page.tsx` (since v0.6.17, untouched).
-`verify-handoff` and `verify-ui-catalog` both pass.
-
-**Eval:** not applicable — no Orb-conversation capability, tool, routing rule,
-prompt, or defined speech behavior changed in any release this session.
-
-**Codex Round 4** is complete: review under §9 of
-`docs/agent-enforcement-hardening.md`, dispositions in §16. All findings
-accepted, none rejected. Codex cleared its ledger claim on 2026-09-05.
-
-**Protocol note:** I edited `docs/agent-enforcement-hardening.md` while it was
-under Codex's active claim. Codex's review was complete on disk and my
-dispositions append after it, so nothing was at risk — but the overlap rule says
-pick different work or ask Stan. I did neither.
+- Every exposed conversational C/U/D now persists a proposal on the requesting
+  turn and requires explicit approval in a distinct later turn in both text and
+  Realtime: todo/project CRUD, Knowledge C/U, and ticket C, plus todo move/close.
+  Request-turn permission and saved allow/session preferences cannot execute.
+  Automated deterministic incident tickets remain direct and outside this
+  conversational contract. Capability scope is unchanged; audit is read-only.
+- Added admin-only `query_users` and `query_invitations` to text and Realtime.
+  Both call `lib/orb-operations/admin-directory.ts`, expose bounded safe fields,
+  and remain excluded from generic `query_db`. Live Voice testing found their
+  packet rows were discarded while Orb claimed a table was visible. They now
+  share one packet-to-Markdown formatter with todo lists and enter the same
+  `OrbConversation` Markdown renderer used by text; no Voice table component
+  or duplicate directory query was added.
+- Database path audit: todo/project/knowledge mutation commits converge on the
+  shared proposal store and confirmation entry point; ticket C and the new
+  directory reads also converge across channels. Existing todo/project/Knowledge/ticket/audit
+  read adapters remain channel-specific, so all database access does not yet use
+  one universal path.
+- Verification passed once: `npx tsc --noEmit`; focused ESLint with zero errors
+  and six pre-existing warnings; `git diff --check`. Contract generation passed
+  once. Stan's first model run: Tier 1 **69/69**; mutation-safety Tier 2 passed
+  five of six cases initially, with `create-after-hallucinated-history` at
+  **0/3** because the model corrected an old unsupported completion instead of
+  processing the latest create. The matching latest-request prompt rule was
+  added and Stan's focused rerun passed **3/3**. Those results predate the ticket
+  extension. Stan then applied its migration and authenticated text acceptance
+  passed for users/invitations reads and separate-turn Knowledge C/U. The ticket
+  C also passed in text (`TICKETS-73`) and Realtime (`TICKETS-74`); Realtime
+  Knowledge C/U passed; and the user/invitation tables rendered correctly after
+  the shared display-path fix. Read-only broker verification found the Voice
+  Knowledge entry with content `second version`, found `TICKETS-74`, and found
+  no rejected suggestion ticket. The post-extension Tier 1 run had one failure:
+  `repository-inspection-tool` called the correct tool but omitted explicit
+  `source: local`. The v0.6.306 baseline already had the same optional schema
+  and assertion, so this was not introduced by the Voice diff. `source` is now
+  required in the canonical schema; generation, TypeScript, focused ESLint, and
+  `git diff --check` passed once. Its focused rerun passed **1/1**; Stan stopped
+  the accidentally started full Tier 1 rerun. Mutation-safety Tier 2 then passed
+  **3/6**: the historical-claim case, ambiguous-title case, and legacy
+  `mutation-approval` case missed the 2/3 threshold. The last case contradicted
+  the current tool-first/server-confirm contract and is now a Tier 1 exact-delete
+  routing assertion; the ambiguity fixture now uses duplicate exact titles.
+  Stan's minimal rerun passed: historical claim **2/3**, ambiguous title **3/3**,
+  and revised mutation approval **1/1**. All required model gates are complete.
 ## Active Risks / Unresolved Work
+
+- **Text and Realtime do not share one universal read adapter.** Canonical
+  mutations and the new users/invitations reads share database functions, but
+  existing todo, project, Knowledge, ticket, and audit reads still use
+  channel-specific adapters. This was verified by tracing each `.from(...)`
+  call site; no claim of universal path parity should be made.
 
 - **🔴 Realtime voice — the transcription vocabulary hint is load-bearing for
   authorization. VERIFIED STILL LIVE 2026-09-05** against the current regexes
@@ -407,7 +413,7 @@ pick different work or ask Stan. I did neither.
 
 ## AI Tool Used Last Session
 
-`2026-09-05 — Claude Code (Opus 5)`
+`2026-09-06 — Codex (GPT-5)`
 
 ---
 

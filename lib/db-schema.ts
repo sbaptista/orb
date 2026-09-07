@@ -84,5 +84,7 @@ tickets
   fallback only for a filter query_tickets does not support (e.g. detail contents).
   Non-admins are RLS-scoped to their own reported_by rows automatically.
 
-EXCLUDED (sensitive): users, invitations, orb_friction, push_subscriptions, roles, platforms
+FIRST-CLASS ADMIN READS ONLY: users (query_users), invitations (query_invitations).
+They remain excluded from generic query_db so the server controls their safe columns.
+EXCLUDED (sensitive): orb_friction, push_subscriptions, roles, platforms
 `.trim()

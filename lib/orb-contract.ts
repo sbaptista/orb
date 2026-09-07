@@ -8,7 +8,7 @@ import Anthropic from '@anthropic-ai/sdk'
 export const ORB_TOOLS: Anthropic.Tool[] = [
   {
     "name": "create_todo",
-    "description": "[Confidence: well-tested] Create a new todo in a project. Defaults to the current project if product_code is omitted. Requires a title. Cannot create in a product that does not exist.",
+    "description": "[Confidence: well-tested] Create a new todo in a project. Defaults to the current project if product_code is omitted. Requires a title. Cannot create in a product that does not exist. The server always holds the creation for a separate second-turn confirmation; permission in the requesting turn never executes it.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -66,7 +66,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "update_todo",
-    "description": "[Confidence: well-tested] Update an existing todo by task code (e.g. ORB-73). Supports: title,\nstatus, priority, description, resolution_notes, urls. When the user\nsupplies an exact task code already visible in their request or the\nBACKLOG, call update_todo directly; do not query_todos merely to\nreconfirm it. The server resolves and validates the current row.\nCannot: change todo_number, set closed_at directly (closed_at is\nmanaged automatically when status changes to a closing state). To\nmove a task between projects, use move_todo instead.",
+    "description": "[Confidence: well-tested] Update an existing todo by task code (e.g. ORB-73). Supports: title,\nstatus, priority, description, resolution_notes, urls. When the user\nsupplies an exact task code already visible in their request or the\nBACKLOG, call update_todo directly; do not query_todos merely to\nreconfirm it. The server resolves and validates the current row.\nThe server always holds the update for a separate second-turn\nconfirmation; permission in the requesting turn never executes it.\nCannot: change todo_number, set closed_at directly (closed_at is\nmanaged automatically when status changes to a closing state). To\nmove a task between projects, use move_todo instead.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -157,7 +157,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "delete_todo",
-    "description": "[Confidence: well-tested] Delete a todo by task code. If the user asks to delete all todos/tasks from a named project and BACKLOG already lists the matching task codes, call delete_todo once for each matching code immediately; do not query first just to confirm the visible list. The server may hold the deletion for confirmation depending on user preference; never claim deletion succeeded until the tool result confirms it.",
+    "description": "[Confidence: well-tested] Delete a todo by task code. If the user asks to delete all todos/tasks from a named project and BACKLOG already lists the matching task codes, call delete_todo once for each matching code immediately; do not query first just to confirm the visible list. The server always holds the deletion for a separate second-turn confirmation; permission in the requesting turn never executes it. Never claim deletion succeeded until the confirmation result proves it.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -192,7 +192,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
             "local",
             "production"
           ],
-          "description": "Defaults to local on localhost and production in production."
+          "description": "Required. Use the source the user named; otherwise use local on localhost and production in production."
         },
         "path": {
           "type": "string",
@@ -216,7 +216,8 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         }
       },
       "required": [
-        "operation"
+        "operation",
+        "source"
       ]
     }
   },
@@ -269,6 +270,53 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         "max_results": {
           "type": "integer",
           "description": "Max projects to return. Default 50."
+        }
+      }
+    }
+  },
+  {
+    "name": "query_users",
+    "description": "[Confidence: new] Admin-only read access to the current user directory. Use for questions about registered users, names, roles, onboarding, or release stage. Returns only the explicit safe profile fields defined by the server; never use query_db for users.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "search": {
+          "type": "string",
+          "description": "Optional name or email search."
+        },
+        "max_results": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Maximum users to return. Defaults to 50."
+        }
+      }
+    }
+  },
+  {
+    "name": "query_invitations",
+    "description": "[Confidence: new] Admin-only read access to invitations. Use for questions about pending, accepted, or declined invitations and invitee details. Returns only the explicit safe invitation fields defined by the server; never use query_db for invitations.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "accepted",
+            "declined"
+          ],
+          "description": "Optional exact invitation status."
+        },
+        "search": {
+          "type": "string",
+          "description": "Optional invitee name or email search."
+        },
+        "max_results": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Maximum invitations to return. Defaults to 50."
         }
       }
     }
@@ -437,7 +485,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "add_knowledge",
-    "description": "[Confidence: well-tested] Propose preserving an insight, decision, or reference material in the Knowledge Repository. Defaults to the current project if product_code is omitted. The server holds the exact entry for confirmation; never claim it was saved until confirm_mutation succeeds. You should proactively ask the user \"Would you like me to save this to the knowledge repository?\" when a valuable decision or insight is reached.",
+    "description": "[Confidence: well-tested] Propose preserving an insight, decision, or reference material in the Knowledge Repository. Defaults to the current project if product_code is omitted. The server always holds the exact entry for a separate second-turn confirmation; permission in the requesting turn never executes it. Never claim it was saved until confirm_mutation succeeds. You should proactively ask the user \"Would you like me to save this to the knowledge repository?\" when a valuable decision or insight is reached.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -469,7 +517,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "update_knowledge",
-    "description": "[Confidence: new] UPDATE ONLY. Correct or amend an existing Knowledge Repository entry. If the current user message supplies an actual title — especially `entry titled \"...\"` — you MUST call update_knowledge immediately with that title and MUST NOT call search_knowledge first. This tool performs title resolution itself (exact match, then substring) and reports ambiguity or absence. Search first only when no actual title is grounded in the user message or a prior tool result; assistant-authored prose plus \"that entry\" is not title grounding. Held for user confirmation like update_project — never claim completion until confirm_mutation succeeds. Do NOT include a date, timestamp, or attribution line in new_content; the server signs and stamps every update automatically. There is no delete tool: use create_ticket when a stale entry cannot be corrected.",
+    "description": "[Confidence: new] UPDATE ONLY. Correct or amend an existing Knowledge Repository entry. If the current user message supplies an actual title — especially `entry titled \"...\"` — you MUST call update_knowledge immediately with that title and MUST NOT call search_knowledge first. This tool performs title resolution itself (exact match, then substring) and reports ambiguity or absence. Search first only when no actual title is grounded in the user message or a prior tool result; assistant-authored prose plus \"that entry\" is not title grounding. Always held for a separate second-turn confirmation; permission in the requesting turn never executes it. Never claim completion until confirm_mutation succeeds. Do NOT include a date, timestamp, or attribution line in new_content; the server signs and stamps every update automatically. There is no delete tool: use create_ticket when a stale entry cannot be corrected.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -522,7 +570,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "create_ticket",
-    "description": "[Confidence: well-tested] Silently log a ticket for bugs, suggestions, capability gaps, or workflow friction. Filed proactively when you observe an issue — do NOT tell the user. Also used when a user explicitly says something like \"I see a problem\" or \"I have a suggestion\" — in that case, acknowledge that you have noted it. One ticket per novel observation.",
+    "description": "[Confidence: well-tested] Prepare a ticket for bugs, suggestions, capability gaps, or workflow friction. User-requested ticket creation is always held for a separate second-turn confirmation; permission in the requesting turn never files it. Internal automated incident tickets are outside this conversational tool contract. One ticket per novel observation.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -553,7 +601,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "move_todo",
-    "description": "[Confidence: well-tested] Move a task to a different project. The task gets a new number in the target project. Requires access to both source and target projects.",
+    "description": "[Confidence: well-tested] Move a task to a different project. The task gets a new number in the target project. Requires access to both source and target projects. The server always holds the move for a separate second-turn confirmation; permission in the requesting turn never executes it.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -574,7 +622,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "create_project",
-    "description": "[Confidence: well-tested] Create a new project. Use the user's exact words as the project name — do not split, abbreviate, or reinterpret it. The code is auto-generated from the name and should almost never be provided manually. Only pass a code if the user explicitly says something like 'with code XYZ'. The server holds the creation for the user to confirm before it executes.",
+    "description": "[Confidence: well-tested] Create a new project. Use the user's exact words as the project name — do not split, abbreviate, or reinterpret it. The code is auto-generated from the name and should almost never be provided manually. Only pass a code if the user explicitly says something like 'with code XYZ'. The server always holds the creation for a separate second-turn confirmation before it executes; permission in the requesting turn never executes it.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -598,7 +646,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "update_project",
-    "description": "[Confidence: new] Update a project's name or description. The project code is immutable — it is auto-generated at creation and cannot be changed. Users can only update their own projects. Use when the user says 'rename project X', 'change the description of X', etc. The server resolves the project by name and holds the change for the user to confirm before it executes.",
+    "description": "[Confidence: new] Update a project's name or description. The project code is immutable — it is auto-generated at creation and cannot be changed. Users can only update their own projects. Use when the user says 'rename project X', 'change the description of X', etc. The server resolves the project by name and always holds the change for a separate second-turn confirmation; permission in the requesting turn never executes it.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -622,7 +670,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "delete_project",
-    "description": "[Confidence: new] Permanently delete a project and all its todos. IRREVERSIBLE. Users can only delete their own projects. Always call this tool when the user asks to delete a project — the server resolves it by name and holds the deletion for the user to confirm before it executes.",
+    "description": "[Confidence: new] Permanently delete a project and all its todos. IRREVERSIBLE. Users can only delete their own projects. Always call this tool when the user asks to delete a project — the server resolves it by name and always holds the deletion for a separate second-turn confirmation; permission in the requesting turn never executes it.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -638,7 +686,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "confirm_mutation",
-    "description": "[Confidence: new] Execute the project or Knowledge Repository action you most recently proposed, after the user confirms it. Call this — and ONLY this — when the user agrees to the exact create/update/delete/save action you just described (e.g. they say \"yes\", \"go ahead\", \"do it\"). It takes no parameters; the server runs the exact persisted action. Do NOT call it if the user declined or asked for something different — in that case just respond, or call the relevant tool to propose the new action.",
+    "description": "[Confidence: new] Execute the project, Knowledge Repository, or ticket-create action you most recently proposed, after the user confirms it in a distinct later turn. Call this — and ONLY this — when the user agrees to the exact action you just described. It takes no parameters; the server runs the exact persisted action. Do NOT call it if the user declined or asked for something different.",
     "input_schema": {
       "type": "object",
       "properties": {}
@@ -671,6 +719,8 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   create_todo: 'Creating task...',
   query_todos: 'Searching backlog...',
   query_projects: 'Checking projects...',
+  query_users: 'Checking users...',
+  query_invitations: 'Checking invitations...',
   query_tickets: 'Checking tickets...',
   update_todo: 'Updating task...',
   delete_todo: 'Deleting task...',
@@ -685,7 +735,7 @@ export const ORB_TOOL_LABELS: Record<string, string> = {
   delete_project: 'Deleting project...',
   confirm_mutation: 'Confirming...',
   set_dormancy: 'Updating project...',
-  create_ticket: 'Noting observation...',
+  create_ticket: 'Preparing ticket...',
   query_db: 'Querying database...',
   query_repository: 'Inspecting source...',
   get_preferences: 'Loading preferences...',

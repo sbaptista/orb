@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { startInteraction } from '@/lib/performance/telemetry'
 import { collectClientEnvironment } from '@/lib/client-environment'
+import { renderOrbQueryPacketMarkdown } from '@/lib/orb-query-presentation'
 import {
   startSileroShadow,
   type SileroShadowController,
@@ -273,7 +274,7 @@ export function useRealtimeVoiceSpike(options: Options) {
     const turnMeasurement = turnMeasurementRef.current
     turnMeasurement?.mark(`tool_${item.name}_start`)
     const args = parseArguments(item.arguments)
-    const mutationTool = item.name.startsWith('propose_') || item.name === 'confirm_todo_mutation'
+    const mutationTool = item.name.startsWith('propose_') || item.name === 'create_ticket' || item.name === 'confirm_todo_mutation'
     // A mutation tool needs the current turn's trusted utterance for the
     // server-side authorization check. Wait for the transcript, but bound it: if
     // it never arrives, proceed with an empty utterance so the server fails
@@ -366,6 +367,21 @@ export function useRealtimeVoiceSpike(options: Options) {
         ticketStatus: args.status,
         ticketScope: args.scope,
         ticketType: args.type,
+        search: args.search,
+        maxResults: args.max_results,
+      }
+    } else if (item.name === 'query_users') {
+      operation = 'query_users'
+      body = {
+        operation,
+        search: args.search,
+        maxResults: args.max_results,
+      }
+    } else if (item.name === 'query_invitations') {
+      operation = 'query_invitations'
+      body = {
+        operation,
+        invitationStatus: args.status,
         search: args.search,
         maxResults: args.max_results,
       }
@@ -607,31 +623,11 @@ export function useRealtimeVoiceSpike(options: Options) {
       const exactText = result.referenceToken
         ? undefined
         : result.packet?.spokenText ?? result.proposal?.spokenText ?? result.receipt?.spokenText ?? result.spokenText
-      // ORB-372: voice speaks, but the transcript renders GitHub-flavoured
-      // markdown — so a list result can be a real table on screen while the
-      // spoken answer stays short. Realtime carried the structured tasks[] all
-      // along and discarded them, which is why "put that in table form" could
-      // only ever produce another read-out list. This is the serial engine's
-      // own convention (speak the summary, put the detail on screen) that
-      // Realtime never picked up.
-      const listPacket = result.packet
-      if (listPacket?.kind === 'todo_list' && Array.isArray(listPacket.tasks) && listPacket.tasks.length > 0) {
-        const cell = (value: unknown) => String(value ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ')
-        const rows = listPacket.tasks
-          .map((task: any) => `| ${cell(task.code)} | ${cell(task.title)} | ${cell(task.status)} |`)
-          .join('\n')
-        const shown = listPacket.tasks.length
-        const total = typeof listPacket.count === 'number' ? listPacket.count : shown
-        const omitted = Math.max(0, total - shown)
-        // Render the actual range. "Showing 5 of 12" on page three was simply
-        // false — those were rows 11 and 12, not the first five.
-        const from = (typeof listPacket.offset === 'number' ? listPacket.offset : 0) + 1
-        const to = from + shown - 1
-        const note = total > shown
-          ? `\n\n_${from}–${to} of ${total}${to < total ? '. Say "show the next page" for more.' : '. Last page.'}_`
-          : ''
-        callbacksRef.current.onOrbTranscript(`| Code | Title | Status |\n| --- | --- | --- |\n${rows}${note}`)
-      }
+      // Query detail goes through the same Markdown conversation surface as
+      // text. The bridge only converts trusted packet rows to Markdown; it does
+      // not own a second Voice-only table component or database query path.
+      const displayMarkdown = renderOrbQueryPacketMarkdown(result.packet)
+      if (displayMarkdown) callbacksRef.current.onOrbTranscript(displayMarkdown)
       if ((result.receipt && !result.replayed) || result.mutated === true) callbacksRef.current.onMutation()
       sendToolOutput(item.call_id, result)
       if (turnId !== activeTurnIdRef.current) return { createResponse: false }

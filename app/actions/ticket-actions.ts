@@ -68,6 +68,61 @@ async function getAdmins(admin: ReturnType<typeof createAdminClient>) {
   return data ?? []
 }
 
+export async function notifyCreatedTicket(ticketId: string): Promise<void> {
+  const admin = createAdminClient()
+  const { data: ticket, error } = await admin
+    .from('tickets')
+    .select('id, ticket_number, type, summary, reported_by')
+    .eq('id', ticketId)
+    .maybeSingle()
+  if (error || !ticket) {
+    console.error('[notifyCreatedTicket] Failed to load ticket:', error ?? 'not found')
+    return
+  }
+
+  try {
+    const admins = await getAdmins(admin)
+    if (admins.length > 0) {
+      await Promise.all(
+        admins.map(adm =>
+          sendPushToUser(adm.id, {
+            title: `New Feedback: ${ticket.type.replace(/_/g, ' ')}`,
+            body: ticket.summary,
+            url: '/settings/tickets',
+            tag: `ticket-${ticket.id}`,
+          }).catch(err =>
+            console.error(`[notifyCreatedTicket] push failed for ${adm.id}:`, err),
+          )
+        )
+      )
+    }
+  } catch (notifyErr) {
+    console.error('[notifyCreatedTicket] Unexpected error dispatching notifications:', notifyErr)
+  }
+
+  if (ticket.reported_by) {
+    try {
+      const { data: reporter } = await admin
+        .from('users')
+        .select('first_name, email')
+        .eq('id', ticket.reported_by)
+        .maybeSingle()
+      if (reporter?.email) {
+        sendTicketAcknowledgmentEmail({
+          to: reporter.email,
+          firstName: reporter.first_name ?? 'there',
+          summary: ticket.summary,
+          ticketCode: `TICKETS-${ticket.ticket_number}`,
+        }).catch(err =>
+          console.error('[notifyCreatedTicket] acknowledgment email failed:', err),
+        )
+      }
+    } catch (ackErr) {
+      console.error('[notifyCreatedTicket] Reporter acknowledgment error:', ackErr)
+    }
+  }
+}
+
 // ── createTicket ─────────────────────────────────────────────────────────────
 // Inserts into the tickets table (not todos). Notifies admins via push + email.
 
@@ -121,50 +176,7 @@ export async function createTicket({
     return { error: error.message }
   }
 
-  // Dispatch admin notifications (fire-and-forget push only)
-  try {
-    const admins = await getAdmins(admin)
-
-    if (admins.length > 0) {
-      await Promise.all(
-        admins.map(adm =>
-          sendPushToUser(adm.id, {
-            title: `New Feedback: ${type.replace(/_/g, ' ')}`,
-            body: summary,
-            url: `/settings/tickets`,
-            tag: `ticket-${ticket.id}`,
-          }).catch(err =>
-            console.error(`[createTicket] push failed for ${adm.id}:`, err),
-          )
-        )
-      )
-    }
-  } catch (notifyErr) {
-    console.error('[createTicket] Unexpected error dispatching notifications:', notifyErr)
-  }
-
-  // Acknowledge reporter (fire-and-forget) — only for user-reported tickets
-  if (reportedBy) {
-    try {
-      const { data: reporter } = await admin
-        .from('users')
-        .select('first_name, email')
-        .eq('id', reportedBy)
-        .maybeSingle()
-      if (reporter?.email) {
-        sendTicketAcknowledgmentEmail({
-          to: reporter.email,
-          firstName: reporter.first_name ?? 'there',
-          summary,
-          ticketCode: `TICKETS-${ticket.ticket_number}`,
-        }).catch(err =>
-          console.error(`[createTicket] acknowledgment email failed:`, err),
-        )
-      }
-    } catch (ackErr) {
-      console.error('[createTicket] Reporter acknowledgment error:', ackErr)
-    }
-  }
+  await notifyCreatedTicket(ticket.id)
 
   return { ok: true, data: { id: ticket.id, code: `TICKETS-${ticket.ticket_number}` } }
 }

@@ -1,5 +1,5 @@
 export type OrbRealtimeFactPacket = {
-  kind: 'task_count' | 'next_step' | 'project_directory' | 'todo_details' | 'todo_list' | 'knowledge_search' | 'orb_state'
+  kind: 'task_count' | 'next_step' | 'project_directory' | 'project_query' | 'todo_details' | 'todo_list' | 'knowledge_search' | 'users_query' | 'invitations_query' | 'orb_state'
   /** ORB-372: rows skipped, so a caller can render "6 to 10 of 12" rather than "5 of 12". */
   offset?: number
   observedAt: string
@@ -34,6 +34,8 @@ export type OrbRealtimeFactPacket = {
     projectCode: string | null
     updatedAt: string | null
   }>
+  users?: Array<Record<string, unknown>>
+  invitations?: Array<Record<string, unknown>>
   spokenText: string
 }
 
@@ -49,6 +51,7 @@ export type OrbRealtimeProposal = {
     | 'delete_project'
     | 'add_knowledge'
     | 'update_knowledge'
+    | 'create_ticket'
     | 'batch_todo_action'
   proposalToken: string
   // Single-project mutations always carry one; a batch spanning several
@@ -81,6 +84,7 @@ export type OrbRealtimeMutationReceipt = {
     | 'delete_project'
     | 'add_knowledge'
     | 'update_knowledge'
+    | 'create_ticket'
     | 'batch_todo_action'
   receiptId: string
   code: string
@@ -88,6 +92,7 @@ export type OrbRealtimeMutationReceipt = {
   title: string
   project: string
   knowledgeEntryId?: string
+  ticketId?: string
   observedAt: string
   source: 'database'
   spokenText: string

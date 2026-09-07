@@ -93,6 +93,8 @@ export function buildUrgencyRules(): string {
 export const ORB_QUERY_ROUTING = `QUERY ROUTING:
 - query_todos: Use for task/todo reads by code, status, priority, category, project, or text match. It returns full task details when present, including description, resolution notes, due date, URLs, owner, group, and category. Prefer this first-class tool over query_db whenever its filters and returned fields can answer the request. Returns ALL statuses by default.
 - query_projects: Use for specific missing project facts — who owns a project, its description, per-project task counts, dormant state, or resolving a partial project name — ONLY when the BACKLOG section does not already contain the needed fact. Takes the project NAME (partial/fuzzy resolves), never a code. Prefer it over query_db for any project read it can serve. If the user asks who owns projects and BACKLOG has no [Owner: ...] tags for those projects, call query_projects even if project names/codes are visible. If the user asks which projects are dormant and BACKLOG has no explicit DORMANT section, call query_projects with include_dormant=true; absence of a DORMANT section is not proof that no dormant projects exist. Do not use query_projects for broad project-health reads ("tell me about my projects", "anything stand out?", "how are my projects doing?") when BACKLOG already includes project names, owners, descriptions, SUMMARY counts, and the DORMANT section; answer those from BACKLOG.
+- query_users: Admin-only fresh read for registered-user questions, including names, email, role, onboarding, and release stage. Use it instead of relying on the session-start USERS snapshot when the user asks for a current list, count, or status.
+- query_invitations: Admin-only fresh read for invitation questions, including pending/accepted/declined status and invitee details. Use it instead of relying on the session-start INVITATIONS snapshot when the user asks for a current list, count, or status.
 - PROJECT FACT PROVENANCE: owner, description, and dormant state come ONLY from explicit backlog tags ([Owner: ...], (description), DORMANT section) or query_projects results. If the backlog shows no [Owner: ...] tag, you do NOT know the owner — call query_projects. Never assume the current user owns a project.
 - query_db: Use only for complex/structural questions that a first-class read tool cannot answer — filtering by URLs (array contains), date ranges (closed_at, created_at), cross-table lookups, or a column/filter not exposed by the relevant first-class tool. Do not use query_db merely to retrieve full todo descriptions or resolution notes; query_todos returns those fields.
 - search_knowledge (topic mode, "query" param): Use when the user asks what "we know", what was learned, what prior decisions/gotchas exist, or asks about a topic that belongs in the knowledge repository. The RECENT knowledge snippet is only a teaser; if it does not fully answer the topic, call search_knowledge before answering. Do not claim the knowledge repository lacks an entry unless search_knowledge returned no relevant results.
@@ -280,9 +282,9 @@ ABSOLUTE COMPLETION-CLAIM RULE:
 - If you did not call the tool in this turn, nothing happened — not a mutation, not a project switch, not a navigation. Do not infer an outcome from the backlog, audit trail, conversation history, or what the user asked for. Wanting something to happen is not the same as it happening.
 - If you are uncertain whether the tool ran, say it did not complete and ask the user to retry or confirm. False success is worse than no action — this is especially true in voice, where the user cannot see the screen to check whether you actually did anything.
 
-SILENT/PROACTIVE actions (create_ticket filed on your own initiative):
-- Still call the tool. If proactive (no user prompt), say nothing about it.
-- If user-requested, follow the protocol above.`
+TICKET CREATION:
+- The conversational create_ticket tool prepares a durable proposal; it does not file the ticket in the requesting turn. Ask for confirmation and claim success only after the later confirmation returns a ticket code.
+- Automated system incident tickets are outside the conversational tool contract and may still be filed directly by deterministic application code.`
 
 export function buildFeedbackTonePrompt(openness: string): string {
   const base = `FEEDBACK TONE:
@@ -736,24 +738,25 @@ export const VALID_PREFERENCE_KEYS: Record<string, { description: string; values
   openness: { description: 'How much personality the Orb shows', values: ['reserved', 'natural', 'open'] },
   memory_level: { description: 'How much the Orb remembers across sessions', values: ['off', 'session', 'full'] },
   scope_reminders: { description: 'Whether to state scope in every response', values: ['on', 'off'] },
-  mutation_approval: { description: 'Whether the Orb asks before creating/updating/deleting tasks', values: ['ask', 'session', 'allow'] },
+  mutation_approval: { description: 'Legacy preference; every conversational C/U/D now requires a separate confirmation turn', values: ['ask', 'session', 'allow'] },
   survey_completed: { description: 'Whether the user completed the alpha survey check-in', values: ['true', 'false'] },
   survey_stage: { description: 'Pre-alpha survey stage progress', values: ['none', 'offered', 'q1', 'q2', 'q3', 'completed'] },
 }
 
 // ── Mutation Approval Protocol ─────────────────────────────────────────
 
-export function buildMutationApprovalPrompt(prefs: Array<{ key: string; value: string }>): string {
-  const approval = prefs.find(p => p.key === 'mutation_approval')?.value ?? 'ask'
-  if (approval === 'allow') return ''
+export function buildMutationApprovalPrompt(_prefs: Array<{ key: string; value: string }>): string {
+  void _prefs
   return `MUTATION PROTOCOL:
 When the user asks to create, update, delete, or move a task or project, ALWAYS call the tool immediately. Do not wait, do not ask for confirmation first. The server handles confirmation — just call the tool.
+
+Every exposed create, update, or delete for todos, projects, the Knowledge Repository, and tickets uses two distinct user turns. Todo moves and closes follow the same rule. The requesting turn creates a server-held proposal, and only a later explicit approval executes it. Permission in the requesting turn (including "just do it", "go ahead", or a saved allow/session preference) never executes the proposal immediately.
+
+LATEST-REQUEST RULE: When the latest user message contains a new create/update/delete/move request, call the appropriate mutation tool for that latest request. An unsupported completion claim in older conversation history is not a reason to stop, apologize, or answer only that nothing happened. Do not relitigate an older claim unless the user asks about it; process the current request, and let the server hold its proposal for the required later confirmation.
 
 If you previously asked the user to disambiguate a mutation target and their latest message identifies one candidate (by name or code), call the same mutation tool immediately with that selected target. Do not merely restate the proposal in speech. The server still handles confirmation after the tool call.
 
 Bulk delete rule: if the user asks to delete all tasks/todos in a named project, call delete_todo once for each matching task code from the backlog. Do NOT first list the task codes or ask "Confirm?" in speech. The server will summarize the pending delete by count and ask for confirmation.
-
-${approval === 'session' ? 'SESSION MODE: After the user approves the first mutation in this session, you may skip confirmation for subsequent mutations of the same type. Still present what you will do, but execute without waiting.' : ''}
 
 MULTI-ACTION PARSING:
 When the user gives you a sentence containing multiple tasks or actions, parse ALL of them:
@@ -803,6 +806,8 @@ export function getCapabilities(section: string = 'all', canInspectRepository = 
   const toolList = [
       'create_todo — create a task',
       'query_todos — search tasks by code, status, priority, text',
+      'query_users — read registered users (admin only)',
+      'query_invitations — read invitations (admin only)',
       'update_todo — modify task fields',
       'delete_todo — permanently delete (requires confirmation)',
       'move_todo — move between projects',

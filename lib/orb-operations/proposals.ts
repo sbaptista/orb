@@ -15,6 +15,7 @@ export type OrbMutationKind =
   | 'delete_project'
   | 'add_knowledge'
   | 'update_knowledge'
+  | 'create_ticket'
 
 export type PersistOrbProposalInput = {
   kind: OrbMutationKind
