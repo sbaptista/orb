@@ -17,7 +17,7 @@
 - **Branch:** `codex/voice-command-contract`; pushed `main` is `cf6fda9`, with
   one local post-deployment handoff commit still to push. The v0.6.307 Voice
   contract and preceding `8c51efb` hardening-doc cleanup are deployed.
-- **Version:** **0.6.308** local (docs/tooling only, unpushed). **0.6.307** in
+- **Version:** **0.6.309** local (docs/tooling only). **0.6.307** in
   production, verified through `/api/version` on 2026-09-06.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.

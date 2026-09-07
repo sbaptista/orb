@@ -1,6 +1,6 @@
 -- ============================================================
 -- Agent Capability Broker — Layer 1: read-only agent identity
--- Plan: docs/agent-capability-broker-plan.md
+-- Open findings: docs/agent-enforcement-hardening.md
 -- Date: 2026-08-19 — Claude Code (Opus 5)
 --
 -- Creates `orb_agent_ro`, a SELECT-only role used by the `orb-agent`

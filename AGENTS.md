@@ -50,11 +50,21 @@ The following file contains cross-project rules, conventions, and shared resourc
 ### Agent Data Access — the `orb-agent` broker (primary)
 
 Agents read Orb data through `orb-agent`, a read-only capability broker.
-Plan and rationale: `docs/agent-capability-broker-plan.md`.
 
 The broker holds no credential of its own. It uses a SELECT-only `orb_agent_ro`
 database role through a standing credential that **Stan** installs. Read-only is
-enforced by database grants and RLS, not by the CLI.
+enforced by database grants and RLS, not by the CLI — the boundary is
+`scripts/migrations/20260819_orb_agent_ro_role.sql`, asserted on every run of
+`scripts/migrations/verify-orb-agent-ro.sql`.
+
+**What the broker does NOT claim.** It is **not process isolation**: a same-user
+agent can read the credential file and call `psql` directly, bypassing the
+broker's verb allowlist, its soft-delete filter and its audit log. That is the
+granted capability, scoped by database grants — not a bypass. It is **not**
+protection against a compromised human session: anyone who can run
+`orb-agent-approve` and type the master passphrase can write. Container, VM,
+separate-account and per-tool sandbox boundaries remain deferred under ORB-374.
+Open findings: `docs/agent-enforcement-hardening.md`.
 
 ```bash
 orb-agent status
@@ -625,9 +635,10 @@ against the read-only role.
   is a different property this report does not measure. Treat the numbers below
   as an autovacuum signal, not proof a table is or is not bloated.
   `dead_pct` > 20% **and** `n_dead_tup` > 1000, **in schema `public` only** →
-  ask Stan to run `scripts/maintenance/vacuum-bloated-tables.sql` through psql
-  (Path B above — `VACUUM` cannot run inside a transaction block, so the
-  Supabase editor will refuse it).
+  ask Stan to run `VACUUM ANALYZE public.<table>;` through psql (Path B above —
+  `VACUUM` cannot run inside a transaction block, so the Supabase editor will
+  refuse it). `VACUUM ANALYZE`, never `VACUUM FULL`: the latter rewrites the
+  table under an `ACCESS EXCLUSIVE` lock.
   **The absolute floor and the schema scope both matter.** `dead_pct` is a
   ratio, so a table with 3 live rows and 50 dead reads as 1666% while holding
   kilobytes; PostgreSQL's own autovacuum trigger is `50 + 0.2 * n_live_tup`, so

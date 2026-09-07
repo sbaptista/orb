@@ -12,8 +12,11 @@ deleted here because its findings already live in the code, in the two documents
 below, and in the register that follows. Reading 1,800 lines to learn nine open
 items is a cost every agent paid at session start.
 
-**Related, both current:** `docs/agent-castle-threat-model.md` (threat model),
-`docs/agent-capability-broker-plan.md` (broker design).
+**Related:** `docs/agent-castle-threat-model.md` (threat model). The broker's
+design is the code itself — `scripts/security/orb-agent`,
+`scripts/migrations/20260819_orb_agent_ro_role.sql`, and its verifier; the
+separate plan document was deleted on 2026-09-06 once the thing it planned was
+built and verified.
 
 **Standing rule for anything added here.** Label every claim **Verified** (you
 ran it), **Inferred** (it follows from something you ran), or **Suspected**

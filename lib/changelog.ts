@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.309',
+    date: '2026-09-06',
+    changes: [
+      'Deleted the agent broker\'s design document, four hundred lines describing how to build something that was built, verified and in daily use. What a future reader needs is the boundary itself — the migration that grants the read-only role its eight tables, and the script that asserts those grants on every run — and both are pointed to from the places that used to point at the plan.',
+      'Kept the one part of that document worth keeping, and moved it to where agents actually read: the statement of what the broker does not claim. It is not process isolation. Anyone running as the same user can read the credential file and query the database directly, bypassing the broker\'s command list, its filter for deleted rows, and its audit log. That is the capability being granted, limited by database permissions rather than by the tool.',
+      'Deleted a database maintenance script written three days earlier for three tables holding a few dozen dead rows between them — a problem that turned out not to exist, created by a report that overstated it. The rule it served survives in one sentence: past both a proportion and an absolute floor, ask for a plain vacuum through the command line, never the rewriting kind that locks the table.',
+      'Roughly five hundred further lines of documentation removed, following two thousand four hundred the day before. Internal developer tooling and documentation: no application route, component, or user-facing behavior changed. Eval: not applicable — no Orb-conversation capability, tool, routing rule, prompt, or defined speech behavior changed.',
+    ],
+  },
+  {
     version: 'v0.6.308',
     date: '2026-09-06',
     changes: [

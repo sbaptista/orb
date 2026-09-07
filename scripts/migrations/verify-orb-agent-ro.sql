@@ -1,6 +1,6 @@
 -- ============================================================
 -- Verify the orb_agent_ro boundary — BOTH DIRECTIONS
--- Plan: docs/agent-capability-broker-plan.md
+-- Open findings: docs/agent-enforcement-hardening.md
 --
 -- RUNS IN THE SUPABASE SQL EDITOR (paste whole file) OR psql.
 -- Every test is wrapped so a failure is CAPTURED, not fatal — one run

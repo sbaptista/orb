@@ -77,7 +77,9 @@ The **only** test mechanism in this repo is the Orb eval suite (`scripts/eval-ca
 
 Added 2026-08-19. The `orb-agent` capability broker gives AI development agents
 read access to Orb data without any master credential, through the SELECT-only
-`orb_agent_ro` role. Plan: `docs/agent-capability-broker-plan.md`.
+`orb_agent_ro` role. Boundary:
+`scripts/migrations/20260819_orb_agent_ro_role.sql`, asserted by
+`scripts/migrations/verify-orb-agent-ro.sql`.
 
 | Object | Broker read | Verb | Broker write |
 |---|---|---|---|
