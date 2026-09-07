@@ -39,8 +39,19 @@ is_removable_name ELEVENLABS_API_KEY
 installed_dir="/usr/local/orb-bin"
 # orb-agent joined this list on 2026-09-06, when it was installed root-owned.
 # It is the one AGENT-RUNNABLE launcher here and holds no credential, so it is
-# not passphrase-bearing like the other four — but root ownership means an agent
-# can no longer rewrite its own broker, which is worth asserting.
+# not passphrase-bearing like the other four.
+#
+# CORRECTED 2026-09-06. An earlier version of this comment said root ownership
+# means "an agent can no longer rewrite its own broker". That is false, tested:
+#   - scripts/security/orb-agent is owner-writable; agents edit it routinely.
+#   - Promotion to /usr/local/orb-bin is a `sudo install` command an AGENT
+#     composes and Stan executes. Unless he diffs first, the agent's bytes
+#     become the running broker.
+#   - An agent can bypass PATH entirely: `bash scripts/security/orb-agent`
+#     runs the repo copy and reaches the database. Demonstrated.
+# Root ownership constrains what PATH RESOLVES, not what an agent EXECUTES.
+# What this check buys is that an unannounced change to the PATH-resolved copy
+# is DETECTED. Real, and small. Not a boundary.
 expected_launchers=(orb-dev orb-secrets-seal orb-secrets-set orb-agent-approve orb-agent)
 integrity_errors=()
 

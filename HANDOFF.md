@@ -26,13 +26,17 @@
 - **Installed launchers: IN SYNC — verified 2026-09-06** by
   `bash scripts/security/test-orb-launcher.sh` (**5 checked**; bytes, owner and
   mode asserted). All five `root:wheel 755`. `orb-agent` joined the manifest on
-  2026-09-06 after being installed root-owned — it is the one agent-runnable
-  launcher and holds no credential, but root ownership means an agent can no
-  longer rewrite its own broker.
+  2026-09-06 after being installed root-owned.
   **Standing note:** the copies in `/usr/local/orb-bin` are what run. Version
   control does not keep them in step — only that check does. **Run it after
   editing anything in `scripts/security/`, and reinstall before assuming a fix
-  is live.** Two separate divergences were found this way: `orb-secrets-seal`
+  is live.**
+  **What root ownership does NOT buy (corrected 2026-09-06):** it constrains
+  what PATH *resolves*, not what an agent *executes*. `scripts/security/*` is
+  owner-writable, promotion is a `sudo install` command an agent composes and
+  Stan runs, and `bash scripts/security/orb-agent` reaches the database without
+  PATH or sudo — tested. The check makes an unannounced change to the installed
+  copy **detectable**. That is its whole value. Two separate divergences were found this way: `orb-secrets-seal`
   had been unable to re-seal the store for four weeks, and the R4-N1 decrypt fix
   sat un-installed until reinstalled.
 - **Agent broker: IN SERVICE.** Standing credential at
