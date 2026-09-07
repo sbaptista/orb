@@ -17,8 +17,9 @@
 - **Branch:** `codex/voice-command-contract`; pushed `main` is `cf6fda9`, with
   one local post-deployment handoff commit still to push. The v0.6.307 Voice
   contract and preceding `8c51efb` hardening-doc cleanup are deployed.
-- **Version:** **0.6.309** local (docs/tooling only). **0.6.307** in
-  production, verified through `/api/version` on 2026-09-06.
+- **Version:** **0.6.310**, pushed. **0.6.307** was the last release with an
+  application change; v0.6.308–v0.6.310 are documentation and developer tooling
+  only, so production behaviour is unchanged from 0.6.307.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -81,52 +82,54 @@ Path-only projection of `git status --short`. Enforced by
 
 ## Last Session Completed
 
-**2026-09-06 — Codex (GPT-5). Voice command contract, v0.6.307 deployed.**
+**2026-09-06 — Claude Code (Opus 5). Documentation subtraction and four
+corrections. v0.6.308–v0.6.310, all pushed.**
 
-- Every exposed conversational C/U/D now persists a proposal on the requesting
-  turn and requires explicit approval in a distinct later turn in both text and
-  Realtime: todo/project CRUD, Knowledge C/U, and ticket C, plus todo move/close.
-  Request-turn permission and saved allow/session preferences cannot execute.
-  Automated deterministic incident tickets remain direct and outside this
-  conversational contract. Capability scope is unchanged; audit is read-only.
-- Added admin-only `query_users` and `query_invitations` to text and Realtime.
-  Both call `lib/orb-operations/admin-directory.ts`, expose bounded safe fields,
-  and remain excluded from generic `query_db`. Live Voice testing found their
-  packet rows were discarded while Orb claimed a table was visible. They now
-  share one packet-to-Markdown formatter with todo lists and enter the same
-  `OrbConversation` Markdown renderer used by text; no Voice table component
-  or duplicate directory query was added.
-- Database path audit: todo/project/knowledge mutation commits converge on the
-  shared proposal store and confirmation entry point; ticket C and the new
-  directory reads also converge across channels. Existing todo/project/Knowledge/ticket/audit
-  read adapters remain channel-specific, so all database access does not yet use
-  one universal path.
-- Verification passed once: `npx tsc --noEmit`; focused ESLint with zero errors
-  and six pre-existing warnings; `git diff --check`. Contract generation passed
-  once. Stan's first model run: Tier 1 **69/69**; mutation-safety Tier 2 passed
-  five of six cases initially, with `create-after-hallucinated-history` at
-  **0/3** because the model corrected an old unsupported completion instead of
-  processing the latest create. The matching latest-request prompt rule was
-  added and Stan's focused rerun passed **3/3**. Those results predate the ticket
-  extension. Stan then applied its migration and authenticated text acceptance
-  passed for users/invitations reads and separate-turn Knowledge C/U. The ticket
-  C also passed in text (`TICKETS-73`) and Realtime (`TICKETS-74`); Realtime
-  Knowledge C/U passed; and the user/invitation tables rendered correctly after
-  the shared display-path fix. Read-only broker verification found the Voice
-  Knowledge entry with content `second version`, found `TICKETS-74`, and found
-  no rejected suggestion ticket. The post-extension Tier 1 run had one failure:
-  `repository-inspection-tool` called the correct tool but omitted explicit
-  `source: local`. The v0.6.306 baseline already had the same optional schema
-  and assertion, so this was not introduced by the Voice diff. `source` is now
-  required in the canonical schema; generation, TypeScript, focused ESLint, and
-  `git diff --check` passed once. Its focused rerun passed **1/1**; Stan stopped
-  the accidentally started full Tier 1 rerun. Mutation-safety Tier 2 then passed
-  **3/6**: the historical-claim case, ambiguous-title case, and legacy
-  `mutation-approval` case missed the 2/3 threshold. The last case contradicted
-  the current tool-first/server-confirm contract and is now a Tier 1 exact-delete
-  routing assertion; the ambiguity fixture now uses duplicate exact titles.
-  Stan's minimal rerun passed: historical claim **2/3**, ambiguous title **3/3**,
-  and revised mutation approval **1/1**. All required model gates are complete.
+*Codex's v0.6.307 Voice command contract shipped the same day and is recorded in
+`lib/changelog.ts` and git (`cf6fda9`, `6d013f0`). Its one piece of live state —
+read adapters remain channel-specific, so no universal-path claim holds — is in
+Active Risks below.*
+
+**Deleted ~2,950 lines of process documentation. No mechanism touched.**
+
+| Removed | Was |
+|---|---|
+| `docs/agent-enforcement-hardening.md` 1,820 → 120 | Four rounds of review transcript. Now an open-findings register. History: `6e47488` |
+| `HANDOFF.md` 1,191 → ~430 | Twelve chained `Prior session:` blocks |
+| `docs/agent-capability-broker-plan.md` (384) | A plan for a thing built, verified 50/50, and in daily use |
+| `scripts/maintenance/vacuum-bloated-tables.sql` (100) | Written for three tables holding 47/35/29 dead rows — a non-problem created by an overstated report |
+
+**Checking each item before deleting changed four of them.** F1 was already
+closed, not "pending re-verification". **R3-N3 is still open**, contrary to my
+assumption — `20260820b` emits `REVOKE ... ON FUNCTION` while selecting every
+`prosecdef` row and swallows the exception, so a `SECURITY DEFINER` procedure is
+skipped while the migration reports success. R3-N4 was still open and was closed
+in passing. And the broker plan's "what this does not claim" was the only part
+not recoverable from code, so it moved to `AGENTS.md`.
+
+**Corrected an overstated claim that had shipped (v0.6.310).** v0.6.308 said
+root-owning `orb-agent` means "an agent can no longer rewrite its own broker".
+False, and tested: `scripts/security/*` is owner-writable; promotion is a
+`sudo install` command an **agent composes** and Stan runs; and
+`bash scripts/security/orb-agent` reaches the database with neither PATH nor
+sudo. Root ownership constrains what PATH **resolves**, not what an agent
+**executes**. Corrected in four places; the shipped v0.6.308 changelog entry is
+annotated in place rather than rewritten.
+
+**Concurrency collision, worth knowing.** I began work without re-reading
+`ACTIVE_WORK/` and edited `HANDOFF.md` inside Codex's exclusive Release
+bookkeeping claim while it had 22 files staged. Backed out, committed only my
+own files by explicit path, waited. Nothing was lost — but the ledger is a
+signal that must be re-read, and I read it at session start and then not for
+hours.
+
+**Verification:** offline suite 62/62; launcher integrity 5/5 (bytes, owner,
+mode); `verify-handoff` passes; `tsc` clean. **`npm run lint` still exits
+non-zero** on 6 pre-existing ESLint errors in `app/prototype/voice/page.tsx`,
+unchanged since v0.6.17.
+
+**Eval:** not applicable to any release this session — no Orb-conversation
+capability, tool, routing rule, prompt, or defined speech behavior changed.
 ## Active Risks / Unresolved Work
 
 - **Text and Realtime do not share one universal read adapter.** Canonical
@@ -422,7 +425,9 @@ Path-only projection of `git status --short`. Enforced by
 
 ## AI Tool Used Last Session
 
-`2026-09-06 — Codex (GPT-5)`
+`2026-09-06 — Claude Code (Opus 5)`
+
+*Same day, earlier: `2026-09-06 — Codex (GPT-5)`, v0.6.307.*
 
 ---
 
