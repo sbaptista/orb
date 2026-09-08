@@ -618,6 +618,22 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
   },
 
   {
+    id: 'query-presentation-preserves-format-and-fields',
+    description: 'A structured read preserves the user-selected presentation format, field order, and brief-value request instead of falling back to fixed todo columns',
+    productCode: 'ORB',
+    input: 'Show all open and in-progress Orb todos as a table with Code, Title, Description, and Status in that order. Keep the descriptions brief.',
+    tier: 1,
+    expectTool: {
+      name: 'query_todos',
+      params: {
+        format: 'table',
+        fields: ['code', 'title', 'description', 'status'],
+        detail: 'brief',
+      },
+    },
+  },
+
+  {
     id: 'conversational-no-tool',
     description: 'A greeting or conversational message does not trigger a tool call',
     productCode: 'ORB',

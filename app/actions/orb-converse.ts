@@ -37,6 +37,7 @@ import type { OrbModelProviderId } from '@/lib/orb-model/types'
 import { extractCitedCodes, isFalseCompletionClaim } from '@/lib/orb-model/false-claim-guard'
 import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, pendingTodoUndercount, resolveActionSetReference, todoCode } from '@/lib/orb-model/context'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
+import { ORB_PRESENTABLE_QUERY_TOOL_NAMES, buildOrbQueryPresentation, orbQueryPresentationRequest } from '@/lib/orb-query-presentation'
 import { authorizesPendingMutation, buildPendingMutationConfirmationInstruction, isBareMutationDecline } from '@/lib/orb-model/mutation-authorization'
 import { activeModelIdentitySpeech, isActiveModelIdentityQuestion } from '@/lib/orb-model/model-identity'
 import type { ClientEnvironmentSnapshot } from '@/lib/client-environment'
@@ -1833,6 +1834,11 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           if (output?.error) {
             toolErrors.push(`${tc.name}: ${output.error}`)
             stream.update({ speech: accumulatedSpeech, thought: `Error: ${output.error}` })
+          }
+
+          if (!output?.error && ORB_PRESENTABLE_QUERY_TOOL_NAMES.has(tc.name)) {
+            const presentation = buildOrbQueryPresentation(output, orbQueryPresentationRequest(input))
+            if (presentation) output.presentation = presentation
           }
 
           // For mutation tools, inject explicit verification signals so the model

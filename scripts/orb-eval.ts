@@ -337,10 +337,20 @@ function assertToolCall(response: EvalResponse, testCase: EvalCase): string[] {
     } else if (testCase.expectTool.params) {
       for (const [key, expected] of Object.entries(testCase.expectTool.params)) {
         const actual = match.params[key]
-        const expectedUpper = typeof expected === 'string' ? expected.toUpperCase() : expected
-        const actualUpper = typeof actual === 'string' ? actual.toUpperCase() : actual
-        if (actualUpper !== expectedUpper) {
-          failures.push(`Tool "${testCase.expectTool.name}" param "${key}": expected "${expected}", got "${actual}"`)
+        const normalize = (value: unknown): unknown => {
+          if (typeof value === 'string') return value.toUpperCase()
+          if (Array.isArray(value)) return value.map(normalize)
+          if (value && typeof value === 'object') {
+            return Object.fromEntries(
+              Object.entries(value as Record<string, unknown>)
+                .sort(([left], [right]) => left.localeCompare(right))
+                .map(([nestedKey, nestedValue]) => [nestedKey, normalize(nestedValue)]),
+            )
+          }
+          return value
+        }
+        if (JSON.stringify(normalize(actual)) !== JSON.stringify(normalize(expected))) {
+          failures.push(`Tool "${testCase.expectTool.name}" param "${key}": expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`)
         }
       }
     }

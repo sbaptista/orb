@@ -44,12 +44,16 @@ Legend: ✅ covered · 🟡 covered but unverified/low-confidence · ⚠️ fall
 ### Deliberate exclusions (not gaps)
 `users` and `invitations` remain excluded from generic `query_db`. Their dedicated admin-only read tools expose bounded, reviewed columns through one shared server module instead of allowing model-authored SQL over sensitive tables.
 
-Text and Realtime also share the existing conversation Markdown surface for
-query tables. Realtime converts trusted `todo_list`, `users_query`, and
-`invitations_query` packets with `lib/orb-query-presentation.ts` and passes the
-result to the same `OrbConversation` renderer used by text; it does not own a
-second table component. The Realtime prompt may only claim a table is visible
-after one of those packet types returned rows in the current turn.
+Text and Realtime also share one structured-query presentation contract and the
+existing conversation Markdown surface. Every database read can carry the
+user's requested `format` (`table`, `bullets`, or `paragraphs`), ordered
+`fields`, and `detail` (`brief` or `full`). `lib/orb-query-presentation.ts`
+resolves those fields against the trusted rows actually returned and renders
+them without table-specific column lists. Serial tool results receive that same
+presentation artifact; Realtime passes its rendered Markdown to the same
+`OrbConversation` renderer used by text and owns no second result component.
+The Realtime prompt may only claim results are visible after a current-turn
+tool result returned rows.
 
 ### Confirmed deliberate (not a gap)
 `statuses` and `priorities` have **zero** surface anywhere (no Orb tool, no Settings page) outside the read-only `query_db` fallback. **Confirmed by Stan 2026-06-30: deliberately meant to stay fixed/unmanaged.** Not a gap — do not propose tools or a Settings page for these without a new explicit request.

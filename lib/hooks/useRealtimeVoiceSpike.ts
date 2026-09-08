@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { startInteraction } from '@/lib/performance/telemetry'
 import { collectClientEnvironment } from '@/lib/client-environment'
-import { renderOrbQueryPacketMarkdown } from '@/lib/orb-query-presentation'
+import { ORB_PRESENTABLE_QUERY_TOOL_NAMES, buildOrbQueryPresentation, orbQueryPresentationRequest, renderOrbQueryPacketMarkdown } from '@/lib/orb-query-presentation'
 import {
   startSileroShadow,
   type SileroShadowController,
@@ -653,7 +653,14 @@ export function useRealtimeVoiceSpike(options: Options) {
       // Query detail goes through the same Markdown conversation surface as
       // text. The bridge only converts trusted packet rows to Markdown; it does
       // not own a second Voice-only table component or database query path.
-      const displayMarkdown = renderOrbQueryPacketMarkdown(result.packet)
+      const presentationRequest = orbQueryPresentationRequest(args)
+      const presentation = ORB_PRESENTABLE_QUERY_TOOL_NAMES.has(item.name)
+        ? buildOrbQueryPresentation(result.packet, presentationRequest)
+        : null
+      if (presentation) result.presentation = presentation
+      const displayMarkdown = presentation
+        ? renderOrbQueryPacketMarkdown(result.packet, presentationRequest)
+        : null
       if (displayMarkdown) callbacksRef.current.onOrbTranscript(displayMarkdown)
       if ((result.receipt && !result.replayed) || result.mutated === true) callbacksRef.current.onMutation()
       sendToolOutput(item.call_id, result)

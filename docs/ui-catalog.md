@@ -404,6 +404,9 @@ The Orb command toolbar uses the same compact command model on Mac, iPad, and iP
 
 ### Orb Markdown (`oc-orb-md`)
 Prose container for Orb and dev-channel messages. Uses `remark-gfm` for GitHub-Flavored Markdown (tables, strikethrough, autolinks). Table styles: collapsed borders, `--fs-xs` font, `--bg3` header background, alternating `--bg2` row stripes.
+Unordered and ordered lists explicitly restore `disc` and `decimal` markers
+after Tailwind's reset; nested lists use `circle` and `lower-alpha`. Keep list
+indentation on this shared class so text and Realtime Voice render identically.
 
 ### Orb Insight Marker (`oc-insight`, `oc-insight-dot`)
 Full-width header strip rendered at the top of Orb responses that carry a structured insight (`Observation`, `Coaching read`, or `Strategic read`). Uses a subtle accent-tinted background, uppercase label, and small accent dot to distinguish proactive guidance from ordinary response text without creating a separate nested card.

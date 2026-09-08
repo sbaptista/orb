@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.312',
+    date: '2026-09-07',
+    changes: [
+      'Decoupled structured database retrieval from presentation for both text and Realtime Voice. Supported read tools now carry the user’s requested format, ordered field selection, and detail level through one shared presentation contract, allowing tables, bullet lists, or paragraphs without table-specific column sets. Realtime inserts the shared Markdown result into the same OrbConversation surface used by text, while serial results expose the same presentation artifact to the model.',
+      'Made the presenter resolve requested fields against the trusted rows actually returned, including case/style-insensitive names, natural user names, readable linked records and arrays, all-fields requests, unavailable-field reporting, and brief versus full values. Updated the generated tool contract, Realtime schemas, REST schema, prompt policy, capability matrix, and a focused categorized Tier 1 case. Corrected the eval runner’s parameter comparison so arrays and nested values are compared structurally and failures print unambiguous JSON.',
+      'Restored unordered, ordered, and nested list markers on the catalogued Orb Markdown surface after Tailwind’s reset removed them. TypeScript, changed-file ESLint, generated-contract regeneration, whitespace, deterministic presenter, handoff, and UI-catalog checks passed once. Stan’s focused query-presentation-preserves-format-and-fields Tier 1 case passed 1/1. Browser visual verification was blocked by a missing Browser-plugin bundle, and Stan still did not see bullet markers before being asked to hard-refresh localhost; post-refresh manual acceptance remains unverified.',
+    ],
+  },
+  {
     version: 'v0.6.311',
     date: '2026-09-07',
     changes: [

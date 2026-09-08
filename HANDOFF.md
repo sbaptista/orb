@@ -15,9 +15,10 @@
 ## App State
 
 - **Branch:** `codex/voice-command-contract`; `HEAD` and `origin/main` were both
-  `fa743cd` before the local v0.6.311 change.
-- **Version:** **0.6.311** local, not committed or pushed. Production remains
-  **0.6.310** until Stan accepts the migration and conversation gates.
+  `61512a2` before the local v0.6.312 change.
+- **Version:** **0.6.312** committed locally, not pushed; the branch is one
+  commit ahead of `origin/main`. The v0.6.311 commit is pushed; its production
+  deployment was not checked in this session.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -84,23 +85,29 @@ Path-only projection of `git status --short`. Enforced by
 
 ## Last Session Completed
 
-**2026-09-07 — Codex (GPT-5.6 Sol). Todo full-field parity, v0.6.311 local.**
+**2026-09-07 — Codex (GPT-5.6 Sol). Generic query presentation, v0.6.312 local.**
 
-- Added one canonical complete todo fact shape and used it for text context,
-  text query results, Realtime exact/list/next-step reads, and mutation lookup.
-- Extended Realtime create/update/batch proposals with every rich field already
-  editable through the serial contract. Immutable/server-managed fields remain
-  read-only; move, close, and delete remain dedicated operations.
-- Added the confirmation migration, which Stan applied, and expanded the rollback verifier.
-- Updated the generated contract, REST schema, capability matrix, and two
-  focused Tier 1 description cases.
-- `npx tsc --noEmit`, changed-file ESLint, generated-contract regeneration, and
-  `git diff --check` passed once. Stan's focused Tier 1 run passed
-  `create-preserves-description` 1/1 and `update-preserves-description` 1/1.
-  Stan explicitly skipped the full Tier 1 gate for this release. Stan confirmed
-  the migration, rollback verifier, and live acceptance were completed; detailed
-  output/counts were not supplied.
+- Added one field-neutral presenter for structured database reads in text and
+  Realtime Voice. Users can request tables, bullet lists, or paragraphs with
+  arbitrary returned fields, field order, and brief/full values.
+- Routed both channels through the same presentation artifact and existing
+  `OrbConversation` Markdown surface; restored list markers on its catalogued
+  `oc-orb-md` class after Tailwind's reset removed them.
+- Updated serial/Realtime schemas, the generated contract, prompt policy,
+  capability documentation, and a categorized Tier 1 case. Fixed structural
+  array/object parameter comparison in the eval runner.
+- `npx tsc --noEmit`, changed-file ESLint, contract regeneration,
+  `git diff --check`, deterministic presenter checks, the handoff verifier, and
+  the UI-catalog verifier passed once. Stan's focused
+  `query-presentation-preserves-format-and-fields` Tier 1 case passed 1/1.
+  Browser visual verification was blocked by a missing Browser-plugin bundle;
+  bullet markers after a hard refresh remain manually unverified.
 ## Active Risks / Unresolved Work
+
+- **Bullet-list visual acceptance remains open.** The shared Markdown CSS now
+  explicitly restores list markers, but Stan still saw no bullets before the
+  requested hard refresh. The Browser plugin could not inspect localhost because
+  its installed client references a missing browser-service bundle.
 
 - **Text and Realtime do not share one universal read adapter.** Todo reads now
   share their field projection and output shape, canonical mutations share the

@@ -249,6 +249,30 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         },
         "max_results": {
           "type": "integer"
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "table",
+            "bullets",
+            "paragraphs"
+          ],
+          "description": "Requested display format. Defaults to table for multiple rows."
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Fields to display, in the user-requested order. Omit only when the user did not choose fields."
+        },
+        "detail": {
+          "type": "string",
+          "enum": [
+            "brief",
+            "full"
+          ],
+          "description": "brief shortens long displayed values; full preserves them."
         }
       }
     }
@@ -270,6 +294,30 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         "max_results": {
           "type": "integer",
           "description": "Max projects to return. Default 50."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "table",
+            "bullets",
+            "paragraphs"
+          ],
+          "description": "Requested display format. Defaults to table for multiple rows."
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Fields to display, in the user-requested order. Omit only when the user did not choose fields."
+        },
+        "detail": {
+          "type": "string",
+          "enum": [
+            "brief",
+            "full"
+          ],
+          "description": "brief shortens long displayed values; full preserves them."
         }
       }
     }
@@ -289,6 +337,30 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
           "minimum": 1,
           "maximum": 100,
           "description": "Maximum users to return. Defaults to 50."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "table",
+            "bullets",
+            "paragraphs"
+          ],
+          "description": "Requested display format. Defaults to table for multiple rows."
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Fields to display, in the user-requested order. Omit only when the user did not choose fields."
+        },
+        "detail": {
+          "type": "string",
+          "enum": [
+            "brief",
+            "full"
+          ],
+          "description": "brief shortens long displayed values; full preserves them."
         }
       }
     }
@@ -317,6 +389,30 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
           "minimum": 1,
           "maximum": 100,
           "description": "Maximum invitations to return. Defaults to 50."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "table",
+            "bullets",
+            "paragraphs"
+          ],
+          "description": "Requested display format. Defaults to table for multiple rows."
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Fields to display, in the user-requested order. Omit only when the user did not choose fields."
+        },
+        "detail": {
+          "type": "string",
+          "enum": [
+            "brief",
+            "full"
+          ],
+          "description": "brief shortens long displayed values; full preserves them."
         }
       }
     }
@@ -354,13 +450,37 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         "max_results": {
           "type": "integer",
           "description": "Max tickets to return. Default 20."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "table",
+            "bullets",
+            "paragraphs"
+          ],
+          "description": "Requested display format. Defaults to table for multiple rows."
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Fields to display, in the user-requested order. Omit only when the user did not choose fields."
+        },
+        "detail": {
+          "type": "string",
+          "enum": [
+            "brief",
+            "full"
+          ],
+          "description": "brief shortens long displayed values; full preserves them."
         }
       }
     }
   },
   {
     "name": "query_db",
-    "description": "[Confidence: well-tested] Run a bounded read-only structural query through the Supabase query builder. Use only for date ranges, URL/array filters, cross-table lookups, and columns or filters not exposed by a first-class read tool. Never use it merely to retrieve full todo descriptions or resolution notes; query_todos returns those fields. Never raw SQL. Always provide the allowlisted table explicitly.",
+    "description": "[Confidence: well-tested] Run a bounded read-only structural query through the Supabase query builder. Use only for date ranges, URL/array filters, cross-table lookups, and columns or filters not exposed by a first-class read tool. Never use it merely to retrieve full todo descriptions or resolution notes; query_todos returns those fields. Never raw SQL. Always provide the allowlisted table explicitly. When fields are requested for display, include those database columns in select as well as fields.",
     "input_schema": {
       "type": "object",
       "additionalProperties": false,
@@ -429,6 +549,30 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
           "minimum": 1,
           "maximum": 200,
           "description": "Maximum rows. Defaults to 50."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "table",
+            "bullets",
+            "paragraphs"
+          ],
+          "description": "Requested display format. Defaults to table for multiple rows."
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Fields to display, in the user-requested order. Omit only when the user did not choose fields."
+        },
+        "detail": {
+          "type": "string",
+          "enum": [
+            "brief",
+            "full"
+          ],
+          "description": "brief shortens long displayed values; full preserves them."
         }
       },
       "required": [
@@ -479,6 +623,30 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         "product_code": {
           "type": "string",
           "description": "Scope search to a specific project."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "table",
+            "bullets",
+            "paragraphs"
+          ],
+          "description": "Requested display format. Defaults to table for multiple rows."
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Fields to display, in the user-requested order. Omit only when the user did not choose fields."
+        },
+        "detail": {
+          "type": "string",
+          "enum": [
+            "brief",
+            "full"
+          ],
+          "description": "brief shortens long displayed values; full preserves them."
         }
       }
     }
@@ -564,6 +732,30 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         "max_results": {
           "type": "integer",
           "description": "Max events to return (default 10, max 50)."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "table",
+            "bullets",
+            "paragraphs"
+          ],
+          "description": "Requested display format. Defaults to table for multiple rows."
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Fields to display, in the user-requested order. Omit only when the user did not choose fields."
+        },
+        "detail": {
+          "type": "string",
+          "enum": [
+            "brief",
+            "full"
+          ],
+          "description": "brief shortens long displayed values; full preserves them."
         }
       }
     }
