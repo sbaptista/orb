@@ -3,8 +3,8 @@ import type { AuthContext } from '@/lib/auth'
 import { resolveProjectByReference } from '@/lib/projects'
 import type { OrbRealtimeFactPacket } from './types'
 import { explainUrgency, parseUrgencyWindows, describeWindowLead, type UrgencyWindowsByProject } from '@/lib/orb-state'
+import { ORB_TODO_FULL_SELECT, shapeOrbTodoFact, type OrbTodoRow } from '@/lib/orb-operations/todo-facts'
 
-type JoinedProject = { name: string; code: string }
 type CountScope = 'open' | 'active' | 'parked' | 'all'
 type TodoProject = { id: string; name: string; code: string; created_by: string }
 
@@ -102,7 +102,7 @@ export async function getTodoDetailsPacket(
   if (!options.todoId && !match) throw new Error('Name one todo or use its code, such as ORB-330.')
   let query = auth.admin
     .from('todos')
-    .select('id, todo_number, title, status, priority_value, due_at, due_timezone,projects!inner(id, name, code, created_by)')
+    .select(ORB_TODO_FULL_SELECT)
     .eq('projects.is_dormant', false)
     .is('projects.deleted_at', null)
     .is('deleted_at', null)
@@ -112,18 +112,15 @@ export async function getTodoDetailsPacket(
   const { data, error } = await query.maybeSingle()
   if (error) throw error
   if (!data) throw new Error(`Could not find that accessible todo.`)
-  const project = data.projects as unknown as TodoProject
-  const code = `${project.code}-${data.todo_number}`
-  const task = {
-    id: data.id, code, title: data.title, status: data.status,
-    priority: data.priority_value, dueAt: data.due_at, project: project.name,
-  }
-  const priority = task.priority == null ? '' : ` Priority ${task.priority}.`
-  const due = task.dueAt ? ` Due ${task.dueAt}.` : ''
+  const row = data as unknown as OrbTodoRow
+  const task = shapeOrbTodoFact(row)
+  const priority = task.priority_value == null ? '' : ` Priority ${task.priority_value}.`
+  const due = task.due_at ? ` Due ${task.due_at}.` : ''
+  const description = task.description ? ` Description: ${task.description}` : ''
   return {
     kind: 'todo_details', observedAt: new Date().toISOString(), source: 'database',
     statuses: [task.status], count: 1, task,
-    spokenText: `${task.code}: ${task.title}. Status: ${task.status}. Project: ${task.project}.${priority}${due}`,
+    spokenText: `${task.code}: ${task.title}. Status: ${task.status}. Project: ${task.project.name}.${priority}${due}${description}`,
   }
 }
 
@@ -165,7 +162,7 @@ export async function getTodoListPacket(
   const offset = Math.max(options.offset ?? 0, 0)
   let query = auth.admin
     .from('todos')
-    .select('id, todo_number, title, status, priority_value, due_at, due_timezone,created_at, projects!inner(id, name, code, created_by)', { count: 'exact' })
+    .select(ORB_TODO_FULL_SELECT, { count: 'exact' })
     .eq('projects.is_dormant', false)
     .is('projects.deleted_at', null)
     .is('deleted_at', null)
@@ -183,13 +180,7 @@ export async function getTodoListPacket(
   if (options.textMatch?.trim()) query = query.ilike('title', `%${options.textMatch.trim()}%`)
   const { data, count, error } = await query
   if (error) throw error
-  const tasks = (data ?? []).map(row => {
-    const joined = row.projects as unknown as TodoProject
-    return {
-      id: row.id, code: `${joined.code}-${row.todo_number}`, title: row.title,
-      status: row.status, priority: row.priority_value, dueAt: row.due_at, project: joined.name,
-    }
-  })
+  const tasks = ((data ?? []) as unknown as OrbTodoRow[]).map(row => shapeOrbTodoFact(row))
   const exactCount = count ?? tasks.length
   // ORB-372: unprioritised todos sort LAST (nullsFirst: false), so a capped
   // list drops exactly the items a user is least likely to have in mind and
@@ -235,7 +226,7 @@ export async function getTodoListPacket(
 export async function getNextStepPacket(auth: AuthContext): Promise<OrbRealtimeFactPacket> {
   const { data, count, error } = await auth.admin
     .from('todos')
-    .select('id, todo_number, title, status, priority_value, projects!inner(name, code)', { count: 'exact' })
+    .select(ORB_TODO_FULL_SELECT, { count: 'exact' })
     .eq('projects.created_by', auth.user.id)
     .eq('projects.is_dormant', false)
     .is('projects.deleted_at', null)
@@ -253,16 +244,13 @@ export async function getNextStepPacket(auth: AuthContext): Promise<OrbRealtimeF
       spokenText: `You have no active tasks in ${auth.isAdmin ? 'any project you can see' : 'your projects'}, so there is no verified next task to recommend.`,
     }
   }
-  const project = todo.projects as unknown as JoinedProject
-  const code = `${project.code}-${todo.todo_number}`
+  const row = todo as unknown as OrbTodoRow
+  const task = shapeOrbTodoFact(row)
   return {
     kind: 'next_step', observedAt: new Date().toISOString(), source: 'database',
     statuses: ['open', 'in progress'], count: count ?? 1,
-    task: {
-      id: todo.id, code, title: todo.title, status: todo.status,
-      priority: todo.priority_value, project: project.name,
-    },
-    spokenText: `Start with ${code}, ${todo.title}, in ${project.name}. It is the highest-priority active task in the current database snapshot.`,
+    task,
+    spokenText: `Start with ${task.code}, ${task.title}, in ${task.project.name}. It is the highest-priority active task in the current database snapshot.`,
   }
 }
 

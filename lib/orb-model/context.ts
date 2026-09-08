@@ -3,6 +3,7 @@ import { computeObservations } from '@/lib/orb-prompt'
 import { isActive, isParked } from '@/lib/status-groups'
 import { buildProjectHealthPacket, renderProjectHealthPacket } from '@/lib/orb-model/project-health'
 import { buildNextStepPacket, renderNextStepPacket } from '@/lib/orb-model/next-step'
+import { ORB_TODO_FIELD_SELECT, renderOrbTodoFactForPrompt, shapeOrbTodoFact } from '@/lib/orb-operations/todo-facts'
 
 export type OrbContextAuth = {
   user: { id: string; email?: string | null; name?: string | null }
@@ -175,7 +176,7 @@ export async function buildOrbContext(
   ] = await Promise.all([
     visibleProjectsQuery(supabase, 'id, name, code, description, created_by, urgency_windows'),
     auth.isAdmin ? supabase.from('projects').select('id, name, code, created_by, urgency_windows').eq('is_dormant', true).order('sort_order') : Promise.resolve({ data: [] }),
-    supabase.from('todos').select('id, todo_number, title, description, status, priority_value, product_id, created_at, updated_at, closed_at, resolution_notes, due_at, due_timezone, due_city, reminder_lead_value, reminder_lead_unit, reminder_nudge_dismissed_at, urls, group_id, category_id, ticket_id, groups(name), categories(name), tickets!ticket_id(ticket_number)').is('deleted_at', null),
+    supabase.from('todos').select(`${ORB_TODO_FIELD_SELECT}, groups(name), categories(name), tickets!ticket_id(ticket_number)`).is('deleted_at', null),
     supabase.from('statuses').select('*').order('sort_order'),
     supabase.from('priorities').select('*').order('value'),
     supabase.from('knowledge_repo').select('*, projects(code, name)').order('created_at', { ascending: false }).limit(25),
@@ -230,15 +231,11 @@ export async function buildOrbContext(
   }
 
   function todoLine(t: any): string {
-    const parts = [`  ${todoCode(t, productList)} [P${t.priority_value ?? '-'}] [${t.status}] ${t.title}`]
-    if (t.due_at) parts.push(`[Due: ${t.due_at.replace('T', ' ')}]`)
-    if (t.groups?.name) parts.push(`[Group: ${t.groups.name}]`)
-    if (t.categories?.name) parts.push(`[Cat: ${t.categories.name}]`)
-    const ticketNum = t.tickets?.ticket_number
-    if (ticketNum) parts.push(`[Linked: TICKETS-${ticketNum}]`)
-    const urlList = Array.isArray(t.urls) ? t.urls : []
-    if (urlList.length > 0) parts.push(`[${urlList.length} URL${urlList.length > 1 ? 's' : ''}]`)
-    return parts.join(' ')
+    const project = productList.find((p: any) => p.id === t.product_id)
+    return renderOrbTodoFactForPrompt(shapeOrbTodoFact({
+      ...t,
+      projects: project,
+    }, project ? userMap.get(project.created_by) : undefined))
   }
 
   const byProduct = productList.map((p: any) => {

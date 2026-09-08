@@ -470,6 +470,13 @@ export function useRealtimeVoiceSpike(options: Options) {
         operation,
         title: args.title,
         projectName: args.project_name,
+        description: args.description,
+        priorityValue: args.priority_value,
+        dueAt: args.due_at,
+        dueTimezone: args.due_timezone,
+        dueCity: args.due_city,
+        reminderLeadValue: args.reminder_lead_value,
+        reminderLeadUnit: args.reminder_lead_unit,
         projectId: currentProjectIdRef.current,
         userUtterance: trustedUtterance,
       }
@@ -483,6 +490,15 @@ export function useRealtimeVoiceSpike(options: Options) {
         newTitle: args.new_title,
         newStatus: args.new_status,
         newPriority: args.new_priority,
+        description: args.description,
+        resolutionNotes: args.resolution_notes,
+        urls: args.urls,
+        dueAt: args.due_at,
+        dueTimezone: args.due_timezone,
+        dueCity: args.due_city,
+        reminderLeadValue: args.reminder_lead_value,
+        reminderLeadUnit: args.reminder_lead_unit,
+        dismissReminderNudge: args.dismiss_reminder_nudge,
         userUtterance: trustedUtterance,
       }
     } else if (item.name === 'propose_delete_todo') {
@@ -526,9 +542,19 @@ export function useRealtimeVoiceSpike(options: Options) {
           todoReference: op.todo_reference,
           projectName: op.project_name,
           title: op.title,
+          priorityValue: op.priority_value,
           newTitle: op.new_title,
           newStatus: op.new_status,
           newPriority: op.new_priority,
+          description: op.description,
+          resolutionNotes: op.resolution_notes,
+          urls: op.urls,
+          dueAt: op.due_at,
+          dueTimezone: op.due_timezone,
+          dueCity: op.due_city,
+          reminderLeadValue: op.reminder_lead_value,
+          reminderLeadUnit: op.reminder_lead_unit,
+          dismissReminderNudge: op.dismiss_reminder_nudge,
           targetProjectName: op.target_project_name,
         })),
         currentProjectId: currentProjectIdRef.current,
@@ -591,6 +617,7 @@ export function useRealtimeVoiceSpike(options: Options) {
     }
 
     try {
+      body.requestTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
       const controller = new AbortController()
       if (operation !== 'confirm_todo_mutation') toolControllersRef.current.set(item.call_id, controller)
       const response = await fetch('/api/orb-realtime/turn', {

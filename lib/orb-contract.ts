@@ -223,7 +223,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "query_todos",
-    "description": "[Confidence: well-tested] Find todos matching criteria and return full task details when present, including description, resolution notes, due date, URLs, owner, group, and category. Prefer this first-class tool over query_db whenever its filters and returned fields can answer the request. Use code for single-todo lookup (e.g. \"ORB-73\"). Otherwise filters by status, product, priority, category, or text. Returns all statuses by default — pass status to narrow. Use category to find todos tagged with a specific category (e.g. \"Bug\") — a general bug-count question (\"how many bugs do I have\") should filter by category=\"Bug\", not guess from title text_match.",
+    "description": "[Confidence: well-tested] Find todos matching criteria and return the complete readable task record: identifiers/address, title, description, status, priority, project/owner, group, category, linked ticket, resolution notes, URL values, ordering, lifecycle timestamps, due date/timezone/city, reminder lead, delivery timestamp, and reminder-nudge dismissal. Server-owned identifiers, ordering, and timestamps are read-only. Prefer this first-class tool over query_db whenever its filters and returned fields can answer the request. Use code for single-todo lookup (e.g. \"ORB-73\"). Otherwise filters by status, product, priority, category, or text. Returns all statuses by default — pass status to narrow. Use category to find todos tagged with a specific category (e.g. \"Bug\") — a general bug-count question (\"how many bugs do I have\") should filter by category=\"Bug\", not guess from title text_match.",
     "input_schema": {
       "type": "object",
       "properties": {

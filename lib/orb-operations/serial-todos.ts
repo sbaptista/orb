@@ -2,31 +2,14 @@ import type { AuthContext } from '@/lib/auth'
 import { selectTodoByReference, describeTodoCandidates } from '@/lib/orb-operations/todo-reference'
 import { dueAtToInstant, validateReminderLead } from '@/lib/due-time'
 import { persistOrbMutationProposal, type OrbMutationKind } from '@/lib/orb-operations/proposals'
+import { ORB_TODO_FULL_SELECT, shapeOrbTodoFact, type OrbTodoRow } from '@/lib/orb-operations/todo-facts'
 
 export type SerialTodoOperation = {
   tool: string
   params: Record<string, any>
 }
 
-type TodoRow = {
-  id: string
-  todo_number: number
-  title: string
-  description: string | null
-  resolution_notes: string | null
-  status: string
-  priority_value: number | null
-  urls: string[]
-  updated_at: string
-  product_id: string
-  due_at: string | null
-  due_timezone: string | null
-  due_city: string | null
-  reminder_lead_value: number | null
-  reminder_lead_unit: string | null
-  reminder_nudge_dismissed_at: string | null
-  projects: { id: string; name: string; code: string; created_by: string }
-}
+type TodoRow = OrbTodoRow
 
 function expectedTodo(todo: TodoRow) {
   return {
@@ -100,12 +83,16 @@ function shapeTodoRow(data: any): TodoRow {
 function accessibleTodosQuery(auth: AuthContext) {
   let query = auth.admin
     .from('todos')
-    .select('id, todo_number, title, description, resolution_notes, status, priority_value, urls, updated_at, product_id, due_at, due_timezone, due_city, reminder_lead_value, reminder_lead_unit, reminder_nudge_dismissed_at, projects!inner(id, name, code, created_by, deleted_at, is_dormant)', { count: 'exact' })
+    .select(ORB_TODO_FULL_SELECT, { count: 'exact' })
     .is('deleted_at', null)
     .is('projects.deleted_at', null)
     .eq('projects.is_dormant', false)
   if (!auth.isAdmin) query = query.eq('projects.created_by', auth.user.id)
   return query
+}
+
+export function serialTodoFact(todo: TodoRow, owner?: string) {
+  return shapeOrbTodoFact(todo, owner)
 }
 
 /**

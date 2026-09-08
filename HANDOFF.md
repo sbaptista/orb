@@ -14,12 +14,10 @@
 
 ## App State
 
-- **Branch:** `codex/voice-command-contract`; pushed `main` is `cf6fda9`, with
-  one local post-deployment handoff commit still to push. The v0.6.307 Voice
-  contract and preceding `8c51efb` hardening-doc cleanup are deployed.
-- **Version:** **0.6.310**, pushed. **0.6.307** was the last release with an
-  application change; v0.6.308–v0.6.310 are documentation and developer tooling
-  only, so production behaviour is unchanged from 0.6.307.
+- **Branch:** `codex/voice-command-contract`; `HEAD` and `origin/main` were both
+  `fa743cd` before the local v0.6.311 change.
+- **Version:** **0.6.311** local, not committed or pushed. Production remains
+  **0.6.310** until Stan accepts the migration and conversation gates.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -63,6 +61,10 @@
   query showed `create_ticket` in the proposal-kind constraint,
   `service_can_confirm_ticket = true`, and
   `authenticated_can_confirm_ticket = false`.
+- **Todo full-field parity migration:**
+  `scripts/migrations/20260906b_orb_todo_full_field_parity.sql` was applied by
+  Stan on 2026-09-07. Stan also confirmed the rollback verifier and live
+  acceptance were completed; detailed output/counts were not supplied.
 - **`~/Projects/shared` is now a git repository** (`02b0f46`) with **no remote
   configured**. It holds the shared `AGENTS.md` governing every project in
   `~/Projects`. Adding a remote is Stan's decision — it names credential
@@ -82,61 +84,29 @@ Path-only projection of `git status --short`. Enforced by
 
 ## Last Session Completed
 
-**2026-09-06 — Claude Code (Opus 5). Documentation subtraction and four
-corrections. v0.6.308–v0.6.310, all pushed.**
+**2026-09-07 — Codex (GPT-5.6 Sol). Todo full-field parity, v0.6.311 local.**
 
-*Codex's v0.6.307 Voice command contract shipped the same day and is recorded in
-`lib/changelog.ts` and git (`cf6fda9`, `6d013f0`). Its one piece of live state —
-read adapters remain channel-specific, so no universal-path claim holds — is in
-Active Risks below.*
-
-**Deleted ~2,950 lines of process documentation. No mechanism touched.**
-
-| Removed | Was |
-|---|---|
-| `docs/agent-enforcement-hardening.md` 1,820 → 120 | Four rounds of review transcript. Now an open-findings register. History: `6e47488` |
-| `HANDOFF.md` 1,191 → ~430 | Twelve chained `Prior session:` blocks |
-| `docs/agent-capability-broker-plan.md` (384) | A plan for a thing built, verified 50/50, and in daily use |
-| `scripts/maintenance/vacuum-bloated-tables.sql` (100) | Written for three tables holding 47/35/29 dead rows — a non-problem created by an overstated report |
-
-**Checking each item before deleting changed four of them.** F1 was already
-closed, not "pending re-verification". **R3-N3 is still open**, contrary to my
-assumption — `20260820b` emits `REVOKE ... ON FUNCTION` while selecting every
-`prosecdef` row and swallows the exception, so a `SECURITY DEFINER` procedure is
-skipped while the migration reports success. R3-N4 was still open and was closed
-in passing. And the broker plan's "what this does not claim" was the only part
-not recoverable from code, so it moved to `AGENTS.md`.
-
-**Corrected an overstated claim that had shipped (v0.6.310).** v0.6.308 said
-root-owning `orb-agent` means "an agent can no longer rewrite its own broker".
-False, and tested: `scripts/security/*` is owner-writable; promotion is a
-`sudo install` command an **agent composes** and Stan runs; and
-`bash scripts/security/orb-agent` reaches the database with neither PATH nor
-sudo. Root ownership constrains what PATH **resolves**, not what an agent
-**executes**. Corrected in four places; the shipped v0.6.308 changelog entry is
-annotated in place rather than rewritten.
-
-**Concurrency collision, worth knowing.** I began work without re-reading
-`ACTIVE_WORK/` and edited `HANDOFF.md` inside Codex's exclusive Release
-bookkeeping claim while it had 22 files staged. Backed out, committed only my
-own files by explicit path, waited. Nothing was lost — but the ledger is a
-signal that must be re-read, and I read it at session start and then not for
-hours.
-
-**Verification:** offline suite 62/62; launcher integrity 5/5 (bytes, owner,
-mode); `verify-handoff` passes; `tsc` clean. **`npm run lint` still exits
-non-zero** on 6 pre-existing ESLint errors in `app/prototype/voice/page.tsx`,
-unchanged since v0.6.17.
-
-**Eval:** not applicable to any release this session — no Orb-conversation
-capability, tool, routing rule, prompt, or defined speech behavior changed.
+- Added one canonical complete todo fact shape and used it for text context,
+  text query results, Realtime exact/list/next-step reads, and mutation lookup.
+- Extended Realtime create/update/batch proposals with every rich field already
+  editable through the serial contract. Immutable/server-managed fields remain
+  read-only; move, close, and delete remain dedicated operations.
+- Added the confirmation migration, which Stan applied, and expanded the rollback verifier.
+- Updated the generated contract, REST schema, capability matrix, and two
+  focused Tier 1 description cases.
+- `npx tsc --noEmit`, changed-file ESLint, generated-contract regeneration, and
+  `git diff --check` passed once. Stan's focused Tier 1 run passed
+  `create-preserves-description` 1/1 and `update-preserves-description` 1/1.
+  Stan explicitly skipped the full Tier 1 gate for this release. Stan confirmed
+  the migration, rollback verifier, and live acceptance were completed; detailed
+  output/counts were not supplied.
 ## Active Risks / Unresolved Work
 
-- **Text and Realtime do not share one universal read adapter.** Canonical
-  mutations and the new users/invitations reads share database functions, but
-  existing todo, project, Knowledge, ticket, and audit reads still use
-  channel-specific adapters. This was verified by tracing each `.from(...)`
-  call site; no claim of universal path parity should be made.
+- **Text and Realtime do not share one universal read adapter.** Todo reads now
+  share their field projection and output shape, canonical mutations share the
+  dispatcher, and users/invitations share database functions. Project,
+  Knowledge, ticket, audit, and the outer todo query adapters remain
+  channel-specific; do not claim universal path parity.
 
 - **🔴 Realtime voice — the transcription vocabulary hint is load-bearing for
   authorization. VERIFIED STILL LIVE 2026-09-05** against the current regexes
@@ -425,9 +395,7 @@ capability, tool, routing rule, prompt, or defined speech behavior changed.
 
 ## AI Tool Used Last Session
 
-`2026-09-06 — Claude Code (Opus 5)`
-
-*Same day, earlier: `2026-09-06 — Codex (GPT-5)`, v0.6.307.*
+`2026-09-07 — Codex (GPT-5.6 Sol)`
 
 ---
 

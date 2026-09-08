@@ -59,7 +59,7 @@ info:
 
     query_todos:
       confidence: well-tested
-      description: 'Find todos matching criteria and return full task details when present, including description, resolution notes, due date, URLs, owner, group, and category. Prefer this first-class tool over query_db whenever its filters and returned fields can answer the request. Use code for single-todo lookup (e.g. "ORB-73"). Otherwise filters by status, product, priority, category, or text. Returns all statuses by default — pass status to narrow. Use category to find todos tagged with a specific category (e.g. "Bug") — a general bug-count question ("how many bugs do I have") should filter by category="Bug", not guess from title text_match.'
+      description: 'Find todos matching criteria and return the complete readable task record: identifiers/address, title, description, status, priority, project/owner, group, category, linked ticket, resolution notes, URL values, ordering, lifecycle timestamps, due date/timezone/city, reminder lead, delivery timestamp, and reminder-nudge dismissal. Server-owned identifiers, ordering, and timestamps are read-only. Prefer this first-class tool over query_db whenever its filters and returned fields can answer the request. Use code for single-todo lookup (e.g. "ORB-73"). Otherwise filters by status, product, priority, category, or text. Returns all statuses by default — pass status to narrow. Use category to find todos tagged with a specific category (e.g. "Bug") — a general bug-count question ("how many bugs do I have") should filter by category="Bug", not guess from title text_match.'
       input_schema:
         type: object
         properties:
@@ -307,6 +307,10 @@ components:
           description: |
             Database-assigned current address number. Unique within the
             project and never reissued during that project's lifetime.
+        product_id:
+          type: string
+          format: uuid
+          description: Server-owned project identifier. Move through product_code, never by changing this directly.
         title:
           type: string
         description:
@@ -326,6 +330,21 @@ components:
           items:
             type: string
             format: uri
+        group_id:
+          type: string
+          format: uuid
+          nullable: true
+        category_id:
+          type: string
+          format: uuid
+          nullable: true
+        ticket_id:
+          type: string
+          format: uuid
+          nullable: true
+        sort_order:
+          type: integer
+          description: Server-managed display ordering; read-only through Orb CRUD.
         created_at:
           type: string
           format: date-time
@@ -357,6 +376,16 @@ components:
           type: string
           enum: [minutes, hours, days, weeks, months]
           description: "Unit for reminder_lead_value. Months use calendar subtraction in due_timezone with the day clamped."
+          nullable: true
+        reminded_at:
+          type: string
+          format: date-time
+          description: Server-managed timestamp of reminder delivery.
+          nullable: true
+        reminder_nudge_dismissed_at:
+          type: string
+          format: date-time
+          description: Server-managed timestamp recording that the one-time no-reminder nudge was dismissed.
           nullable: true
 
     TaskCreate:

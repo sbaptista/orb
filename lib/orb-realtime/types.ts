@@ -1,3 +1,5 @@
+import type { OrbTodoFact } from '@/lib/orb-operations/todo-facts'
+
 export type OrbRealtimeFactPacket = {
   kind: 'task_count' | 'next_step' | 'project_directory' | 'project_query' | 'todo_details' | 'todo_list' | 'knowledge_search' | 'users_query' | 'invitations_query' | 'orb_state'
   /** ORB-372: rows skipped, so a caller can render "6 to 10 of 12" rather than "5 of 12". */
@@ -8,23 +10,8 @@ export type OrbRealtimeFactPacket = {
   count: number
   project?: { id: string; name: string }
   projects?: Array<{ id: string; name: string }>
-  task?: {
-    id: string
-    code: string
-    title: string
-    status: string
-    priority: number | null
-    project: string
-  }
-  tasks?: Array<{
-    id: string
-    code: string
-    title: string
-    status: string
-    priority: number | null
-    dueAt: string | null
-    project: string
-  }>
+  task?: OrbTodoFact
+  tasks?: OrbTodoFact[]
   knowledgeEntries?: Array<{
     id: string
     title: string
@@ -66,6 +53,14 @@ export type OrbRealtimeProposal = {
     priority?: number
     name?: string
     description?: string | null
+    resolutionNotes?: string | null
+    urls?: string[]
+    dueAt?: string | null
+    dueTimezone?: string | null
+    dueCity?: string | null
+    reminderLeadValue?: number | null
+    reminderLeadUnit?: string | null
+    dismissReminderNudge?: boolean
   }
   resolutionNotes?: string
   operationCount?: number

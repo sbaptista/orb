@@ -21,6 +21,8 @@ import {
 import { confirmOrbMutation } from '@/lib/orb-operations/confirmation'
 import { persistOrbMutationProposal } from '@/lib/orb-operations/proposals'
 import { queryOrbInvitations, queryOrbUsers } from '@/lib/orb-operations/admin-directory'
+import { dueAtToInstant, validateReminderLead } from '@/lib/due-time'
+import { ORB_TODO_FULL_SELECT, type OrbTodoRow } from '@/lib/orb-operations/todo-facts'
 
 export const runtime = 'nodejs'
 
@@ -47,16 +49,65 @@ const UPDATE_STATUSES: UpdateStatus[] = ['open', 'in progress', 'deferred', 'on 
 
 class RealtimeInputError extends Error {}
 
-type ResolvedTodo = {
-  id: string
-  todo_number: number
-  title: string
-  status: string
-  priority_value: number | null
-  updated_at: string
-  product_id: string
-  projects: { id: string; name: string; code: string; created_by: string }
+type RealtimeDueInput = {
+  dueAt?: string | null
+  dueTimezone?: string | null
+  dueCity?: string | null
+  reminderLeadValue?: number | null
+  reminderLeadUnit?: string | null
 }
+
+function realtimeDueParams(input: RealtimeDueInput, current: ResolvedTodo | null, requestTimezone?: string) {
+  if (
+    input.dueAt === undefined
+    && input.dueTimezone === undefined
+    && input.dueCity === undefined
+    && input.reminderLeadValue === undefined
+    && input.reminderLeadUnit === undefined
+  ) return {}
+  const dueProvided = input.dueAt !== undefined
+  const rawDue = dueProvided ? input.dueAt : current?.due_at
+  if (rawDue == null || rawDue === '') {
+    if (!dueProvided && input.reminderLeadValue === undefined && input.reminderLeadUnit === undefined) return {}
+    return {
+      due_at: null,
+      due_timezone: null,
+      due_city: null,
+      reminder_lead_value: null,
+      reminder_lead_unit: null,
+    }
+  }
+  const zone = input.dueTimezone || (dueProvided ? requestTimezone : current?.due_timezone) || requestTimezone
+  if (!zone) throw new RealtimeInputError('A timezone is required when setting a due date.')
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone }).format()
+  } catch {
+    throw new RealtimeInputError('The due date or timezone is invalid.')
+  }
+  let dueAt = rawDue
+  if (dueProvided) {
+    try {
+      const instant = dueAtToInstant(String(rawDue), zone)
+      if (Number.isNaN(instant.getTime())) throw new Error('Invalid date')
+      dueAt = instant.toISOString()
+    } catch {
+      throw new RealtimeInputError('The due date or timezone is invalid.')
+    }
+  }
+  const leadValue = input.reminderLeadValue !== undefined ? input.reminderLeadValue : current?.reminder_lead_value
+  const leadUnit = input.reminderLeadUnit !== undefined ? input.reminderLeadUnit : current?.reminder_lead_unit
+  const reminderError = validateReminderLead(leadValue ?? null, leadUnit ?? null)
+  if (reminderError) throw new RealtimeInputError(reminderError)
+  return {
+    due_at: dueAt,
+    due_timezone: zone,
+    due_city: input.dueCity !== undefined ? input.dueCity : (input.dueTimezone ? null : current?.due_city ?? null),
+    reminder_lead_value: leadValue ?? null,
+    reminder_lead_unit: leadUnit ?? null,
+  }
+}
+
+type ResolvedTodo = OrbTodoRow
 
 type ResolvedProject = {
   id: string
@@ -98,7 +149,7 @@ async function accessibleTodoRows(
 
   let query = auth.admin
     .from('todos')
-    .select('id, todo_number, title, status, priority_value, updated_at, product_id, projects!inner(id, name, code, created_by, is_dormant, deleted_at)')
+    .select(ORB_TODO_FULL_SELECT)
     .is('deleted_at', null)
     .eq('projects.is_dormant', false)
     .is('projects.deleted_at', null)
@@ -106,10 +157,7 @@ async function accessibleTodoRows(
   if (projectId) query = query.eq('product_id', projectId)
   const { data, error } = await query
   if (error) throw error
-  return (data ?? []).map(row => ({
-    ...row,
-    projects: row.projects as unknown as ResolvedTodo['projects'],
-  })) as ResolvedTodo[]
+  return (data ?? []) as unknown as ResolvedTodo[]
 }
 
 async function resolveTodoReference(
@@ -151,11 +199,20 @@ export async function POST(request: Request) {
       title?: string
       name?: string
       description?: string
+      priorityValue?: number
+      dueAt?: string | null
+      dueTimezone?: string | null
+      dueCity?: string | null
+      reminderLeadValue?: number | null
+      reminderLeadUnit?: string | null
+      requestTimezone?: string
       proposalToken?: string
       referenceToken?: string
       newTitle?: string
       newStatus?: UpdateStatus
       newPriority?: number
+      urls?: string[]
+      dismissReminderNudge?: boolean
       targetProjectName?: string
       newName?: string
       newDescription?: string
@@ -204,9 +261,19 @@ export async function POST(request: Request) {
         todoReference?: string
         projectName?: string
         title?: string
+        priorityValue?: number
         newTitle?: string
         newStatus?: UpdateStatus
         newPriority?: number
+        description?: string
+        resolutionNotes?: string
+        urls?: string[]
+        dueAt?: string | null
+        dueTimezone?: string | null
+        dueCity?: string | null
+        reminderLeadValue?: number | null
+        reminderLeadUnit?: string | null
+        dismissReminderNudge?: boolean
         targetProjectName?: string
       }>
     }
@@ -893,6 +960,9 @@ export async function POST(request: Request) {
     if (body.operation === 'propose_create_todo') {
       const title = body.title?.trim().slice(0, 240)
       if (!title) return Response.json({ error: 'A todo title is required.' }, { status: 400 })
+      if (body.priorityValue !== undefined && (!Number.isInteger(body.priorityValue) || body.priorityValue < 1 || body.priorityValue > 4)) {
+        return Response.json({ error: 'Priority must be an integer from 1 through 4.' }, { status: 400 })
+      }
       let projectQuery = auth.admin.from('projects').select('id, name, code, created_by').eq('is_dormant', false).is('deleted_at', null)
       if (!auth.isAdmin) projectQuery = projectQuery.eq('created_by', auth.user.id)
       let project: { id: string; name: string; code: string; created_by: string } | null = null
@@ -913,6 +983,11 @@ export async function POST(request: Request) {
         kind: 'create_todo',
         title,
         projectId: project.id,
+        params: {
+          ...(body.description !== undefined ? { description: body.description.trim() || null } : {}),
+          ...(body.priorityValue !== undefined ? { priority_value: body.priorityValue } : {}),
+          ...realtimeDueParams(body, null, body.requestTimezone),
+        },
       })
       const proposal: OrbRealtimeProposal = {
         kind: 'create_todo', proposalToken: persisted.proposalToken, title,
@@ -1168,15 +1243,38 @@ export async function POST(request: Request) {
           ...(body.newTitle !== undefined ? { title: newTitle } : {}),
           ...(body.newStatus !== undefined ? { status: body.newStatus } : {}),
           ...(body.newPriority !== undefined ? { priority: body.newPriority } : {}),
+          ...(body.description !== undefined ? { description: body.description.trim() || null } : {}),
+          ...(body.resolutionNotes !== undefined ? { resolutionNotes: body.resolutionNotes.trim() || null } : {}),
+          ...(body.urls !== undefined ? { urls: body.urls.map(url => url.trim()).filter(Boolean) } : {}),
+          ...(body.dueAt !== undefined ? { dueAt: body.dueAt } : {}),
+          ...(body.dueTimezone !== undefined ? { dueTimezone: body.dueTimezone } : {}),
+          ...(body.dueCity !== undefined ? { dueCity: body.dueCity } : {}),
+          ...(body.reminderLeadValue !== undefined ? { reminderLeadValue: body.reminderLeadValue } : {}),
+          ...(body.reminderLeadUnit !== undefined ? { reminderLeadUnit: body.reminderLeadUnit } : {}),
+          ...(body.dismissReminderNudge === true ? { dismissReminderNudge: true } : {}),
         }
         if (Object.keys(changes).length === 0) return Response.json({ error: 'Describe at least one change.' }, { status: 400 })
         if (changes.title !== undefined) params.new_title = changes.title
         if (changes.status !== undefined) params.new_status = changes.status
         if (changes.priority !== undefined) params.new_priority = changes.priority
+        if (changes.description !== undefined) params.new_description = changes.description
+        if (changes.resolutionNotes !== undefined) params.resolution_notes = changes.resolutionNotes
+        if (changes.urls !== undefined) params.urls = changes.urls
+        if (changes.dismissReminderNudge === true) params.dismiss_reminder_nudge = true
+        Object.assign(params, realtimeDueParams(body, todo, body.requestTimezone))
+        // The transactional core uses title/status/priority to identify an
+        // update. Keep extra-only changes in that same transaction.
+        if (!('new_title' in params) && !('new_status' in params) && !('new_priority' in params)) params.new_title = todo.title
         const changeText = [
           changes.title !== undefined ? `title to “${changes.title}”` : '',
           changes.status !== undefined ? `status to ${changes.status}` : '',
           changes.priority !== undefined ? `priority to ${changes.priority}` : '',
+          changes.description !== undefined ? 'description' : '',
+          changes.resolutionNotes !== undefined ? 'resolution notes' : '',
+          changes.urls !== undefined ? 'URLs' : '',
+          changes.dueAt !== undefined || changes.dueTimezone !== undefined || changes.dueCity !== undefined ? 'due date' : '',
+          changes.reminderLeadValue !== undefined || changes.reminderLeadUnit !== undefined ? 'reminder' : '',
+          changes.dismissReminderNudge ? 'reminder prompt preference' : '',
         ].filter(Boolean).join(', ')
         kind = 'update_todo'
         spokenText = `Confirm: update ${code}, “${todo.title}”: ${changeText}?`
@@ -1263,13 +1361,23 @@ export async function POST(request: Request) {
         if (op.action === 'create') {
           const title = op.title?.trim().slice(0, 240)
           if (!title) throw new RealtimeInputError(`${label} needs a title to create.`)
+          if (op.priorityValue !== undefined && (!Number.isInteger(op.priorityValue) || op.priorityValue < 1 || op.priorityValue > 4)) {
+            throw new RealtimeInputError(`${label}: priority must be an integer from 1 through 4.`)
+          }
           const reference = op.projectName?.trim() || body.projectName?.trim()
           const project = reference
             ? resolveProjectByReference(availableProjects, reference)
             : availableProjects.find(item => item.id === body.currentProjectId) ?? null
           if (!project) throw new RealtimeInputError(`${label}: choose a project you can edit before creating "${title}".`)
           resolvedOps.push({
-            params: { action: 'create', title, project_id: project.id },
+            params: {
+              action: 'create',
+              title,
+              project_id: project.id,
+              ...(op.description !== undefined ? { description: op.description.trim() || null } : {}),
+              ...(op.priorityValue !== undefined ? { priority_value: op.priorityValue } : {}),
+              ...realtimeDueParams(op, null, body.requestTimezone),
+            },
             summary: `create “${title}” in ${project.name}`,
             projectId: project.id,
           })
@@ -1302,14 +1410,33 @@ export async function POST(request: Request) {
           if (op.newPriority !== undefined && (!Number.isInteger(op.newPriority) || op.newPriority < 1 || op.newPriority > 4)) {
             throw new RealtimeInputError(`${label}: priority for ${code} must be an integer from 1 through 4.`)
           }
-          if (op.newTitle === undefined && op.newStatus === undefined && op.newPriority === undefined) {
+          if (
+            op.newTitle === undefined && op.newStatus === undefined && op.newPriority === undefined
+            && op.description === undefined && op.resolutionNotes === undefined && op.urls === undefined
+            && op.dueAt === undefined && op.dueTimezone === undefined && op.dueCity === undefined
+            && op.reminderLeadValue === undefined && op.reminderLeadUnit === undefined
+            && op.dismissReminderNudge !== true
+          ) {
             throw new RealtimeInputError(`${label}: describe at least one change for ${code}.`)
           }
           const changeText = [
             op.newTitle !== undefined ? `title to “${newTitle}”` : '',
             op.newStatus !== undefined ? `status to ${op.newStatus}` : '',
             op.newPriority !== undefined ? `priority to ${op.newPriority}` : '',
+            op.description !== undefined ? 'description' : '',
+            op.resolutionNotes !== undefined ? 'resolution notes' : '',
+            op.urls !== undefined ? 'URLs' : '',
+            op.dueAt !== undefined || op.dueTimezone !== undefined || op.dueCity !== undefined ? 'due date' : '',
+            op.reminderLeadValue !== undefined || op.reminderLeadUnit !== undefined ? 'reminder' : '',
+            op.dismissReminderNudge ? 'reminder prompt preference' : '',
           ].filter(Boolean).join(', ')
+          const extraParams = {
+            ...(op.description !== undefined ? { new_description: op.description.trim() || null } : {}),
+            ...(op.resolutionNotes !== undefined ? { resolution_notes: op.resolutionNotes.trim() || null } : {}),
+            ...(op.urls !== undefined ? { urls: op.urls.map(url => url.trim()).filter(Boolean) } : {}),
+            ...(op.dismissReminderNudge === true ? { dismiss_reminder_nudge: true } : {}),
+            ...realtimeDueParams(op, todo, body.requestTimezone),
+          }
           resolvedOps.push({
             params: {
               action: 'update',
@@ -1317,6 +1444,8 @@ export async function POST(request: Request) {
               ...(op.newTitle !== undefined ? { new_title: newTitle } : {}),
               ...(op.newStatus !== undefined ? { new_status: op.newStatus } : {}),
               ...(op.newPriority !== undefined ? { new_priority: op.newPriority } : {}),
+              ...extraParams,
+              ...(op.newTitle === undefined && op.newStatus === undefined && op.newPriority === undefined ? { new_title: todo.title } : {}),
             },
             summary: `update ${code}, “${todo.title}”: ${changeText}`,
             projectId: todo.product_id,

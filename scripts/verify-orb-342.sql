@@ -13,6 +13,9 @@ DECLARE
   v_result jsonb;
   v_replay jsonb;
   v_description text;
+  v_realtime_proposal_id uuid := gen_random_uuid();
+  v_realtime_create_id uuid := gen_random_uuid();
+  v_realtime_create_title text := 'ORB-342 realtime create ' || substr(gen_random_uuid()::text, 1, 8);
   v_batch_proposal_id uuid := gen_random_uuid();
   v_batch_title text := 'ORB-342 rollback batch ' || substr(gen_random_uuid()::text, 1, 8);
   v_created public.todos%ROWTYPE;
@@ -84,6 +87,60 @@ BEGIN
   v_replay := public.confirm_realtime_mutation(v_proposal_id, v_user_id);
   IF NOT coalesce((v_replay->>'replayed')::boolean, false) THEN
     RAISE EXCEPTION 'Second ORB-342 confirmation was not replay-safe';
+  END IF;
+
+  SELECT * INTO v_todo FROM public.todos WHERE id = v_todo.id;
+  INSERT INTO public.orb_realtime_proposals (
+    id, user_id, project_id, kind, title, params, target_todo_id,
+    channel, summary, expires_at
+  ) VALUES (
+    v_realtime_proposal_id,
+    v_user_id,
+    v_todo.product_id,
+    'update_todo',
+    v_todo.title,
+    jsonb_build_object(
+      'expected_updated_at', v_todo.updated_at,
+      'expected_title', v_todo.title,
+      'expected_status', v_todo.status,
+      'expected_priority', v_todo.priority_value,
+      'expected_product_id', v_todo.product_id,
+      'expected_todo_number', v_todo.todo_number,
+      'new_title', v_todo.title,
+      'new_description', v_marker || ' realtime'
+    ),
+    v_todo.id,
+    'realtime',
+    'verify Realtime rich-field parity',
+    now() + interval '5 minutes'
+  );
+  v_result := public.confirm_realtime_mutation(v_realtime_proposal_id, v_user_id);
+  SELECT description INTO v_description FROM public.todos WHERE id = v_todo.id;
+  IF v_description IS DISTINCT FROM (v_marker || ' realtime') THEN
+    RAISE EXCEPTION 'Realtime rich fields were not applied in the canonical transaction';
+  END IF;
+
+  INSERT INTO public.orb_realtime_proposals (
+    id, user_id, project_id, kind, title, params, channel, summary, expires_at
+  ) VALUES (
+    v_realtime_create_id,
+    v_user_id,
+    v_todo.product_id,
+    'create_todo',
+    v_realtime_create_title,
+    jsonb_build_object('description', 'realtime create metadata', 'priority_value', 2),
+    'realtime',
+    'verify Realtime rich create parity',
+    now() + interval '5 minutes'
+  );
+  v_result := public.confirm_realtime_mutation(v_realtime_create_id, v_user_id);
+  SELECT t.* INTO v_created
+  FROM public.todos t
+  JOIN public.orb_realtime_proposals p ON p.todo_id = t.id
+  WHERE p.id = v_realtime_create_id;
+  IF v_created.description IS DISTINCT FROM 'realtime create metadata'
+    OR v_created.priority_value IS DISTINCT FROM 2 THEN
+    RAISE EXCEPTION 'Realtime rich create fields were not applied in the canonical transaction';
   END IF;
 
   SELECT * INTO v_todo FROM public.todos WHERE id = v_todo.id;

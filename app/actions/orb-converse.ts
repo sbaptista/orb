@@ -19,7 +19,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 import { PROJECT_MUTATIONS, KNOWLEDGE_MUTATIONS, getPendingMutation, storePendingMutation, clearPendingMutation, proposeProjectMutation, proposeKnowledgeMutation, resolveKnowledgeReference, type PendingMutationRow } from '@/lib/orb-mutations'
 import { confirmOrbMutation } from '@/lib/orb-operations/confirmation'
-import { proposeSerialTodoOperations } from '@/lib/orb-operations/serial-todos'
+import { proposeSerialTodoOperations, serialTodoFact } from '@/lib/orb-operations/serial-todos'
 import { queryOrbInvitations, queryOrbUsers } from '@/lib/orb-operations/admin-directory'
 import { DB_SCHEMA, ALLOWED_TABLES, SOFT_DELETE_TABLES, ALLOWED_OPS, COLUMN_NAME_RE } from '@/lib/db-schema'
 import { fuzzyMatch, scoreTextMatch } from '@/lib/fuzzy-search'
@@ -1299,16 +1299,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             const returned = results.slice(0, limit).map((t: any) => {
               const proj = ctx.productList.find((pp: any) => pp.id === t.product_id)
               const ownerName = proj ? ctx.userMap.get(proj.created_by) : undefined
-              const out: any = { id: t.id, code: todoCode(t, ctx.productList), title: t.title, status: t.status, priority_value: t.priority_value }
-              if (ownerName) out.owner = ownerName
-              if (t.description) out.description = t.description
-              if (t.resolution_notes) out.resolution_notes = t.resolution_notes
-              if (t.due_at) out.due_at = t.due_at
-              if (t.groups?.name) out.group = t.groups.name
-              if (t.categories?.name) out.category = t.categories.name
-              const urlList = Array.isArray(t.urls) ? t.urls.filter(Boolean) : []
-              if (urlList.length > 0) out.urls = urlList
-              return out
+              return serialTodoFact({ ...t, projects: proj }, ownerName)
             })
             output = { count: results.length, returned }
             stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length} items` })

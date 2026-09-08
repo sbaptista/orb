@@ -108,6 +108,35 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
   },
 
   {
+    id: 'create-preserves-description',
+    description: 'Todo creation passes the user-supplied description through the canonical create contract',
+    productCode: 'ORB',
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
+    input: 'Create a task titled [EVAL] Full field create with description "Verify that every todo field reaches both text and voice."',
+    tier: 1,
+    expectTool: {
+      name: 'create_todo',
+      params: { product_code: 'ORB', description: 'Verify that every todo field reaches both text and voice.' },
+    },
+  },
+
+  {
+    id: 'update-preserves-description',
+    description: 'Todo updates pass a changed description through the canonical update contract',
+    productCode: 'ORB',
+    backlogOverride: `Orb [code: ORB]:
+  SUMMARY: active_count=1 (open + in progress); parked_count=0 (deferred + on hold); closed_count=0 (excluded)
+  ACTIVE:
+  ORB-901 [P3] [open] [EVAL] Full field update`,
+    input: 'Update ORB-901 description to "The complete task record must be available in both interaction modes."',
+    tier: 1,
+    expectTool: {
+      name: 'update_todo',
+      params: { code: 'ORB-901', description: 'The complete task record must be available in both interaction modes.' },
+    },
+  },
+
+  {
     id: 'create-with-named-timezone-and-reminder',
     description: 'ORB-361: a due time named in a specific place resolves to its IANA due_timezone',
     productCode: 'ORB',
@@ -1760,7 +1789,7 @@ function evalCategory(id: string): EvalCategory {
   if (
     /confirm|approval|permission|pending|action-set|hallucinated|no-session-record|upfront-permission|restated-request|premature-success|code-fabrication|mutate-silently/.test(id)
   ) return 'mutation-safety'
-  if (/create|todo|delete|move|close/.test(id)) return 'todo-crud'
+  if (/create|update|todo|delete|move|close/.test(id)) return 'todo-crud'
   throw new Error(`Eval case "${id}" needs an explicit category rule.`)
 }
 

@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.311',
+    date: '2026-09-07',
+    changes: [
+      'Made the complete readable todo record available to Orb instead of reducing tasks to title, status, priority, and a few optional labels. Text backlog context, text query results, Realtime exact reads, Realtime lists, and next-step packets now share one canonical task shape containing description, resolution notes, actual URL values, project and owner, group/category/linked-ticket relationships, database identifiers and ordering, lifecycle timestamps, due timezone/city, reminder lead, reminder delivery, and reminder-nudge dismissal. Server-owned IDs, addresses, ordering, relationships, and timestamps remain read-only.',
+      'Brought Realtime todo proposals up to the existing canonical mutation contract. Voice can now preserve description, priority, due metadata, and reminders on create, and can update description, resolution notes, URL lists, due/reminder fields, and reminder-nudge dismissal in singular or batch changes. Movement, closing, deletion, and immutable fields retain their dedicated safety boundaries, and every create/update/delete still waits for a distinct confirmation turn.',
+      'Added a SQL migration that extends the shared confirmation dispatcher so rich Realtime fields commit in the same row-locked transaction and audit record as text fields; Stan applied it on 2026-09-07. Extended the rollback verifier with Realtime rich-field assertions. Stan confirmed the rollback verifier and live acceptance were completed; detailed output/counts were not supplied. Updated the generated tool contract, REST schema, capability matrix, and focused create/update description eval cases. TypeScript, changed-file ESLint, generated-contract consistency, and whitespace checks passed once. Stan’s focused Tier 1 run passed create-preserves-description 1/1 and update-preserves-description 1/1; Stan explicitly skipped the full Tier 1 gate for this release.',
+    ],
+  },
+  {
     version: 'v0.6.310',
     date: '2026-09-06',
     changes: [
