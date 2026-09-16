@@ -201,8 +201,8 @@ Centered auth card over the calm `MuralCanvas`, matching the dashboard/account w
 
 ### Commands Dialog
 The Commands button is labeled “Commands” and uses the four-square grid icon on every viewport.
-- **Behavior:** Opens the established centered modal with Help and Print actions. Print is always present and offers both All Projects and the user’s database-backed Current Project from Dashboard, Settings, Help, and Account. Settings and Account remain first-class topbar destinations rather than commands.
-- **Current project:** `users.current_project_id` is the cross-session/browser/device source of truth. Dashboard initialization validates it against the user’s visible active projects, repairs invalid/null state to the first available project, and persists explicit project switches. Shared non-dashboard navigation resolves the same preference server-side. No Realtime subscription is used.
+- **Behavior:** Opens the established centered modal with Help and Print actions. Clicking the backdrop dismisses it. Print is always present and offers both All Projects and the user’s database-backed Current Project from Dashboard, Settings, Help, and Account. Settings and Account remain first-class topbar destinations rather than commands.
+- **Current project:** `users.current_project_id` is the cross-session/browser/device source of truth. Dashboard initialization validates it against the user’s visible active projects, repairs invalid/null state to the first available project, and persists explicit project switches. After a confirmed project deletion, the canonical response identifies deleted project IDs: the dashboard preserves an unaffected selection, but if the selected project was deleted it immediately chooses and persists an available fallback even when the refresh query is stale. Shared non-dashboard navigation resolves the same preference server-side. No Realtime subscription is used.
 - **Version:** A divider below the command list separates the current `Orb v…` version string.
 - **Accessibility:** The dialog is named, modal, and retains plain links/buttons for its actions.
 
@@ -386,19 +386,27 @@ The conversation transcript remains readable in voice mode (`oc-thread` is not b
 
 In voice mode the Orb is a featured top-right presence: larger than the dialogue minimap Orb, smaller than the former centered voice Orb, and positioned so the transcript can remain the primary reading surface.
 
-**Interaction model (provider-owned turn-taking, no greeting):**
+**Interaction model with unified voice enabled (shared coordinator, no greeting):**
 - **Tap Orb** — start voice mode, or stop it if already engaged (any status but off)
-- **Just talk** — the provider truncates its own audio the instant you speak over it; no separate interrupt gesture
+- **Just talk** — authenticated acoustic speech interrupts current presentation and becomes a replacement turn; raw provider VAD alone cannot cancel Orb
 - **Long-press Orb** — exit voice mode (or conversation mode)
 - **Cmd+Shift+O** — keyboard toggle, same start/stop behavior as tapping the Orb
 - Text input and toolbar are disabled during voice mode (opacity 0.5, pointer-events none), with a "Switch to text" button visible.
 - The voice control box (`oc-voice-box`) shows only Speak/Listen status lights and an End (exit) button — no live transcript preview (the user's words already appear as a message in the conversation the instant they're recognized) and no separate manual interrupt button (barge-in is automatic).
+
+With the staged unified flags enabled, text and accepted voice transcripts render from the same durable visible-event
+projection. Internal progress labels, partial transcripts, provider output, and
+control events never render in cards and are omitted from Copy and Export.
+Realtime renders only canonical `spokenText`; it never supplies a parallel Orb
+answer or business-tool result.
 
 ### Orb Conversation Tool Button (`oc-tool-btn`)
 Used for buttons below the input field in the Orb conversation view. Styled with standard primary button background (`var(--btn-primary-bg)`).
 
 ### Orb Conversation Overflow (`oc-toolbar-overflow`, `oc-more-*`)
 The Orb command toolbar uses the same compact command model on Mac, iPad, and iPhone: primary actions stay visible (`Cmds`, Send/Stop) and secondary actions (`Prev`, `Next`, `Copy`, `Export`, `Clear`) live behind the `More` overflow button. Voice conversation mode starts through `More → Talk to Orb` or the Orb itself. This avoids viewport-specific command layouts and keeps the small-pane/iPhone interaction model consistent everywhere.
+
+The menu is positioned and width-constrained against the full toolbar—not the `More` button—and its descriptions may wrap. Do not restore button-relative positioning or intrinsic no-wrap sizing: either can make the menu cross and be clipped by a narrow dashboard pane.
 
 `Dictate` (speech-to-text for the text field, ORB-358) is temporarily removed from the toolbar (`DICTATE_ENABLED = false` in `OrbConversation.tsx`) pending a live-streaming rebuild — code kept intact, not deleted. See `HANDOFF.md` "ORB-358 Phase 2."
 
@@ -428,7 +436,11 @@ On touch devices, the panel owns its own scroll surface and prevents scroll chai
 - **Send Button (`oc-send-btn`)** — green accent (`--pill-active-bg`), white icon. Submit button for Orb input.
 - **Stop Button (`oc-stop-btn`)** — red tint background (`rgba(200,0,0,0.08)`), red square stop icon. Visible whenever the parent is submitting or any Orb message is still marked as streaming, so an orphaned stream can always be stopped.
 
-The parent dashboard owns a synchronous, request-scoped processing lock. A request claims the lock before React state updates, preventing overlapping submissions; only that request may release its processing state. Stop marks that specific request as aborted and releases the input without allowing its late stream completion to affect a newer request.
+The parent dashboard owns a synchronous, request-scoped processing lock. A
+request claims the lock before React state updates; submitting replacement text
+first interrupts that request through the same durable control boundary used by
+voice. Stop releases presentation immediately, suppresses uncommitted response
+history, and cannot hide a committed mutation receipt.
 
 ### Banner Button (`btn-banner`)
 Small uppercase pill button for floating banners (update available, maintenance mode). 12px border-radius, uppercase text, subtle box-shadow, hover scale effect. Variant: `btn-banner--warning` for amber/warning-colored banners.

@@ -14,11 +14,9 @@
 
 ## App State
 
-- **Branch:** `codex/voice-command-contract`; `HEAD` and `origin/main` were both
-  `61512a2` before the local v0.6.312 change.
-- **Version:** **0.6.312** committed locally, not pushed; the branch is one
-  commit ahead of `origin/main`. The v0.6.311 commit is pushed; its production
-  deployment was not checked in this session.
+- **Branch:** `codex/voice-command-contract`; the v0.6.325 handoff is committed
+  locally, not pushed. The production deployment was not checked this session.
+- **Version:** **0.6.325** in the main directory.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -66,6 +64,14 @@
   `scripts/migrations/20260906b_orb_todo_full_field_parity.sql` was applied by
   Stan on 2026-09-07. Stan also confirmed the rollback verifier and live
   acceptance were completed; detailed output/counts were not supplied.
+- **Unified interaction migration:**
+  `scripts/migrations/20260911_unified_orb_interactions.sql` is **applied**;
+  Stan reported every verifier column true and completed unified-text
+  acceptance. Unified voice acceptance remains open.
+- **Command-batch migration:**
+  `scripts/migrations/20260912_orb_command_batches.sql` is **applied**. Stan
+  reported every column from `verify-20260912-orb-command-batches.sql` true on
+  2026-09-12. Live acceptance is in progress.
 - **`~/Projects/shared` is now a git repository** (`02b0f46`) with **no remote
   configured**. It holds the shared `AGENTS.md` governing every project in
   `~/Projects`. Adding a remote is Stan's decision — it names credential
@@ -75,33 +81,58 @@
 - **ORB-375:** implementation and credential rotation still in progress.
 ## Uncommitted Changes
 
-Path-only projection of `git status --short`. Enforced by
-`node scripts/verify-handoff.js`. Rules: `docs/handoff-conventions.md` §3.3.
-
-- `docs/orb-381-model-cost-comparison-plan.md` — separate Codex ORB-381 claim;
-  exclude from this change.
+None.
 
 ---
 
 ## Last Session Completed
 
-**2026-09-07 — Codex (GPT-5.6 Sol). Generic query presentation, v0.6.312 local.**
+**2026-09-16 — Codex (GPT-5.6 Sol). Local commit and Claude handoff, v0.6.325.**
 
-- Added one field-neutral presenter for structured database reads in text and
-  Realtime Voice. Users can request tables, bullet lists, or paragraphs with
-  arbitrary returned fields, field order, and brief/full values.
-- Routed both channels through the same presentation artifact and existing
-  `OrbConversation` Markdown surface; restored list markers on its catalogued
-  `oc-orb-md` class after Tailwind's reset removed them.
-- Updated serial/Realtime schemas, the generated contract, prompt policy,
-  capability documentation, and a categorized Tier 1 case. Fixed structural
-  array/object parameter comparison in the eval runner.
-- `npx tsc --noEmit`, changed-file ESLint, contract regeneration,
-  `git diff --check`, deterministic presenter checks, the handoff verifier, and
-  the UI-catalog verifier passed once. Stan's focused
-  `query-presentation-preserves-format-and-fields` Tier 1 case passed 1/1.
-  Browser visual verification was blocked by a missing Browser-plugin bundle;
-  bullet markers after a hard refresh remain manually unverified.
+- Removed both public unified-interaction launcher flags from executable code.
+  Text and trusted Realtime transcripts now always use the same durable history,
+  `orbConverse` kernel, mutation confirmation/batching, interruption events,
+  receipts, and client refresh handling.
+- Realtime is permanently transport-only in normal sessions: it receives no
+  business tools and only transcribes trusted speech or renders canonical exact
+  response text. The former Realtime prompt, tool schemas, and client executor
+  remain compiled as dormant rollback assets per Stan's direction; reactivation
+  requires a source change rather than a launcher setting.
+- Removed the browser-session conversation fallback and the local passive
+  project/urgency message generators. Visible history now comes only from the
+  durable coordinator, eliminating the remaining ghost-message branch.
+- The first unified-voice test exposed exact spelling loss, fragile confirmation
+  timing around an unrelated interruption, and a visible provider cancellation
+  race. Explicit `T-E-S-T numeral one` now supplies exact model context `TEST1`
+  without rewriting history; command batches remain pending for 30 minutes;
+  only the provider's harmless no-active-response cancellation error is ignored.
+- The next interruption test exposed exact-speech verification comparing a
+  deliberately truncated utterance with the full planned response. Expected
+  speech is now keyed to OpenAI's provider `response_id`; a partial transcript
+  is discarded only when trusted acoustic evidence marked that same response
+  interrupted. Uninterrupted mismatches remain fatal.
+- Project-create acceptance then exposed a receipt-consumption gap: the live
+  result depended on a second browser read, and reconnect recovery acknowledged
+  committed receipts without applying their refresh scopes. Committed response
+  artifacts now carry every created project row; live and recovered receipts
+  project those rows into both project collections before acknowledgement and
+  then reconcile normally. This is shared by text and voice and supports
+  multi-project batches. Existing selection is preserved unless deleted or empty.
+- **Stan's subsequent voice test still did not create a project.** The stage of
+  failure remains unknown; the receipt/list projection above did not fix it.
+  Full implementation, evidence, failures, and next diagnostic steps are in
+  `docs/orb-unified-interaction-claude-handoff-2026-09-16.md`.
+- Updated the deterministic runtime contract, matching Tier 1/Tier 2 case
+  descriptions plus exact-spelling/intervening-confirmation Tier 1 cases,
+  architecture plan, capability matrix, changelog, and version.
+  `npx tsc --noEmit`, `npm run verify:interaction`, focused ESLint (0 errors), UI
+  catalog verification, handoff verification, and `git diff --check` passed once
+  after release bookkeeping. No model eval or authenticated Realtime acceptance was run by
+  Codex. The required user gates are `orb-dev --eval-t1`, `orb-dev --eval-t2`,
+  and direct voice create/delete/current-project refresh acceptance.
+
+- Committed the accumulated work locally, including separate Codex ORB-381
+  planning, and removed all Codex active claims. No push was authorized or run.
 ## Active Risks / Unresolved Work
 
 - **Bullet-list visual acceptance remains open.** The shared Markdown CSS now
@@ -109,34 +140,25 @@ Path-only projection of `git status --short`. Enforced by
   requested hard refresh. The Browser plugin could not inspect localhost because
   its installed client references a missing browser-service bundle.
 
-- **Text and Realtime do not share one universal read adapter.** Todo reads now
-  share their field projection and output shape, canonical mutations share the
-  dispatcher, and users/invitations share database functions. Project,
-  Knowledge, ticket, audit, and the outer todo query adapters remain
-  channel-specific; do not claim universal path parity.
+- **Unified interaction acceptance is open.** Unified text was accepted after
+  the 20260911 migration and verifier passed. Runtime routing is now permanently
+  unified; the prior separate launcher flags no longer exist. Required live evidence:
+  mixed text/voice history across devices, text Stop and replacement, voice Stop
+  and short/long barge-in, cross-modal proposal confirmation/rejection, same-turn
+  bundled permission remaining a proposal, reconnect after commit before
+  presentation acknowledgement, exact speech transcript agreement, and zero
+  visible progress/phantom text. The short-speech acoustic thresholds are based
+  on prior telemetry but are unverified on current Mac/iPad/iPhone sessions.
+  **Critical:** Stan's v0.6.324 voice-create test did not create a project.
+  Do not start with another dropdown-only fix; trace transcript, proposal,
+  confirmation event, transaction, and receipt in order.
 
-- **🔴 Realtime voice — the transcription vocabulary hint is load-bearing for
-  authorization. VERIFIED STILL LIVE 2026-09-05** against the current regexes
-  in `lib/orb-model/mutation-authorization.ts`:
-
-  | `app/api/orb-realtime/session/route.ts:59` hint | Result |
-  |---|---|
-  | current (`… Cancel. Stop. …`) | negation guard fires → rejected |
-  | `Cancel. Stop.` removed | **AUTHORIZES the pending mutation** |
-  | hint dropped entirely | no approval act → rejected |
-
-  On non-speech audio the transcriber can reproduce its own `prompt` as a
-  phantom transcript; `useRealtimeVoiceSpike.ts:774` accepts any non-empty
-  transcript as genuine user speech and forwards it as the authorization
-  utterance. `Cancel`/`Stop` match the `NEGATION` guard, which runs before the
-  approval check — that is the only reason phantoms fail.
-  **Mitigation so far: a warning comment at the line (v0.6.306). Not a fix.**
-  Deleting the hint outright is safe in any order; narrowing it is not, until
-  phantom transcripts are rejected at the boundary rather than by the accidental
-  content of a vocabulary hint.
-  Related, same review, unverified: `useRealtimeVoiceSpike.ts:638` discards the
-  canonical receipt when a completed write resolves after the user has started a
-  new turn — the write commits and Orb never says so.
+- **Generic command-batch acceptance is open.** The 20260912 migration and
+  all-true structural verifier passed. Exercise one-item, multi-item,
+  mixed-domain, decline, interrupted-confirmation, replay, and cross-modal
+  confirmation cases. A command batch is capped at 20. Read-only requests,
+  inter-command dependencies, and a transactional notification outbox remain
+  outside this implementation slice.
 
 - **Kimi K3 is experimental and development-only.** It passed the accepted
   evidence above but did not achieve deterministic 65/65 Tier 1 behavior.
@@ -194,6 +216,17 @@ Path-only projection of `git status --short`. Enforced by
 
 ## Next Priorities
 
+0. Claude: diagnose the actual failed voice project-create transaction using
+   the evidence checklist in `docs/orb-unified-interaction-claude-handoff-2026-09-16.md`.
+   Then restart with plain `orb-dev`, hard-refresh the browser, and complete direct
+   unified-voice acceptance: create, update, delete, current-project fallback,
+   mixed-domain, decline, interruption, replay, and cross-modal confirmation.
+   Verify the project dropdown updates immediately and no provider/ghost reply
+   appears. After manual acceptance Stan runs the
+   shared mutation-authorization gate through the launcher:
+   `orb-dev --eval-t1`. Continue unified voice acceptance and its three-run Tier
+   2 gate separately with `orb-dev --eval-t2`. Do not invoke the underlying npm
+   eval scripts directly.
 0. **Security findings still open** — full detail in
    `docs/agent-enforcement-hardening.md`, reduced 2026-09-06 from a 1,820-line
    review transcript to a 120-line open-findings register. History at `6e47488`.
@@ -263,14 +296,9 @@ Path-only projection of `git status --short`. Enforced by
 5. Use Kimi experimentally in the Operational, Strategic, and Evaluation roles;
    compare live quality, latency, and AI Metrics cost before deciding whether
    to promote it beyond development.
-6. **ORB-359 — make the four §7 decisions** in
-   `docs/orb-359-realtime-confirmation-integrity-plan.md`. Recommended first
-   move is **B1** (never silently swallow a committed mutation): it has no
-   dependencies, needs no provider evidence, and fixes the half of the reported
-   experience that actually reads as "lost track." **Do not narrow the
-   transcription prompt before the boundary rejection lands — see §3.** A3
-   (logprobs gate) stays unspecified until a raw payload is captured, which
-   itself needs Stan's approval for temporary instrumentation (§10).
+6. ORB-359's prior B1/A3 implementation gap is incorporated in v0.6.313.
+   Retain the older plan only as design history; current acceptance and rollout
+   are governed by `docs/orb-unified-interaction-architecture-plan.md`.
 7. Stan chose manual clipboard CRUD for now. Test Copy/Copy All on Mac, iPad,
    and iPhone across Todo, Settings Projects, Settings Knowledge, and the
    dashboard List project modal. In Settings Knowledge, also verify `Claude
@@ -296,6 +324,17 @@ Path-only projection of `git status --short`. Enforced by
 
 ## Key Current Decisions
 
+- **Text and Realtime voice are transports, not separate agents.** Every trusted
+  turn now uses one server history,
+  coordinator, model/tool kernel, confirmation transaction, interrupt event,
+  and response artifact. Realtime receives no business tools in normal sessions;
+  its old tools are retained only as dormant rollback code. Slash commands
+  remain the only intentional interface exception.
+- **Mutation permission requires a distinct later event.** Permission bundled
+  into the requesting turn can only create a proposal. Confirmation is scoped
+  to user plus conversation and may cross text/voice; an interrupt ordered
+  before commit rejects that confirmation, while a completed commit retains its
+  durable receipt and presentation recovery.
 - **Platform and performance share one environment owner.** Do not add another
   user-agent/viewport classifier for model accounting; both consumers use
   `collectClientEnvironment()` so changes cannot drift.
@@ -402,7 +441,7 @@ Path-only projection of `git status --short`. Enforced by
 
 ## AI Tool Used Last Session
 
-`2026-09-07 — Codex (GPT-5.6 Sol)`
+`2026-09-16 — Codex (GPT-5.6 Sol)`
 
 ---
 

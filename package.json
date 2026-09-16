@@ -1,6 +1,6 @@
 {
   "name": "orb",
-  "version": "0.6.312",
+  "version": "0.6.325",
   "private": true,
   "scripts": {
     "prebuild": "node scripts/generate-repository-bundle.mjs",
@@ -10,6 +10,7 @@
     "lint": "node scripts/verify-handoff.js && node scripts/verify-ui-catalog.js && eslint",
     "verify-handoff": "node scripts/verify-handoff.js",
     "generate-contract": "ts-node scripts/generate-orb-contract.ts",
+    "verify:interaction": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' scripts/verify-orb-interaction.ts",
     "eval": "NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts",
     "eval:t1": "NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts --tier 1",
     "eval:t2": "NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts --tier 2",

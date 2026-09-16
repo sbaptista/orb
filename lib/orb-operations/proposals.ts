@@ -1,5 +1,6 @@
 import type { AuthContext } from '@/lib/auth'
 import { signOrbOperationCapability } from '@/lib/orb-operations/capabilities'
+import { appendOrbConversationEvent, isOrbTurnInterrupted, stableOrbConversationEventId } from '@/lib/orb-interaction/conversation-store'
 
 export const ORB_PROPOSAL_TTL_MS = 5 * 60_000
 
@@ -28,6 +29,9 @@ export type PersistOrbProposalInput = {
   summary?: string | null
   proposalId?: string
   expiresAt?: number
+  conversationId?: string | null
+  requestedEventId?: string | null
+  originModality?: 'text' | 'voice' | null
 }
 
 export type PersistedOrbProposal = {
@@ -40,6 +44,13 @@ export async function persistOrbMutationProposal(
   auth: AuthContext,
   input: PersistOrbProposalInput,
 ): Promise<PersistedOrbProposal> {
+  if (auth.interaction && await isOrbTurnInterrupted(
+    auth,
+    auth.interaction.conversationId,
+    auth.interaction.turnId,
+  )) {
+    throw new Error('This turn was interrupted before the mutation could be proposed.')
+  }
   const proposalId = input.proposalId ?? crypto.randomUUID()
   const expiresAt = input.expiresAt ?? Date.now() + ORB_PROPOSAL_TTL_MS
   const { error } = await auth.admin.from('orb_realtime_proposals').insert({
@@ -54,8 +65,38 @@ export async function persistOrbMutationProposal(
     target_todo_id: input.targetTodoId ?? null,
     destination_project_id: input.destinationProjectId ?? null,
     expires_at: new Date(expiresAt).toISOString(),
+    conversation_id: input.conversationId ?? auth.interaction?.conversationId ?? null,
+    requested_event_id: input.requestedEventId ?? auth.interaction?.userEventId ?? null,
+    origin_modality: input.originModality ?? auth.interaction?.modality ?? null,
   })
   if (error) throw error
+  const conversationId = input.conversationId ?? auth.interaction?.conversationId
+  const requestedEventId = input.requestedEventId ?? auth.interaction?.userEventId
+  const originModality = input.originModality ?? auth.interaction?.modality
+  if (conversationId && requestedEventId && originModality) {
+    try {
+      await appendOrbConversationEvent(auth, {
+        id: stableOrbConversationEventId(proposalId, 'mutation_proposed'),
+        conversationId,
+        turnId: auth.interaction?.turnId ?? requestedEventId,
+        actor: 'system',
+        eventType: 'mutation_proposed',
+        modality: originModality,
+        visibility: 'control',
+        proposalId,
+        payload: {
+          kind: input.kind,
+          title: input.title,
+          summary: input.summary ?? null,
+        },
+      })
+    } catch (eventError) {
+      // The proposal itself is the authorization source of truth. Do not lose
+      // a valid proposal response because its secondary history projection
+      // needs repair.
+      console.error('[persistOrbMutationProposal] Proposal event append failed:', eventError)
+    }
+  }
   return {
     proposalId,
     expiresAt,

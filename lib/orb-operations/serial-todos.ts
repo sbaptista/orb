@@ -2,11 +2,20 @@ import type { AuthContext } from '@/lib/auth'
 import { selectTodoByReference, describeTodoCandidates } from '@/lib/orb-operations/todo-reference'
 import { dueAtToInstant, validateReminderLead } from '@/lib/due-time'
 import { persistOrbMutationProposal, type OrbMutationKind } from '@/lib/orb-operations/proposals'
+import type { PreparedOrbMutationCommand } from '@/lib/orb-operations/command-batches'
 import { ORB_TODO_FULL_SELECT, shapeOrbTodoFact, type OrbTodoRow } from '@/lib/orb-operations/todo-facts'
 
 export type SerialTodoOperation = {
   tool: string
   params: Record<string, any>
+  toolUseId?: string
+}
+
+export type SerialTodoPreparationOptions = {
+  currentProjectId: string | null
+  requestZone: string
+  summary: string
+  projects?: AccessibleProjectRow[]
 }
 
 type TodoRow = OrbTodoRow
@@ -53,22 +62,28 @@ function dueFields(input: Record<string, any>, todo: TodoRow | null, requestZone
   }
 }
 
-async function accessibleProject(
-  auth: AuthContext,
-  options: { code?: string; id?: string | null },
-) {
+type AccessibleProjectRow = { id: string; name: string; code: string; created_by: string }
+
+function accessibleProjectsQuery(auth: AuthContext) {
   let query = auth.admin
     .from('projects')
     .select('id, name, code, created_by')
     .eq('is_dormant', false)
     .is('deleted_at', null)
   if (!auth.isAdmin) query = query.eq('created_by', auth.user.id)
-  if (options.code) query = query.ilike('code', options.code)
-  else if (options.id) query = query.eq('id', options.id)
-  else return null
-  const { data, error } = await query.maybeSingle()
-  if (error) throw error
-  return data
+  return query
+}
+
+function projectFromPreparedRows(
+  projects: AccessibleProjectRow[],
+  options: { code?: string; id?: string | null },
+) {
+  if (options.code) {
+    const code = options.code.toUpperCase()
+    return projects.find(project => project.code.toUpperCase() === code) ?? null
+  }
+  if (options.id) return projects.find(project => project.id === options.id) ?? null
+  return null
 }
 
 function shapeTodoRow(data: any): TodoRow {
@@ -113,42 +128,14 @@ export function serialTodoFact(todo: TodoRow, owner?: string) {
  */
 const TITLE_RESOLUTION_CANDIDATE_LIMIT = 2000
 
-/**
- * ORB-339 — resolve a todo reference server-side, by code OR by title.
- *
- * Previously code-only: a non-code reference returned null, so the serial
- * model had to pick the code itself from the backlog and got it wrong on
- * near-exact titles. Title resolution now runs through the SAME policy
- * Realtime uses (lib/orb-operations/todo-reference.ts), so both channels
- * agree on what a task name means and both fail closed on ambiguity.
- *
- * Throws on ambiguity rather than guessing — the caller turns that into a
- * tool result the model reads back to the user.
- */
-async function accessibleTodo(auth: AuthContext, reference: string): Promise<TodoRow | null> {
+function accessibleTodoFromPreparedRows(rows: TodoRow[], reference: string): TodoRow | null {
   const trimmed = reference.trim()
   if (!trimmed) return null
-
   const match = /^(.+)-(\d+)$/.exec(trimmed.toUpperCase())
   if (match) {
-    const { data, error } = await accessibleTodosQuery(auth)
-      .eq('todo_number', Number(match[2]))
-      .ilike('projects.code', match[1])
-      .maybeSingle()
-    if (error) throw error
-    return data ? shapeTodoRow(data) : null
-  }
-
-  const { data, error, count } = await accessibleTodosQuery(auth)
-    .limit(TITLE_RESOLUTION_CANDIDATE_LIMIT)
-  if (error) throw error
-  const rows = (data ?? []).map(shapeTodoRow)
-  // Fail closed on a partial candidate set: ranking what happened to be
-  // fetched would produce a confident answer from incomplete evidence.
-  if (typeof count === 'number' && count > rows.length) {
-    throw new Error(
-      `There are too many tasks (${count}) to match "${trimmed}" by name safely. Name the project, or use the task code.`,
-    )
+    return rows.find(row =>
+      row.todo_number === Number(match[2]) && row.projects.code.toUpperCase() === match[1]
+    ) ?? null
   }
   const result = selectTodoByReference(trimmed, rows)
   if (result.kind === 'resolved') return result.row
@@ -189,13 +176,35 @@ function serialUpdateParams(
   return params
 }
 
-export async function proposeSerialTodoOperations(
+export async function prepareSerialTodoOperations(
   auth: AuthContext,
   operations: SerialTodoOperation[],
-  options: { currentProjectId: string | null; requestZone: string; summary: string },
-) {
+  options: SerialTodoPreparationOptions,
+): Promise<Array<PreparedOrbMutationCommand & { batchParams: Record<string, unknown> }>> {
   if (operations.length === 0) throw new Error('No todo operations were proposed.')
   if (operations.length > 20) throw new Error('Todo batches are limited to 20 operations.')
+
+  const needsTodos = operations.some(operation => operation.tool !== 'create_todo')
+  const needsProjects = operations.some(operation =>
+    operation.tool === 'create_todo' || operation.tool === 'move_todo'
+  )
+  const [todoResult, projectResult] = await Promise.all([
+    needsTodos
+      ? accessibleTodosQuery(auth).limit(TITLE_RESOLUTION_CANDIDATE_LIMIT)
+      : Promise.resolve({ data: [], error: null, count: 0 }),
+    needsProjects && !options.projects
+      ? accessibleProjectsQuery(auth)
+      : Promise.resolve({ data: options.projects ?? [], error: null }),
+  ])
+  if (todoResult.error) throw todoResult.error
+  if (projectResult.error) throw projectResult.error
+  const todos = (todoResult.data ?? []).map(shapeTodoRow)
+  if (needsTodos && typeof todoResult.count === 'number' && todoResult.count > todos.length) {
+    throw new Error(
+      `There are too many tasks (${todoResult.count}) to prepare this batch safely. Use exact task codes.`,
+    )
+  }
+  const projects = (projectResult.data ?? []) as AccessibleProjectRow[]
 
   const resolved: Array<{
     kind: Exclude<OrbMutationKind, 'batch_todo_action' | 'create_project' | 'update_project' | 'delete_project' | 'add_knowledge' | 'update_knowledge'>
@@ -210,7 +219,7 @@ export async function proposeSerialTodoOperations(
   for (const operation of operations) {
     const input = operation.params ?? {}
     if (operation.tool === 'create_todo') {
-      const project = await accessibleProject(auth, {
+      const project = projectFromPreparedRows(projects, {
         code: input.product_code ? String(input.product_code).toUpperCase() : undefined,
         id: input.product_code ? undefined : options.currentProjectId,
       })
@@ -235,7 +244,7 @@ export async function proposeSerialTodoOperations(
 
     // ORB-339: title_match is a first-class reference now, not a hint the
     // model has to convert into a code itself.
-    const todo = await accessibleTodo(auth, String(input.code ?? input.title_match ?? ''))
+    const todo = accessibleTodoFromPreparedRows(todos, String(input.code ?? input.title_match ?? ''))
     if (!todo) throw new Error(`Todo ${input.code ?? ''} was not found or is not editable.`)
     const base = expectedTodo(todo)
 
@@ -252,7 +261,7 @@ export async function proposeSerialTodoOperations(
     }
 
     if (operation.tool === 'move_todo') {
-      const destination = await accessibleProject(auth, {
+      const destination = projectFromPreparedRows(projects, {
         code: String(input.target_project_code ?? '').toUpperCase(),
       })
       if (!destination) throw new Error(`Project ${input.target_project_code ?? ''} was not found or is not editable.`)
@@ -302,6 +311,20 @@ export async function proposeSerialTodoOperations(
       })
     }
   }
+
+  return resolved.map((item, index) => ({
+    ...item,
+    toolUseId: operations[index]?.toolUseId ?? `todo-command-${index}`,
+    summary: operations.length === 1 ? options.summary : `${item.kind.replace(/_/g, ' ')} “${item.title}”`,
+  }))
+}
+
+export async function proposeSerialTodoOperations(
+  auth: AuthContext,
+  operations: SerialTodoOperation[],
+  options: SerialTodoPreparationOptions,
+) {
+  const resolved = await prepareSerialTodoOperations(auth, operations, options)
 
   if (resolved.length > 1) {
     if (resolved.some(item => item.kind === 'close_todo')) {

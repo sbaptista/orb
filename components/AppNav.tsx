@@ -123,13 +123,13 @@ export default function AppNav({ printContext, userInitial = '?', userName, orbT
 
       {/* ── Commands modal ── */}
       {commandsOpen && (
-        <div className="modal-overlay" onClick={() => setCommandsOpen(false)}>
+        <>
+          <div className="modal-backdrop" onClick={() => setCommandsOpen(false)} />
           <div
             className="modal-center"
             role="dialog"
             aria-modal="true"
             aria-labelledby="commands-dialog-title"
-            onClick={e => e.stopPropagation()}
             style={{ maxWidth: '320px' }}
           >
             <div className="modal-header">
@@ -157,7 +157,7 @@ export default function AppNav({ printContext, userInitial = '?', userName, orbT
               <OrbVersionLabel />
             </div>
           </div>
-        </div>
+        </>
       )}
     </>
   )

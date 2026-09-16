@@ -51,6 +51,7 @@ function round(value: number) {
 
 export async function startSileroShadow(
   stream: MediaStream,
+  onRealSpeechStart?: () => void,
 ): Promise<SileroShadowController> {
   const measurement = startInteraction({
     focus: 'voice',
@@ -116,7 +117,10 @@ export async function startSileroShadow(
         prune(nowMs)
       },
       onSpeechStart: () => recordEvent('start'),
-      onSpeechRealStart: () => recordEvent('real_start'),
+      onSpeechRealStart: () => {
+        recordEvent('real_start')
+        onRealSpeechStart?.()
+      },
       onSpeechEnd: () => recordEvent('end'),
       onVADMisfire: () => recordEvent('misfire'),
     })

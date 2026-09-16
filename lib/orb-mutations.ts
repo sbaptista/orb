@@ -12,7 +12,7 @@
 
 import type { createAdminClient } from '@/lib/supabase/admin'
 import type { AuthContext } from '@/lib/auth'
-import { generateUniqueCode } from '@/lib/project-codes'
+import { generateUniqueCode, normalizeProjectCode } from '@/lib/project-codes'
 import { persistOrbMutationProposal, type OrbMutationKind } from '@/lib/orb-operations/proposals'
 
 type Admin = ReturnType<typeof createAdminClient>
@@ -43,6 +43,31 @@ export type ProjectResolution =
   | { status: 'ambiguous'; candidates: Array<{ id: string; name: string; code: string }> }
   | { status: 'not_found' }
 
+export type ProjectMutationRow = {
+  id: string
+  name: string
+  code: string
+  description: string | null
+  updated_at: string
+  created_by: string
+}
+
+export type KnowledgeMutationRow = {
+  id: string
+  title: string
+  content: string
+  tags: string[] | null
+  updated_at: string
+  product_id: string | null
+}
+
+export type OrbMutationPreparationSnapshot = {
+  projects: ProjectMutationRow[]
+  knowledgeEntries: KnowledgeMutationRow[]
+  reservedProjectCodes: Set<string>
+  reservedProjectNames: Set<string>
+}
+
 // Normalize for MATCHING only — preserve original text for display.
 function normalize(s: string): string {
   return s.trim().replace(/\s+/g, ' ').toLowerCase()
@@ -64,7 +89,15 @@ export async function resolveProjectReference(
   let q = admin.from('projects').select('id, name, code, description, updated_at, created_by').is('deleted_at', null)
   if (!ctx.isAdmin) q = q.eq('created_by', ctx.userId)
   const { data } = await q
-  const projects = (data ?? []) as Array<{ id: string; name: string; code: string; description: string | null; updated_at: string; created_by: string }>
+  return resolveProjectReferenceFromRows(reference, (data ?? []) as ProjectMutationRow[])
+}
+
+export function resolveProjectReferenceFromRows(
+  reference: string,
+  projects: ProjectMutationRow[],
+): ProjectResolution {
+  const ref = normalize(reference)
+  if (!ref) return { status: 'not_found' }
 
   let matches = projects.filter(p => normalize(p.name) === ref)
   if (matches.length === 0) matches = projects.filter(p => (p.code ?? '').toLowerCase() === ref)
@@ -111,7 +144,15 @@ export async function resolveKnowledgeReference(
   if (!ref) return { status: 'not_found' }
 
   const { data } = await admin.from('knowledge_repo').select('id, title')
-  const entries = (data ?? []) as Array<{ id: string; title: string }>
+  return resolveKnowledgeReferenceFromRows(reference, (data ?? []) as Array<{ id: string; title: string }>)
+}
+
+export function resolveKnowledgeReferenceFromRows(
+  reference: string,
+  entries: Array<{ id: string; title: string }>,
+): KnowledgeResolution {
+  const ref = normalize(reference)
+  if (!ref) return { status: 'not_found' }
 
   const exact = entries.filter(e => normalize(e.title) === ref)
   if (exact.length === 1) return { status: 'found', id: exact[0].id, title: exact[0].title }
@@ -148,19 +189,106 @@ export async function resolveKnowledgeReference(
   return { status: 'not_found' }
 }
 
+export async function loadOrbMutationPreparationSnapshot(
+  auth: AuthContext,
+  options: { includeKnowledge: boolean },
+): Promise<OrbMutationPreparationSnapshot> {
+  let projectQuery = auth.admin
+    .from('projects')
+    .select('id, name, code, description, updated_at, created_by')
+    .is('deleted_at', null)
+  if (!auth.isAdmin) projectQuery = projectQuery.eq('created_by', auth.user.id)
+
+  const [projectResult, knowledgeResult] = await Promise.all([
+    projectQuery,
+    options.includeKnowledge
+      ? auth.admin.from('knowledge_repo').select('id, title, content, tags, updated_at, product_id')
+      : Promise.resolve({ data: [], error: null }),
+  ])
+  if (projectResult.error) throw projectResult.error
+  if (knowledgeResult.error) throw knowledgeResult.error
+  const projects = (projectResult.data ?? []) as ProjectMutationRow[]
+  return {
+    projects,
+    knowledgeEntries: (knowledgeResult.data ?? []) as KnowledgeMutationRow[],
+    reservedProjectCodes: new Set(
+      projects
+        .filter(project => project.created_by === auth.user.id)
+        .map(project => project.code.toUpperCase()),
+    ),
+    reservedProjectNames: new Set(
+      projects
+        .filter(project => project.created_by === auth.user.id)
+        .map(project => normalize(project.name)),
+    ),
+  }
+}
+
+function reserveUniqueProjectCode(
+  name: string,
+  requestedCode: string,
+  snapshot: OrbMutationPreparationSnapshot,
+): string | null {
+  const makeAvailable = (base: string) => {
+    let code = base || 'PROJ'
+    if (code.length > 10) code = code.slice(0, 10)
+    let candidate = code
+    let suffix = 1
+    while (snapshot.reservedProjectCodes.has(candidate)) {
+      suffix += 1
+      const suffixText = String(suffix)
+      candidate = code.slice(0, 10 - suffixText.length) + suffixText
+    }
+    snapshot.reservedProjectCodes.add(candidate)
+    return candidate
+  }
+  if (requestedCode) {
+    const normalized = requestedCode.trim().toUpperCase()
+    if (!/^[A-Z0-9]{1,10}$/.test(normalized) || snapshot.reservedProjectCodes.has(normalized)) return null
+    snapshot.reservedProjectCodes.add(normalized)
+    return normalized
+  }
+  return makeAvailable(normalizeProjectCode(name))
+}
+
 // ── Pending store (server-held; one row per user, superseded on each propose) ──
 
-export async function getPendingMutation(admin: Admin, userId: string): Promise<PendingMutationRow | null> {
-  const { data } = await admin
+export async function getPendingMutation(admin: Admin, userId: string, conversationId?: string): Promise<PendingMutationRow | null> {
+  if (conversationId) {
+    const { data: batch, error: batchError } = await admin.rpc('get_pending_orb_command_batch', {
+      p_user_id: userId,
+      p_conversation_id: conversationId,
+    })
+    if (batchError) throw batchError
+    if (batch) {
+      const row = batch as Record<string, any>
+      return {
+        id: row.id,
+        proposal_id: row.id,
+        user_id: row.user_id,
+        tool: 'command_batch',
+        target_id: null,
+        project_id: null,
+        params: { commands: Array.isArray(row.commands) ? row.commands : [] },
+        summary: row.summary,
+        created_at: row.created_at,
+        expires_at: row.expires_at,
+      }
+    }
+  }
+  let query = admin
     .from('orb_realtime_proposals')
     .select('*')
     .eq('user_id', userId)
-    .eq('channel', 'serial')
     .eq('status', 'proposed')
     .gt('expires_at', new Date().toISOString())
     .order('created_at', { ascending: false })
     .limit(1)
-    .maybeSingle()
+  query = conversationId
+    ? query.eq('conversation_id', conversationId)
+    : query.eq('channel', 'serial')
+  const { data, error } = await query.maybeSingle()
+  if (error) throw error
   if (!data) return null
   return {
     id: data.id,
@@ -188,12 +316,16 @@ export async function storePendingMutation(
     destination_project_id?: string | null
   },
 ){
-  await auth.admin
+  let deleteQuery = auth.admin
     .from('orb_realtime_proposals')
     .delete()
     .eq('user_id', auth.user.id)
-    .eq('channel', 'serial')
     .eq('status', 'proposed')
+  deleteQuery = auth.interaction?.conversationId
+    ? deleteQuery.eq('conversation_id', auth.interaction.conversationId)
+    : deleteQuery.eq('channel', 'serial')
+  const { error: deleteError } = await deleteQuery
+  if (deleteError) throw deleteError
   const isTodo = ['update_todo', 'delete_todo', 'move_todo', 'close_todo'].includes(m.tool)
   const isProject = ['update_project', 'delete_project'].includes(m.tool)
   return persistOrbMutationProposal(auth, {
@@ -208,13 +340,33 @@ export async function storePendingMutation(
   })
 }
 
-export async function clearPendingMutation(admin: Admin, userId: string): Promise<void> {
-  await admin
+export async function clearPendingMutation(admin: Admin, userId: string, conversationId?: string): Promise<void> {
+  if (conversationId) {
+    const { data: batch, error: pendingBatchError } = await admin.rpc('get_pending_orb_command_batch', {
+      p_user_id: userId,
+      p_conversation_id: conversationId,
+    })
+    if (pendingBatchError) throw pendingBatchError
+    const batchId = (batch as Record<string, any> | null)?.id
+    if (batchId) {
+      const { error: rejectError } = await admin.rpc('reject_orb_command_batch', {
+        p_batch_id: batchId,
+        p_user_id: userId,
+      })
+      if (rejectError) throw rejectError
+      return
+    }
+  }
+  let query = admin
     .from('orb_realtime_proposals')
     .delete()
     .eq('user_id', userId)
-    .eq('channel', 'serial')
     .eq('status', 'proposed')
+  query = conversationId
+    ? query.eq('conversation_id', conversationId)
+    : query.eq('channel', 'serial')
+  const { error } = await query
+  if (error) throw error
 }
 
 // ── Propose: resolve + validate, but DO NOT execute ───────────────────────────
@@ -250,31 +402,46 @@ export async function proposeProjectMutation(
   ctx: { userId: string; isAdmin: boolean },
   tool: string,
   input: any,
+  snapshot?: OrbMutationPreparationSnapshot,
 ): Promise<ProposeResult> {
   if (tool === 'create_project') {
     const name = String(input.name ?? '').trim()
     if (!name) return { kind: 'error', message: 'I need a name for the new project.' }
-    const { data: conflict } = await admin
-      .from('projects')
-      .select('name')
-      .ilike('name', name)
-      .eq('created_by', ctx.userId)
-      .is('deleted_at', null)
-      .maybeSingle()
-    if (conflict) return { kind: 'error', message: `You already have a project named "${name}".` }
+    if (snapshot) {
+      const normalizedName = normalize(name)
+      const conflict = snapshot.reservedProjectNames.has(normalizedName)
+      if (conflict) return { kind: 'error', message: `You already have a project named "${name}".` }
+      snapshot.reservedProjectNames.add(normalizedName)
+    } else {
+      const { data: conflict } = await admin
+        .from('projects')
+        .select('name')
+        .ilike('name', name)
+        .eq('created_by', ctx.userId)
+        .is('deleted_at', null)
+        .maybeSingle()
+      if (conflict) return { kind: 'error', message: `You already have a project named "${name}".` }
+    }
     const requestedCode = typeof input.code === 'string' ? input.code.trim().toUpperCase() : ''
-    const candidateCode = requestedCode || await generateUniqueCode(admin, name, ctx.userId)
+    const candidateCode = snapshot
+      ? reserveUniqueProjectCode(name, requestedCode, snapshot)
+      : requestedCode || await generateUniqueCode(admin, name, ctx.userId)
+    if (!candidateCode) {
+      return { kind: 'error', message: requestedCode ? `The project code "${requestedCode}" is already in use.` : 'A unique project code could not be allocated.' }
+    }
     if (!/^[A-Z0-9]{1,10}$/.test(candidateCode)) {
       return { kind: 'error', message: 'The project code must be 1–10 uppercase letters or numbers.' }
     }
-    const { data: codeConflict } = await admin
-      .from('projects')
-      .select('id')
-      .eq('created_by', ctx.userId)
-      .ilike('code', candidateCode)
-      .is('deleted_at', null)
-      .maybeSingle()
-    if (codeConflict) return { kind: 'error', message: `The project code "${candidateCode}" is already in use.` }
+    if (!snapshot) {
+      const { data: codeConflict } = await admin
+        .from('projects')
+        .select('id')
+        .eq('created_by', ctx.userId)
+        .ilike('code', candidateCode)
+        .is('deleted_at', null)
+        .maybeSingle()
+      if (codeConflict) return { kind: 'error', message: `The project code "${candidateCode}" is already in use.` }
+    }
     return {
       kind: 'propose',
       target_id: null,
@@ -289,7 +456,9 @@ export async function proposeProjectMutation(
   const reference = String(input.name ?? '').trim()
   if (!reference) return { kind: 'error', message: 'Which project did you mean?' }
 
-  const res = await resolveProjectReference(admin, reference, ctx)
+  const res = snapshot
+    ? resolveProjectReferenceFromRows(reference, snapshot.projects)
+    : await resolveProjectReference(admin, reference, ctx)
   if (res.status === 'not_found') return { kind: 'error', message: `I don't see a project called "${reference}".` }
   if (res.status === 'ambiguous') {
     return { kind: 'ambiguous', candidates: res.candidates.map(c => ({ name: c.name, code: c.code })) }
@@ -343,6 +512,7 @@ export async function proposeKnowledgeMutation(
   ctx: { userId: string; isAdmin: boolean },
   tool: string,
   input: any,
+  snapshot?: OrbMutationPreparationSnapshot,
 ): Promise<ProposeResult> {
   if (tool === 'add_knowledge') {
     const title = String(input.title ?? '').trim().slice(0, 240)
@@ -350,14 +520,21 @@ export async function proposeKnowledgeMutation(
     if (!title || !content) return { kind: 'error', message: 'A knowledge title and content are required.' }
     const code = String(input.product_code ?? '').trim()
     if (!code) return { kind: 'error', message: 'Choose a project before saving knowledge.' }
-    let query = admin
-      .from('projects')
-      .select('id, name, code, created_by')
-      .ilike('code', code)
-      .is('deleted_at', null)
-    if (!ctx.isAdmin) query = query.eq('created_by', ctx.userId)
-    const { data: project, error } = await query.maybeSingle()
-    if (error || !project) return { kind: 'error', message: `Project "${code}" was not found or is not editable.` }
+    let project: { id: string; name: string; code: string; created_by: string } | null = null
+    if (snapshot) {
+      project = snapshot.projects.find(candidate => candidate.code.toUpperCase() === code.toUpperCase()) ?? null
+    } else {
+      let query = admin
+        .from('projects')
+        .select('id, name, code, created_by')
+        .ilike('code', code)
+        .is('deleted_at', null)
+      if (!ctx.isAdmin) query = query.eq('created_by', ctx.userId)
+      const result = await query.maybeSingle()
+      project = result.data
+      if (result.error) return { kind: 'error', message: `Project "${code}" was not found or is not editable.` }
+    }
+    if (!project) return { kind: 'error', message: `Project "${code}" was not found or is not editable.` }
     const attributed = `${new Date().toISOString().slice(0, 10)} — Orb (Claude Haiku 4.5)\n\n${content}`
     return {
       kind: 'propose',
@@ -378,18 +555,27 @@ export async function proposeKnowledgeMutation(
   const reference = String(input.title ?? '').trim()
   if (!reference) return { kind: 'error', message: 'Which knowledge entry did you mean?' }
 
-  const res = await resolveKnowledgeReference(admin, reference)
+  const res = snapshot
+    ? resolveKnowledgeReferenceFromRows(reference, snapshot.knowledgeEntries)
+    : await resolveKnowledgeReference(admin, reference)
   if (res.status === 'not_found') return { kind: 'error', message: `I don't see a knowledge entry called "${reference}". Try search_knowledge to find the exact title.` }
   if (res.status === 'ambiguous') {
     return { kind: 'ambiguous', candidates: res.candidates.map(c => ({ name: c.title })) }
   }
 
-  const { data: entry, error: entryError } = await admin
-    .from('knowledge_repo')
-    .select('id, title, content, tags, updated_at, product_id')
-    .eq('id', res.id)
-    .single()
-  if (entryError || !entry) {
+  let entry: KnowledgeMutationRow | null = null
+  if (snapshot) {
+    entry = snapshot.knowledgeEntries.find(candidate => candidate.id === res.id) ?? null
+  } else {
+    const result = await admin
+      .from('knowledge_repo')
+      .select('id, title, content, tags, updated_at, product_id')
+      .eq('id', res.id)
+      .single()
+    entry = result.data as KnowledgeMutationRow | null
+    if (result.error) entry = null
+  }
+  if (!entry) {
     return { kind: 'error', message: 'That knowledge entry is no longer available.' }
   }
 

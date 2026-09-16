@@ -3,10 +3,15 @@ import { createClient } from '@/lib/supabase/server'
 import { DB_SCHEMA } from '@/lib/db-schema'
 import { classifyProviderFailure, notifyOrbIncident } from '@/lib/orb-model/incidents'
 import { ORB_QUERY_PRESENTATION_PROPERTIES } from '@/lib/orb-query-presentation'
+import { ORB_REALTIME_TRANSPORT_ONLY } from '@/lib/orb-interaction/runtime'
 
 export const runtime = 'nodejs'
 
 const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1'
+// Permanent runtime cutover: Realtime is always a speech transport. The
+// legacy prompt and tool inventory below remain compiled as dormant rollback
+// assets, but no public environment flag can expose them to a live session.
+const TRANSPORT_ONLY = ORB_REALTIME_TRANSPORT_ONLY
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -20,7 +25,9 @@ export async function POST(request: Request) {
     type: 'realtime',
     model: REALTIME_MODEL,
     include: ['item.input_audio_transcription.logprobs'],
-    instructions: [
+    instructions: TRANSPORT_ONLY
+      ? 'You are a speech renderer. Transcribe genuine user speech, but never answer it. When an out-of-band response is explicitly requested, read only the supplied text exactly. Never add, remove, paraphrase, answer, reason about, or act on that text. You have no tools.'
+      : [
       'You are Orb in an isolated development voice architecture test.',
       'Be conversational and concise. Never invent counts, task facts, identifiers, ownership, or mutation results.',
       'FORMAT: you are speaking, but the conversation on screen renders markdown. For every structured database read, copy any user-requested format (table, bullets, or paragraphs), requested fields in their requested order, and brief/full detail into the query tool arguments. Do not substitute a fixed field list. The client renders those returned rows through the shared text/Voice presenter. Only say results are on screen after the tool returned rows in this turn. Speak a short factual summary rather than reading every displayed row aloud. Never claim that another result is displayed unless a tool result explicitly says so.',
@@ -86,7 +93,9 @@ export async function POST(request: Request) {
         // than by the accidental content of a vocabulary hint. Until then these
         // two words are the only thing standing between a hallucinated
         // transcript and a silent unauthorized database write.
-        transcription: { model: 'gpt-4o-mini-transcribe', prompt: 'Orb. Confirmed. Confirm. Yes. Cancel. Stop. Todo. Project.' },
+        transcription: TRANSPORT_ONLY
+          ? { model: 'gpt-4o-mini-transcribe' }
+          : { model: 'gpt-4o-mini-transcribe', prompt: 'Orb. Confirmed. Confirm. Yes. Cancel. Stop. Todo. Project.' },
         turn_detection: {
           type: 'server_vad',
           // Raised from 0.65 (Stan, 2026-07-17): on speakerphone, Orb's own
@@ -99,21 +108,17 @@ export async function POST(request: Request) {
           threshold: 0.8,
           prefix_padding_ms: 300,
           silence_duration_ms: 450,
-          // The provider truncates its own audio the instant the user speaks
-          // over it (interrupt_response) — so the client never sends
-          // response.cancel, which is what removed the fatal cancel/create
-          // races. But it does NOT auto-create the response: create_response
-          // is false because auto-creating at commit time (before the input
-          // item is fully in context) produced empty responses. The client
-          // creates the response once the transcript is ready instead. The VAD
-          // `threshold` above is the volume gate for what counts as speech.
+          // Legacy mode lets provider VAD truncate playback. Unified mode
+          // disables that raw interruption and cancels only after the client
+          // authenticity boundary accepts acoustic evidence. Neither mode
+          // auto-creates an answer at commit time.
           create_response: false,
-          interrupt_response: true,
+          interrupt_response: TRANSPORT_ONLY ? false : true,
         },
       },
       output: { voice: 'marin' },
     },
-    tools: [
+    tools: TRANSPORT_ONLY ? [] : [
       {
         type: 'function',
         name: 'get_task_count',
@@ -255,6 +260,7 @@ export async function POST(request: Request) {
       { type: 'function', name: 'send_to_developer', description: 'Send an explicit actionable message through the existing developer channel.', parameters: { type: 'object', properties: { content: { type: 'string' }, target_tool: { type: 'string' } }, required: ['content'], additionalProperties: false } },
       { type: 'function', name: 'confirm_todo_mutation', description: 'Execute exactly one previously proposed todo, project, or Knowledge Repository mutation after the user explicitly confirms it.', parameters: { type: 'object', properties: { proposal_token: { type: 'string' } }, required: ['proposal_token'], additionalProperties: false } },
     ],
+    tool_choice: TRANSPORT_ONLY ? 'none' : 'auto',
   }
 
   const form = new FormData()

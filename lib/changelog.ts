@@ -6,6 +6,114 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.325',
+    date: '2026-09-16',
+    changes: [
+      'Documented the unified-interaction implementation and failed voice-create acceptance in a dedicated Claude handoff. This is a documentation and ownership handoff, not a claim that the voice failure is fixed.',
+      'Removed all Codex active claims and committed the accumulated local work without pushing. The ORB-381 cost-comparison plan is included as separate Codex-authored planning work.',
+    ],
+  },
+  {
+    version: 'v0.6.324',
+    date: '2026-09-15',
+    changes: [
+      'Closed the project-creation presentation gap exposed by unified voice testing. A successful mutation receipt now carries every committed project row through the shared response artifact; the dashboard projects those rows into both project collections immediately, then reconciles with the ordinary database read without allowing read-after-write timing to remove them.',
+      'Made receipt recovery effectful rather than presentational only. If interruption or disconnect prevents the live stream from consuming a committed project or todo receipt, startup recovery now applies its project/todo refresh instructions before acknowledging delivery. Single and batched project creates share this path, while the selected project remains unchanged unless it was deleted or no project was selected.',
+      'No project is inserted optimistically from model speech or an unconfirmed proposal: the immediate list update requires the database-issued committed row. TypeScript, deterministic interaction checks, focused ESLint with zero errors, UI and handoff verification, and whitespace checks passed once after release bookkeeping; direct authenticated voice acceptance remains required.',
+    ],
+  },
+  {
+    version: 'v0.6.323',
+    date: '2026-09-15',
+    changes: [
+      'Fixed interruption of exact-text Realtime speech being misreported as corruption. OpenAI emits `response.output_audio_transcript.done` for interrupted and cancelled responses as well as completed ones, so an intentional barge-in naturally returns only the spoken prefix. Orb now associates expected speech with the provider `response_id` and marks that exact response interrupted after trusted acoustic evidence.',
+      'Partial output transcripts are discarded only for the matching interrupted response. Uninterrupted responses still require full exact-text agreement and still stop the voice session on a real mismatch; stale transcript events from a different response cannot be compared with newer expected speech. TypeScript, deterministic interaction checks, focused Realtime lint, and whitespace checks passed once. Direct interruption acceptance remains required.',
+    ],
+  },
+  {
+    version: 'v0.6.322',
+    date: '2026-09-15',
+    changes: [
+      'Corrected the first unified-voice acceptance failure after permanent cutover. Explicit letter-by-letter speech such as “T-E-S-T numeral one” now adds an exact model-facing identifier (`TEST1`) while retaining the original transcript in durable history, preventing project and todo tools from substituting the homophone “test one”.',
+      'Strengthened confirmation continuity across interruptions and unrelated conversation. Command-batch proposals now remain confirmable for 30 minutes instead of five. Added matching Tier 1 cases for exact spelled project names and an `OK` confirmation after an unrelated intervening exchange.',
+      'Suppressed the specific harmless OpenAI Realtime cancellation race where a barge-in cancellation reaches the provider after its response already ended. “Cancellation failed: no active response found” is now traced and ignored; all other Realtime errors still stop the session and remain visible. TypeScript, deterministic interaction verification, focused ESLint, and whitespace checks passed once; direct voice acceptance and Stan-run model evals remain required.',
+    ],
+  },
+  {
+    version: 'v0.6.321',
+    date: '2026-09-15',
+    changes: [
+      'Completed the permanent text/voice runtime cutover. Orb no longer reads separate public unified-interaction or unified-voice launcher flags: typed requests and trusted Realtime transcripts always enter the same durable conversation history, `orbConverse` kernel, confirmation boundary, command-batch transaction, receipt handling, interruption path, and project/todo refresh logic.',
+      'Made OpenAI Realtime permanently transport-only for normal sessions. It receives no business tools, cannot independently answer or mutate, and only transcribes authenticated speech or renders the canonical response text exactly. Removed the legacy browser-session conversation fallback and local project/urgency messages that could create ghost Orb text.',
+      'Retained the former Realtime agent prompt, tool schemas, and client tool executor as dormant compiled rollback assets at Stan’s direction. No launcher flag can expose them; reactivation would require a deliberate source change and deployment. Added a shared runtime contract assertion, updated the matching voice-history and confirmation eval cases, and updated the architecture and capability documentation. Static checks passed once; direct authenticated Realtime acceptance and Stan-run `orb-dev --eval-t1` / `orb-dev --eval-t2` remain required.',
+    ],
+  },
+  {
+    version: 'v0.6.320',
+    date: '2026-09-13',
+    changes: [
+      'Corrected the first current-project deletion refresh attempt after live testing showed that the database deletion still remained visible until a browser reload. The prior implementation carried deleted IDs correctly but waited for `refreshProjects()` to complete before reconciling selection, leaving correctness dependent on a second browser-side query. The receipt consumer now removes confirmed deleted IDs from both project collections and replaces a deleted current selection synchronously, before any network refetch; the subsequent read only reconciles authoritative remaining project data.',
+      'Moved deleted-project identity extraction into a pure shared contract and added deterministic checks for the exact persisted command-batch shape, multi-delete extraction, collection removal, unaffected-selection retention, deleted-selection fallback, first-create selection, and no-selection behavior. The fallback still persists through the existing cross-device current-project effect. No database or model contract changed; model eval is not applicable to this deterministic receipt-presentation correction.',
+    ],
+  },
+  {
+    version: 'v0.6.319',
+    date: '2026-09-13',
+    changes: [
+      'Added deleted project IDs to successful canonical response artifacts and used them during the post-mutation project refresh while preserving unaffected selection. Live testing found this incomplete: reconciliation still waited for the browser-side refresh query, so a committed deletion could remain visible until the tab was refreshed. Superseded by v0.6.320.',
+      'Added the initial deterministic selection checks for retained, deleted, first-create, and no-selection outcomes.',
+    ],
+  },
+  {
+    version: 'v0.6.318',
+    date: '2026-09-13',
+    changes: [
+      'Made the shared Commands dialog dismiss when the user clicks outside it. The dialog now uses the catalogued full-viewport `modal-backdrop` sibling used by Orb’s other centered modals; clicks inside remain ordinary dialog interaction, while the existing close button is unchanged. Updated the UI catalog. This is presentation-only; no Orb conversation capability, tool, routing rule, prompt, or defined speech behavior changed, so model evals are not applicable.',
+    ],
+  },
+  {
+    version: 'v0.6.317',
+    date: '2026-09-12',
+    changes: [
+      'Closed two shared-interaction defects exposed by the first text acceptance run. The server authorization grammar now accepts an otherwise-bare confirmation with one obvious typing or transcription edit, including the observed “Go aherad” and “es”, while questions, negations, mixed instructions, and longer sentence-shaped input remain outside the deterministic typo path and continue to fail closed or use the semantic classifier.',
+      'Stopped project-switch and urgency effects from injecting local passive status messages into a unified conversation. After a batch deletes the selected project, the dashboard may select a valid fallback project for navigation, but text and transport-only voice history now receive visible Orb messages only from the durable coordinator; the observed unrelated “Shunyata — 7 active” line can no longer appear as a conversation response.',
+      'Made post-commit refresh scopes explicit in canonical response artifacts and durable recovery. Any project mutation refreshes the project collection, including a project command inside a mixed batch; todo and project refreshes can both run for the same receipt. Refreshing never changes the current project merely because another project was created or changed. Selection moves only when the selected project itself was deleted, with initial zero-project creation retained as the sole no-selection exception.',
+      'Added deterministic positive and negative typo-boundary checks and a matching Tier 1 confirmation case. The original four-delete response in Stan’s transcript used the legacy bullet-list/model-narration format; the successful retry used the v0.6.316 numbered batch and exact database-receipt format. The read-only broker subsequently showed all four test projects absent. Stan must restart the launcher before retesting this client/server change and run the shared Tier 1 gate through `orb-dev --eval-t1` after manual acceptance.',
+    ],
+  },
+  {
+    version: 'v0.6.316',
+    date: '2026-09-12',
+    changes: [
+      'Introduced the generic unified-interaction command batch used by both text and transport-only voice. Every confirmation-gated user mutation now enters one ordered batch even when the batch contains a single command; project, Knowledge, todo, and ticket commands are prepared together, persisted in one database call, displayed together, and authorized by one distinct later text or voice turn. This replaces the last-proposal-wins behavior that displayed three project deletions but retained only the final project.',
+      'Added service-only command-batch and ordered-item tables plus prepare, pending-read, reject, and confirm RPCs. Confirmation locks the parent batch and executes every child through the existing canonical mutation dispatchers inside one database transaction, so a missing, stale, unauthorized, or failed item rolls back the entire batch. The durable aggregate receipt contains every child receipt in request order and replay returns it without repeating writes. Preparation resolves each domain from one bounded snapshot rather than issuing one application query per requested item.',
+      'Added deterministic command-order and complete-confirmation rendering checks, a three-project deletion Tier 1 case, migration verification SQL, and the revised printable architecture flow. The migration is not applied and live acceptance is pending; Stan must apply and verify it before testing this release, then run the required full Tier 1 gate through `orb-dev --eval-t1`. Durable transactional outbox delivery for post-commit external notifications remains a later batch phase and is not claimed here.',
+    ],
+  },
+  {
+    version: 'v0.6.315',
+    date: '2026-09-11',
+    changes: [
+      'Fixed a text-to-unified-voice handoff race. Realtime speech now waits for the data channel to be ready before rendering an existing Orb response, and a channel that closes during submission is handled without throwing a runtime error. The readiness boundary prevents a response from being marked spoken until exact-text rendering was actually queued. Realtime-only behavior changed; Stan must perform direct voice acceptance and run the affected shared serial gates through the Orb launcher before release.',
+    ],
+  },
+  {
+    version: 'v0.6.314',
+    date: '2026-09-11',
+    changes: [
+      'Fixed the Orb conversation More menu being clipped in narrow dashboard panes. The existing overflow pattern now positions and bounds the menu against the full toolbar instead of the More button, and permits secondary descriptions to wrap, preventing either trigger placement or unbroken labels from forcing the menu beyond its containing pane. Updated the UI catalog with the containment rule. This is presentation-only; no Orb conversation capability, tool, routing rule, prompt, or defined speech behavior changed, so model evals are not applicable.',
+    ],
+  },
+  {
+    version: 'v0.6.313',
+    date: '2026-09-11',
+    changes: [
+      'Introduced the approved unified Orb interaction boundary behind staged text and voice feature flags. Typed and spoken requests now enter one durable per-user conversation event log, use one server history projection and Orb kernel, preserve modality only as metadata, and produce one canonical response artifact whose Markdown is rendered on screen and whose derived spoken text is handed to a tool-disabled Realtime speech session. `/clear` soft-closes the current conversation and starts another; switching projects no longer erases shared history. Raw audio, provider traffic, partial deltas, progress labels, and hidden reasoning are never stored as visible conversation history.',
+      'Made mutation confirmation and interruption transport-neutral. Pending proposals are scoped to conversation rather than channel, a database confirmation wrapper binds each commit to a distinct later trusted user event by monotonic sequence, and text or voice may confirm a proposal made through the other mode. Text Stop, replacement submission, voice Stop, exit, and authenticated barge-in emit the same interrupt event; interrupted uncommitted output is not persisted, while committed effects keep deterministic replay-safe receipts. Per-client response acknowledgements and reconnect repair reconstruct missing receipt presentation from the authoritative transaction ledger without executing again.',
+      'Removed internal progress/thought labels from conversation cards and transcript copy/export, and deleted the unused older OrbPanel adapter so it cannot become a second text path. Realtime transcript admission now fails closed without acoustic evidence, accepts measured short-speech patterns as well as full Silero real starts, and does not let raw provider VAD interrupt playback; exact-speech transcript mismatch stops the renderer instead of allowing divergent Orb text. Added coordinator-persistence timing, structural SQL verification, deterministic mixed-modality/visibility/authenticity checks, capability documentation, and categorized Tier 1/Tier 2 eval coverage. Model evals and authenticated browser/database acceptance remain Stan-run release gates through the Orb launcher.',
+    ],
+  },
+  {
     version: 'v0.6.312',
     date: '2026-09-07',
     changes: [

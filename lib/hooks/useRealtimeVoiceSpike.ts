@@ -9,13 +9,17 @@ import {
   type SileroShadowController,
   type SileroShadowMetadata,
 } from '@/lib/voice/silero-shadow'
+import { isAuthenticVoiceTurn } from '@/lib/orb-interaction/voice-authenticity'
 
 type SpikeStatus = 'off' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'error'
 
 type Options = {
   currentProjectId: string | null
+  transportOnly?: boolean
   onUserTranscript: (text: string) => void
   onOrbTranscript: (text: string) => void
+  onInterrupt?: (reason: 'barge_in') => void
+  onUntrustedTranscript?: () => void
   onMutation: () => void
   onClientAction: (action: { action: string; target?: string }) => void
 }
@@ -32,9 +36,25 @@ type RealtimeEvent = {
   type: string
   item_id?: string
   transcript?: string
+  response_id?: string
+  logprobs?: Array<{ logprob?: number }>
   delta?: string
   response?: { id?: string; output?: Array<{ type?: string; name?: string; call_id?: string; arguments?: string }>; usage?: RealtimeUsage }
-  error?: { message?: string }
+  error?: { message?: string; code?: string; type?: string }
+}
+
+function isBenignCancellationRace(error: RealtimeEvent['error']): boolean {
+  const detail = `${error?.code ?? ''} ${error?.type ?? ''} ${error?.message ?? ''}`
+  return /cancel(?:lation)?[^\n]*no active response|no active response[^\n]*cancel/i.test(detail)
+}
+
+function transcriptionConfidence(logprobs: RealtimeEvent['logprobs']) {
+  const values = (logprobs ?? [])
+    .map(item => item.logprob)
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+  if (values.length === 0) return null
+  const averageLogProbability = values.reduce((sum, value) => sum + value, 0) / values.length
+  return Math.exp(averageLogProbability)
 }
 
 // Fire-and-forget: log this response's token usage to Orb's own ledger so
@@ -57,18 +77,18 @@ function parseArguments(value: string | undefined) {
 // Result of one tool call. The batch aggregates these into a single response.
 type ToolOutcome = { createResponse: boolean; exactText?: string; exitVoice?: boolean }
 
-// ORB-325: Provider-owned turn-taking.
+// ORB-325 legacy mode used provider-owned turn-taking. The unified mode keeps
+// provider VAD only as a capture signal: Silero authenticates interruptions,
+// Orb's shared server action owns the answer/tools, and Realtime only renders
+// a supplied response artifact.
 //
-// The OpenAI Realtime session runs server VAD with `create_response: true` and
-// `interrupt_response: true`, so the *provider* owns turn detection, barge-in
-// truncation, and response creation. This hook never sends response.create or
-// response.cancel for a user turn — the only response it ever creates is the
-// single continuation after a tool result. That removes the entire class of
-// response_cancel_not_active / conversation_already_has_active_response races
-// that the previous client-side turn state machine produced. There is no
-// greeting: the session opens straight into listening.
+// Both modes use server VAD with automatic response creation disabled. Legacy
+// mode still asks the Realtime model to answer after a transcript. Unified mode
+// forwards only trusted text and later creates one out-of-band audio response
+// with tools disabled. There is no greeting.
 export function useRealtimeVoiceSpike(options: Options) {
   const [status, setStatus] = useState<SpikeStatus>('off')
+  const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const peerRef = useRef<RTCPeerConnection | null>(null)
   // ORB-372: OpenAI's handle for the live call, so stop() can end it there
@@ -85,6 +105,13 @@ export function useRealtimeVoiceSpike(options: Options) {
   const sileroTurnStartedAtRef = useRef<number | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const orbTranscriptRef = useRef('')
+  const expectedSpeechRef = useRef<{
+    responseId: string
+    text: string
+    providerResponseId?: string
+    interrupted: boolean
+  } | null>(null)
+  const pendingAcousticInterruptRef = useRef(false)
   const currentUtteranceRef = useRef('')
   const currentUtteranceTurnRef = useRef(0)
   const handledCallsRef = useRef(new Set<string>())
@@ -144,8 +171,48 @@ export function useRealtimeVoiceSpike(options: Options) {
 
   const send = useCallback((event: Record<string, unknown>) => {
     const channel = channelRef.current
-    if (channel?.readyState !== 'open') throw new Error('Realtime data channel is not open')
-    channel.send(JSON.stringify(event))
+    if (channel?.readyState !== 'open') {
+      emitTrace.current(`send skipped: data channel not open (${typeof event.type === 'string' ? event.type : 'unknown'})`)
+      return false
+    }
+    try {
+      channel.send(JSON.stringify(event))
+      return true
+    } catch (error) {
+      emitTrace.current(`send failed: ${error instanceof Error ? error.message : 'unknown error'}`)
+      return false
+    }
+  }, [])
+
+  const speakExact = useCallback((text: string, responseId: string) => {
+    const spokenText = text.trim()
+    if (!spokenText) return false
+    const sent = send({
+      type: 'response.create',
+      response: {
+        conversation: 'none',
+        output_modalities: ['audio'],
+        tools: [],
+        tool_choice: 'none',
+        metadata: { orb_response_id: responseId, response_purpose: 'exact_speech_render' },
+        instructions: 'Read the supplied text exactly. Do not add, remove, paraphrase, answer, or comment on it.',
+        input: [{
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: spokenText }],
+        }],
+      },
+    })
+    if (!sent) return false
+    expectedSpeechRef.current = { responseId, text: spokenText, interrupted: false }
+    orbTranscriptRef.current = ''
+    setStatus('thinking')
+    return true
+  }, [send])
+
+  const markExpectedSpeechInterrupted = useCallback(() => {
+    if (expectedSpeechRef.current) expectedSpeechRef.current.interrupted = true
+    orbTranscriptRef.current = ''
   }, [])
 
   const clearResponseWatchdog = useCallback(() => {
@@ -172,7 +239,15 @@ export function useRealtimeVoiceSpike(options: Options) {
     const generation = sileroGenerationRef.current + 1
     sileroGenerationRef.current = generation
     sileroShadowStateRef.current = 'loading'
-    void startSileroShadow(stream)
+    void startSileroShadow(stream, () => {
+      if (!callbacksRef.current.transportOnly || !pendingAcousticInterruptRef.current) return
+      pendingAcousticInterruptRef.current = false
+      markExpectedSpeechInterrupted()
+      if (responseInFlightRef.current) {
+        try { send({ type: 'response.cancel' }) } catch { /* channel teardown wins */ }
+      }
+      callbacksRef.current.onInterrupt?.('barge_in')
+    })
       .then(controller => {
         if (sileroGenerationRef.current !== generation || streamRef.current !== stream) {
           void controller.destroy().catch(() => {})
@@ -184,7 +259,7 @@ export function useRealtimeVoiceSpike(options: Options) {
       .catch(() => {
         if (sileroGenerationRef.current === generation) sileroShadowStateRef.current = 'failed'
       })
-  }, [])
+  }, [markExpectedSpeechInterrupted, send])
 
   // Safety net only — the provider owns response timing, so this should not fire
   // in a healthy session. It recovers the UI to listening if a response (or a
@@ -230,6 +305,8 @@ export function useRealtimeVoiceSpike(options: Options) {
     streamRef.current = null
     audioRef.current = null
     orbTranscriptRef.current = ''
+    expectedSpeechRef.current = null
+    pendingAcousticInterruptRef.current = false
     currentUtteranceRef.current = ''
     currentUtteranceTurnRef.current = 0
     handledCallsRef.current.clear()
@@ -252,6 +329,7 @@ export function useRealtimeVoiceSpike(options: Options) {
     turnMeasurementRef.current = null
     turnFailureRef.current = null
     setError(null)
+    setReady(false)
     setStatus('off')
   }, [clearResponseWatchdog, stopSileroShadow])
 
@@ -754,10 +832,11 @@ export function useRealtimeVoiceSpike(options: Options) {
       return
     }
 
-    // The user began speaking. The provider truncates its own audio
-    // (interrupt_response) and will commit + transcribe + create a response on
-    // its own. We only reflect the interruption and open a fresh turn.
+    // The provider detected possible speech. Open a capture turn, but unified
+    // mode does not interrupt on this event alone: Silero real-start evidence
+    // (or the admitted short-speech boundary at transcript completion) owns it.
     if (message.type === 'input_audio_buffer.speech_started') {
+      const interruptedOutput = assistantSpeakingRef.current || responseInFlightRef.current || statusRef.current === 'thinking'
       clearResponseWatchdog()
       pendingCreateTurnRef.current = null
       if (turnMeasurementRef.current) endTurnMeasurement('interrupted')
@@ -776,6 +855,7 @@ export function useRealtimeVoiceSpike(options: Options) {
       })
       turnMeasurementRef.current.mark('speech_started')
       setStatus('listening')
+      pendingAcousticInterruptRef.current = options.transportOnly === true && interruptedOutput
       return
     }
 
@@ -806,15 +886,43 @@ export function useRealtimeVoiceSpike(options: Options) {
       const transcript = message.transcript.trim()
       const transcriptTurnId = message.item_id ? inputItemTurnIdsRef.current.get(message.item_id) : undefined
       if (message.item_id) inputItemTurnIdsRef.current.delete(message.item_id)
+      const acousticEvidence = sileroSnapshot()
+      const providerConfidence = transcriptionConfidence(message.logprobs)
+      turnMetadataRef.current = {
+        ...turnMetadataRef.current,
+        ...acousticEvidence,
+        transcriptionConfidence: providerConfidence,
+      }
+      if (options.transportOnly && !isAuthenticVoiceTurn(acousticEvidence, providerConfidence)) {
+        emitTrace.current('transcript rejected: insufficient acoustic evidence')
+        turnFailureRef.current = 'untrusted_transcript'
+        endTurnMeasurement(turnFailureRef.current)
+        sileroTurnStartedAtRef.current = null
+        pendingAcousticInterruptRef.current = false
+        setStatus('listening')
+        callbacksRef.current.onUntrustedTranscript?.()
+        return
+      }
+      if (options.transportOnly && pendingAcousticInterruptRef.current) {
+        pendingAcousticInterruptRef.current = false
+        markExpectedSpeechInterrupted()
+        if (responseInFlightRef.current) {
+          try { send({ type: 'response.cancel' }) } catch { /* channel teardown wins */ }
+        }
+        callbacksRef.current.onInterrupt?.('barge_in')
+      }
       callbacksRef.current.onUserTranscript(transcript)
       // Attribute the trusted utterance to its turn so a mutation tool can only
       // act on the current turn's actual words.
       const turnId = transcriptTurnId ?? activeTurnIdRef.current
       currentUtteranceRef.current = transcript
       currentUtteranceTurnRef.current = turnId
-      turnMetadataRef.current = { ...turnMetadataRef.current, ...sileroSnapshot() }
       sileroTurnStartedAtRef.current = null
       turnMeasurementRef.current?.mark('transcript_complete')
+      if (options.transportOnly) {
+        setStatus('thinking')
+        return
+      }
       // The provider does not auto-create the response (create_response:false).
       // Create it now that the input item + transcript are in context — unless a
       // prior response is still running, in which case defer to its response.done.
@@ -834,6 +942,14 @@ export function useRealtimeVoiceSpike(options: Options) {
 
     if (message.type === 'response.created') {
       responseInFlightRef.current = true
+      if (
+        options.transportOnly
+        && message.response?.id
+        && expectedSpeechRef.current
+        && !expectedSpeechRef.current.providerResponseId
+      ) {
+        expectedSpeechRef.current.providerResponseId = message.response.id
+      }
       if (message.response?.id) responseTurnIdsRef.current.set(message.response.id, activeTurnIdRef.current)
       if (statusRef.current === 'listening') setStatus('thinking')
       return
@@ -845,7 +961,38 @@ export function useRealtimeVoiceSpike(options: Options) {
     }
     if (message.type === 'response.output_audio_transcript.done') {
       const transcript = (message.transcript || orbTranscriptRef.current).trim()
-      if (transcript) callbacksRef.current.onOrbTranscript(transcript)
+      if (options.transportOnly) {
+        const expectedSpeech = expectedSpeechRef.current
+        if (
+          !expectedSpeech
+          || !message.response_id
+          || expectedSpeech.providerResponseId !== message.response_id
+        ) {
+          emitTrace.current(`speech transcript ignored for non-current response (${message.response_id ?? 'unknown'})`)
+          orbTranscriptRef.current = ''
+          return
+        }
+        if (expectedSpeech.interrupted) {
+          emitTrace.current(`partial speech transcript accepted for interrupted response (${message.response_id})`)
+          orbTranscriptRef.current = ''
+          return
+        }
+        const expected = expectedSpeech.text.trim().replace(/\s+/g, ' ')
+        const observed = transcript.replace(/\s+/g, ' ')
+        if (expected && observed && expected !== observed) {
+          console.error('[orb-realtime] Exact speech transcript mismatch', {
+            responseId: expectedSpeech.responseId,
+            expectedLength: expected.length,
+            observedLength: observed.length,
+          })
+          stop('exact_speech_mismatch')
+          setError('Voice rendering did not match Orb’s response. The voice session was stopped.')
+          setStatus('error')
+          return
+        }
+      } else if (transcript) {
+        callbacksRef.current.onOrbTranscript(transcript)
+      }
       orbTranscriptRef.current = ''
       return
     }
@@ -871,6 +1018,12 @@ export function useRealtimeVoiceSpike(options: Options) {
       if (responseId) responseTurnIdsRef.current.delete(responseId)
       emitTrace.current(`response.done calls=${calls.length} turn=${responseTurnId} active=${activeTurnIdRef.current}`)
       if (calls.length) {
+        if (options.transportOnly) {
+          emitTrace.current(`unexpected tool calls ignored (${calls.length})`)
+          setError('Voice renderer attempted an unavailable operation.')
+          setStatus('error')
+          return
+        }
         // The model wants to use tools. Run them all, then send one continuation
         // response.create for the whole batch (guarded by turn id).
         void executeToolBatch(calls, responseTurnId)
@@ -883,6 +1036,14 @@ export function useRealtimeVoiceSpike(options: Options) {
         clearResponseWatchdog()
         endTurnMeasurement(turnFailureRef.current)
         if (!assistantSpeakingRef.current) setStatus('listening')
+      }
+      if (
+        options.transportOnly
+        && expectedSpeechRef.current
+        && responseId
+        && expectedSpeechRef.current.providerResponseId === responseId
+      ) {
+        expectedSpeechRef.current = null
       }
       // The channel is now clear. If a newer turn's transcript was waiting for
       // it, create that response now.
@@ -903,12 +1064,17 @@ export function useRealtimeVoiceSpike(options: Options) {
 
     if (message.type === 'error') {
       const realtimeError = message.error?.message || 'Realtime voice error'
+      if (isBenignCancellationRace(message.error)) {
+        responseInFlightRef.current = false
+        emitTrace.current(`benign cancellation race ignored: ${realtimeError}`)
+        return
+      }
       emitTrace.current(`PROVIDER ERROR: ${JSON.stringify(message.error ?? {})}`)
       stop('realtime_error')
       setError(realtimeError)
       setStatus('error')
     }
-  }, [armResponseWatchdog, clearResponseWatchdog, endTurnMeasurement, executeToolBatch, send, sileroSnapshot, stop])
+  }, [armResponseWatchdog, clearResponseWatchdog, endTurnMeasurement, executeToolBatch, markExpectedSpeechInterrupted, options.transportOnly, send, sileroSnapshot, stop])
 
   const start = useCallback(async (source = 'unknown') => {
     if (peerRef.current) return
@@ -918,6 +1084,7 @@ export function useRealtimeVoiceSpike(options: Options) {
     assistantSpeakingRef.current = false
     pendingCreateTurnRef.current = null
     activeTurnIdRef.current = 0
+    setReady(false)
     emitTrace.current(`start (${source})`)
     const generation = connectionGenerationRef.current + 1
     connectionGenerationRef.current = generation
@@ -990,6 +1157,12 @@ export function useRealtimeVoiceSpike(options: Options) {
       const dataChannel = peer.createDataChannel('oai-events')
       channel = dataChannel
       channelRef.current = dataChannel
+      dataChannel.addEventListener('close', () => {
+        if (isCurrent()) setReady(false)
+      })
+      dataChannel.addEventListener('error', () => {
+        if (isCurrent()) setReady(false)
+      })
       dataChannel.addEventListener('message', event => {
         if (!isCurrent() || channelRef.current !== dataChannel) return
         handleEvent(event)
@@ -1047,6 +1220,7 @@ export function useRealtimeVoiceSpike(options: Options) {
       // No greeting. The provider owns turn-taking, so the session simply opens
       // into listening and waits for the user to speak.
       emitTrace.current('data channel open → listening (no greeting)')
+      setReady(true)
       setStatus('listening')
     } catch (startError) {
       const staleStart = connectionGenerationRef.current !== generation || startupAbort.signal.aborted
@@ -1059,6 +1233,7 @@ export function useRealtimeVoiceSpike(options: Options) {
       if (streamRef.current === stream) streamRef.current = null
       if (audioRef.current === audio) audioRef.current = null
       if (startupMeasurementRef.current === measurement) startupMeasurementRef.current = null
+      setReady(false)
       const message = startError instanceof Error ? startError.message : 'Could not start Realtime voice'
       const errorName = startError instanceof Error ? startError.name : 'UnknownError'
       emitTrace.current(`START FAILED: ${errorName}: ${message.slice(0, 240)}`)
@@ -1089,9 +1264,11 @@ export function useRealtimeVoiceSpike(options: Options) {
   return {
     status,
     error,
+    ready,
     active: status !== 'off' && status !== 'error',
     start,
     stop,
+    speakExact,
     simulateError,
     getTrace: () => traceRef.current.map(entry => `+${entry.t}ms  ${entry.e}`).join('\n'),
   }

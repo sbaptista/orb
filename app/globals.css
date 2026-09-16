@@ -4698,6 +4698,7 @@ mark.crud-highlight {
 }
 
 .oc-toolbar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -4770,7 +4771,7 @@ mark.crud-highlight {
 .oc-more-menu {
   position: absolute;
   bottom: 100%;
-  left: 0;
+  right: 10px;
   margin-bottom: 6px;
   background: var(--bg);
   border: 1.5px solid rgba(60, 110, 60, 0.35);
@@ -4778,13 +4779,9 @@ mark.crud-highlight {
   box-shadow: var(--shadow-md);
   padding: 4px;
   z-index: 30;
-  min-width: 220px;
-}
-@media (min-width: 768px) {
-  .oc-more-menu {
-    left: auto;
-    right: 0;
-  }
+  width: min(320px, calc(100% - 20px));
+  min-width: min(220px, calc(100% - 20px));
+  max-width: calc(100% - 20px);
 }
 
 .oc-more-group-header {
@@ -4831,7 +4828,9 @@ mark.crud-highlight {
 .oc-more-desc {
   font-size: var(--fs-version);
   color: var(--text3);
-  white-space: nowrap;
+  min-width: 0;
+  text-align: right;
+  white-space: normal;
 }
 
 .oc-action-circle {

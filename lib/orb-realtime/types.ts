@@ -92,3 +92,13 @@ export type OrbRealtimeMutationReceipt = {
   source: 'database'
   spokenText: string
 }
+
+export type OrbCommandBatchReceipt = {
+  kind: 'command_batch'
+  receiptId: string
+  commandCount: number
+  receipts: OrbRealtimeMutationReceipt[]
+  observedAt: string
+  source: 'database'
+  spokenText: string
+}

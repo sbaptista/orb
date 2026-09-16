@@ -1,6 +1,7 @@
 import 'server-only'
 import Anthropic from '@anthropic-ai/sdk'
 import { ANTHROPIC_HAIKU_REFERENCE_MODEL } from './anthropic'
+import { isTypoTolerantBareMutationAffirmation } from './confirmation-grammar'
 
 // Shared, server-enforced mutation authorization grammar.
 // The model may interpret the requested action, but it cannot authorize its
@@ -80,6 +81,8 @@ async function isSemanticMutationApproval(input: string): Promise<boolean> {
 // semantically so a genuine approval in any language is recognized.
 export async function authorizesPendingMutation(input: string): Promise<boolean> {
   if (isBareMutationAffirmation(input) || isExplicitMutationApproval(input)) return true
+  if (failsMutationApprovalGuards(input)) return false
+  if (isTypoTolerantBareMutationAffirmation(input)) return true
   return isSemanticMutationApproval(input)
 }
 

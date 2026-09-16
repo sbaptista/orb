@@ -30,7 +30,6 @@ export type ConversationMessage = {
     insight?: { type: 'observation' | 'coaching' | 'strategic'; summary: string }
     isStreaming?: boolean
     isServiceError?: boolean
-    thoughts?: string[]
     senderLabel?: string
     source?: 'passive-status' | 'passive-greeting'
 }
@@ -81,15 +80,6 @@ function OrbCard({ msg }: { msg: ConversationMessage }) {
 
     return (
         <div className={msg.isServiceError ? 'oc-orb-card oc-service-error' : 'oc-orb-card'}>
-            {msg.thoughts && msg.thoughts.length > 0 && (
-                <div className="flex-col" style={{ gap: '1px', marginBottom: '4px' }}>
-                    {msg.thoughts.map((t, i) => (
-                        <span key={i} className="text-xs text-muted" style={{ display: 'block', padding: '1px 0' }}>
-                            {'\u2022'} {t}
-                        </span>
-                    ))}
-                </div>
-            )}
             <div className="flex-row" style={{ gap: '6px', alignItems: 'flex-start' }}>
                 <div className="oc-orb-md" style={{
                     flex: 1,
@@ -457,14 +447,12 @@ export default function OrbConversation({
 
     useEffect(() => {
         autoResize()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [input])
 
     function copyTranscript() {
         const transcript = messages.map(m => {
             const prefix = m.type === 'dev' ? (m.senderLabel ?? 'Developer') : m.type === 'user' ? 'User' : 'Orb'
-            const thoughts = m.thoughts?.length ? ` [${m.thoughts.join('; ')}]` : ''
-            return `${prefix}:${thoughts} ${m.text}`
+            return `${prefix}: ${m.text}`
         }).join('\n\n')
         navigator.clipboard.writeText(transcript).then(() => {
             setCopiedTranscript(true)
@@ -480,9 +468,6 @@ export default function OrbConversation({
             ...messages.flatMap(m => {
                 const speaker = m.type === 'dev' ? (m.senderLabel ?? 'Developer') : m.type === 'user' ? 'You' : 'Orb'
                 const lines: string[] = [`## ${speaker}`, '']
-                if (m.thoughts?.length) {
-                    lines.push(...m.thoughts.map(t => `> ${t}`), '')
-                }
                 lines.push(m.text, '')
                 return lines
             }),
@@ -781,7 +766,7 @@ export default function OrbConversation({
                                     </button>
 
                                     {/* Overflow menu for infrequent actions */}
-                                    <div className="oc-toolbar-overflow" style={{ position: 'relative' }}>
+                                    <div className="oc-toolbar-overflow">
                                         <button
                                             type="button"
                                             className="oc-tool-btn"

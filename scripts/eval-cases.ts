@@ -258,6 +258,28 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
   },
 
   {
+    id: 'delete-project-three-targets-builds-complete-command-batch',
+    description: 'Deleting three named projects emits one delete_project command for every requested target before shared batch confirmation',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    backlogOverride: evalBacklog([
+      { name: 'Set up Apple Watch with iPhone', code: 'WATCH' },
+      { name: 'Shunyata', code: 'SHUNYATA' },
+      { name: 'Pre-todos', code: 'PRETODO' },
+    ]),
+    input: 'Delete these projects: Set up Apple Watch with iPhone, Shunyata, and Pre-todos',
+    tier: 1,
+    expectTool: {
+      name: 'delete_project',
+      params: { name: 'Set up Apple Watch with iPhone' },
+    },
+    expectToolCount: {
+      name: 'delete_project',
+      count: 3,
+    },
+  },
+
+  {
     id: 'bulk-delete-project-todos-calls-tools',
     description: 'Bulk deleting all todos in a project emits delete_todo for each matching task before server confirmation',
     productCode: 'TEST',
@@ -340,6 +362,23 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
     ],
     pendingSummary: 'permanently delete the project "testp" and all of its todos',
     input: 'Confirm confirm',
+    tier: 1,
+    expectTool: {
+      name: 'confirm_mutation',
+    },
+  },
+
+  {
+    id: 'confirm-mutation-typing-error',
+    description: 'A bare confirmation containing one obvious typing or transcription error still reaches the shared confirmation boundary',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    history: [
+      { role: 'user', text: 'Create the projects Test2 and Test3.' },
+      { role: 'assistant', text: 'I’m about to create Test2 and Test3 as one batch. Want me to go ahead?' },
+    ],
+    pendingSummary: 'create Test2 and Test3',
+    input: 'Go aherad',
     tier: 1,
     expectTool: {
       name: 'confirm_mutation',
@@ -1715,6 +1754,65 @@ Helm [code: HELM]:
       name: 'propose_adaptation',
       params: { category: 'communication' },
     },
+  },
+  {
+    id: 'voice-shared-history-recalls-text-turn',
+    description: 'Always-unified voice receives the same canonical conversation history as text and can recall a fact supplied through the text path',
+    productCode: 'ORB',
+    voiceMode: true,
+    history: [
+      { role: 'user', text: 'The launch phrase is violet compass.' },
+      { role: 'assistant', text: 'Understood.' },
+    ],
+    input: 'What launch phrase did I give you? Reply with only the phrase.',
+    tier: 2,
+    expectNoTool: true,
+    speechContains: ['violet compass'],
+  },
+  {
+    id: 'voice-upfront-permission-still-requires-later-confirmation',
+    description: 'Always-unified voice and text share the rule that permission bundled into a mutation request may propose but cannot execute in that same turn',
+    productCode: 'ORB',
+    voiceMode: true,
+    mutationApproval: 'ask',
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
+    input: 'Create a todo called Voice boundary test, and yes I approve it now.',
+    tier: 1,
+    expectTool: {
+      name: 'create_todo',
+      params: { title: 'Voice boundary test', product_code: 'ORB' },
+    },
+    forbidTools: ['confirm_mutation'],
+  },
+  {
+    id: 'voice-spelled-project-name-preserves-identifier',
+    description: 'Voice preserves an explicitly spelled alphanumeric project name instead of substituting its homophone',
+    productCode: 'ORB',
+    voiceMode: true,
+    mutationApproval: 'ask',
+    input: 'Create new project, test one, that\'s spelled T-E-S-T numeral one.',
+    tier: 1,
+    expectTool: {
+      name: 'create_project',
+      params: { name: 'TEST1' },
+    },
+  },
+  {
+    id: 'voice-confirmation-survives-unrelated-interruption',
+    description: 'A pending voice mutation remains confirmable after an unrelated conversational interruption',
+    productCode: 'ORB',
+    voiceMode: true,
+    mutationApproval: 'ask',
+    history: [
+      { role: 'user', text: 'Create a project called TEST1.' },
+      { role: 'assistant', text: 'I’m about to create a new project called "TEST1". Want me to go ahead?' },
+      { role: 'user', text: 'I thought those funds were a little different.' },
+      { role: 'assistant', text: 'Are you asking about the pending project, or something else?' },
+    ],
+    pendingSummary: 'create a new project called "TEST1"',
+    input: 'OK',
+    tier: 1,
+    expectTool: { name: 'confirm_mutation' },
   },
 ]
 

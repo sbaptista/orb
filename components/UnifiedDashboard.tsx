@@ -13,7 +13,8 @@ import EmptyState from './ui/EmptyState'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { registerOrbTour, unregisterOrbTour, runOrbTour, launchOrbTour } from './OrbTour'
 import { OrbDevPanel, DevTestError, type MoodOverride, type SimulateError } from './OrbDevPanel'
-import { orbConverse, type ActionSet, type OrbResponse, type PendingMutation } from '@/app/actions/orb-converse'
+import { orbConverse, type ActionSet, type PendingMutation } from '@/app/actions/orb-converse'
+import { acknowledgeOrbResponse, clearOrbConversation, interruptOrbConversation, loadOrbConversation } from '@/app/actions/orb-interaction'
 import { collectSystemInfo, type SystemInfo } from '@/lib/system-info'
 import { collectClientEnvironment } from '@/lib/client-environment'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
@@ -31,7 +32,6 @@ import FilterKebab from './ui/FilterKebab'
 import { isActive, ACTIVE_STATUSES, PARKED_STATUSES } from '@/lib/status-groups'
 import {
   computeUrgency,
-  windowsForPriority,
   parseUrgencyWindows,
   serializeUrgencyWindows,
   type Urgency,
@@ -39,7 +39,6 @@ import {
 } from '@/lib/orb-state'
 import UrgencyWindowsModal from '@/components/UrgencyWindowsModal'
 import { ORB_STYLE } from '@/lib/orb-visual'
-import { isDueWithinLead } from '@/lib/due-time'
 // PrintModal moved to AppNav
 import TodoEditor from './TodoEditor'
 import { logAudit } from '@/app/actions/log-audit'
@@ -55,6 +54,9 @@ import TaskKanbanView from './views/TaskKanbanView'
 import ViewSwitcher, { type ViewMode } from './views/ViewSwitcher'
 import { useSystemState } from '@/components/SystemStateProvider'
 import { startInteraction, consumePerformanceNavigationStart } from '@/lib/performance/telemetry'
+import { toOrbSpokenText } from '@/lib/orb-interaction/spoken-text'
+import { projectsAfterConfirmedCreation, projectsAfterConfirmedDeletion, selectedProjectAfterMutationRefresh } from '@/lib/orb-interaction/project-refresh'
+import { ORB_REALTIME_TRANSPORT_ONLY } from '@/lib/orb-interaction/runtime'
 
 const TTS_CONFIG_CHANGED_EVENT = 'orb:tts-config-changed'
 
@@ -104,9 +106,14 @@ const SS_ACTION_SETS    = 'todos_orb_action_sets'
 const INACTIVITY_MS     = 5 * 60 * 1000
 const DEV_CHANNEL_POLL_INTERVAL = 15_000
 const PAGE_SIZE         = 40
+const ORB_CLIENT_ID_KEY = 'orb.interaction.client-id'
 
 function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+function genUuid() {
+  return crypto.randomUUID()
 }
 
 function makeOrbGreeting(firstName: string | undefined | null) {
@@ -133,49 +140,6 @@ function makeOrbGreeting(firstName: string | undefined | null) {
         `I'm here. What should we tackle?`,
       ]
   return greetings[Math.floor(Math.random() * greetings.length)]
-}
-
-function stripVoiceMarkdown(text: string) {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '$1')
-    .replace(/\*(.+?)\*/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/^\s*[-*+]\s+/gm, '')
-    .replace(/^\s*\d+\.\s+/gm, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-}
-
-function firstSentences(text: string, maxChars: number, maxSentences: number) {
-  const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g)
-  if (!sentences) return text.slice(0, maxChars).trim()
-  let result = ''
-  for (const sentence of sentences.slice(0, maxSentences)) {
-    if ((result + sentence).length > maxChars && result) break
-    result += sentence
-  }
-  return (result.trim() || sentences[0].slice(0, maxChars).trim())
-}
-
-function toVoiceSpokenText(text: string) {
-  const plain = stripVoiceMarkdown(text)
-  if (!plain) return plain
-
-  const bulkConfirm = plain.match(/\bconfirm:?\s+(.+?\b(?:\d+|all)\s+(?:todos|tasks|items)\b.*?)(?:\?|$)/i)
-  if (bulkConfirm) {
-    const summary = bulkConfirm[1].replace(/\s+/g, ' ').trim()
-    return `Confirm ${summary}. See the transcript for the exact items. Confirm?`
-  }
-
-  // Speak the narrative lead-in — everything before the first bulleted/numbered
-  // list — not just the first paragraph. A short opening paragraph (e.g. a
-  // headline count) was crowding out a second paragraph that held the actual
-  // answer (e.g. a ticket breakdown), dropping it from speech entirely.
-  const listStart = plain.search(/\n\s*(?:[-*+]|\d+\.)\s/)
-  const narrative = listStart >= 0 ? plain.slice(0, listStart) : plain
-  const lead = firstSentences(narrative, 400, 3)
-  const hasMore = plain.length > lead.length + 30 || listStart >= 0
-  return hasMore ? `${lead} I put the details on screen.` : lead
 }
 
 const ORB_SPEED: Record<Urgency, string> = { calm: '5.5s', busy: '3.5s', urgent: '3.5s' }
@@ -234,8 +198,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const [input, setInput]                       = useState('')
   const [submitting, setSubmitting]             = useState(false)
   const [messages, setMessages]                 = useState<ConversationMessage[]>([])
+  const [conversationId, setConversationId]     = useState<string | null>(null)
   const [conversationActive, setConversationActive] = useState(false)
-  const [isRestored, setIsRestored]             = useState(false)
   // scopeToProduct removed (ORB-203) — query scope is always global, mutations default to selected project
   const [moodOverride, setMoodOverride]         = useState<MoodOverride>(null)
   const [roleOverride, setRoleOverride]         = useState<'Super Admin' | 'Admin' | 'Owner' | null>(null)
@@ -308,15 +272,23 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const realtimeSpikeControlRef = useRef<{ stop: (reason?: string) => void } | null>(null)
   const realtimeSpike = useRealtimeVoiceSpike({
     currentProjectId: selectedId,
+    transportOnly: ORB_REALTIME_TRANSPORT_ONLY,
     onUserTranscript: text => {
+      if (ORB_REALTIME_TRANSPORT_ONLY) {
+        voiceSendRef.current(text)
+        return
+      }
       setInput(text)
       setMessages(previous => [...previous, { id: genId(), type: 'user', text }])
       setConversationActive(true)
     },
     onOrbTranscript: text => {
+      if (ORB_REALTIME_TRANSPORT_ONLY) return
       setMessages(previous => [...previous, { id: genId(), type: 'orb', text }])
       setConversationActive(true)
     },
+    onInterrupt: reason => interruptRef.current(reason),
+    onUntrustedTranscript: () => toast.neutral('I heard audio but could not verify speech. Please try again.'),
     onMutation: () => {
       setPulse(true)
       window.setTimeout(() => setPulse(false), 420)
@@ -381,7 +353,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const greetingFiredRef       = useRef(false)
   const passiveGreetingIdRef   = useRef<string | null>(null)
   const prevUrgencyRef         = useRef<Urgency | null>(null)
-  const lastUrgencyMsgRef      = useRef<number>(0)
   const prevOverallUrgencyRef  = useRef<Urgency | null>(null)
   const orbLongPressRef        = useRef<ReturnType<typeof setTimeout> | null>(null)
   const orbPressedRef          = useRef(false)
@@ -390,11 +361,19 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const activeConversationRequestRef = useRef<{
     id: number
     processingId: string
+    turnId: string
+    modality: 'text' | 'voice'
     aborted: boolean
   } | null>(null)
   const cancelledConversationRequestIdsRef = useRef<Set<number>>(new Set())
+  const conversationIdRef      = useRef<string | null>(null)
+  const interactionClientIdRef  = useRef<string | null>(null)
+  const voiceSendRef            = useRef<(text: string) => void>(() => {})
+  const interruptRef            = useRef<(reason: 'barge_in' | 'stop' | 'replacement' | 'exit_voice') => void>(() => {})
+  const lastInteractionTurnRef  = useRef<{ turnId: string; modality: 'text' | 'voice' } | null>(null)
   const messagesRef            = useRef<ConversationMessage[]>([])
   messagesRef.current = messages
+  conversationIdRef.current = conversationId
   const lastSpokenVoiceMessageRef = useRef<{ id: string; text: string } | null>(null)
   const lastVoiceSubmitRef = useRef<{ text: string; at: number } | null>(null)
   const stoppedVoiceMessageIdsRef = useRef<Set<string>>(new Set())
@@ -486,11 +465,16 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     measurement.end(success, failureCode, metadata)
   }
 
-  async function refreshProjects() {
+  async function refreshProjects(excludedProjectIds: string[] = [], confirmedProjects: Product[] = []) {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     const dq = visibleProjectsQuery(supabase, DASHBOARD_PROJECT_FIELDS)
-    const { data: freshProducts } = (authUser && !isAdmin) ? await dq.eq('created_by', authUser.id) : await dq
-    const list = (freshProducts ?? []) as Product[]
+    const { data: freshProducts, error: projectsError } = (authUser && !isAdmin) ? await dq.eq('created_by', authUser.id) : await dq
+    if (projectsError) console.error('[dashboard] Project refresh failed:', projectsError.message)
+    const excluded = new Set(excludedProjectIds)
+    const list = confirmedProjects.reduce(
+      (current, project) => projectsAfterConfirmedCreation(current, project),
+      ((freshProducts ?? products) as Product[]).filter(project => !excluded.has(project.id)),
+    )
     setProducts(list)
     if (isAdmin) {
       const { data } = await supabase
@@ -499,7 +483,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         .eq('is_dormant', false)
         .order('name')
       if (data) {
-        setAdminProjects((data as any[]).map(p => ({
+        setAdminProjects((data as any[]).filter(p => !excluded.has(p.id)).map(p => ({
           id: p.id, name: p.name, code: p.code,
           owner_name: p.users ? [p.users.first_name, p.users.last_name].filter(Boolean).join(' ') : 'Unknown',
         })))
@@ -636,12 +620,23 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const speakRef = useRef(voice.speak)
   speakRef.current = voice.speak
 
-  const handleStop = useCallback(() => {
+  const handleStop = useCallback(async (reason: 'barge_in' | 'stop' | 'replacement' | 'exit_voice' = 'stop') => {
     const lastOrb = [...messagesRef.current].reverse().find(m => m.type === 'orb')
     if (lastOrb) stoppedVoiceMessageIdsRef.current.add(lastOrb.id)
     cancelSpeechRef.current()
 
     const request = activeConversationRequestRef.current
+    const interruptedTurn = request ?? lastInteractionTurnRef.current
+    const activeConversationId = conversationIdRef.current
+    const durableInterrupt = activeConversationId && interruptedTurn
+      ? interruptOrbConversation({
+        conversationId: activeConversationId,
+        turnId: interruptedTurn.turnId,
+        eventId: genUuid(),
+        modality: interruptedTurn.modality,
+        reason,
+      }).catch(error => console.error('[UnifiedDashboard] Interrupt event failed:', error))
+      : Promise.resolve()
     if (request) {
       request.aborted = true
       cancelledConversationRequestIdsRef.current.add(request.id)
@@ -658,13 +653,14 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     window.setTimeout(() => {
       if (voiceActiveRef.current) resumeListeningRef.current()
     }, 80)
+    await durableInterrupt
   }, [])
+  interruptRef.current = reason => { void handleStop(reason) }
 
   // ── Voice mode handlers ──
   // Register the send callback so the hook can submit after recognition ends.
   // Ref indirection ensures the callback always uses the latest handleSubmit
   // and voice methods, not stale closures from the initial render.
-  const voiceSendRef = useRef<(text: string) => void>(() => {})
   voiceSendRef.current = (text: string) => {
     const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ')
     const last = lastVoiceSubmitRef.current
@@ -694,6 +690,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       metadata: { projectId: selectedId, isMobile },
     })
     if (realtimeSpike.active) {
+      if (ORB_REALTIME_TRANSPORT_ONLY) void handleStop('exit_voice')
       realtimeSpike.stop('orb_tap')
       measurement.end(true, null, { toggledOff: true })
       return
@@ -718,7 +715,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     resetInactivity()
     void realtimeSpike.start('orb_tap')
     measurement.end(true, null, { toggledOff: false })
-  }, [isMobile, selectedId, voice, realtimeSpike])
+  }, [handleStop, isMobile, selectedId, voice, realtimeSpike])
 
   // Auto-TTS: speak each Orb response exactly once, when its turn completes.
   // Voice never chases the stream — the screen shows streaming progress, and
@@ -726,10 +723,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // keeps voice from repeating itself when the server replaces streamed
   // narration with deterministic text (confirmations, corrections).
   useEffect(() => {
-    if (!voice.voiceActive) return
+    const realtimeTransportActive = ORB_REALTIME_TRANSPORT_ONLY && realtimeSpike.active
+    if (!voice.voiceActive && !realtimeTransportActive) return
     const lastOrb = [...messages].reverse().find(m => m.type === 'orb')
     if (!lastOrb) return
     if (lastOrb.isStreaming) return
+    if (realtimeTransportActive && !realtimeSpike.ready) return
     if (stoppedVoiceMessageIdsRef.current.has(lastOrb.id)) return
 
     const spokenText = lastOrb.spokenText ?? lastOrb.text
@@ -740,9 +739,13 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     const lastSpoken = lastSpokenVoiceMessageRef.current
     if (lastSpoken?.id === lastOrb.id && lastSpoken.text === spokenText) return
     if (lastSpoken?.text === spokenText) return
+    if (realtimeTransportActive) {
+      if (!realtimeSpike.speakExact(spokenText, lastOrb.id)) return
+    } else {
+      speakRef.current(spokenText)
+    }
     lastSpokenVoiceMessageRef.current = { id: lastOrb.id, text: spokenText }
-    speakRef.current(spokenText)
-  }, [messages, voice.voiceActive])
+  }, [messages, realtimeSpike, voice.voiceActive])
 
   // Keyboard shortcut: Cmd+Shift+O toggles voice mode (handleOrbTap already
   // stops Realtime if engaged, or starts it otherwise).
@@ -759,39 +762,84 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   // Restore conversation on mount
   useEffect(() => {
-    const savedConv = sessionStorage.getItem(SS_CONVERSATION)
-    if (savedConv) {
-      try {
-        const parsed = JSON.parse(savedConv)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setMessages(parsed)
+    let clientId = window.localStorage.getItem(ORB_CLIENT_ID_KEY)
+    if (!clientId) {
+      clientId = genUuid()
+      window.localStorage.setItem(ORB_CLIENT_ID_KEY, clientId)
+    }
+    interactionClientIdRef.current = clientId
+    loadOrbConversation(undefined, clientId)
+      .then(async snapshot => {
+        setConversationId(snapshot.conversationId)
+        const restored: ConversationMessage[] = snapshot.messages.map(message => ({
+          id: message.eventId,
+          type: message.role === 'user' ? 'user' : 'orb',
+          text: message.text,
+          spokenText: message.spokenText,
+          insight: message.insight,
+          isServiceError: message.isServiceError,
+        }))
+        if (restored.length > 0) {
+          setMessages(restored)
           setConversationActive(true)
           greetingFiredRef.current = true
         }
-      } catch { /* ignore */ }
-    }
-    const savedInput = sessionStorage.getItem(SS_INPUT)
-    if (savedInput) setInput(savedInput)
-    const savedActionSets = sessionStorage.getItem(SS_ACTION_SETS)
-    if (savedActionSets) {
-      try {
-        const parsed = JSON.parse(savedActionSets)
-        if (Array.isArray(parsed)) actionSetsRef.current = parsed.slice(-12)
-      } catch { /* ignore */ }
-    }
-    setIsRestored(true)
+        if (snapshot.unacknowledgedResponses.length > 0) {
+          const unacknowledgedIds = new Set(snapshot.unacknowledgedResponses.map(response => response.eventId))
+          const recoveryMessages = snapshot.messages.filter(message =>
+            unacknowledgedIds.has(message.eventId) && message.refresh === true,
+          )
+          const deletedProjectIds = recoveryMessages.flatMap(message => message.deletedProjectIds ?? [])
+          const confirmedProjects = recoveryMessages
+            .flatMap(message => message.newProjects?.length
+              ? message.newProjects
+              : message.newProject ? [message.newProject] : [])
+            .filter((project): project is NonNullable<typeof project> => Boolean(project))
+          if (deletedProjectIds.length > 0) {
+            setProducts(previous => projectsAfterConfirmedDeletion(previous, deletedProjectIds))
+            setAdminProjects(previous => projectsAfterConfirmedDeletion(previous, deletedProjectIds))
+          }
+          for (const project of confirmedProjects) {
+            setProducts(previous => projectsAfterConfirmedCreation(previous, project))
+            setAdminProjects(previous => projectsAfterConfirmedCreation(previous, {
+              id: project.id,
+              name: project.name,
+              code: project.code,
+              owner_name: '',
+            }))
+          }
+          if (recoveryMessages.some(message => message.refreshProjects)) {
+            const list = await refreshProjects(deletedProjectIds, confirmedProjects)
+            const nextSelectedId = selectedProjectAfterMutationRefresh(
+              selectedId,
+              list,
+              selectedId ? undefined : confirmedProjects[0]?.id,
+            )
+            if (nextSelectedId !== selectedId) {
+              orbSwitchingRef.current = true
+              setSelectedId(nextSelectedId)
+            }
+          }
+          if (recoveryMessages.some(message => message.refreshTodos)) {
+            await Promise.all([fetchOrbTodos(), fetchTodos()])
+          }
+          window.requestAnimationFrame(() => {
+            for (const response of snapshot.unacknowledgedResponses) {
+              void acknowledgeOrbResponse({
+                conversationId: response.conversationId,
+                eventId: response.eventId,
+                clientId,
+              }).catch(error => console.error('[UnifiedDashboard] Recovery acknowledgement failed:', error))
+            }
+          })
+        }
+      })
+      .catch(error => console.error('[UnifiedDashboard] Conversation restore failed:', error))
+  // This is a one-time startup recovery. The captured loaders intentionally
+  // describe the mounted dashboard instance whose receipt acknowledgements are
+  // being repaired.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // Persist conversation
-  useEffect(() => {
-    if (!isRestored) return
-    if (messages.length > 0) sessionStorage.setItem(SS_CONVERSATION, JSON.stringify(messages))
-    else {
-      sessionStorage.removeItem(SS_CONVERSATION)
-      sessionStorage.removeItem(SS_ACTION_SETS)
-      actionSetsRef.current = []
-    }
-  }, [messages, isRestored])
 
   // Orb fade on mode switch
   const isFirstRender = useRef(true)
@@ -809,20 +857,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       projectSwitchingRef.current = true
       setProjectMenuOpen(false)
       setConfirmProjectDelete(false)
-      if (!orbSwitchingRef.current) {
-        setMessages([])
-        clearActionSets()
-        setConversationActive(false)
-        sessionStorage.removeItem(SS_CONVERSATION)
-        if (inactivityRef.current) { clearTimeout(inactivityRef.current); inactivityRef.current = null }
-      }
       orbSwitchingRef.current = false
     }
     prevSelectedId.current = selectedId
-  }, [selectedId, clearActionSets])
+  }, [selectedId])
 
   useEffect(() => { return () => { if (inactivityRef.current) clearTimeout(inactivityRef.current) } }, [])
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { resetInactivity() }, [input])
 
   // Load products + profile
@@ -1173,52 +1213,15 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   // Project switch summary
   useEffect(() => {
-    if (!projectSwitchingRef.current || noProject || (orbTodos.length === 0 && activeTodos.length === 0)) return
-    if (!selected) return
-    if (orbTodos.some(todo => todo.product_id !== selectedId)) return
+    // Visible conversation text comes only from the durable coordinator. A
+    // project change must never inject a local status line as an Orb message.
     projectSwitchingRef.current = false
-    const active = activeTodos
-    const urgentCount = active.filter(t =>
-      (t.priority_value !== null && urgentValues.has(t.priority_value)) ||
-      (t.due_at !== null && isDueWithinLead(t.due_at, windowsForPriority(t.priority_value, windowsByProject[t.product_id]).imminent, t.due_timezone || userTimeZone))
-    ).length
-    const inProgressCount = active.filter(t => t.status === 'in progress').length
-    const parts: string[] = []
-    parts.push(`${selected.name} — ${active.length} active`)
-    if (urgentCount > 0) parts.push(`${urgentCount} urgent`)
-    if (inProgressCount > 0) parts.push(`${inProgressCount} in progress`)
-    else if (active.length >= 3) parts.push('nothing in progress')
-    addOrbMessage(parts.join('. ') + '.', 'passive-status')
-    prevUrgencyRef.current = urgency
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orbTodos])
 
-  // Urgency transition explanation (debounced — ignore transient flickers)
+  // Track visual urgency without manufacturing conversation history.
   useEffect(() => {
-    if (noProject || prevUrgencyRef.current === null) { prevUrgencyRef.current = urgency; return }
-    if (projectSwitchingRef.current) { prevUrgencyRef.current = urgency; return }
-    if (voiceActiveRef.current) { prevUrgencyRef.current = urgency; return }
-    const prev = prevUrgencyRef.current
-    if (prev === urgency) return
     prevUrgencyRef.current = urgency
-    // Suppress duplicate messages within 10 seconds (transient re-render flicker)
-    const now = Date.now()
-    if (now - lastUrgencyMsgRef.current < 10_000) return
-    lastUrgencyMsgRef.current = now
-    const urgentCount = activeTodos.filter(t =>
-      (t.priority_value !== null && urgentValues.has(t.priority_value)) ||
-      (t.due_at !== null && isDueWithinLead(t.due_at, windowsForPriority(t.priority_value, windowsByProject[t.product_id]).imminent, t.due_timezone || userTimeZone))
-    ).length
-    let explanation = ''
-    if (prev === 'calm' && urgency === 'busy') explanation = `Orb shifted busy — ${activeTodos.length} active tasks now.`
-    else if (prev === 'calm' && urgency === 'urgent') explanation = `Orb shifted urgent — ${urgentCount} urgent task${urgentCount !== 1 ? 's' : ''} detected.`
-    else if (prev === 'busy' && urgency === 'urgent') explanation = `Orb shifted urgent — ${urgentCount} urgent task${urgentCount !== 1 ? 's' : ''} in the queue.`
-    else if (prev === 'urgent' && urgency === 'busy') explanation = 'Urgent queue cleared. Orb shifted back to busy.'
-    else if (prev === 'urgent' && urgency === 'calm') explanation = 'Backlog is light. Orb is calm.'
-    else if (prev === 'busy' && urgency === 'calm') explanation = 'Backlog thinned out. Orb is calm.'
-    if (explanation) addOrbMessage(explanation, 'passive-status')
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urgency, noProject])
+  }, [urgency])
 
   // ══════════════════════════════════════════════════════════
   // EFFECTS — List
@@ -1301,7 +1304,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   async function handleSubmit(value?: string) {
     const text = (value ?? input).trim()
-    if (!text || activeConversationRequestRef.current) return
+    if (!text) return
+    if (activeConversationRequestRef.current) await handleStop('replacement')
 
     if (text === '?' || text === '/?') { openHelp(); setInput(''); return }
 
@@ -1311,7 +1315,12 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       const [cmd, ...args] = text.split(' ')
       if (cmd === '/settings') router.push('/settings')
       else if (cmd === '/help' || cmd === '/?') openHelp()
-      else if (cmd === '/clear') { setMessages([]); clearActionSets(); setConversationActive(false); sessionStorage.removeItem(SS_CONVERSATION); greetingFiredRef.current = false }
+      else if (cmd === '/clear') {
+        void clearOrbConversation(conversationIdRef.current ?? undefined)
+          .then(snapshot => setConversationId(snapshot.conversationId))
+          .catch(error => console.error('[UnifiedDashboard] Conversation clear failed:', error))
+        setMessages([]); clearActionSets(); setConversationActive(false); sessionStorage.removeItem(SS_CONVERSATION); greetingFiredRef.current = false
+      }
       else if (cmd === '/add') {
         const task = args.join(' ').trim()
         if (!task) { toast.neutral('Usage: /add Buy groceries'); return }
@@ -1363,27 +1372,28 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       return
     }
 
-    const history = messages
-      .filter(m => m.text !== 'Processing…')
-      .map(m => ({ role: (m.type === 'user' ? 'user' : 'assistant') as 'user' | 'assistant', text: m.text }))
-
+    const turnId = genUuid()
+    const userEventId = genUuid()
     const processingId = genId()
     const request = {
       id: ++conversationRequestSequenceRef.current,
       processingId,
+      turnId,
+      modality: (voiceEngaged ? 'voice' : 'text') as 'voice' | 'text',
       aborted: false,
     }
     activeConversationRequestRef.current = request
     const submitMeasurement = startDashboardInteraction(
-      voice.voiceActive ? 'voice_orb_submit' : 'orb_submit',
+      voiceEngaged ? 'voice_orb_submit' : 'orb_submit',
       { inputLength: text.length, hasPendingMutation: !!pendingMutationRef.current },
-      voice.voiceActive ? 'voice' : 'dashboard-clicks',
+      voiceEngaged ? 'voice' : 'dashboard-clicks',
     )
     let submitMeasurementEnded = false
+    let coordinatorPersistenceMs: number | undefined
 
     setMessages(prev => [
       ...prev,
-      { id: genId(), type: 'user', text },
+      { id: userEventId, type: 'user', text },
       { id: processingId, type: 'orb', text: 'Processing…' },
     ])
     setConversationActive(true)
@@ -1394,10 +1404,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
     try {
       if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
-      const outgoingMutation = pendingMutationRef.current
       pendingMutationRef.current = null
       submitMeasurement.mark('server_action_start')
-      const stream = await orbConverse({ input: text, productId: selectedId, history, dryRun, simulateError, systemInfo: systemInfoRef.current, clientEnvironment: collectClientEnvironment(), clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, pendingMutation: outgoingMutation ?? undefined, actionSets: actionSetsRef.current, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive, voiceMode: voice.voiceActive, availableVoices: voice.voiceActive ? voice.availableVoices.map(v => v.name) : undefined, currentVoice: voice.voiceActive ? voice.selectedVoiceName || undefined : undefined, ttsProvider: voice.voiceActive ? ttsConfig?.provider : undefined, ttsModel: voice.voiceActive ? ttsConfig?.model : undefined, ttsVoiceId: voice.voiceActive ? ttsConfig?.voiceId : undefined } })
+      const stream = await orbConverse({ input: text, productId: selectedId, dryRun, simulateError, systemInfo: systemInfoRef.current, clientEnvironment: collectClientEnvironment(), clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, actionSets: actionSetsRef.current, interaction: { conversationId: conversationIdRef.current, turnId, userEventId, modality: voiceEngaged ? 'voice' : 'text' }, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive, voiceMode: voiceEngaged, availableVoices: voiceEngaged ? voice.availableVoices.map(v => v.name) : undefined, currentVoice: voiceEngaged ? voice.selectedVoiceName || undefined : undefined, ttsProvider: voiceEngaged ? ttsConfig?.provider : undefined, ttsModel: voiceEngaged ? ttsConfig?.model : undefined, ttsVoiceId: voiceEngaged ? ttsConfig?.voiceId : undefined } })
       submitMeasurement.mark('server_action_stream_opened')
       let firstChunkSeen = false
       for await (const chunk of readStreamableValue(stream)) {
@@ -1409,8 +1418,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         }
         setMessages(prev => prev.map(m => {
           if (m.id !== processingId) return m
-          const newThoughts = m.thoughts ? [...m.thoughts] : []
-          if (chunk.thought && !newThoughts.includes(chunk.thought)) newThoughts.push(chunk.thought)
           const displayText = chunk.speech || m.text
           // Only an explicit `isStreaming: false` (the true turn-end signal from
           // stream.done()) means the turn is over. Many mid-turn progress updates
@@ -1421,33 +1428,102 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           const stillStreaming = chunk.isStreaming !== false
           return {
             ...m,
+            id: !stillStreaming && chunk.interaction?.responseEventId
+              ? chunk.interaction.responseEventId
+              : m.id,
             text: displayText,
             // Derived once, at turn end — mid-stream text is display-only.
-            spokenText: voice.voiceActive && !stillStreaming ? toVoiceSpokenText(displayText) : undefined,
+            spokenText: !stillStreaming
+              ? chunk.spokenText ?? (voiceEngaged ? toOrbSpokenText(displayText) : undefined)
+              : undefined,
             insight: chunk.insight || m.insight,
-            thoughts: newThoughts,
             isStreaming: stillStreaming,
             isServiceError: chunk.isServiceError || m.isServiceError,
           }
         }))
+        if (chunk.interaction?.conversationId) {
+          coordinatorPersistenceMs = chunk.interaction.persistenceMs ?? coordinatorPersistenceMs
+          setConversationId(chunk.interaction.conversationId)
+          lastInteractionTurnRef.current = {
+            turnId: chunk.interaction.turnId,
+            modality: request.modality,
+          }
+          if (chunk.isStreaming === false && chunk.interaction.responseEventId && interactionClientIdRef.current) {
+            const clientId = interactionClientIdRef.current
+            const conversationId = chunk.interaction.conversationId
+            const eventId = chunk.interaction.responseEventId
+            window.requestAnimationFrame(() => {
+              void acknowledgeOrbResponse({ conversationId, eventId, clientId })
+                .catch(error => console.error('[UnifiedDashboard] Response acknowledgement failed:', error))
+            })
+          }
+        }
         if (chunk.refresh) {
           setPulse(true)
           setTimeout(() => setPulse(false), 420)
-          const isProjectMutation = chunk.mutationType === 'dormancy' || chunk.mutationType === 'project_create' || chunk.mutationType === 'project_update' || chunk.mutationType === 'project_delete'
+          const isProjectMutation = chunk.refreshProjects === true || chunk.mutationType === 'dormancy' || chunk.mutationType === 'project_create' || chunk.mutationType === 'project_update' || chunk.mutationType === 'project_delete'
+          const isTodoMutation = chunk.refreshTodos === true || (!isProjectMutation && ['create', 'update', 'delete'].includes(chunk.mutationType ?? ''))
           if (isProjectMutation) {
-            const list = await refreshProjects()
-            if (chunk.mutationType === 'project_create' && chunk.newProject) {
-              orbSwitchingRef.current = true
-              setSelectedId(chunk.newProject.id)
-              toast.success('Project created.')
-            } else if (list.length > 0 && !list.find(p => p.id === selectedId)) {
-              setSelectedId(list[0].id)
+            const deletedProjectIds = chunk.deletedProjectIds ?? []
+            const confirmedProjects = chunk.newProjects?.length
+              ? chunk.newProjects
+              : chunk.newProject ? [chunk.newProject] : []
+            // A database-issued receipt is already authoritative. Project its
+            // committed row into both list models before the follow-up read so
+            // text, voice, and presentation recovery cannot diverge on
+            // read-after-write timing.
+            for (const confirmedProject of confirmedProjects) {
+              setProducts(previous => projectsAfterConfirmedCreation(previous, confirmedProject))
+              setAdminProjects(previous => projectsAfterConfirmedCreation(previous, {
+                id: confirmedProject.id,
+                name: confirmedProject.name,
+                code: confirmedProject.code,
+                owner_name: '',
+              }))
             }
-          } else if (chunk.mutationType === 'knowledge_update') {
+            // Reconcile a confirmed deletion from the receipt before any
+            // network refetch. The database write has already committed, so
+            // leaving a deleted project visible while another query settles
+            // is both stale and misleading.
+            if (deletedProjectIds.length > 0) {
+              const localList = projectsAfterConfirmedDeletion(products, deletedProjectIds)
+              setProducts(previous => projectsAfterConfirmedDeletion(previous, deletedProjectIds))
+              setAdminProjects(previous => projectsAfterConfirmedDeletion(previous, deletedProjectIds))
+              const immediateSelectedId = selectedProjectAfterMutationRefresh(selectedId, localList)
+              if (immediateSelectedId !== selectedId) {
+                orbSwitchingRef.current = true
+                setSelectedId(immediateSelectedId)
+              }
+            }
+
+            const list = await refreshProjects(
+              deletedProjectIds,
+              confirmedProjects,
+            )
+            if (chunk.mutationType === 'project_create') {
+              toast.success('Project created.')
+            }
+            const nextSelectedId = selectedProjectAfterMutationRefresh(
+              selectedId,
+              list,
+              chunk.mutationType === 'project_create' ? confirmedProjects[0]?.id : undefined,
+            )
+            if (nextSelectedId !== selectedId) {
+              // Selection changes only when the mutation removed the selected
+              // project, or when the user had no project before their first create.
+              orbSwitchingRef.current = true
+              setSelectedId(nextSelectedId)
+            }
+          }
+          if (chunk.mutationType === 'knowledge_update') {
             // No dashboard-visible list to refresh — Settings -> Knowledge fetches fresh on next visit.
             toast.success('Knowledge entry updated.')
-          } else {
-            if (chunk.mutatedProductId === selectedId) { fetchOrbTodos(); fetchTodos() }
+          }
+          if (isTodoMutation) {
+            if (chunk.refreshTodos === true || chunk.mutatedProductId === selectedId) {
+              fetchOrbTodos()
+              fetchTodos()
+            }
             if (!chunk.isStreaming) {
               if (chunk.actionSet) toast.success(chunk.actionSet.summary)
               else if (chunk.mutationType === 'create') toast.success('Todo created.')
@@ -1501,7 +1577,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           : err?.name === 'AbortError' || err?.name === 'TimeoutError'
             ? 'Request took too long. Try again.'
             : 'Something went wrong. Try again?'
-        setMessages(prev => prev.map(m => m.id === processingId ? { ...m, text: msg, spokenText: voice.voiceActive ? msg : undefined } : m))
+        setMessages(prev => prev.map(m => m.id === processingId ? { ...m, text: msg, spokenText: voiceEngaged ? msg : undefined } : m))
       }
       submitMeasurement.end(false, 'orb_submit_failed', { error: err?.message ?? String(err) })
       submitMeasurementEnded = true
@@ -1515,7 +1591,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         if (m.id !== processingId) return m
         if (wasCancelled) {
           const text = m.text === 'Processing…' ? 'Stopped.' : m.text
-          return { ...m, isStreaming: false, text, spokenText: voice.voiceActive ? text : m.spokenText }
+          return { ...m, isStreaming: false, text, spokenText: voiceEngaged ? text : m.spokenText }
         }
         // The loop's own final chunk (server-sent isStreaming: false) already derived
         // text/spokenText correctly when the stream ended cleanly. Recomputing
@@ -1531,13 +1607,13 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           ...m,
           isStreaming: false,
           text,
-          spokenText: voice.voiceActive ? toVoiceSpokenText(text) : m.spokenText,
+          spokenText: voiceEngaged ? toOrbSpokenText(text) : m.spokenText,
         }
       }))
       cancelledConversationRequestIdsRef.current.delete(request.id)
       if (!submitMeasurementEnded) {
         if (wasCancelled) submitMeasurement.end(false, 'orb_submit_stopped')
-        else submitMeasurement.end(true, null, { voiceMode: voice.voiceActive })
+        else submitMeasurement.end(true, null, { voiceMode: voiceEngaged, coordinatorPersistenceMs })
       }
     }
   }
@@ -1926,16 +2002,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
                 <span style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-xs)', fontWeight: 'var(--fw-semibold)', letterSpacing: 'var(--ls-wide)', color: style.labelColor, transition: 'color 0.8s' }}>
                   {realtimeConnecting ? 'Connecting…' : realtimeListening ? 'Listening…' : realtimeSpeaking ? 'Speaking…' : realtimeThinking ? 'Gathering data…' : realtimeErrored ? 'Error' : 'Ready'}
                 </span>
-                {/* Thinking progress line */}
-                {realtimeThinking && (() => {
-                  const lastThought = [...messages].reverse().find(m => m.type === 'orb' && m.thoughts?.length)
-                  const thought = lastThought?.thoughts?.[lastThought.thoughts.length - 1]
-                  return thought ? (
-                    <span style={{ fontFamily: 'var(--font-ui)', fontSize: '10px', color: style.labelColor, opacity: 0.7, maxWidth: '80%', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'color 0.8s' }}>
-                      {thought}
-                    </span>
-                  ) : null
-                })()}
               </div>
             </>
           ) : (

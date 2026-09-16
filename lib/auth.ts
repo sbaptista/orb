@@ -14,6 +14,12 @@ export type AuthContext = {
   canInspectRepository: boolean
   supabase: Awaited<ReturnType<typeof createClient>>
   admin: ReturnType<typeof createAdminClient>
+  interaction?: {
+    conversationId: string
+    turnId: string
+    userEventId: string
+    modality: 'text' | 'voice'
+  }
 }
 
 export async function getAuthContext(): Promise<AuthContext> {
