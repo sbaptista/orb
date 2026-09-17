@@ -19,9 +19,9 @@
   `0a379c0`, nothing unpushed). Local `main` still points at v0.6.306 and is 15
   behind — sync it before branching from it:
   `git fetch origin && git branch -f main origin/main`.
-- **Version:** **0.6.331** in the main directory. **v0.6.330 is live in
-  production** (`/api/version` returned `v0.6.330`, checked 2026-09-17);
-  v0.6.331 is committed locally and not pushed.
+- **Version:** **0.6.331** in the main directory and **live in production**
+  (`/api/version` returned `v0.6.331`; `origin/main` is `8674eb2` with nothing
+  unpushed — both checked 2026-09-17).
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -189,7 +189,9 @@ None.
   now skips rejection when the turn has an `assistant_message`. (b) A merged
   repeat confirmation committed once (receipt `ec3b31dd`) and then re-ran as a
   new create ("You already have a project named TEST1"); the client now drops a
-  bare affirmation while another bare affirmation is in flight.
+  bare affirmation while another bare affirmation is in flight. Deployed
+  2026-09-17; **not yet exercised live** — retest by answering "yes" while Orb
+  is still finishing the proposal turn, and by saying "yes" twice in a row.
   **Known and not fixed:** fast fragments produce overlapping turns, so replies
   can arrive out of order and two turns can each answer "Switched to “X”".
 - **v0.6.327 (committed, unverified):** prompt rule that only the server
