@@ -17,7 +17,7 @@
 - **Branch:** `codex/voice-command-contract`; v0.6.325 is committed locally, not
   pushed. v0.6.326 is committed locally on top of it, not pushed. Production
   deployment not checked.
-- **Version:** **0.6.328** in the main directory.
+- **Version:** **0.6.329** in the main directory.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -26,12 +26,16 @@
   `bash scripts/security/test-orb-launcher.sh` (**5 checked**; bytes, owner and
   mode asserted). All five `root:wheel 755`. `orb-agent` joined the manifest on
   2026-09-06 after being installed root-owned.
-  **2026-09-17: `orb-agent-approve` is OUT OF SYNC and must be reinstalled** —
-  the repo copy fixes a bug that made every agent write fail (`--config -` and
-  `--data-binary @-` both read stdin, so bodies were sent empty; Supabase
-  returned PGRST102). Reproduced and re-verified against a local echo server.
-  Until `sudo install -o root -g wheel -m 755 scripts/security/orb-agent-approve
-  /usr/local/orb-bin/orb-agent-approve` is run, no proposal can be applied.
+  **2026-09-17: `orb-agent` and `orb-agent-approve` are OUT OF SYNC and must be
+  reinstalled.** `orb-agent-approve`: the empty-body bug (`--config -` and
+  `--data-binary @-` both read stdin; PGRST102) was fixed and the installed copy
+  was reinstalled, so ORB-359 applied; the repo copy has since gained
+  project-id resolution for the Knowledge entry (the tasks API select omits
+  `product_id`, so agent-written entries landed with no project — ORB-359's
+  entry `d6b410cc` still needs its project set by hand). `orb-agent`: status
+  counted proposal FILES, so applied proposals inflated "proposals pending"
+  for ever; repo copy now counts pending only (verified 0 by running the repo
+  copy). Reinstall both before relying on either.
   **Standing note:** the copies in `/usr/local/orb-bin` are what run. Version
   control does not keep them in step — only that check does. **Run it after
   editing anything in `scripts/security/`, and reinstall before assuming a fix
@@ -162,9 +166,10 @@ None.
   note wording); `hallucinated-proposal-history-new-create-calls-tool` fails by
   design (strict). Stan declined another full Tier 1 for now; the release gate
   is open.
-- **ORB-359 is still OPEN.** Proposal `20260917T183436Z-f17bba` is pending and
-  valid; it failed to apply only because of the `orb-agent-approve` bug above.
-  Re-run `orb-agent-approve 20260917T183436Z-f17bba` after reinstalling.
+- **ORB-359 is CLOSED** (2026-09-17 18:46Z, verified by reading the todo back:
+  status closed, notes present) with Knowledge entry
+  `d6b410cc-1865-42a9-ba70-4dbe0592eaba` — which has **no project set**; fix in
+  Settings → Knowledge.
 - **v0.6.327 (committed, unverified):** prompt rule that only the server
   writes go-ahead questions/receipts and history labels are not templates;
   stronger label wording; `query_capabilities` section guidance. Aimed at

@@ -258,7 +258,19 @@ Something rewrote $path between the banner and your confirmation."
   # transaction and is not claimed as one.
 
   local product_id knowledge_body knowledge_result knowledge_id
-  product_id="$(/usr/bin/python3 -c 'import json,sys;print(json.loads(sys.argv[1]).get("product_id") or "")' "$todo_json")"
+  # The tasks API response does not carry product_id (its select list omits it),
+  # so this always resolved to null and every agent-written Knowledge entry
+  # landed with no project (found 2026-09-17 on ORB-359). Resolve it from the
+  # project code in the todo reference instead, through the same read path the
+  # write uses. A miss leaves product_id null rather than blocking the close.
+  product_id="$(curl_supabase "$SUPABASE_SECRET_KEY" \
+      "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/projects?code=eq.$code&deleted_at=is.null&select=id" \
+    | /usr/bin/python3 -c '
+import json,sys
+try:
+    d=json.load(sys.stdin); print(d[0]["id"] if isinstance(d,list) and d else "")
+except Exception: print("")')"
+  [[ -n "$product_id" ]] || printf 'Note: project %s did not resolve; the Knowledge entry will have no project.\n' "$code"
 
   printf '\nWriting the Knowledge entry first...\n'
   knowledge_body="$(/usr/bin/python3 -c '
