@@ -677,6 +677,13 @@ export async function appendOrbInterrupt(
  * never shown to the user, so it must not stay pending (2026-09-16: a stopped
  * "Add a to-do called test. to do one." left a create the next reply talked
  * about). A proposal from an earlier, completed turn is untouched.
+ *
+ * "Never shown" is decided by whether this turn's reply was recorded, not by
+ * the turn id alone. On 2026-09-17 a create proposal was displayed at 19:19:52,
+ * the user's "Yes." replaced the still-finishing turn at 19:19:53, and this
+ * function then rejected the very proposal that "Yes." was answering. A reply
+ * in the conversation means the user saw it; interrupting the turn afterwards
+ * must not cancel it.
  */
 export async function rejectProposalsFromInterruptedTurn(
   auth: AuthContext,
@@ -694,6 +701,16 @@ export async function rejectProposalsFromInterruptedTurn(
   if (requestEventsError) throw requestEventsError
   const requestEventIds = (requestEvents ?? []).map(event => event.id as string)
   if (requestEventIds.length === 0) return
+
+  const { count: shownReplies, error: replyError } = await auth.admin
+    .from('orb_conversation_events')
+    .select('id', { count: 'exact', head: true })
+    .eq('conversation_id', conversationId)
+    .eq('user_id', auth.user.id)
+    .eq('turn_id', turnId)
+    .eq('event_type', 'assistant_message')
+  if (replyError) throw replyError
+  if ((shownReplies ?? 0) > 0) return
 
   const { data: batches, error: batchesError } = await auth.admin
     .from('orb_command_batches')

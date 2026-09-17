@@ -58,6 +58,7 @@ import { toOrbSpokenText } from '@/lib/orb-interaction/spoken-text'
 import { projectsAfterConfirmedCreation, projectsAfterConfirmedDeletion, selectedProjectAfterMutationRefresh } from '@/lib/orb-interaction/project-refresh'
 import { ORB_REALTIME_TRANSPORT_ONLY } from '@/lib/orb-interaction/runtime'
 import { isBareStopCommand, mergedTurnText, type OrbInterruptReason } from '@/lib/orb-interaction/interrupt-intent'
+import { isBareMutationAffirmation } from '@/lib/orb-model/confirmation-grammar'
 
 const TTS_CONFIG_CHANGED_EVENT = 'orb:tts-config-changed'
 
@@ -1330,6 +1331,15 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         setInput('')
         sessionStorage.removeItem(SS_INPUT)
         await handleStop('stop')
+        return
+      }
+      if (isBareMutationAffirmation(text) && isBareMutationAffirmation(activeRequest.text)) {
+        // The same decision heard twice ("Yes" then "Yes Yes."). Merging it
+        // created a second turn that ran the change again after the first had
+        // already committed (2026-09-17). One confirmation, one commit.
+        console.info('[UnifiedDashboard] Ignored a repeated confirmation while one is in flight:', text)
+        setInput('')
+        sessionStorage.removeItem(SS_INPUT)
         return
       }
       if (!activeRequest.replyVisible && !text.startsWith('/')) {

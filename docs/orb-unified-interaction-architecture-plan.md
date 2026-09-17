@@ -68,8 +68,12 @@ responses or later speech.
 and small number words ignored), and a remaining mismatch is recorded
 (`speech_render_mismatch` telemetry mark, development-only text in the console)
 rather than ending the voice session. The screen always shows the canonical
-text. A stopped, replaced, or merged turn also rejects any proposal it stored,
-because that proposal was never shown.
+text. A stopped, replaced, or merged turn also rejects any proposal it stored **only
+when no reply for that turn was recorded** — a displayed proposal survives a
+later interrupt of its own turn (2026-09-17: a "Yes." arriving 1s after the
+proposal was shown cancelled it). A bare affirmation arriving while another
+bare affirmation is in flight is dropped by the client rather than merged, so
+one confirmation commits once.
 
 The implemented v0.6.316 slice makes one or many confirmation-gated mutations
 share the same ordered envelope, resolves each required object class from one

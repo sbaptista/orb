@@ -9,7 +9,7 @@ import { comparableSpokenWords, toOrbSpokenText } from '../lib/orb-interaction/s
 import { isBareHaltCommand, isBareStopCommand, isOrbInterruptReason, mergedTurnText, TURN_CANCELLING_INTERRUPT_REASONS } from '../lib/orb-interaction/interrupt-intent'
 import { hasCompletionLanguage, hasProposalLanguage, isFalseCompletionClaim, presentableLeadIn, presentableStreamingSpeech, stripHistoryProvenanceLabels, switchConfirmationSpeech, withoutOutcomeSentences } from '../lib/orb-model/false-claim-guard'
 import { isAuthenticVoiceTurn } from '../lib/orb-interaction/voice-authenticity'
-import { isTypoTolerantBareMutationAffirmation } from '../lib/orb-model/confirmation-grammar'
+import { isBareMutationAffirmation, isTypoTolerantBareMutationAffirmation } from '../lib/orb-model/confirmation-grammar'
 import { deletedProjectIdsFromPendingMutation, projectsAfterConfirmedCreation, projectsAfterConfirmedDeletion, selectedProjectAfterMutationRefresh } from '../lib/orb-interaction/project-refresh'
 import { ORB_REALTIME_TRANSPORT_ONLY } from '../lib/orb-interaction/runtime'
 import { withExplicitSpellingClarification, withHistorySpellingClarifications } from '../lib/orb-interaction/spelled-identifiers'
@@ -183,6 +183,13 @@ assert.equal(isAuthenticVoiceTurn({
   sileroSpeechObserved: false,
   sileroRealStartCount: 0,
 }, 0.99), false)
+
+// A repeated confirmation is recognised as one, so the client can drop it.
+assert.equal(isBareMutationAffirmation('Yes Yes.'), true)
+assert.equal(isBareMutationAffirmation('yes'), true)
+assert.equal(isBareMutationAffirmation('Confirm confirm'), true)
+assert.equal(isBareMutationAffirmation('Yes, but change the name'), false)
+assert.equal(isBareMutationAffirmation('Make test1 the active project.'), false)
 
 assert.equal(isTypoTolerantBareMutationAffirmation('Go aherad'), true)
 assert.equal(isTypoTolerantBareMutationAffirmation('es'), true)

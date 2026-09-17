@@ -1,3 +1,13 @@
+/**
+ * A reply that is nothing but agreement — "yes", "go ahead", "Yes Yes." — with
+ * no other content. Lives here rather than in mutation-authorization.ts so the
+ * browser can use it too: the client must recognise a repeated confirmation to
+ * avoid sending the same decision twice (2026-09-17).
+ */
+export function isBareMutationAffirmation(input: string): boolean {
+  return /^(?:(?:yes|yep|yeah|yup|sure|okay|ok|affirmative|absolutely|definitely|approved|approve|confirmed|confirm|go ahead|do it|go|please do|please|proceed|sounds good|correct|that['’]?s right|that is right)[,.!\s]*)+$/i.test(input.trim())
+}
+
 const TYPO_TOLERANT_CONFIRMATIONS = [
   'yes',
   'yep',

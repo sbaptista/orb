@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.331',
+    date: '2026-09-17',
+    changes: [
+      'Fixed saying “yes” too soon cancelling the very change it was approving. If Orb was still finishing the turn that showed you a confirmation question, your answer cancelled that proposal and Orb proposed the same thing again. A proposal you have been shown now survives whatever interrupts that turn; only one you never saw is cancelled.',
+      'Fixed a repeated “yes” running the change twice. Saying “yes” again while the first one is still being processed is now ignored rather than treated as a new request — previously the first “yes” created the project and the second tried to create it again, reporting that it already existed.',
+    ],
+  },
+  {
     version: 'v0.6.330',
     date: '2026-09-17',
     changes: [

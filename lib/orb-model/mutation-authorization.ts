@@ -1,7 +1,7 @@
 import 'server-only'
 import Anthropic from '@anthropic-ai/sdk'
 import { ANTHROPIC_HAIKU_REFERENCE_MODEL } from './anthropic'
-import { isTypoTolerantBareMutationAffirmation } from './confirmation-grammar'
+import { isBareMutationAffirmation, isTypoTolerantBareMutationAffirmation } from './confirmation-grammar'
 
 // Shared, server-enforced mutation authorization grammar.
 // The model may interpret the requested action, but it cannot authorize its
@@ -10,9 +10,7 @@ import { isTypoTolerantBareMutationAffirmation } from './confirmation-grammar'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
 
-export function isBareMutationAffirmation(input: string): boolean {
-  return /^(?:(?:yes|yep|yeah|yup|sure|okay|ok|affirmative|absolutely|definitely|approved|approve|confirmed|confirm|go ahead|do it|go|please do|please|proceed|sounds good|correct|that['’]?s right|that is right)[,.!\s]*)+$/i.test(input.trim())
-}
+export { isBareMutationAffirmation } from './confirmation-grammar'
 
 export function isBareMutationDecline(input: string): boolean {
   return /^(?:(?:no|nope|nah|cancel|stop|don['’]?t|do not|never mind|nevermind|leave it|skip it|forget it)[,.!\s]*)+$/i.test(input.trim())

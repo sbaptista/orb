@@ -19,9 +19,9 @@
   `0a379c0`, nothing unpushed). Local `main` still points at v0.6.306 and is 15
   behind — sync it before branching from it:
   `git fetch origin && git branch -f main origin/main`.
-- **Version:** **0.6.330** in the main directory, **live in production**:
-  `https://orb-eight-lake.vercel.app/api/version` returned `v0.6.330` after the
-  deploy (checked 2026-09-17).
+- **Version:** **0.6.331** in the main directory. **v0.6.330 is live in
+  production** (`/api/version` returned `v0.6.330`, checked 2026-09-17);
+  v0.6.331 is committed locally and not pushed.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -182,6 +182,16 @@ None.
   success). v0.6.330 routes those writes through admin server actions — **live
   but never exercised against production RLS**; the first knowledge edit is the
   real test.
+- **v0.6.331 — two bugs from the 2026-09-17 live voice session, both proved by
+  the event log:** (a) `rejectProposalsFromInterruptedTurn` cancelled a proposal
+  whose reply had already been recorded (19:19:52 shown → 19:19:53 `replacement`
+  → 19:19:55 rejected), so the answering "Yes." lost what it was confirming; it
+  now skips rejection when the turn has an `assistant_message`. (b) A merged
+  repeat confirmation committed once (receipt `ec3b31dd`) and then re-ran as a
+  new create ("You already have a project named TEST1"); the client now drops a
+  bare affirmation while another bare affirmation is in flight.
+  **Known and not fixed:** fast fragments produce overlapping turns, so replies
+  can arrive out of order and two turns can each answer "Switched to “X”".
 - **v0.6.327 (committed, unverified):** prompt rule that only the server
   writes go-ahead questions/receipts and history labels are not templates;
   stronger label wording; `query_capabilities` section guidance. Aimed at
