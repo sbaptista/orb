@@ -17,7 +17,7 @@
 - **Branch:** `codex/voice-command-contract`; v0.6.325 is committed locally, not
   pushed. v0.6.326 is committed locally on top of it, not pushed. Production
   deployment not checked.
-- **Version:** **0.6.329** in the main directory.
+- **Version:** **0.6.330** in the main directory.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -168,8 +168,13 @@ None.
   is open.
 - **ORB-359 is CLOSED** (2026-09-17 18:46Z, verified by reading the todo back:
   status closed, notes present) with Knowledge entry
-  `d6b410cc-1865-42a9-ba70-4dbe0592eaba` — which has **no project set**; fix in
-  Settings → Knowledge.
+  `d6b410cc-1865-42a9-ba70-4dbe0592eaba` — still has **no project set**.
+  Settings → Knowledge could not fix it (RLS hides a NULL-`product_id` row from
+  the update policy; the browser write matched zero rows and reported success).
+  v0.6.330 routes those writes through admin server actions; until it is
+  running, set it with the SQL Editor:
+  `UPDATE public.knowledge_repo k SET product_id = p.id FROM public.projects p
+  WHERE k.id = 'd6b410cc-1865-42a9-ba70-4dbe0592eaba' AND p.code = 'ORB';`
 - **v0.6.327 (committed, unverified):** prompt rule that only the server
   writes go-ahead questions/receipts and history labels are not templates;
   stronger label wording; `query_capabilities` section guidance. Aimed at

@@ -7,6 +7,7 @@ import SearchMatchIndicator from '@/components/ui/SearchMatchIndicator'
 import CopyButton, { formatClipboardRecord } from '@/components/ui/CopyButton'
 import { getKnowledgeEntries } from '@/app/actions/get-knowledge-entries'
 import { logAudit } from '@/app/actions/log-audit'
+import { deleteKnowledgeEntries, updateKnowledgeEntry, type KnowledgeRecord } from '@/app/actions/manage-knowledge'
 import { collectSystemInfo } from '@/lib/system-info'
 import { startInteraction } from '@/lib/performance/telemetry'
 import { knowledgeSearchTerms, matchingKnowledgeTerms, type KnowledgeSearchMode } from '@/lib/knowledge-search'
@@ -222,15 +223,19 @@ export default function SettingsKnowledge() {
           logAudit({ action: 'knowledge_create', table_name: 'knowledge_repo', record_id: data?.id, after: { title: record.title }, system_info: collectSystemInfo() })
         },
 
-        onSave: async (supabase, id, record) => {
-          const { error } = await supabase.from('knowledge_repo').update(record).eq('id', id)
-          if (error) throw new Error(error.message)
+        // Writes go through admin server actions: RLS hides an entry with no
+        // project from update/delete, so the browser client's write matched
+        // zero rows and PostgREST reported success (2026-09-17). The actions
+        // also fail when nothing was actually written.
+        onSave: async (_supabase, id, record) => {
+          const result = await updateKnowledgeEntry(id, record as KnowledgeRecord)
+          if ('error' in result) throw new Error(result.error)
           logAudit({ action: 'knowledge_update', table_name: 'knowledge_repo', record_id: id, after: { title: record.title }, system_info: collectSystemInfo() })
         },
 
-        onDelete: async (supabase, item) => {
-          const { error } = await supabase.from('knowledge_repo').delete().eq('id', item.id)
-          if (error) throw new Error(error.message)
+        onDelete: async (_supabase, item) => {
+          const result = await deleteKnowledgeEntries([item.id])
+          if ('error' in result) throw new Error(result.error)
           logAudit({ action: 'knowledge_delete', table_name: 'knowledge_repo', record_id: item.id, before: { title: item.title }, system_info: collectSystemInfo() })
         },
 
@@ -241,10 +246,9 @@ export default function SettingsKnowledge() {
         bulkDelete: {
           canSelect: () => true,
           confirmMessage: (count: number) => `Permanently delete ${count} knowledge entr${count > 1 ? 'ies' : 'y'}? This cannot be undone.`,
-          onDelete: async (supabase: any, items: KnowledgeEntry[]) => {
-            const ids = items.map(e => e.id)
-            const { error } = await supabase.from('knowledge_repo').delete().in('id', ids)
-            return error ? { error: error.message } : {}
+          onDelete: async (_supabase: any, items: KnowledgeEntry[]) => {
+            const result = await deleteKnowledgeEntries(items.map(e => e.id))
+            return 'error' in result ? { error: result.error } : {}
           },
         },
 

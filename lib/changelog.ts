@@ -6,6 +6,14 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.330',
+    date: '2026-09-17',
+    changes: [
+      'Fixed Settings → Knowledge reporting an entry as saved when nothing was written. An entry with no project could not be edited or deleted at all: the database security rules hid it from those operations, and the empty result was read as success. Saves and deletes now run with admin rights and report a real error if no entry was changed.',
+      'Knowledge entries created when an agent proposal is applied now carry their project, so they no longer land unattached (v0.6.329 fixed the source of that).',
+    ],
+  },
+  {
     version: 'v0.6.327',
     date: '2026-09-17',
     changes: [

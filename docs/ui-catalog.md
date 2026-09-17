@@ -312,6 +312,16 @@ The pattern is used by `TodoEditor`, the dashboard List pane's
 `AddProductModal`, and Settings Projects/Knowledge forms. It is a manual
 clipboard boundary, not an automatic database or AI integration.
 
+**Knowledge writes go through admin server actions (2026-09-17):** Settings →
+Knowledge saves and deletes call `updateKnowledgeEntry` /
+`deleteKnowledgeEntries` (`app/actions/manage-knowledge.ts`) rather than the
+browser Supabase client. RLS hides an entry whose `product_id` is NULL from the
+update and delete policies, so the browser write matched zero rows and
+PostgREST reported success — the editor said "saved" while nothing changed.
+Both actions return the affected ids and fail when none come back. Any
+`SettingsCrudList` screen whose rows can fall outside their RLS policy must do
+the same: never report a write that affected no rows as a success.
+
 **Knowledge multi-entry search:** Settings → Knowledge extends the canonical
 text-search modal with the existing `pill` selector for **All terms** (default)
 or **Any term**. Whitespace separates literal terms, so `Claude security`
