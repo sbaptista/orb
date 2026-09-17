@@ -27,6 +27,25 @@ readonly ORB_BASE="https://orb-eight-lake.vercel.app"
 
 fail() { printf 'orb-agent-approve: %s\n' "$*" >&2; exit 1; }
 
+# Request bodies go to a file, never to curl's stdin.
+#
+# curl_auth/curl_supabase hand curl its auth headers on stdin (`--config -`) so
+# the secret never appears in the process list. `--data-binary @-` then reads
+# that same stdin, which the config has already consumed, so the body was sent
+# EMPTY. Supabase answered PGRST102 "Empty or invalid json" and no agent
+# proposal could ever be applied (found 2026-09-17, reproduced against a local
+# echo server: headers-on-stdin sent body=b'', body-from-file sent the JSON).
+# The body is not secret; the headers are. umask 077 above keeps the file 600.
+BODY_FILE=""
+cleanup_body_file() { [[ -n "$BODY_FILE" ]] && /bin/rm -f "$BODY_FILE"; BODY_FILE=""; }
+trap cleanup_body_file EXIT
+
+write_body_file() {
+  cleanup_body_file
+  BODY_FILE="$(/usr/bin/mktemp "${TMPDIR:-/tmp}/orb-agent-approve-body.XXXXXX")"
+  printf '%s' "$1" > "$BODY_FILE"
+}
+
 # Validate the COMPLETE proposal at apply time, not just at creation.
 # Codex Round 2 R2-Q1: `orb-agent propose` was fixed to reject a closure with no
 # Knowledge entry, but this script still accepted a stored proposal whose
@@ -250,9 +269,10 @@ print(json.dumps({
   "product_id": sys.argv[2] or None, "origin_todo_id": sys.argv[3],
 }))' "$path" "$product_id" "$todo_id")"
 
-  knowledge_result="$(printf '%s' "$knowledge_body" \
-    | curl_supabase "$SUPABASE_SECRET_KEY" -X POST "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/knowledge_repo" \
-        -H "Content-Type: application/json" -H "Prefer: return=representation" --data-binary @-)"
+  write_body_file "$knowledge_body"
+  knowledge_result="$(curl_supabase "$SUPABASE_SECRET_KEY" -X POST "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/knowledge_repo" \
+        -H "Content-Type: application/json" -H "Prefer: return=representation" --data-binary @"$BODY_FILE")"
+  cleanup_body_file
 
   knowledge_id="$(printf '%s' "$knowledge_result" | /usr/bin/python3 -c '
 import json,sys
@@ -276,9 +296,10 @@ import json,sys
 p=json.load(open(sys.argv[1]))
 print(json.dumps({"status":"closed","resolution_notes":p["resolution_notes"]}))' "$path")"
 
-  patch_result="$(printf '%s' "$patch_body" \
-    | curl_auth "$ORB_API_SECRET" -X PATCH "$ORB_BASE/api/tasks/$todo_id" \
-        -H "Content-Type: application/json" --data-binary @-)"
+  write_body_file "$patch_body"
+  patch_result="$(curl_auth "$ORB_API_SECRET" -X PATCH "$ORB_BASE/api/tasks/$todo_id" \
+        -H "Content-Type: application/json" --data-binary @"$BODY_FILE")"
+  cleanup_body_file
 
   new_status="$(printf '%s' "$patch_result" | /usr/bin/python3 -c '
 import json,sys
