@@ -14,20 +14,24 @@
 
 ## App State
 
-- **Branch:** `codex/voice-command-contract`; v0.6.325 is committed locally, not
-  pushed. v0.6.326 is committed locally on top of it, not pushed. Production
-  deployment not checked.
-- **Version:** **0.6.330** in the main directory.
+- **Branch:** `codex/voice-command-contract`, **pushed to `origin/main`
+  2026-09-17** (fast-forward; `origin/main` is
+  `0a379c0`, nothing unpushed). Local `main` still points at v0.6.306 and is 15
+  behind — sync it before branching from it:
+  `git fetch origin && git branch -f main origin/main`.
+- **Version:** **0.6.330** in the main directory, **live in production**:
+  `https://orb-eight-lake.vercel.app/api/version` returned `v0.6.330` after the
+  deploy (checked 2026-09-17).
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
 - **Production maintenance:** off.
-- **Installed launchers: IN SYNC — verified 2026-09-06** by
+- **Installed launchers: IN SYNC — verified 2026-09-17** by
   `bash scripts/security/test-orb-launcher.sh` (**5 checked**; bytes, owner and
-  mode asserted). All five `root:wheel 755`. `orb-agent` joined the manifest on
+  mode asserted) after reinstalling `orb-agent` and `orb-agent-approve`. All
+  five `root:wheel 755`. `orb-agent` joined the manifest on
   2026-09-06 after being installed root-owned.
-  **2026-09-17: `orb-agent` and `orb-agent-approve` are OUT OF SYNC and must be
-  reinstalled.** `orb-agent-approve`: the empty-body bug (`--config -` and
+  **2026-09-17: both were reinstalled and are in sync.** `orb-agent-approve`: the empty-body bug (`--config -` and
   `--data-binary @-` both read stdin; PGRST102) was fixed and the installed copy
   was reinstalled, so ORB-359 applied; the repo copy has since gained
   project-id resolution for the Knowledge entry (the tasks API select omits
@@ -35,7 +39,9 @@
   entry `d6b410cc` still needs its project set by hand). `orb-agent`: status
   counted proposal FILES, so applied proposals inflated "proposals pending"
   for ever; repo copy now counts pending only (verified 0 by running the repo
-  copy). Reinstall both before relying on either.
+  copy; the installed copy now also reports 0). The project-id resolution in
+  `orb-agent-approve` is installed but unexercised — the next applied proposal
+  is its first real test.
   **Standing note:** the copies in `/usr/local/orb-bin` are what run. Version
   control does not keep them in step — only that check does. **Run it after
   editing anything in `scripts/security/`, and reinstall before assuming a fix
@@ -168,13 +174,14 @@ None.
   is open.
 - **ORB-359 is CLOSED** (2026-09-17 18:46Z, verified by reading the todo back:
   status closed, notes present) with Knowledge entry
-  `d6b410cc-1865-42a9-ba70-4dbe0592eaba` — still has **no project set**.
-  Settings → Knowledge could not fix it (RLS hides a NULL-`product_id` row from
-  the update policy; the browser write matched zero rows and reported success).
-  v0.6.330 routes those writes through admin server actions; until it is
-  running, set it with the SQL Editor:
-  `UPDATE public.knowledge_repo k SET product_id = p.id FROM public.projects p
-  WHERE k.id = 'd6b410cc-1865-42a9-ba70-4dbe0592eaba' AND p.code = 'ORB';`
+  `d6b410cc-1865-42a9-ba70-4dbe0592eaba` — project **set to ORB** by Stan via
+  the SQL Editor on 2026-09-17 (verified: project ORB, updated_at advanced).
+  Until then it had no project, because
+  Settings → Knowledge could not write it (RLS hides a NULL-`product_id` row
+  from the update policy; the browser write matched zero rows and reported
+  success). v0.6.330 routes those writes through admin server actions — **live
+  but never exercised against production RLS**; the first knowledge edit is the
+  real test.
 - **v0.6.327 (committed, unverified):** prompt rule that only the server
   writes go-ahead questions/receipts and history labels are not templates;
   stronger label wording; `query_capabilities` section guidance. Aimed at
