@@ -17,7 +17,7 @@
 - **Branch:** `codex/voice-command-contract`; v0.6.325 is committed locally, not
   pushed. v0.6.326 is committed locally on top of it, not pushed. Production
   deployment not checked.
-- **Version:** **0.6.326** in the main directory.
+- **Version:** **0.6.327** in the main directory.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -156,6 +156,12 @@ None.
   note wording); `hallucinated-proposal-history-new-create-calls-tool` fails by
   design (strict). Stan declined another full Tier 1 for now; the release gate
   is open.
+- **v0.6.327 (committed, unverified):** prompt rule that only the server
+  writes go-ahead questions/receipts and history labels are not templates;
+  stronger label wording; `query_capabilities` section guidance. Aimed at
+  `hallucinated-proposal-history-new-create-calls-tool` and
+  `realtime-query-capabilities-intent-analogue`. **Stan directed no further
+  full eval runs, so neither is re-verified.**
 - More menu: the two “Copy” items are now “Copy text” and “Copy convo”.
 - **C:** stopped/replaced turns keep reading the stream and apply receipts;
   admin `refreshProjects` keeps receipt-confirmed rows; voice 30s text dedupe

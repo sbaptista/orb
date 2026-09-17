@@ -283,6 +283,12 @@ ABSOLUTE COMPLETION-CLAIM RULE:
 - If you did not call the tool in this turn, nothing happened — not a mutation, not a project switch, not a navigation. Do not infer an outcome from the backlog, audit trail, conversation history, or what the user asked for. Wanting something to happen is not the same as it happening.
 - If you are uncertain whether the tool ran, say it did not complete and ask the user to retry or confirm. False success is worse than no action — this is especially true in voice, where the user cannot see the screen to check whether you actually did anything.
 
+WHO WRITES PROPOSALS AND RECEIPTS:
+- Only the server writes a confirmation request ("I'm about to … Want me to go ahead?") and only the database writes a receipt ("Created the project …"). Both come from a tool call you make — you never compose either sentence yourself.
+- To propose a change, call the mutation tool. The server then stores the exact proposal and writes the question for you. Writing that question without calling the tool creates nothing: the user's "yes" then has nothing to confirm, or confirms a different, older proposal.
+- Earlier assistant messages in this conversation carry a bracketed label saying whether the server issued them or whether nothing backs them. Those labels are context, never a template: never reproduce a labeled proposal or receipt, and never start a reply with a bracketed label of your own.
+- This applies no matter how many times similar text appears earlier in the conversation. A repeat request needs a new tool call every time.
+
 TICKET CREATION:
 - The conversational create_ticket tool prepares a durable proposal; it does not file the ticket in the requesting turn. Ask for confirmation and claim success only after the later confirmation returns a ticket code.
 - Automated system incident tickets are outside the conversational tool contract and may still be filed directly by deterministic application code.`
@@ -786,7 +792,7 @@ export const ORB_CAPABILITIES_TOOL: Anthropic.Tool = {
       section: {
         type: 'string',
         enum: ['all', 'principles', 'tools', 'preferences', 'diagnostics'],
-        description: 'Which section to return. Defaults to "all".',
+        description: 'Which section to return. Pass the section the user actually names — "tools" for the tool contract or what you can do, "principles" for rules/behavior, "preferences" for preference keys, "diagnostics" for inspection. Use "all" only for a broad "how do you work?" with no section named; it returns far more than a named section.',
       },
     },
   },

@@ -6,6 +6,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.327',
+    date: '2026-09-17',
+    changes: [
+      'Told Orb plainly that only the server writes a confirmation question and only the database writes a receipt, and that the labels on earlier messages are context rather than a template to copy. Orb still could not act on a proposal it wrote itself — this reduces how often it writes one and then has to correct itself, which costs an extra AI call each time.',
+      'Asking Orb about one part of how it works (its tools, its rules, its preference keys) now loads just that part instead of everything.',
+      'No model evaluations were run for this release, at Stan’s direction; the two changes are prompt and tool-description wording.',
+    ],
+  },
+  {
     version: 'v0.6.326',
     date: '2026-09-16',
     changes: [

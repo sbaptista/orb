@@ -1,6 +1,6 @@
 {
   "name": "orb",
-  "version": "0.6.326",
+  "version": "0.6.327",
   "private": true,
   "scripts": {
     "prebuild": "node scripts/generate-repository-bundle.mjs",

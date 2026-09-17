@@ -26,9 +26,9 @@ export type OrbModelHistoryEntry = {
 }
 
 const PROVENANCE_LABELS: Record<OrbModelHistoryProvenance, string> = {
-  server_proposal: '[Server-issued confirmation request: a mutation tool call stored this exact proposal. Nothing ran until a later user turn confirmed it.]',
-  server_receipt: '[Server-issued database receipt: the confirmation transaction committed this change. Only the database writes these.]',
-  unverified_mutation_claim: '[Unverified: no tool call, stored proposal, or database receipt backs this message. Nothing was proposed or changed.]',
+  server_proposal: '[Server-issued confirmation request: a mutation tool call stored this exact proposal, and the server — not you — wrote this text. Do not reproduce it; call the mutation tool instead.]',
+  server_receipt: '[Server-issued database receipt: the confirmation transaction committed this change, and the database — not you — wrote this text. Do not reproduce it.]',
+  unverified_mutation_claim: '[Unverified: no tool call, stored proposal, or database receipt backs this message, so nothing was proposed or changed. Never write text like this; call the tool.]',
 }
 
 /** Classify an assistant message that has no server proposal or receipt behind it. */
