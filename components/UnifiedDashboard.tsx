@@ -13,7 +13,7 @@ import EmptyState from './ui/EmptyState'
 import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { registerOrbTour, unregisterOrbTour, runOrbTour, launchOrbTour } from './OrbTour'
 import { OrbDevPanel, DevTestError, type MoodOverride, type SimulateError } from './OrbDevPanel'
-import { orbConverse, type ActionSet, type PendingMutation } from '@/app/actions/orb-converse'
+import { orbConverse, type ActionSet, type OrbResponse, type PendingMutation } from '@/app/actions/orb-converse'
 import { acknowledgeOrbResponse, clearOrbConversation, interruptOrbConversation, loadOrbConversation } from '@/app/actions/orb-interaction'
 import { collectSystemInfo, type SystemInfo } from '@/lib/system-info'
 import { collectClientEnvironment } from '@/lib/client-environment'
@@ -57,6 +57,7 @@ import { startInteraction, consumePerformanceNavigationStart } from '@/lib/perfo
 import { toOrbSpokenText } from '@/lib/orb-interaction/spoken-text'
 import { projectsAfterConfirmedCreation, projectsAfterConfirmedDeletion, selectedProjectAfterMutationRefresh } from '@/lib/orb-interaction/project-refresh'
 import { ORB_REALTIME_TRANSPORT_ONLY } from '@/lib/orb-interaction/runtime'
+import { isBareStopCommand, mergedTurnText, type OrbInterruptReason } from '@/lib/orb-interaction/interrupt-intent'
 
 const TTS_CONFIG_CHANGED_EVENT = 'orb:tts-config-changed'
 
@@ -287,7 +288,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       setMessages(previous => [...previous, { id: genId(), type: 'orb', text }])
       setConversationActive(true)
     },
-    onInterrupt: reason => interruptRef.current(reason),
     onUntrustedTranscript: () => toast.neutral('I heard audio but could not verify speech. Please try again.'),
     onMutation: () => {
       setPulse(true)
@@ -364,18 +364,19 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     turnId: string
     modality: 'text' | 'voice'
     aborted: boolean
+    supersededBy?: OrbInterruptReason
+    text: string
+    userEventId: string
+    replyVisible: boolean
   } | null>(null)
   const cancelledConversationRequestIdsRef = useRef<Set<number>>(new Set())
   const conversationIdRef      = useRef<string | null>(null)
   const interactionClientIdRef  = useRef<string | null>(null)
   const voiceSendRef            = useRef<(text: string) => void>(() => {})
-  const interruptRef            = useRef<(reason: 'barge_in' | 'stop' | 'replacement' | 'exit_voice') => void>(() => {})
-  const lastInteractionTurnRef  = useRef<{ turnId: string; modality: 'text' | 'voice' } | null>(null)
   const messagesRef            = useRef<ConversationMessage[]>([])
   messagesRef.current = messages
   conversationIdRef.current = conversationId
   const lastSpokenVoiceMessageRef = useRef<{ id: string; text: string } | null>(null)
-  const lastVoiceSubmitRef = useRef<{ text: string; at: number } | null>(null)
   const stoppedVoiceMessageIdsRef = useRef<Set<string>>(new Set())
   const welcomeDismissedRef    = useRef(false)
   const orbFadeRef             = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -483,10 +484,19 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         .eq('is_dormant', false)
         .order('name')
       if (data) {
-        setAdminProjects((data as any[]).filter(p => !excluded.has(p.id)).map(p => ({
+        const fetched = (data as any[]).filter(p => !excluded.has(p.id)).map(p => ({
           id: p.id, name: p.name, code: p.code,
           owner_name: p.users ? [p.users.first_name, p.users.last_name].filter(Boolean).join(' ') : 'Unknown',
-        })))
+        }))
+        // Change Project reads this list. Keep receipt-confirmed rows even if
+        // this read does not see them yet, exactly as the non-admin branch does;
+        // the fetched row wins when it is present (it carries the owner name).
+        setAdminProjects(confirmedProjects.reduce<AdminProject[]>(
+          (current, project) => current.some(existing => existing.id === project.id)
+            ? current
+            : [...current, { id: project.id, name: project.name, code: project.code ?? null, owner_name: '' }],
+          fetched,
+        ))
       }
     } else {
       setAdminProjects(list.map(p => ({ id: p.id, name: p.name, code: p.code ?? null, owner_name: '' })))
@@ -620,31 +630,43 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const speakRef = useRef(voice.speak)
   speakRef.current = voice.speak
 
-  const handleStop = useCallback(async (reason: 'barge_in' | 'stop' | 'replacement' | 'exit_voice' = 'stop') => {
+  // Interrupt contract (lib/orb-interaction/interrupt-intent.ts). Only a
+  // deliberate reason reaches here — acoustic barge-in pauses speech inside the
+  // voice hook and never cancels work. Every reason silences the current reply.
+  // `exit_voice` cancels nothing else: the in-flight answer still lands as text.
+  // `stop` and `replacement` end the in-flight turn's presentation and record a
+  // durable interrupt; only `stop` can block a confirmed commit that has not
+  // run, and any committed result is still applied (see handleSubmit).
+  const handleStop = useCallback(async (reason: OrbInterruptReason = 'stop') => {
     const lastOrb = [...messagesRef.current].reverse().find(m => m.type === 'orb')
     if (lastOrb) stoppedVoiceMessageIdsRef.current.add(lastOrb.id)
     cancelSpeechRef.current()
+    if (reason === 'exit_voice') return
 
     const request = activeConversationRequestRef.current
-    const interruptedTurn = request ?? lastInteractionTurnRef.current
+    // A finished turn has nothing left to cancel; its artifact is already
+    // durable. Recording an interrupt against it only added noise.
+    if (!request) return
     const activeConversationId = conversationIdRef.current
-    const durableInterrupt = activeConversationId && interruptedTurn
+    const durableInterrupt = activeConversationId
       ? interruptOrbConversation({
         conversationId: activeConversationId,
-        turnId: interruptedTurn.turnId,
+        turnId: request.turnId,
         eventId: genUuid(),
-        modality: interruptedTurn.modality,
+        modality: request.modality,
         reason,
       }).catch(error => console.error('[UnifiedDashboard] Interrupt event failed:', error))
       : Promise.resolve()
-    if (request) {
-      request.aborted = true
-      cancelledConversationRequestIdsRef.current.add(request.id)
-      activeConversationRequestRef.current = null
-    }
+    request.aborted = true
+    request.supersededBy = reason
+    cancelledConversationRequestIdsRef.current.add(request.id)
+    activeConversationRequestRef.current = null
     setMessages(prev => prev.map(m => {
-      if (request && m.id === request.processingId) {
-        return { ...m, isStreaming: false, text: m.text === 'Processing…' ? 'Stopped.' : m.text }
+      if (m.id === request.processingId) {
+        // An unfinished reply is never kept: durable history does not store it,
+        // so partial text would differ across devices and after reload, and a
+        // fragment can be mid-token. A finished reply already has a new id.
+        return { ...m, isStreaming: false, text: 'Stopped.', spokenText: undefined, insight: undefined }
       }
       if (m.type === 'orb' && m.isStreaming) return { ...m, isStreaming: false }
       return m
@@ -655,23 +677,18 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     }, 80)
     await durableInterrupt
   }, [])
-  interruptRef.current = reason => { void handleStop(reason) }
 
   // ── Voice mode handlers ──
   // Register the send callback so the hook can submit after recognition ends.
   // Ref indirection ensures the callback always uses the latest handleSubmit
   // and voice methods, not stale closures from the initial render.
   voiceSendRef.current = (text: string) => {
-    const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ')
-    const last = lastVoiceSubmitRef.current
-    const now = Date.now()
-    if (last && last.text === normalized && now - last.at < 30_000) {
-      console.info('[voice] ignored duplicate recognized utterance:', text)
-      return
-    }
-    lastVoiceSubmitRef.current = { text: normalized, at: now }
+    // No text-level duplicate filter: saying "yes" twice is two decisions, and
+    // typed input has never been filtered. The voice hook drops a redelivered
+    // provider transcript by its item id instead.
     handleSubmit(text)
   }
+
   useEffect(() => {
     voice.setOnSend((text: string) => voiceSendRef.current(text))
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1303,9 +1320,31 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // ══════════════════════════════════════════════════════════
 
   async function handleSubmit(value?: string) {
-    const text = (value ?? input).trim()
+    let text = (value ?? input).trim()
     if (!text) return
-    if (activeConversationRequestRef.current) await handleStop('replacement')
+    const activeRequest = activeConversationRequestRef.current
+    if (activeRequest) {
+      if (isBareStopCommand(text)) {
+        // A bare stop word ends the running turn deliberately. It is not a new
+        // request, so it is never sent as a turn of its own.
+        setInput('')
+        sessionStorage.removeItem(SS_INPUT)
+        await handleStop('stop')
+        return
+      }
+      if (!activeRequest.replyVisible && !text.startsWith('/')) {
+        // Nothing has been shown for the running turn yet, so this is the
+        // rest of the same request (a pause split it). Continue it as one turn
+        // and remove the fragment instead of leaving "Stopped." behind.
+        text = mergedTurnText(activeRequest.text, text)
+        await handleStop('merge')
+        setMessages(prev => prev.filter(m => m.id !== activeRequest.userEventId && m.id !== activeRequest.processingId))
+      } else {
+        // A new request replaces the running turn without cancelling an
+        // approved commit.
+        await handleStop('replacement')
+      }
+    }
 
     if (text === '?' || text === '/?') { openHelp(); setInput(''); return }
 
@@ -1381,6 +1420,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       turnId,
       modality: (voiceEngaged ? 'voice' : 'text') as 'voice' | 'text',
       aborted: false,
+      text,
+      userEventId,
+      replyVisible: false,
     }
     activeConversationRequestRef.current = request
     const submitMeasurement = startDashboardInteraction(
@@ -1408,14 +1450,106 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       submitMeasurement.mark('server_action_start')
       const stream = await orbConverse({ input: text, productId: selectedId, dryRun, simulateError, systemInfo: systemInfoRef.current, clientEnvironment: collectClientEnvironment(), clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, actionSets: actionSetsRef.current, interaction: { conversationId: conversationIdRef.current, turnId, userEventId, modality: voiceEngaged ? 'voice' : 'text' }, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive, voiceMode: voiceEngaged, availableVoices: voiceEngaged ? voice.availableVoices.map(v => v.name) : undefined, currentVoice: voiceEngaged ? voice.selectedVoiceName || undefined : undefined, ttsProvider: voiceEngaged ? ttsConfig?.provider : undefined, ttsModel: voiceEngaged ? ttsConfig?.model : undefined, ttsVoiceId: voiceEngaged ? ttsConfig?.voiceId : undefined } })
       submitMeasurement.mark('server_action_stream_opened')
+      // Committed effects are true regardless of presentation: a receipt must
+      // reach the project and todo lists even if the user stopped or replaced
+      // the reply, so this runs for presented and superseded turns alike.
+      const applyCommittedEffects = async (chunk: OrbResponse) => {
+        setPulse(true)
+        setTimeout(() => setPulse(false), 420)
+        const isProjectMutation = chunk.refreshProjects === true || chunk.mutationType === 'dormancy' || chunk.mutationType === 'project_create' || chunk.mutationType === 'project_update' || chunk.mutationType === 'project_delete'
+        const isTodoMutation = chunk.refreshTodos === true || (!isProjectMutation && ['create', 'update', 'delete'].includes(chunk.mutationType ?? ''))
+        if (isProjectMutation) {
+          const deletedProjectIds = chunk.deletedProjectIds ?? []
+          const confirmedProjects = chunk.newProjects?.length
+            ? chunk.newProjects
+            : chunk.newProject ? [chunk.newProject] : []
+          // A database-issued receipt is already authoritative. Project its
+          // committed row into both list models before the follow-up read so
+          // text, voice, and presentation recovery cannot diverge on
+          // read-after-write timing.
+          for (const confirmedProject of confirmedProjects) {
+            setProducts(previous => projectsAfterConfirmedCreation(previous, confirmedProject))
+            setAdminProjects(previous => projectsAfterConfirmedCreation(previous, {
+              id: confirmedProject.id,
+              name: confirmedProject.name,
+              code: confirmedProject.code,
+              owner_name: '',
+            }))
+          }
+          // Reconcile a confirmed deletion from the receipt before any
+          // network refetch. The database write has already committed, so
+          // leaving a deleted project visible while another query settles
+          // is both stale and misleading.
+          if (deletedProjectIds.length > 0) {
+            const localList = projectsAfterConfirmedDeletion(products, deletedProjectIds)
+            setProducts(previous => projectsAfterConfirmedDeletion(previous, deletedProjectIds))
+            setAdminProjects(previous => projectsAfterConfirmedDeletion(previous, deletedProjectIds))
+            const immediateSelectedId = selectedProjectAfterMutationRefresh(selectedId, localList)
+            if (immediateSelectedId !== selectedId) {
+              orbSwitchingRef.current = true
+              setSelectedId(immediateSelectedId)
+            }
+          }
+
+          const list = await refreshProjects(
+            deletedProjectIds,
+            confirmedProjects,
+          )
+          if (chunk.mutationType === 'project_create') {
+            toast.success('Project created.')
+          }
+          const nextSelectedId = selectedProjectAfterMutationRefresh(
+            selectedId,
+            list,
+            chunk.mutationType === 'project_create' ? confirmedProjects[0]?.id : undefined,
+          )
+          if (nextSelectedId !== selectedId) {
+            // Selection changes only when the mutation removed the selected
+            // project, or when the user had no project before their first create.
+            orbSwitchingRef.current = true
+            setSelectedId(nextSelectedId)
+          }
+        }
+        if (chunk.mutationType === 'knowledge_update') {
+          // No dashboard-visible list to refresh — Settings -> Knowledge fetches fresh on next visit.
+          toast.success('Knowledge entry updated.')
+        }
+        if (isTodoMutation) {
+          if (chunk.refreshTodos === true || chunk.mutatedProductId === selectedId) {
+            fetchOrbTodos()
+            fetchTodos()
+          }
+          if (!chunk.isStreaming) {
+            if (chunk.actionSet) toast.success(chunk.actionSet.summary)
+            else if (chunk.mutationType === 'create') toast.success('Todo created.')
+            else if (chunk.mutationType === 'update') toast.success('Todo saved.')
+            else if (chunk.mutationType === 'delete') toast.success('Todo deleted.')
+            else toast.success('Todo updated.')
+          }
+        }
+      }
       let firstChunkSeen = false
       for await (const chunk of readStreamableValue(stream)) {
-        if (request.aborted || cancelledConversationRequestIdsRef.current.has(request.id)) break
         if (!chunk) continue
+        if (request.aborted || cancelledConversationRequestIdsRef.current.has(request.id)) {
+          // Presentation of this turn ended (Stop or a replacing request), but
+          // the server keeps running it. Never drop a committed result: show the
+          // receipt silently in place of "Stopped." and apply its effects.
+          if (chunk.refresh && chunk.isStreaming === false) {
+            const receiptId = chunk.interaction?.responseEventId ?? processingId
+            stoppedVoiceMessageIdsRef.current.add(receiptId)
+            setMessages(prev => prev.map(m => m.id === processingId
+              ? { ...m, id: receiptId, text: chunk.speech || m.text, spokenText: undefined, isStreaming: false }
+              : m))
+            await applyCommittedEffects(chunk)
+          }
+          continue
+        }
         if (!firstChunkSeen) {
           firstChunkSeen = true
           submitMeasurement.mark('first_chunk_received')
         }
+        if (chunk.speech) request.replyVisible = true
         setMessages(prev => prev.map(m => {
           if (m.id !== processingId) return m
           const displayText = chunk.speech || m.text
@@ -1444,10 +1578,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         if (chunk.interaction?.conversationId) {
           coordinatorPersistenceMs = chunk.interaction.persistenceMs ?? coordinatorPersistenceMs
           setConversationId(chunk.interaction.conversationId)
-          lastInteractionTurnRef.current = {
-            turnId: chunk.interaction.turnId,
-            modality: request.modality,
-          }
           if (chunk.isStreaming === false && chunk.interaction.responseEventId && interactionClientIdRef.current) {
             const clientId = interactionClientIdRef.current
             const conversationId = chunk.interaction.conversationId
@@ -1458,86 +1588,26 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
             })
           }
         }
-        if (chunk.refresh) {
-          setPulse(true)
-          setTimeout(() => setPulse(false), 420)
-          const isProjectMutation = chunk.refreshProjects === true || chunk.mutationType === 'dormancy' || chunk.mutationType === 'project_create' || chunk.mutationType === 'project_update' || chunk.mutationType === 'project_delete'
-          const isTodoMutation = chunk.refreshTodos === true || (!isProjectMutation && ['create', 'update', 'delete'].includes(chunk.mutationType ?? ''))
-          if (isProjectMutation) {
-            const deletedProjectIds = chunk.deletedProjectIds ?? []
-            const confirmedProjects = chunk.newProjects?.length
-              ? chunk.newProjects
-              : chunk.newProject ? [chunk.newProject] : []
-            // A database-issued receipt is already authoritative. Project its
-            // committed row into both list models before the follow-up read so
-            // text, voice, and presentation recovery cannot diverge on
-            // read-after-write timing.
-            for (const confirmedProject of confirmedProjects) {
-              setProducts(previous => projectsAfterConfirmedCreation(previous, confirmedProject))
-              setAdminProjects(previous => projectsAfterConfirmedCreation(previous, {
-                id: confirmedProject.id,
-                name: confirmedProject.name,
-                code: confirmedProject.code,
-                owner_name: '',
-              }))
-            }
-            // Reconcile a confirmed deletion from the receipt before any
-            // network refetch. The database write has already committed, so
-            // leaving a deleted project visible while another query settles
-            // is both stale and misleading.
-            if (deletedProjectIds.length > 0) {
-              const localList = projectsAfterConfirmedDeletion(products, deletedProjectIds)
-              setProducts(previous => projectsAfterConfirmedDeletion(previous, deletedProjectIds))
-              setAdminProjects(previous => projectsAfterConfirmedDeletion(previous, deletedProjectIds))
-              const immediateSelectedId = selectedProjectAfterMutationRefresh(selectedId, localList)
-              if (immediateSelectedId !== selectedId) {
-                orbSwitchingRef.current = true
-                setSelectedId(immediateSelectedId)
-              }
-            }
+        if (chunk.refresh) await applyCommittedEffects(chunk)
 
-            const list = await refreshProjects(
-              deletedProjectIds,
-              confirmedProjects,
-            )
-            if (chunk.mutationType === 'project_create') {
-              toast.success('Project created.')
-            }
-            const nextSelectedId = selectedProjectAfterMutationRefresh(
-              selectedId,
-              list,
-              chunk.mutationType === 'project_create' ? confirmedProjects[0]?.id : undefined,
-            )
-            if (nextSelectedId !== selectedId) {
-              // Selection changes only when the mutation removed the selected
-              // project, or when the user had no project before their first create.
-              orbSwitchingRef.current = true
-              setSelectedId(nextSelectedId)
-            }
-          }
-          if (chunk.mutationType === 'knowledge_update') {
-            // No dashboard-visible list to refresh — Settings -> Knowledge fetches fresh on next visit.
-            toast.success('Knowledge entry updated.')
-          }
-          if (isTodoMutation) {
-            if (chunk.refreshTodos === true || chunk.mutatedProductId === selectedId) {
-              fetchOrbTodos()
-              fetchTodos()
-            }
-            if (!chunk.isStreaming) {
-              if (chunk.actionSet) toast.success(chunk.actionSet.summary)
-              else if (chunk.mutationType === 'create') toast.success('Todo created.')
-              else if (chunk.mutationType === 'update') toast.success('Todo saved.')
-              else if (chunk.mutationType === 'delete') toast.success('Todo deleted.')
-              else toast.success('Todo updated.')
-            }
-          }
-        }
         if (chunk.clientAction) {
           const action = chunk.clientAction
           if (action.action === 'switch_project' && action.target) {
-            const t = resolveProjectByReference(products, action.target)
-            if (t) { orbSwitchingRef.current = true; setSelectedId(t.id) }
+            // The server resolved this project from a fresh read, so switch by
+            // its id. A project created moments ago may not be in this render's
+            // list yet: refetch once rather than failing. Never fail silently —
+            // Orb has already told the user the switch happened.
+            const findTarget = (list: Product[]) => (action.projectId
+              ? list.find(project => project.id === action.projectId)
+              : undefined) ?? resolveProjectByReference(list, action.target!)
+            const target = findTarget(products) ?? findTarget(await refreshProjects())
+            if (target) {
+              orbSwitchingRef.current = true
+              setSelectedId(target.id)
+            } else {
+              console.error('[UnifiedDashboard] Project switch target not found', { target: action.target, projectId: action.projectId })
+              toast.error(`Couldn’t switch to ${action.target} — it isn’t in your project list.`)
+            }
           } else if (action.action === 'open_settings') router.push('/settings')
           else if (action.action === 'open_help') openHelp()
           else if (action.action === 'check_update') {
@@ -1590,8 +1660,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       setMessages(prev => prev.map(m => {
         if (m.id !== processingId) return m
         if (wasCancelled) {
-          const text = m.text === 'Processing…' ? 'Stopped.' : m.text
-          return { ...m, isStreaming: false, text, spokenText: voiceEngaged ? text : m.spokenText }
+          return { ...m, isStreaming: false, text: 'Stopped.', spokenText: undefined, insight: undefined }
         }
         // The loop's own final chunk (server-sent isStreaming: false) already derived
         // text/spokenText correctly when the stream ended cleanly. Recomputing
@@ -2132,7 +2201,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               onClearTranscript={() => { setMessages([]); clearActionSets(); setConversationActive(false); sessionStorage.removeItem(SS_CONVERSATION) }}
               onInputChange={v => { setInput(v); sessionStorage.setItem(SS_INPUT, v) }}
               onSubmit={handleSubmit}
-              onStop={handleStop}
+              onStop={() => { void handleStop('stop') }}
               onFocusChange={setIsInputFocused}
               onSelectProject={handleProjectSelected}
               selectedProjectId={selectedId}
@@ -2151,7 +2220,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               voiceError={realtimeErrored ? (realtimeSpike.error ?? 'Voice error') : null}
               supportsVoiceMode
               onStartVoiceMode={handleOrbTap}
-              onExitVoiceMode={() => { handleStop(); realtimeSpike.stop('exit_voice') }}
+              onExitVoiceMode={() => { void handleStop('exit_voice'); realtimeSpike.stop('exit_voice') }}
             />
           </div>
           )}

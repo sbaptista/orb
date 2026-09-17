@@ -834,7 +834,7 @@ export default function OrbConversation({
                                                         }}
                                                         disabled={!input.trim()}
                                                     >
-                                                        <span className="oc-more-label">{copiedInput ? '✓ Copied' : 'Copy'}</span>
+                                                        <span className="oc-more-label">{copiedInput ? '✓ Copied' : 'Copy text'}</span>
                                                         <span className="oc-more-desc">Copy input text</span>
                                                     </button>
                                                     <button
@@ -843,7 +843,7 @@ export default function OrbConversation({
                                                         onClick={() => { copyTranscript(); setMoreMenuOpen(false) }}
                                                         disabled={messages.length === 0}
                                                     >
-                                                        <span className="oc-more-label">{copiedTranscript ? '✓ Copied' : 'Copy'}</span>
+                                                        <span className="oc-more-label">{copiedTranscript ? '✓ Copied' : 'Copy convo'}</span>
                                                         <span className="oc-more-desc">Copy full conversation</span>
                                                     </button>
                                                     <button

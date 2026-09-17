@@ -21,7 +21,11 @@ import { buildStrategicContextPacket, renderStrategicEvaluationPrompt } from '@/
 import type { OrbModelUsage } from '@/lib/orb-model/types'
 import { routeOrbRequest } from '@/lib/orb-model/routing'
 import { budgetBlockMessage, type OrbBudgetCheck } from '@/lib/orb-model/budget'
-import { extractCitedCodes, isFalseCompletionClaim, EFFECTFUL_TOOL_NAMES } from '@/lib/orb-model/false-claim-guard'
+import { extractCitedCodes, hasCompletionLanguage, hasProposalLanguage, isFalseCompletionClaim, stripHistoryProvenanceLabels, EFFECTFUL_TOOL_NAMES } from '@/lib/orb-model/false-claim-guard'
+import { ORB_PENDING_RESTATEMENT_PREFIX, buildOrbConfirmationSpeechFromSummaries } from '@/lib/orb-operations/command-batch-contract'
+import { frameModelHistoryEntry, type OrbModelHistoryEntry } from '@/lib/orb-interaction/model-history'
+import { BARE_STOP_ACKNOWLEDGEMENT, isBareHaltCommand } from '@/lib/orb-interaction/interrupt-intent'
+import { withExplicitSpellingClarification, withHistorySpellingClarifications } from '@/lib/orb-interaction/spelled-identifiers'
 import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, pendingTodoUndercount, resolveActionSetReference, todoCode, type OrbActionSetReference } from '@/lib/orb-model/context'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
 import { authorizesPendingMutation, buildPendingMutationConfirmationInstruction } from '@/lib/orb-model/mutation-authorization'
@@ -83,7 +87,7 @@ export async function POST(request: NextRequest) {
   const { input, productCode, history, pendingSummary, pendingTodoOperations, actionSets, backlogOverride, projectHealthOverride, mutationApproval, voiceMode, ttsProvider, ttsModel, ttsVoiceId, provider, model, userEmail, evaluationMode, contextPacketId, autoRoute, budgetOverride, evaluationCaseId, evaluationRunId } = body as {
     input: string
     productCode?: string | null
-    history?: Array<{ role: 'user' | 'assistant'; text: string }>
+    history?: OrbModelHistoryEntry[]
     pendingSummary?: string
     pendingTodoOperations?: Array<{ tool: string; params: Record<string, unknown> }>
     actionSets?: EvalActionSet[]
@@ -302,8 +306,12 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
   const systemPrompt = `${stableSystemPrompt}\n\n${dynamicSystemPrompt}`
 
   const messages: any[] = [
-    ...(history?.map(h => ({ role: h.role, content: h.text })) ?? []),
-    { role: 'user', content: input },
+    // Mirror production's provenance framing (lib/orb-interaction/types.ts
+    // projectModelHistory). Cases state provenance explicitly; production
+    // derives it from durable proposal and receipt events.
+    // Spelling clarification mirrors orbConverse for the input and history.
+    ...(withHistorySpellingClarifications(history ?? []).map(h => frameModelHistoryEntry(h)).map(h => ({ role: h.role, content: h.text }))),
+    { role: 'user', content: withExplicitSpellingClarification(input) },
   ]
   // Mirror production's record-state transparency note (orb-converse.ts).
   if ((history ?? []).length === 0) {
@@ -320,6 +328,8 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     messages.push({ role: 'user', content: buildPendingMutationConfirmationInstruction(pendingSummary) })
   }
 
+  // Named in error responses so the runner can say which evaluator failed.
+  let evaluatorLabel: string | null = null
   try {
     const routeRole = autoRoute
       ? routeOrbRequest(input, true, true)
@@ -329,6 +339,17 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         speech: buildVoiceProjectStateSummary({ ...ctx, input }),
         toolCalls: [],
         stopReason: 'deterministic_voice_project_state',
+        tokenUsage: { input_tokens: 0, output_tokens: 0 },
+        routeRole,
+      })
+    }
+    // Mirrors orbConverse: a bare stop word with nothing pending is acknowledged
+    // without a model call.
+    if (!pendingSummary && !pendingTodoOperations?.length && isBareHaltCommand(input)) {
+      return NextResponse.json({
+        speech: BARE_STOP_ACKNOWLEDGEMENT,
+        toolCalls: [],
+        stopReason: 'deterministic_bare_stop_nothing_pending',
         tokenUsage: { input_tokens: 0, output_tokens: 0 },
         routeRole,
       })
@@ -414,6 +435,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     const aiPolicy = provider ? null : await getRuntimeOrbAiPolicy()
     const requestedProvider = provider ?? aiPolicy!.evaluationProvider
     const requestedModel = model ?? aiPolicy!.evaluationModel
+    evaluatorLabel = `${requestedProvider}/${requestedModel}`
     if (isActiveModelIdentityQuestion(input)) {
       return NextResponse.json({
         speech: activeModelIdentitySpeech({
@@ -587,7 +609,23 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     // picture (no multi-turn hold/confirm here), so any effectful tool call
     // in THIS response is sufficient evidence something was actually acted on.
     const hasActed = toolCalls.some(tc => EFFECTFUL_TOOL_NAMES.has(tc.name))
-    if (isFalseCompletionClaim(speech, toolProducedCodes, historyCodes, hasActed)) {
+    // A mutation tool call in this single shot is what production turns into a
+    // stored proposal. A pending proposal does NOT back go-ahead wording: in
+    // production the gate restates the stored batch exactly, mirrored below.
+    speech = stripHistoryProvenanceLabels(speech)
+    if (isFalseCompletionClaim(speech, toolProducedCodes, historyCodes, hasActed, hasActed)) {
+      if (pendingSummary && hasProposalLanguage(speech) && !hasCompletionLanguage(speech)) {
+        return NextResponse.json({
+          speech: `${ORB_PENDING_RESTATEMENT_PREFIX}\n\n${buildOrbConfirmationSpeechFromSummaries([pendingSummary])}`,
+          toolCalls: [],
+          stopReason: 'restated_pending_proposal',
+          tokenUsage,
+          modelUsage,
+          routeRole,
+          contextPacketVersion: strategicContextPacket?.version ?? null,
+          contextPacketId: strategicContextPacket?.packetId ?? null,
+        })
+      }
       return NextResponse.json({
         speech: 'I did not actually complete that — no tool call backed it up, so nothing happened.',
         toolCalls: [],
@@ -610,6 +648,20 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       contextPacketVersion: strategicContextPacket?.version ?? null,
       contextPacketId: strategicContextPacket?.packetId ?? null,
     })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message, evaluator: evaluatorLabel }, { status: 500 })
+  }
+}
+
+// ── GET /api/orb-eval ────────────────────────────────────────────────────
+// The Evaluation Model currently selected in Settings → AI Settings, so the
+// runner can name it instead of printing "Settings → AI Settings selection".
+export async function GET(request: NextRequest) {
+  const authError = checkAuth(request)
+  if (authError) return authError
+  try {
+    const policy = await getRuntimeOrbAiPolicy()
+    return NextResponse.json({ provider: policy.evaluationProvider, model: policy.evaluationModel })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }

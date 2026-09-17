@@ -14,9 +14,10 @@
 
 ## App State
 
-- **Branch:** `codex/voice-command-contract`; the v0.6.325 handoff is committed
-  locally, not pushed. The production deployment was not checked this session.
-- **Version:** **0.6.325** in the main directory.
+- **Branch:** `codex/voice-command-contract`; v0.6.325 is committed locally, not
+  pushed. v0.6.326 is committed locally on top of it, not pushed. Production
+  deployment not checked.
+- **Version:** **0.6.326** in the main directory.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -68,6 +69,11 @@
   `scripts/migrations/20260911_unified_orb_interactions.sql` is **applied**;
   Stan reported every verifier column true and completed unified-text
   acceptance. Unified voice acceptance remains open.
+- **Intentional-interrupt migration:**
+  `scripts/migrations/20260916_orb_intentional_interrupts.sql` is **applied**;
+  Stan reported every verifier column true on 2026-09-16. Only
+  `payload->>'reason' = 'stop'` now blocks `confirm_orb_command_batch` /
+  `confirm_orb_mutation`.
 - **Command-batch migration:**
   `scripts/migrations/20260912_orb_command_batches.sql` is **applied**. Stan
   reported every column from `verify-20260912-orb-command-batches.sql` true on
@@ -87,52 +93,78 @@ None.
 
 ## Last Session Completed
 
-**2026-09-16 — Codex (GPT-5.6 Sol). Local commit and Claude handoff, v0.6.325.**
+**2026-09-16 — Claude Code (Opus 5). Voice project-create diagnosis and fix, v0.6.326 (committed locally, not pushed).**
 
-- Removed both public unified-interaction launcher flags from executable code.
-  Text and trusted Realtime transcripts now always use the same durable history,
-  `orbConverse` kernel, mutation confirmation/batching, interruption events,
-  receipts, and client refresh handling.
-- Realtime is permanently transport-only in normal sessions: it receives no
-  business tools and only transcribes trusted speech or renders canonical exact
-  response text. The former Realtime prompt, tool schemas, and client executor
-  remain compiled as dormant rollback assets per Stan's direction; reactivation
-  requires a source change rather than a launcher setting.
-- Removed the browser-session conversation fallback and the local passive
-  project/urgency message generators. Visible history now comes only from the
-  durable coordinator, eliminating the remaining ghost-message branch.
-- The first unified-voice test exposed exact spelling loss, fragile confirmation
-  timing around an unrelated interruption, and a visible provider cancellation
-  race. Explicit `T-E-S-T numeral one` now supplies exact model context `TEST1`
-  without rewriting history; command batches remain pending for 30 minutes;
-  only the provider's harmless no-active-response cancellation error is ignored.
-- The next interruption test exposed exact-speech verification comparing a
-  deliberately truncated utterance with the full planned response. Expected
-  speech is now keyed to OpenAI's provider `response_id`; a partial transcript
-  is discarded only when trusted acoustic evidence marked that same response
-  interrupted. Uninterrupted mismatches remain fatal.
-- Project-create acceptance then exposed a receipt-consumption gap: the live
-  result depended on a second browser read, and reconnect recovery acknowledged
-  committed receipts without applying their refresh scopes. Committed response
-  artifacts now carry every created project row; live and recovered receipts
-  project those rows into both project collections before acknowledgement and
-  then reconcile normally. This is shared by text and voice and supports
-  multi-project batches. Existing selection is preserved unless deleted or empty.
-- **Stan's subsequent voice test still did not create a project.** The stage of
-  failure remains unknown; the receipt/list projection above did not fix it.
-  Full implementation, evidence, failures, and next diagnostic steps are in
-  `docs/orb-unified-interaction-claude-handoff-2026-09-16.md`.
-- Updated the deterministic runtime contract, matching Tier 1/Tier 2 case
-  descriptions plus exact-spelling/intervening-confirmation Tier 1 cases,
-  architecture plan, capability matrix, changelog, and version.
-  `npx tsc --noEmit`, `npm run verify:interaction`, focused ESLint (0 errors), UI
-  catalog verification, handoff verification, and `git diff --check` passed once
-  after release bookkeeping. No model eval or authenticated Realtime acceptance was run by
-  Codex. The required user gates are `orb-dev --eval-t1`, `orb-dev --eval-t2`,
-  and direct voice create/delete/current-project refresh acceptance.
+- **Cause verified from Stan's event/batch SQL (seq 69–93):** the failed voice
+  creates were model-fabricated. Five "I'm about to create… Want me to go
+  ahead?" replies had no batch row or `mutation_proposed` event; two
+  "Created the project "test1"." replies had no batch, receipt, or proposal id;
+  no `test1` project exists (broker). Barge-ins in that window blocked nothing.
+  Detail: `docs/orb-unified-interaction-claude-handoff-2026-09-16.md`.
+- **A:** history provenance labels (`lib/orb-interaction/model-history.ts`,
+  shared with the eval route); guard detects receipt-shaped outcomes and
+  unbacked go-ahead questions; `orbConverse` replaces, never delivers, a claim
+  surviving its one repair. Eval cases added:
+  `hallucinated-proposal-history-new-create-calls-tool`,
+  `hallucinated-unbacked-proposal-confirmation-proposes-for-real` (Tier 1),
+  `premature-success-unbacked-receipt-not-repeated` (Tier 2).
+- **B:** interrupt intent contract (`lib/orb-interaction/interrupt-intent.ts`,
+  Stan approved): acoustic barge-in pauses/resumes speech only; durable reasons
+  `stop`/`replacement`/`exit_voice`; server `isOrbTurnInterrupted` counts only
+  `stop`/`replacement`; migration above (applied, all true). Stop button no longer
+  sends its click event as the reason.
+- **Fix 1 (shown = stored):** go-ahead wording is backed only by a proposal
+  stored in that request; a mismatched last-shown go-ahead makes confirmation
+  restate the stored batch instead of committing
+  (`lastShownProposalMatches`). Cause verified by Stan's batch query: only
+  "Test eight" was ever stored. Tier 1 case
+  `restated-request-lowercase-correction-reproposes`.
+- **Lead-ins and switch:** non-claim model text before a tool call is kept
+  ahead of the server proposal (`presentableLeadIn`), but never after a hidden
+  SYSTEM CORRECTION in the same request (it answered the correction, not Stan); "Switching/switched
+  to" is claim language; `switch_project` sends `projectId`, server writes
+  "Switched to “X”.", dashboard switches by id, refetches once, toasts on
+  failure. Cause of the missed switch not confirmed (tool not called vs. client
+  lookup); both covered. Tier 1 case
+  `switch-project-it-after-create-calls-client-action`.
+- **Label leak / fragments:** provenance labels moved to the end of history
+  messages and filtered from every stream update (`presentableStreamingSpeech`
+  via a wrapped stream in `orbConverse`); stopped replies always "Stopped.".
+  New input before a visible reply merges (`merge` interrupt, fragment hidden
+  in projection); bare stop word while running only stops; bare halt with
+  nothing pending → server "Okay." (no model). Cases
+  `voice-merged-fragments-create-spelled-project`,
+  `voice-bare-stop-nothing-pending-says-okay` (model-free).
+- **Voice render / unseen proposals:** speech-render check uses
+  `comparableSpokenWords` and is non-fatal (warn + telemetry); `spokenText`
+  also label-filtered; `appendOrbInterrupt` rejects batches stored by a
+  stop/replacement/merge turn (`rejectProposalsFromInterruptedTurn`, also
+  re-checked after prepare); in-progress phrases ("Creating that now.") never
+  kept as lead-ins. Transcription language left multilingual (Stan's choice).
+- **Spelling + eval runner:** `withExplicitSpellingClarification` no longer
+  needs "spelled" and is applied to user history too (production and eval
+  route — the eval route previously never applied it). Eval runner names the
+  evaluator (`GET /api/orb-eval`) and prints provider + first error line on
+  retry notices. Full Tier 1 on 2026-09-16: 79/86 runs passed, 7 failed. Focused
+  re-run after fixes: `non-english-confirmation-confirms`,
+  `disambiguation-pick-routes-to-delete` passed (1 fail + 1 pass each — flaky);
+  `voice-spelled-project-name-preserves-identifier`,
+  `restated-request-lowercase-correction-reproposes` passed once;
+  `update-knowledge-vague-reference-searches-first` failed 2/2 (baseline on
+  main unchecked); `voice-merged-fragments-create-spelled-project` now fails on
+  "TEST 9" vs "TEST9" (model ignored the spelling note — candidate: firmer
+  note wording); `hallucinated-proposal-history-new-create-calls-tool` fails by
+  design (strict). Stan declined another full Tier 1 for now; the release gate
+  is open.
+- More menu: the two “Copy” items are now “Copy text” and “Copy convo”.
+- **C:** stopped/replaced turns keep reading the stream and apply receipts;
+  admin `refreshProjects` keeps receipt-confirmed rows; voice 30s text dedupe
+  replaced by provider item-id dedupe.
+- Passed once: `npx tsc --noEmit`, `npm run verify:interaction`, focused ESLint
+  (0 errors, 8 pre-existing warnings, same as baseline). Not run: authenticated
+  voice/text acceptance of the final code, `npm run build`. Committed locally;
+  no push.
 
-- Committed the accumulated work locally, including separate Codex ORB-381
-  planning, and removed all Codex active claims. No push was authorized or run.
 ## Active Risks / Unresolved Work
 
 - **Bullet-list visual acceptance remains open.** The shared Markdown CSS now
@@ -149,9 +181,12 @@ None.
   presentation acknowledgement, exact speech transcript agreement, and zero
   visible progress/phantom text. The short-speech acoustic thresholds are based
   on prior telemetry but are unverified on current Mac/iPad/iPhone sessions.
-  **Critical:** Stan's v0.6.324 voice-create test did not create a project.
-  Do not start with another dropdown-only fix; trace transcript, proposal,
-  confirmation event, transaction, and receipt in order.
+  **v0.6.326 fix for fabricated voice creates is unverified live.** Remaining
+  known gaps: a nearby voice that passes authenticity still becomes a user turn
+  (and a clear "stop"/"no" from it cancels); the dashboard auto-speak effect
+  still skips a reply whose text equals the last spoken one (a repeated
+  confirmation prompt is silent); production history of existing conversations
+  contains fabricated messages, now labeled unverified rather than removed.
 
 - **Generic command-batch acceptance is open.** The 20260912 migration and
   all-true structural verifier passed. Exercise one-item, multi-item,
@@ -216,17 +251,15 @@ None.
 
 ## Next Priorities
 
-0. Claude: diagnose the actual failed voice project-create transaction using
-   the evidence checklist in `docs/orb-unified-interaction-claude-handoff-2026-09-16.md`.
-   Then restart with plain `orb-dev`, hard-refresh the browser, and complete direct
-   unified-voice acceptance: create, update, delete, current-project fallback,
-   mixed-domain, decline, interruption, replay, and cross-modal confirmation.
-   Verify the project dropdown updates immediately and no provider/ghost reply
-   appears. After manual acceptance Stan runs the
-   shared mutation-authorization gate through the launcher:
-   `orb-dev --eval-t1`. Continue unified voice acceptance and its three-run Tier
-   2 gate separately with `orb-dev --eval-t2`. Do not invoke the underlying npm
-   eval scripts directly.
+0. Stan: hard-refresh, then live acceptance on v0.6.326 (interrupt migration
+   already applied), three
+   runs each: voice create → proposal → separate voice confirm → project row
+   and immediate Change Project entry; typed confirm of a voice proposal and
+   voice confirm of a typed proposal; cough/other voice during Orb speech
+   (reply resumes, nothing cancelled); "stop" during processing; replacement
+   request during a confirmation commit (commit completes). Verify each proposal
+   has an `orb_command_batches` row. Then `orb-dev --eval-t1` and
+   `orb-dev --eval-t2`. Commit only when Stan asks; never push.
 0. **Security findings still open** — full detail in
    `docs/agent-enforcement-hardening.md`, reduced 2026-09-06 from a 1,820-line
    review transcript to a 120-line open-findings register. History at `6e47488`.
@@ -324,6 +357,14 @@ None.
 
 ## Key Current Decisions
 
+- **Evals stay strict on first-attempt imitation (2026-09-16, Stan).** The eval
+  route does not mirror production's one-retry false-claim repair;
+  `hallucinated-proposal-history-new-create-calls-tool` fails until the model
+  calls the tool on its first attempt.
+- **Only intent cancels (2026-09-16, Stan approved).** Sound pauses speech
+  and resumes it; only Stop/bare stop words (`stop`) and new requests
+  (`replacement`) are durable; only `stop` blocks a commit. Only the server
+  writes proposal and receipt text; model history labels them.
 - **Text and Realtime voice are transports, not separate agents.** Every trusted
   turn now uses one server history,
   coordinator, model/tool kernel, confirmation transaction, interrupt event,
@@ -441,7 +482,7 @@ None.
 
 ## AI Tool Used Last Session
 
-`2026-09-16 — Codex (GPT-5.6 Sol)`
+`2026-09-16 — Claude Code (Opus 5)`
 
 ---
 

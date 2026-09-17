@@ -3,6 +3,7 @@ import 'server-only'
 import { createHash } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import type { AuthContext } from '@/lib/auth'
+import { TURN_CANCELLING_INTERRUPT_REASONS, type OrbInterruptReason } from '@/lib/orb-interaction/interrupt-intent'
 import {
   projectConversationMessages,
   projectModelHistory,
@@ -611,6 +612,9 @@ export async function isOrbTurnInterrupted(
     .eq('user_id', auth.user.id)
     .eq('turn_id', turnId)
     .eq('event_type', 'interrupt')
+    // Legacy acoustic `barge_in` rows and `exit_voice` do not cancel a turn;
+    // see lib/orb-interaction/interrupt-intent.ts.
+    .in('payload->>reason', [...TURN_CANCELLING_INTERRUPT_REASONS])
   if (error) throw error
   return (count ?? 0) > 0
 }
@@ -649,10 +653,10 @@ export async function appendOrbInterrupt(
     turnId: string
     eventId: string
     modality: OrbInputModality
-    reason: 'stop' | 'replacement' | 'barge_in' | 'exit_voice'
+    reason: OrbInterruptReason
   },
 ) {
-  return appendOrbConversationEvent(auth, {
+  const event = await appendOrbConversationEvent(auth, {
     id: input.eventId,
     conversationId: input.conversationId,
     turnId: input.turnId,
@@ -662,4 +666,60 @@ export async function appendOrbInterrupt(
     visibility: 'control',
     payload: { reason: input.reason },
   })
+  if (TURN_CANCELLING_INTERRUPT_REASONS.includes(input.reason)) {
+    await rejectProposalsFromInterruptedTurn(auth, input.conversationId, input.turnId, input.modality)
+  }
+  return event
+}
+
+/**
+ * A proposal stored by a turn that was then stopped, replaced, or merged was
+ * never shown to the user, so it must not stay pending (2026-09-16: a stopped
+ * "Add a to-do called test. to do one." left a create the next reply talked
+ * about). A proposal from an earlier, completed turn is untouched.
+ */
+export async function rejectProposalsFromInterruptedTurn(
+  auth: AuthContext,
+  conversationId: string,
+  turnId: string,
+  modality: OrbInputModality | null,
+) {
+  const { data: requestEvents, error: requestEventsError } = await auth.admin
+    .from('orb_conversation_events')
+    .select('id')
+    .eq('conversation_id', conversationId)
+    .eq('user_id', auth.user.id)
+    .eq('turn_id', turnId)
+    .eq('event_type', 'user_message')
+  if (requestEventsError) throw requestEventsError
+  const requestEventIds = (requestEvents ?? []).map(event => event.id as string)
+  if (requestEventIds.length === 0) return
+
+  const { data: batches, error: batchesError } = await auth.admin
+    .from('orb_command_batches')
+    .select('id, summary')
+    .eq('conversation_id', conversationId)
+    .eq('user_id', auth.user.id)
+    .eq('status', 'proposed')
+    .in('requested_event_id', requestEventIds)
+  if (batchesError) throw batchesError
+
+  for (const batch of batches ?? []) {
+    const { error: rejectError } = await auth.admin.rpc('reject_orb_command_batch', {
+      p_batch_id: batch.id,
+      p_user_id: auth.user.id,
+    })
+    if (rejectError) throw rejectError
+    await appendOrbConversationEvent(auth, {
+      id: stableOrbConversationEventId(batch.id as string, 'mutation_rejected'),
+      conversationId,
+      turnId,
+      actor: 'system',
+      eventType: 'mutation_rejected',
+      modality,
+      visibility: 'control',
+      proposalId: batch.id as string,
+      payload: { kind: 'command_batch', summary: batch.summary, reason: 'turn_interrupted' },
+    })
+  }
 }

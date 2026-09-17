@@ -1,5 +1,20 @@
 # Unified Orb interaction: handoff to Claude
 
+## Claude Code diagnosis and fix (2026-09-16, Opus 5)
+
+**Cause, from Stan's event/batch query (72h window, seq 69–93):** the failed voice creates were fabricated by the model, not lost by voice transport or by list refresh. Seq 70, 80, 83, 85 and 90 answered with "I'm about to create… Want me to go ahead?" but no `orb_command_batches` row or `mutation_proposed` event exists for them; seq 87 and 92 said "Created the project "test1"." with no batch, receipt event, or proposal id, and no `test1` project exists (broker `projects list`). Real receipts use curly quotes (`Created the project “%s”.`); the fabricated ones use straight quotes. The only real batch (3e654f64, seq 76) was never confirmed. Barge-in interrupts in that window all landed after the reply was stored and blocked nothing — the interrupt-blocks-commit hypothesis is disproved for these attempts by that data. A noise transcript ("I thought that these funds are a little different.") did pass authenticity and derail the turn.
+
+**Why:** durable history gave the model earlier server proposals/receipts as plain assistant prose without the tool calls behind them, so it imitated them; the false-claim guard did not match receipt-shaped sentences or proposal questions; and after its one repair the guard delivered the blocked claim anyway.
+
+**Changed (A):** `lib/orb-interaction/model-history.ts` labels history as server proposal / database receipt / unverified claim (shared by production projection and the eval route); `lib/orb-model/false-claim-guard.ts` detects receipt-shaped outcomes and unbacked go-ahead questions; `orbConverse` never delivers a surviving unbacked claim. Three new `mutation-safety` eval cases.
+**Changed (B):** interrupt intent contract (`lib/orb-interaction/interrupt-intent.ts`): acoustic barge-in pauses and resumes speech only; `stop` / `replacement` / `exit_voice` are the only durable reasons; only `stop` blocks a commit (`scripts/migrations/20260916_orb_intentional_interrupts.sql`, applied by Stan 2026-09-16, all verifier columns true). Stop button no longer passes its click event as the reason; a finished turn is never interrupted.
+**Changed (C):** a stopped or replaced turn keeps reading its stream so a committed receipt is shown and applied; the admin `refreshProjects` read keeps receipt-confirmed rows; the 30s text-level voice duplicate filter is replaced by provider item-id dedupe.
+
+**Not verified:** no authenticated voice or text run, no model eval. Gates: `orb-dev --eval-t1` (shared prompt/context/mutation-authorization surface changed); `orb-dev --eval-t2` for the speech behavior; live voice acceptance below, three runs each.
+
+---
+
+
 **Status (2026-09-16): not production-ready.** Stan's latest authenticated voice test on v0.6.324 still did not create the requested project. The project also did not appear in Change Project. Do not treat the refresh work in v0.6.324 as a fix for this report: a missing database write cannot be repaired by list projection. Codex did not obtain the live proposal, event, batch, or receipt rows for this attempt, so the failure stage is unproven.
 
 ## Goal and decisions

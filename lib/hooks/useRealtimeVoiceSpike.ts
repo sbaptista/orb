@@ -10,6 +10,7 @@ import {
   type SileroShadowMetadata,
 } from '@/lib/voice/silero-shadow'
 import { isAuthenticVoiceTurn } from '@/lib/orb-interaction/voice-authenticity'
+import { comparableSpokenWords } from '@/lib/orb-interaction/spoken-text'
 
 type SpikeStatus = 'off' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'error'
 
@@ -18,7 +19,6 @@ type Options = {
   transportOnly?: boolean
   onUserTranscript: (text: string) => void
   onOrbTranscript: (text: string) => void
-  onInterrupt?: (reason: 'barge_in') => void
   onUntrustedTranscript?: () => void
   onMutation: () => void
   onClientAction: (action: { action: string; target?: string }) => void
@@ -112,6 +112,13 @@ export function useRealtimeVoiceSpike(options: Options) {
     interrupted: boolean
   } | null>(null)
   const pendingAcousticInterruptRef = useRef(false)
+  // Unified mode: the reply whose rendering an acoustic barge-in cancelled.
+  // Sound alone only pauses speech; if the sound is not trusted speech, this
+  // reply is spoken again. See lib/orb-interaction/interrupt-intent.ts.
+  const pausedSpeechRef = useRef<{ responseId: string; text: string } | null>(null)
+  // Provider transcripts already forwarded, by input item id. A redelivered
+  // transcription event must not become a second user turn.
+  const handledTranscriptItemIdsRef = useRef(new Set<string>())
   const currentUtteranceRef = useRef('')
   const currentUtteranceTurnRef = useRef(0)
   const handledCallsRef = useRef(new Set<string>())
@@ -215,6 +222,30 @@ export function useRealtimeVoiceSpike(options: Options) {
     orbTranscriptRef.current = ''
   }, [])
 
+  // Acoustic barge-in: stop rendering the current reply and remember it. This
+  // never cancels the user's turn or any server work — only deliberate input
+  // does that, through the shared conversation (handleStop in the dashboard).
+  const pauseSpeech = useCallback(() => {
+    const rendering = expectedSpeechRef.current
+    markExpectedSpeechInterrupted()
+    if (!responseInFlightRef.current) return
+    if (rendering) pausedSpeechRef.current = { responseId: rendering.responseId, text: rendering.text }
+    turnMeasurementRef.current?.mark('speech_paused_by_sound')
+    try { send({ type: 'response.cancel' }) } catch { /* channel teardown wins */ }
+  }, [markExpectedSpeechInterrupted, send])
+
+  // The sound that paused speech was not trusted speech (wind, a cough, a
+  // siren, a voice the authenticity check rejected, or nothing transcribable).
+  // Speak the unfinished reply again so nothing Orb said is silently lost.
+  const resumePausedSpeech = useCallback(() => {
+    const paused = pausedSpeechRef.current
+    pausedSpeechRef.current = null
+    if (!paused || responseInFlightRef.current) return false
+    emitTrace.current(`resuming speech paused by untrusted sound (${paused.responseId})`)
+    turnMeasurementRef.current?.mark('speech_resumed_after_untrusted_sound')
+    return speakExact(paused.text, paused.responseId)
+  }, [speakExact])
+
   const clearResponseWatchdog = useCallback(() => {
     if (responseWatchdogRef.current) window.clearTimeout(responseWatchdogRef.current.timeout)
     responseWatchdogRef.current = null
@@ -242,11 +273,7 @@ export function useRealtimeVoiceSpike(options: Options) {
     void startSileroShadow(stream, () => {
       if (!callbacksRef.current.transportOnly || !pendingAcousticInterruptRef.current) return
       pendingAcousticInterruptRef.current = false
-      markExpectedSpeechInterrupted()
-      if (responseInFlightRef.current) {
-        try { send({ type: 'response.cancel' }) } catch { /* channel teardown wins */ }
-      }
-      callbacksRef.current.onInterrupt?.('barge_in')
+      pauseSpeech()
     })
       .then(controller => {
         if (sileroGenerationRef.current !== generation || streamRef.current !== stream) {
@@ -259,7 +286,7 @@ export function useRealtimeVoiceSpike(options: Options) {
       .catch(() => {
         if (sileroGenerationRef.current === generation) sileroShadowStateRef.current = 'failed'
       })
-  }, [markExpectedSpeechInterrupted, send])
+  }, [pauseSpeech])
 
   // Safety net only — the provider owns response timing, so this should not fire
   // in a healthy session. It recovers the UI to listening if a response (or a
@@ -307,6 +334,8 @@ export function useRealtimeVoiceSpike(options: Options) {
     orbTranscriptRef.current = ''
     expectedSpeechRef.current = null
     pendingAcousticInterruptRef.current = false
+    pausedSpeechRef.current = null
+    handledTranscriptItemIdsRef.current.clear()
     currentUtteranceRef.current = ''
     currentUtteranceTurnRef.current = 0
     handledCallsRef.current.clear()
@@ -882,7 +911,31 @@ export function useRealtimeVoiceSpike(options: Options) {
       return
     }
 
+    // Speech that produced no usable transcript (noise the provider could not
+    // transcribe, or a failed transcription) cannot be a user turn. If it paused
+    // Orb's reply, resume that reply.
+    if (
+      options.transportOnly
+      && (
+        message.type === 'conversation.item.input_audio_transcription.failed'
+        || (message.type === 'conversation.item.input_audio_transcription.completed' && !message.transcript?.trim())
+      )
+    ) {
+      if (message.item_id) inputItemTurnIdsRef.current.delete(message.item_id)
+      pendingAcousticInterruptRef.current = false
+      sileroTurnStartedAtRef.current = null
+      if (!resumePausedSpeech()) setStatus('listening')
+      return
+    }
+
     if (message.type === 'conversation.item.input_audio_transcription.completed' && message.transcript?.trim()) {
+      if (message.item_id) {
+        if (handledTranscriptItemIdsRef.current.has(message.item_id)) {
+          emitTrace.current(`duplicate transcript ignored (item=${message.item_id})`)
+          return
+        }
+        handledTranscriptItemIdsRef.current.add(message.item_id)
+      }
       const transcript = message.transcript.trim()
       const transcriptTurnId = message.item_id ? inputItemTurnIdsRef.current.get(message.item_id) : undefined
       if (message.item_id) inputItemTurnIdsRef.current.delete(message.item_id)
@@ -899,18 +952,22 @@ export function useRealtimeVoiceSpike(options: Options) {
         endTurnMeasurement(turnFailureRef.current)
         sileroTurnStartedAtRef.current = null
         pendingAcousticInterruptRef.current = false
-        setStatus('listening')
-        callbacksRef.current.onUntrustedTranscript?.()
+        // Untrusted sound never becomes input and never cancels anything. Give
+        // back the reply it paused; only mention it when there was none.
+        if (!resumePausedSpeech()) {
+          setStatus('listening')
+          callbacksRef.current.onUntrustedTranscript?.()
+        }
         return
       }
       if (options.transportOnly && pendingAcousticInterruptRef.current) {
         pendingAcousticInterruptRef.current = false
-        markExpectedSpeechInterrupted()
-        if (responseInFlightRef.current) {
-          try { send({ type: 'response.cancel' }) } catch { /* channel teardown wins */ }
-        }
-        callbacksRef.current.onInterrupt?.('barge_in')
+        pauseSpeech()
       }
+      // Trusted speech is the user's next turn; the paused reply is superseded
+      // and the shared conversation decides whether that is a stop, a
+      // replacement, or an answer.
+      pausedSpeechRef.current = null
       callbacksRef.current.onUserTranscript(transcript)
       // Attribute the trusted utterance to its turn so a mutation tool can only
       // act on the current turn's actual words.
@@ -977,18 +1034,22 @@ export function useRealtimeVoiceSpike(options: Options) {
           orbTranscriptRef.current = ''
           return
         }
-        const expected = expectedSpeech.text.trim().replace(/\s+/g, ' ')
-        const observed = transcript.replace(/\s+/g, ' ')
+        const expected = comparableSpokenWords(expectedSpeech.text)
+        const observed = comparableSpokenWords(transcript)
         if (expected && observed && expected !== observed) {
-          console.error('[orb-realtime] Exact speech transcript mismatch', {
+          // The screen always shows Orb's canonical text, so a rendering that
+          // differed is reported, not fatal: ending the voice session over it
+          // (as before 2026-09-16) cost far more than the discrepancy.
+          turnMeasurementRef.current?.mark('speech_render_mismatch')
+          emitTrace.current(`speech render mismatch (${expectedSpeech.responseId})`)
+          console.warn('[orb-realtime] Spoken rendering differed from Orb’s response', {
             responseId: expectedSpeech.responseId,
-            expectedLength: expected.length,
-            observedLength: observed.length,
+            expectedWords: expected.split(' ').length,
+            observedWords: observed.split(' ').length,
+            ...(process.env.NODE_ENV === 'development'
+              ? { expected: expectedSpeech.text, observed: transcript }
+              : {}),
           })
-          stop('exact_speech_mismatch')
-          setError('Voice rendering did not match Orb’s response. The voice session was stopped.')
-          setStatus('error')
-          return
         }
       } else if (transcript) {
         callbacksRef.current.onOrbTranscript(transcript)
@@ -1074,7 +1135,7 @@ export function useRealtimeVoiceSpike(options: Options) {
       setError(realtimeError)
       setStatus('error')
     }
-  }, [armResponseWatchdog, clearResponseWatchdog, endTurnMeasurement, executeToolBatch, markExpectedSpeechInterrupted, options.transportOnly, send, sileroSnapshot, stop])
+  }, [armResponseWatchdog, clearResponseWatchdog, endTurnMeasurement, executeToolBatch, options.transportOnly, pauseSpeech, resumePausedSpeech, send, sileroSnapshot, stop])
 
   const start = useCallback(async (source = 'unknown') => {
     if (peerRef.current) return

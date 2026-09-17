@@ -6,6 +6,25 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.326',
+    date: '2026-09-16',
+    changes: [
+      'Fixed Orb announcing changes it never made. In Stan’s failed voice tests, four project requests got a model-written “I’m about to create… Want me to go ahead?” with no stored proposal, and two confirmations got a model-written “Created the project…” with no database receipt, so no project existed to appear in Change Project. Conversation history now labels which earlier messages were server-issued proposals, database receipts, or unverified claims, and Orb no longer delivers a completion claim without a receipt or a go-ahead question without a stored or pending proposal. The same rules apply to text and voice.',
+      'Made voice interruptions safe in a real room. Wind, coughs, sirens, or someone talking nearby now only pause Orb’s speech; if the sound is not trusted speech, Orb repeats the unfinished reply. Only the Stop button, a bare “stop”/“cancel”/“wait”, or a new request cancels a turn, and only a deliberate stop can prevent an approved change from committing (database migration `20260916_orb_intentional_interrupts.sql`). Leaving voice mode no longer cancels anything.',
+      'A committed change now always reaches the screen: if a reply was stopped or replaced, its receipt is still shown and applied to the project and todo lists, and the admin project refresh keeps newly created projects in Change Project. Saying the same short answer twice in voice is no longer silently dropped. Also fixed the Stop button passing its click event as the interrupt reason.',
+      'Fixed a confirmation approving a different change than the one shown. With “Test eight” stored, Orb wrote its own go-ahead for “test8”, and “yes” created “Test eight”. Orb can now only ask for a go-ahead it has just stored; otherwise it repeats exactly what is waiting. A confirmation also commits only if the last go-ahead you saw is the stored one — if not, Orb shows the stored change again instead of committing.',
+      'Words Orb says before proposing a change or switching project (“You’re right, it should be test8.”) now stay in the conversation instead of flashing and disappearing; only a sentence that would itself be a false claim is dropped. Words the model wrote in reply to Orb’s hidden self-correction (“You’re right. I need to call the actual tool:”) are never shown, because they answer a message the user cannot see.',
+      'Fixed “Switching to test8.” with no switch. Orb can no longer announce a switch it did not perform; when it does switch, the confirmation is written by the server, the app switches by the project’s id (re-reading the project list if a new project is not in it yet), and a failed switch shows an error instead of failing silently.',
+      'Fixed internal history labels (“[Server-issued confirmation request…]”) appearing in Orb’s reply. Labels now follow the message they describe and are filtered from every streamed update, and a stopped reply always reads “Stopped.” instead of keeping half-written text.',
+      'Fewer “Stopped.” replies when a pause splits what you say. If you add to a request before Orb has shown any reply, the pieces are sent as one request. Saying or typing just “stop”, “cancel”, or “wait” while Orb is working only stops it, and on its own with nothing pending Orb simply says “Okay.” without calling the AI.',
+      'Voice no longer shuts off over harmless differences between Orb’s text and how it was spoken (for example “TEST-1” spoken as “test one”); a real difference is logged and the conversation continues.',
+      'A change proposed in a reply you never saw (because you stopped or talked over it) is now cancelled, so Orb no longer refers to a “pending” change you were never shown. Orb also no longer opens a proposal with “Creating that now.”, which implied the change was already under way.',
+      'Spelled names are recognised the way people actually say them — “T-E-S-T numeral 8”, “let me spell that…”, “spell it differently…” — not only after the word “spelled”, and a follow-up such as “all lowercase” still sees the spelling from the turn before.',
+      'Renamed the two identical “Copy” entries in the conversation More menu to “Copy text” (the input field) and “Copy convo” (the full conversation) so they can be told apart.',
+      'TypeScript, deterministic interaction verification, and focused ESLint (0 errors) passed once. No authenticated voice or text run and no model eval has been performed; three new mutation-safety eval cases await Stan’s Tier 1/Tier 2 runs.',
+    ],
+  },
+  {
     version: 'v0.6.325',
     date: '2026-09-16',
     changes: [

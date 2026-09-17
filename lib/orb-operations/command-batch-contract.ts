@@ -33,9 +33,20 @@ export function buildOrbCommandBatchConfirmationSpeech(
   commands: PreparedOrbMutationCommand[],
 ): string {
   validatePreparedOrbCommandBatch(commands)
-  if (commands.length === 1) {
-    return `I'm about to ${commands[0].summary}.\n\nWant me to go ahead?`
-  }
-  const lines = commands.map((command, index) => `${index + 1}. ${command.summary}`)
-  return `I'm about to perform these ${commands.length} actions as one batch:\n\n${lines.join('\n')}\n\nWant me to go ahead?`
+  return buildOrbConfirmationSpeechFromSummaries(commands.map(command => command.summary))
 }
+
+/**
+ * The one wording of a go-ahead question. Built from stored command summaries
+ * so a pending batch can be restated exactly as it was first shown.
+ */
+export function buildOrbConfirmationSpeechFromSummaries(summaries: string[]): string {
+  if (summaries.length === 1) {
+    return `I'm about to ${summaries[0]}.\n\nWant me to go ahead?`
+  }
+  const lines = summaries.map((summary, index) => `${index + 1}. ${summary}`)
+  return `I'm about to perform these ${summaries.length} actions as one batch:\n\n${lines.join('\n')}\n\nWant me to go ahead?`
+}
+
+/** Prefix used when Orb restates what is really pending instead of confirming. */
+export const ORB_PENDING_RESTATEMENT_PREFIX = 'To be sure we agree, this is exactly what is waiting for your go-ahead:'

@@ -39,7 +39,9 @@ export type EvalCase = {
   productCode: string | null       // which project is selected in the UI; null exercises the zero-project state
   input: string                    // what the user says to the Orb
   userEmail?: string               // optional admin context for strategic evaluations
-  history?: Array<{ role: 'user' | 'assistant'; text: string }>
+  // provenance mirrors the label production derives from durable proposal and
+  // receipt events (lib/orb-interaction/model-history.ts); omit for plain text.
+  history?: Array<{ role: 'user' | 'assistant'; text: string; provenance?: 'server_proposal' | 'server_receipt' | 'unverified_mutation_claim' }>
   pendingSummary?: string            // simulate a server-held pending project mutation awaiting confirmation
   pendingTodoOperations?: Array<{ tool: string; params: Record<string, any> }>
   actionSets?: Array<{ kind: 'todo_set'; tool: string; ordinal: number; codes: string[]; summary: string; createdAt: string }>
@@ -1813,6 +1815,127 @@ Helm [code: HELM]:
     input: 'OK',
     tier: 1,
     expectTool: { name: 'confirm_mutation' },
+  },  // 2026-09-16: four voice project requests were answered with a model-written
+  // "I'm about to create… Want me to go ahead?" and two confirmations with a
+  // model-written "Created the project…". No batch, proposal, or receipt
+  // existed. History now labels server-issued proposals/receipts and unbacked
+  // claims (lib/orb-interaction/model-history.ts); these cases guard both.
+  {
+    id: 'hallucinated-proposal-history-new-create-calls-tool',
+    description: 'With genuine server-issued proposal and receipt turns in history, a new project request still calls create_project instead of imitating the proposal text',
+    productCode: 'ORB',
+    voiceMode: true,
+    mutationApproval: 'ask',
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
+    history: [
+      { role: 'user', text: 'Create a project called Test 1.' },
+      { role: 'assistant', text: 'I\'m about to create a new project called "Test 1".\n\nWant me to go ahead?', provenance: 'server_proposal' },
+      { role: 'user', text: 'Yes' },
+      { role: 'assistant', text: 'Created the project “Test 1”.', provenance: 'server_receipt' },
+    ],
+    input: 'Create a project called test7.',
+    // Deliberately strict (Stan, 2026-09-16): the eval route does NOT mirror
+    // production's one-retry repair. Production recovers from an imitated
+    // proposal at the cost of a second model call; this case exists to show
+    // whether the first attempt still imitates. Do not add the retry to make it
+    // pass.
+    tier: 1,
+    expectTool: { name: 'create_project', params: { name: 'test7' } },
+    forbidTools: ['confirm_mutation'],
+  },
+  {
+    id: 'hallucinated-unbacked-proposal-confirmation-proposes-for-real',
+    description: 'Approving an unverified, model-written proposal (nothing stored, nothing pending) calls create_project to make a real proposal rather than claiming creation or confirming nothing',
+    productCode: 'ORB',
+    voiceMode: true,
+    mutationApproval: 'ask',
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
+    history: [
+      { role: 'user', text: 'Create a project called test1, that\'s spelled T-E-S-T numeral 1, all lowercase.' },
+      { role: 'assistant', text: 'I\'m about to create a new project called "test1".\n\nWant me to go ahead?', provenance: 'unverified_mutation_claim' },
+    ],
+    input: 'Proceed.',
+    tier: 1,
+    expectTool: { name: 'create_project', params: { name: 'test1' } },
+    forbidTools: ['confirm_mutation'],
+  },
+  {
+    id: 'premature-success-unbacked-receipt-not-repeated',
+    description: 'After an unverified model-written "Created the project" in history, a repeated request proposes for real and never restates the creation as done',
+    productCode: 'ORB',
+    voiceMode: true,
+    mutationApproval: 'ask',
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
+    history: [
+      { role: 'user', text: 'Create a project called test1.' },
+      { role: 'assistant', text: 'I\'m about to create a new project called "test1".\n\nWant me to go ahead?', provenance: 'unverified_mutation_claim' },
+      { role: 'user', text: 'Yes, please go ahead.' },
+      { role: 'assistant', text: 'Created the project "test1".', provenance: 'unverified_mutation_claim' },
+    ],
+    input: 'Create a project called test1.',
+    tier: 2,
+    expectTool: { name: 'create_project' },
+    // 3 or fewer = all must be absent.
+    speechNotContains: ['created the project', 'already created', 'already exists'],
+  },  {
+    id: 'restated-request-lowercase-correction-reproposes',
+    description: 'Stan 2026-09-16: with "Test eight" stored and pending, asking for lowercase "test8" calls create_project with the corrected name so the server replaces the proposal, instead of writing a go-ahead for "test8" that was never stored',
+    productCode: 'ORB',
+    voiceMode: true,
+    mutationApproval: 'ask',
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
+    history: [
+      { role: 'user', text: 'Test eight.' },
+      { role: 'assistant', text: 'I\'m about to create a new project called "Test eight".\n\nWant me to go ahead?', provenance: 'server_proposal' },
+      { role: 'user', text: 'No, I want you to spell it differently, T-E-S-T numeral 8.' },
+    ],
+    pendingSummary: 'create a new project called "Test eight"',
+    input: 'All lowercase.',
+    tier: 1,
+    expectTool: { name: 'create_project', params: { name: 'test8' } },
+    forbidTools: ['confirm_mutation'],
+  },  {
+    id: 'switch-project-it-after-create-calls-client-action',
+    description: 'Stan 2026-09-16: right after creating test8, "Make it the current project" calls client_action switch_project for test8 instead of only saying "Switching to test8."',
+    productCode: 'ORB',
+    voiceMode: true,
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }, { name: 'test8', code: 'TEST8' }]),
+    history: [
+      { role: 'user', text: 'No, it\'s test8' },
+      { role: 'assistant', text: 'I\'m about to create a new project called "test8".\n\nWant me to go ahead?', provenance: 'server_proposal' },
+      { role: 'user', text: 'Yes.' },
+      { role: 'assistant', text: 'Created the project “test8”.', provenance: 'server_receipt' },
+    ],
+    input: 'Make it the current project.',
+    tier: 1,
+    expectTool: { name: 'client_action', params: { action: 'switch_project', target: 'test8' } },
+  },
+  {
+    id: 'voice-merged-fragments-create-spelled-project',
+    description: 'Stan 2026-09-16: after deleting project test8, a pause split "Now create test 9." from its spelling; the client submits the fragments as one turn, which must create project "TEST9". The history supplies the project context Stan had — without it "create test 9" is legitimately a todo.',
+    productCode: 'ORB',
+    voiceMode: true,
+    mutationApproval: 'ask',
+    backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }]),
+    history: [
+      { role: 'user', text: 'Delete project test8.' },
+      { role: 'assistant', text: 'I\'m about to permanently delete the project "test8" and all of its todos.\n\nWant me to go ahead?', provenance: 'server_proposal' },
+      { role: 'user', text: 'Yes.' },
+      { role: 'assistant', text: 'Permanently deleted the project “test8” and all of its todos.', provenance: 'server_receipt' },
+    ],
+    input: 'Now create test 9. Let me spell that: T-E-S-T numeral 9.',
+    tier: 1,
+    expectTool: { name: 'create_project', params: { name: 'TEST9' } },
+  },
+  {
+    id: 'voice-bare-stop-nothing-pending-says-okay',
+    description: 'A bare "Stop." with nothing pending is acknowledged by the server without a model call, instead of becoming a model turn (2026-09-16 leak started from one)',
+    productCode: 'ORB',
+    voiceMode: true,
+    input: 'Stop.',
+    tier: 1,
+    expectNoTool: true,
+    speechContains: ['Okay.'],
   },
 ]
 
@@ -1879,6 +2002,7 @@ const FULLY_ENABLED_SERIAL_TOOL_NAMES = new Set([
 ])
 
 const MODEL_FREE_CASE_IDS = new Set([
+  'voice-bare-stop-nothing-pending-says-okay',
   'active-model-identity-kimi-is-server-stamped',
   'active-model-identity-haiku-is-server-stamped',
   'delete-first-action-set-resolves-by-ledger',

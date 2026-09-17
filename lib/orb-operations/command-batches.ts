@@ -8,6 +8,7 @@ import {
 import {
   appendOrbConversationEvent,
   isOrbTurnInterrupted,
+  rejectProposalsFromInterruptedTurn,
   stableOrbConversationEventId,
 } from '@/lib/orb-interaction/conversation-store'
 
@@ -65,6 +66,19 @@ export async function persistOrbCommandBatch(
     p_commands: persistedCommands,
   })
   if (error) throw error
+
+  // Close the race where the turn is interrupted between the check above and
+  // the prepare RPC: the interrupt's own cleanup may have run before this
+  // batch existed.
+  if (await isOrbTurnInterrupted(auth, auth.interaction.conversationId, auth.interaction.turnId)) {
+    await rejectProposalsFromInterruptedTurn(
+      auth,
+      auth.interaction.conversationId,
+      auth.interaction.turnId,
+      auth.interaction.modality,
+    )
+    throw new Error('This turn was interrupted before the command batch could be proposed.')
+  }
 
   try {
     await appendOrbConversationEvent(auth, {

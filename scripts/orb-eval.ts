@@ -128,6 +128,19 @@ const evalHistory = EVAL_HISTORY_URL && EVAL_HISTORY_KEY
     })
   : null
 let activeEvalRunId: string | null = null
+// The Settings → AI Settings Evaluation Model, fetched once at start.
+let resolvedEvaluatorLabel: string | null = null
+
+async function fetchSelectedEvaluator(): Promise<string | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/orb-eval`, { headers: { Authorization: API_SECRET! } })
+    if (!res.ok) return null
+    const body = await res.json() as { provider?: string; model?: string }
+    return body.provider && body.model ? `${body.provider}/${body.model}` : null
+  } catch {
+    return null
+  }
+}
 
 if (!API_SECRET) {
   console.error('❌ ORB_API_SECRET not found in .env.local')
@@ -222,7 +235,14 @@ async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
 
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`API ${res.status}: ${text}`)
+    let evaluator: string | null = testCase.provider && testCase.model ? `${testCase.provider}/${testCase.model}` : null
+    let detail = text
+    try {
+      const body = JSON.parse(text) as { error?: string; evaluator?: string | null }
+      evaluator = body.evaluator ?? evaluator
+      detail = body.error ?? text
+    } catch { /* non-JSON body: keep the raw text */ }
+    throw Object.assign(new Error(`API ${res.status}: ${detail}`), { evaluator })
   }
 
   return res.json()
@@ -257,7 +277,14 @@ function providerRateLimitDelayMs(msg: string, fallbackMs: number): number {
   return Math.max(fallbackMs, retryMs, rpmIntervalMs)
 }
 
-type TimedEvalError = Error & { evalDurationMs?: number }
+type TimedEvalError = Error & { evalDurationMs?: number; evaluator?: string | null }
+
+// One readable line of a provider error: the first line, without the JSON
+// envelope noise, capped so a retry notice stays on one screen line.
+function providerErrorSummary(message: string): string {
+  const firstLine = message.split('\n')[0].replace(/\s+/g, ' ').trim()
+  return firstLine.length > 220 ? `${firstLine.slice(0, 217)}...` : firstLine
+}
 
 async function callOrbWithRetry(
   testCase: EvalCase,
@@ -296,10 +323,12 @@ async function callOrbWithRetry(
         // while the dev server sat healthy and silent — nothing reached it,
         // so nothing was logged. The message must point at the host, not at
         // the internet.
-        const where = isTemporaryProviderCapacityError(message) || rateLimited
-          ? ''
+        const providerFailure = isTemporaryProviderCapacityError(message) || rateLimited
+        const where = providerFailure
+          ? ` (${timedError.evaluator ?? resolvedEvaluatorLabel ?? 'evaluator unknown'})`
           : ` at ${BASE_URL} (override with EVAL_BASE_URL)`
-        process.stderr.write(`\n  ⚠️  ${reason} on ${testCase.id}${where} — retrying in ${delay}ms...\n`)
+        const detail = providerFailure ? `\n     ${providerErrorSummary(message)}` : ''
+        process.stderr.write(`\n  ⚠️  ${reason} on ${testCase.id}${where} — retrying in ${delay}ms...${detail}\n`)
         await new Promise(r => setTimeout(r, delay))
         delay *= 2
         continue
@@ -679,7 +708,14 @@ async function main() {
   console.log(`\n🔮 Orb Eval — ${cases.length} cases, ${totalRuns} total runs\n`)
   console.log(`   Started: ${formatDateTime(startedAt)}`)
   console.log(`   Target: ${BASE_URL}`)
-  console.log(`   Evaluator: ${EVAL_PROVIDER && EVAL_MODEL ? `${EVAL_PROVIDER}/${EVAL_MODEL} (environment override)` : 'Settings → AI Settings selection'}`)
+  if (EVAL_PROVIDER && EVAL_MODEL) {
+    resolvedEvaluatorLabel = `${EVAL_PROVIDER}/${EVAL_MODEL}`
+  } else {
+    resolvedEvaluatorLabel = await fetchSelectedEvaluator()
+  }
+  console.log(`   Evaluator: ${EVAL_PROVIDER && EVAL_MODEL
+    ? `${resolvedEvaluatorLabel} (environment override)`
+    : `${resolvedEvaluatorLabel ?? 'unavailable'} (Settings → AI Settings selection)`}`)
   console.log(`   Selection: ${selection}`)
   console.log(`   Tier 1 (single-shot tool contract): ${cases.filter(c => c.tier === 1).length} cases`)
   console.log(`   Tier 2 (behavioral, 3× each): ${cases.filter(c => c.tier === 2).length} cases`)

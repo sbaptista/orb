@@ -37,3 +37,32 @@ export function toOrbSpokenText(text: string) {
   const hasMore = plain.length > lead.length + 30 || listStart >= 0
   return hasMore ? `${lead} I put the details on screen.` : lead
 }
+
+const NUMBER_WORDS: Record<string, string> = {
+  zero: '0', one: '1', two: '2', three: '3', four: '4', five: '5', six: '6',
+  seven: '7', eight: '8', nine: '9', ten: '10', eleven: '11', twelve: '12',
+  thirteen: '13', fourteen: '14', fifteen: '15', sixteen: '16',
+  seventeen: '17', eighteen: '18', nineteen: '19', twenty: '20',
+}
+
+/**
+ * The words a listener hears, for comparing Orb's intended speech with the
+ * provider's transcript of what it actually said. Differences a listener
+ * cannot hear are removed: case, punctuation, quotes, hyphens, letter/digit
+ * joins ("test9" vs "test 9"), and small numbers as words vs digits. On
+ * 2026-09-16 a strict comparison ended a voice session over replies such as
+ * `"TEST-1" in test9`.
+ */
+export function comparableSpokenWords(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/([a-z])(\d)/g, '$1 $2')
+    .replace(/(\d)([a-z])/g, '$1 $2')
+    .replace(/[^a-z0-9'\s]+/g, ' ')
+    .replace(/'/g, '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(word => NUMBER_WORDS[word] ?? word)
+    .join(' ')
+}

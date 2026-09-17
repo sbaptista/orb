@@ -8,6 +8,7 @@ import {
   getOrbConversationSnapshot,
 } from '@/lib/orb-interaction/conversation-store'
 import type { OrbInputModality } from '@/lib/orb-interaction/types'
+import { isOrbInterruptReason, type OrbInterruptReason } from '@/lib/orb-interaction/interrupt-intent'
 
 export async function loadOrbConversation(conversationId?: string | null, clientId?: string | null) {
   const auth = await getAuthContext()
@@ -34,8 +35,11 @@ export async function interruptOrbConversation(input: {
   turnId: string
   eventId: string
   modality: OrbInputModality
-  reason: 'stop' | 'replacement' | 'barge_in' | 'exit_voice'
+  reason: OrbInterruptReason
 }) {
+  // Acoustic barge-in is presentation-only and never reaches here; reject
+  // anything that is not a deliberate reason (a click event once did).
+  if (!isOrbInterruptReason(input.reason)) throw new Error('Invalid interrupt reason')
   const auth = await getAuthContext()
   await appendOrbInterrupt(auth, input)
 }

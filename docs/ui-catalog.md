@@ -202,7 +202,7 @@ Centered auth card over the calm `MuralCanvas`, matching the dashboard/account w
 ### Commands Dialog
 The Commands button is labeled “Commands” and uses the four-square grid icon on every viewport.
 - **Behavior:** Opens the established centered modal with Help and Print actions. Clicking the backdrop dismisses it. Print is always present and offers both All Projects and the user’s database-backed Current Project from Dashboard, Settings, Help, and Account. Settings and Account remain first-class topbar destinations rather than commands.
-- **Current project:** `users.current_project_id` is the cross-session/browser/device source of truth. Dashboard initialization validates it against the user’s visible active projects, repairs invalid/null state to the first available project, and persists explicit project switches. After a confirmed project deletion, the canonical response identifies deleted project IDs: the dashboard preserves an unaffected selection, but if the selected project was deleted it immediately chooses and persists an available fallback even when the refresh query is stale. Shared non-dashboard navigation resolves the same preference server-side. No Realtime subscription is used.
+- **Current project:** `users.current_project_id` is the cross-session/browser/device source of truth. Dashboard initialization validates it against the user’s visible active projects, repairs invalid/null state to the first available project, and persists explicit project switches. After a confirmed project deletion, the canonical response identifies deleted project IDs: the dashboard preserves an unaffected selection, but if the selected project was deleted it immediately chooses and persists an available fallback even when the refresh query is stale. Shared non-dashboard navigation resolves the same preference server-side. An Orb `switch_project` action switches by the server-resolved project id (name only as a fallback), refetches the project list once if a just-created project is not present yet, and shows an error toast rather than failing silently; the switch confirmation text is server-written. No Realtime subscription is used.
 - **Version:** A divider below the command list separates the current `Orb v…` version string.
 - **Accessibility:** The dialog is named, modal, and retains plain links/buttons for its actions.
 
@@ -388,7 +388,7 @@ In voice mode the Orb is a featured top-right presence: larger than the dialogue
 
 **Interaction model with unified voice enabled (shared coordinator, no greeting):**
 - **Tap Orb** — start voice mode, or stop it if already engaged (any status but off)
-- **Just talk** — authenticated acoustic speech interrupts current presentation and becomes a replacement turn; raw provider VAD alone cannot cancel Orb
+- **Just talk** — sound during Orb speech only pauses it; if the sound is not trusted speech (wind, a cough, another voice the authenticity check rejects), Orb repeats the unfinished reply. Trusted speech becomes the next turn: a bare “stop”/“cancel”/“wait” records a stop, anything else a replacement. Sound alone never cancels Orb or an approved change (2026-09-16 interrupt contract, `lib/orb-interaction/interrupt-intent.ts`)
 - **Long-press Orb** — exit voice mode (or conversation mode)
 - **Cmd+Shift+O** — keyboard toggle, same start/stop behavior as tapping the Orb
 - Text input and toolbar are disabled during voice mode (opacity 0.5, pointer-events none), with a "Switch to text" button visible.
@@ -404,7 +404,7 @@ answer or business-tool result.
 Used for buttons below the input field in the Orb conversation view. Styled with standard primary button background (`var(--btn-primary-bg)`).
 
 ### Orb Conversation Overflow (`oc-toolbar-overflow`, `oc-more-*`)
-The Orb command toolbar uses the same compact command model on Mac, iPad, and iPhone: primary actions stay visible (`Cmds`, Send/Stop) and secondary actions (`Prev`, `Next`, `Copy`, `Export`, `Clear`) live behind the `More` overflow button. Voice conversation mode starts through `More → Talk to Orb` or the Orb itself. This avoids viewport-specific command layouts and keeps the small-pane/iPhone interaction model consistent everywhere.
+The Orb command toolbar uses the same compact command model on Mac, iPad, and iPhone: primary actions stay visible (`Cmds`, Send/Stop) and secondary actions (`Prev`, `Next`, `Copy text` (input field), `Copy convo` (full conversation), `Export`, `Clear`) live behind the `More` overflow button. Voice conversation mode starts through `More → Talk to Orb` or the Orb itself. This avoids viewport-specific command layouts and keeps the small-pane/iPhone interaction model consistent everywhere.
 
 The menu is positioned and width-constrained against the full toolbar—not the `More` button—and its descriptions may wrap. Do not restore button-relative positioning or intrinsic no-wrap sizing: either can make the menu cross and be clipped by a narrow dashboard pane.
 
@@ -440,7 +440,16 @@ The parent dashboard owns a synchronous, request-scoped processing lock. A
 request claims the lock before React state updates; submitting replacement text
 first interrupts that request through the same durable control boundary used by
 voice. Stop releases presentation immediately, suppresses uncommitted response
-history, and cannot hide a committed mutation receipt.
+history, and cannot hide a committed mutation receipt: the dashboard keeps
+reading a stopped or replaced turn, and if a receipt arrives it replaces
+“Stopped.” in place (shown, not spoken) and updates the project/todo lists.
+Only Stop or a bare stop word can prevent an approved change from committing;
+a replacement request lets it finish. Ending voice mode cancels nothing. A
+stopped reply always reads “Stopped.” (partial text is never kept). New input
+sent before the running turn shows any reply continues that turn: the fragment
+bubble is removed and one combined turn is sent. A bare stop word while a turn
+is running only stops it; with nothing running or pending, a bare halt word is
+answered “Okay.” by the server without a model call.
 
 ### Banner Button (`btn-banner`)
 Small uppercase pill button for floating banners (update available, maintenance mode). 12px border-radius, uppercase text, subtle box-shadow, hover scale effect. Variant: `btn-banner--warning` for amber/warning-colored banners.

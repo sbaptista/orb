@@ -63,6 +63,14 @@ provider `response_id`; a trusted barge-in may therefore discard that response's
 partial transcript without weakening exact-text enforcement for uninterrupted
 responses or later speech.
 
+**Revised 2026-09-16 (Stan approved):** the comparison uses
+`comparableSpokenWords` (case, punctuation, quotes, hyphens, letter/digit joins,
+and small number words ignored), and a remaining mismatch is recorded
+(`speech_render_mismatch` telemetry mark, development-only text in the console)
+rather than ending the voice session. The screen always shows the canonical
+text. A stopped, replaced, or merged turn also rejects any proposal it stored,
+because that proposal was never shown.
+
 The implemented v0.6.316 slice makes one or many confirmation-gated mutations
 share the same ordered envelope, resolves each required object class from one
 bounded preparation snapshot, persists the batch in one RPC, and confirms all
@@ -75,8 +83,9 @@ as complete.
 2. **One agent kernel.** Text and voice invoke the same server-owned turn runner and operation registry. Realtime is a speech transport, not a second Orb agent.
 3. **One confirmation boundary.** Mutations are proposed by the shared kernel and committed by a deterministic coordinator only after a distinct later user turn confirms them. The request turn cannot confirm itself, even if it says “do it and consider it confirmed.”
 4. **Confirmation is cross-modal.** A mutation requested by text may be confirmed by voice, and one requested by voice may be confirmed by text.
-5. **Interrupt safety is shared.** Text Stop, a replacement typed turn, voice Stop, and voice barge-in become the same control event after transport-specific detection.
-6. **Committed effects survive interruption.** Interrupting cancels uncommitted work and current presentation. It does not roll back a committed mutation, delete a pending proposal, or suppress its durable receipt.
+5. **Interrupt safety is shared, and only intent cancels.** Revised 2026-09-16 (Stan approved): a microphone hears wind, coughs, sirens, and other people, so sound is not intent. Acoustic barge-in only pauses Orb's speech and writes nothing; if the sound does not become trusted speech, the unfinished reply is spoken again. Only deliberate input — the Stop button, a bare stop word (typed or spoken), or a new request — records a durable interrupt, and of those only `stop` can block a confirmed commit that has not run. The same rules apply to text and voice (`lib/orb-interaction/interrupt-intent.ts`).
+6. **Committed effects survive interruption.** Interrupting cancels uncommitted work and current presentation. It does not roll back a committed mutation, delete a pending proposal, or suppress its durable receipt. The client keeps reading a stopped or replaced turn so a receipt that arrives afterwards is still shown (silently) and applied to the project and todo lists.
+10. **Only the server writes proposals and receipts.** Added 2026-09-16 after four voice project requests got a model-written "I'm about to create… Want me to go ahead?" with no stored proposal, and two confirmations got a model-written "Created the project…" with no receipt. Model history labels server-issued proposals, database receipts, and unbacked claims; the shared false-claim gate retries once and then replaces — never delivers — a completion claim with no receipt or a go-ahead question with no proposal stored in that request (a different pending batch does not count; the stored batch is restated verbatim instead). A confirmation commits only if the last go-ahead the user saw is the stored batch's own wording; otherwise the server restates the stored batch and records a `mutation_proposed` restatement event, so the next confirmation approves exactly what was shown.
 7. **Only canonical visible events enter history.** Raw reasoning, provider events, partial transcripts, tool JSON, stale deltas, and speech-recognition hints never become conversation messages.
 8. **One response artifact feeds both renderers.** The UI renders its canonical Markdown; voice speaks its canonical `spokenText`. Neither adapter independently rewrites the answer or invokes business tools.
 9. **Every turn is one ordered command batch.** One request produces a one-item batch; several requests produce one FIFO batch. Reads are resolved together and writes are committed together, never by independently executing tool handlers.
@@ -322,20 +331,20 @@ Introduce one client interaction controller, likely a hook such as `useOrbIntera
 - pending output/playback
 - reconnect recovery
 
-Transport adapters emit the same `InterruptTurn` after detecting:
+**Revised interrupt contract (2026-09-16, Stan approved).** Interruption has two kinds:
 
-- text Stop
-- a replacement typed request
-- voice Stop
-- voice barge-in
+| Kind | Raised by | Effect |
+|---|---|---|
+| Pause speech | Sound alone: Silero real-start or provider VAD during rendering | Cancels the current audio render only. Nothing durable, no request aborted, no commit blocked. Untrusted, empty, or failed transcription resumes the paused reply. |
+| Cancel turn | Stop button or bare stop word → `stop` (the stop word itself is not sent as a turn); new input before the running turn has shown any reply → `merge` (the fragments are submitted as one combined turn and the fragment is hidden from history); any other new text/voice request → `replacement`; leaving voice → `exit_voice` (silences only) | `stop`/`replacement` record a durable interrupt for the in-flight turn and end its presentation. Only `stop` blocks `confirm_orb_command_batch` / `confirm_orb_mutation` (`20260916_orb_intentional_interrupts.sql`). A finished turn is never interrupted. |
 
-Interrupt behavior:
+Interrupt behavior for `stop` and `replacement`:
 
 - Cancel uncommitted model and read-only tool work where cancellation is supported.
 - Stop current text streaming and audio playback promptly.
 - Ignore stale presentation deltas by typed turn/event ID.
 - Do not abort a commit after the transaction boundary has begun.
-- Before commit begins, interruption cancels the entire prepared batch; it never pops or executes a subset.
+- Before commit begins, a `stop` cancels the entire prepared batch; it never pops or executes a subset. A `replacement` lets an already-confirmed commit finish.
 - Do not delete pending proposals.
 - Persist the result/receipt independently of whether the originating renderer is still active.
 - Redeliver an unacknowledged committed response or receipt once after reconnect or on the next interaction.
@@ -516,7 +525,8 @@ This inventory is directional; exact migrations and test filenames should be cho
 - Later commands may consume earlier command results; forward references, cycles, missing dependencies, and ambiguous targets fail closed.
 - Any stale or failed command rolls back the complete mutation batch.
 - Duplicate confirmation returns the same complete ordered receipt with no repeated writes.
-- Interrupt before commit cancels the whole batch; interrupt during/after commit preserves the authoritative receipt.
+- `stop` before commit cancels the whole batch; `replacement`, `exit_voice`, and acoustic barge-in never do; interrupt during/after commit preserves the authoritative receipt.
+- Untrusted sound during playback resumes the paused reply and creates no user turn.
 - External side effects are emitted once from the committed outbox, never from a partially executed tool loop.
 - Instrumented assertions reject N per-item database calls for a batch-capable resolution or execution path.
 

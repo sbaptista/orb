@@ -1,3 +1,9 @@
+import {
+  frameModelHistoryEntry,
+  unbackedAssistantProvenance,
+  type OrbModelHistoryProvenance,
+} from './model-history'
+
 export type OrbInputModality = 'text' | 'voice'
 export type OrbConversationActor = 'user' | 'orb' | 'system'
 export type OrbConversationVisibility = 'visible' | 'control'
@@ -115,7 +121,14 @@ export function isVisibleConversationMessage(
 export function projectConversationMessages(
   events: OrbConversationEvent[],
 ): OrbConversationMessage[] {
-  return events.filter(isVisibleConversationMessage).map(event => ({
+  // A turn merged into its successor has its words repeated there; showing the
+  // fragment too would duplicate them. Its receipts, if any, stay visible.
+  const mergedTurnIds = new Set(events
+    .filter(event => event.eventType === 'interrupt' && event.payload.reason === 'merge')
+    .map(event => event.turnId))
+  return events
+    .filter(event => !(event.eventType === 'user_message' && mergedTurnIds.has(event.turnId)))
+    .filter(isVisibleConversationMessage).map(event => ({
     eventId: event.id,
     conversationId: event.conversationId,
     turnId: event.turnId,
@@ -157,7 +170,21 @@ export function projectModelHistory(
   events: OrbConversationEvent[],
   excludeEventId?: string,
 ): Array<{ role: 'user' | 'assistant'; text: string }> {
+  const proposalTurnIds = new Set(events
+    .filter(event => event.eventType === 'mutation_proposed')
+    .map(event => event.turnId))
+  const receiptEventIds = new Set(events
+    .filter(event => event.eventType === 'assistant_message' && event.proposalId)
+    .map(event => event.id))
   return projectConversationMessages(events)
     .filter(message => message.eventId !== excludeEventId)
-    .map(message => ({ role: message.role, text: message.text }))
+    .map(message => {
+      if (message.role !== 'assistant') return { role: message.role, text: message.text }
+      const provenance: OrbModelHistoryProvenance | undefined = receiptEventIds.has(message.eventId)
+        ? 'server_receipt'
+        : proposalTurnIds.has(message.turnId)
+          ? 'server_proposal'
+          : unbackedAssistantProvenance(message.text)
+      return frameModelHistoryEntry({ role: message.role, text: message.text, provenance })
+    })
 }

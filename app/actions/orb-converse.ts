@@ -21,6 +21,9 @@ import { PROJECT_MUTATIONS, KNOWLEDGE_MUTATIONS, getPendingMutation, storePendin
 import { confirmOrbMutation } from '@/lib/orb-operations/confirmation'
 import { prepareSerialTodoOperations, proposeSerialTodoOperations, serialTodoFact } from '@/lib/orb-operations/serial-todos'
 import { buildOrbCommandBatchConfirmationSpeech, persistOrbCommandBatch, type PreparedOrbMutationCommand } from '@/lib/orb-operations/command-batches'
+import { ORB_PENDING_RESTATEMENT_PREFIX, buildOrbConfirmationSpeechFromSummaries } from '@/lib/orb-operations/command-batch-contract'
+import { lastShownProposalMatches } from '@/lib/orb-interaction/model-history'
+import { BARE_STOP_ACKNOWLEDGEMENT, isBareHaltCommand } from '@/lib/orb-interaction/interrupt-intent'
 import type { OrbCommandBatchReceipt, OrbRealtimeMutationReceipt } from '@/lib/orb-realtime/types'
 import { queryOrbInvitations, queryOrbUsers } from '@/lib/orb-operations/admin-directory'
 import { DB_SCHEMA, ALLOWED_TABLES, SOFT_DELETE_TABLES, ALLOWED_OPS, COLUMN_NAME_RE } from '@/lib/db-schema'
@@ -36,7 +39,7 @@ import { routeOrbRequest, type OrbRouteRole } from '@/lib/orb-model/routing'
 import { checkOrbBudget, budgetBlockMessage } from '@/lib/orb-model/budget'
 import { classifyProviderFailure, notifyOrbIncident } from '@/lib/orb-model/incidents'
 import type { OrbModelProviderId } from '@/lib/orb-model/types'
-import { extractCitedCodes, isFalseCompletionClaim } from '@/lib/orb-model/false-claim-guard'
+import { UNBACKED_MUTATION_CLAIM_REPLACEMENT, extractCitedCodes, hasCompletionLanguage, hasProposalLanguage, isFalseCompletionClaim, presentableLeadIn, presentableStreamingSpeech, stripHistoryProvenanceLabels, switchConfirmationSpeech } from '@/lib/orb-model/false-claim-guard'
 import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, pendingTodoUndercount, resolveActionSetReference, todoCode } from '@/lib/orb-model/context'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
 import { ORB_PRESENTABLE_QUERY_TOOL_NAMES, buildOrbQueryPresentation, orbQueryPresentationRequest } from '@/lib/orb-query-presentation'
@@ -47,7 +50,7 @@ import { appendOrbConversationEvent, appendOrbResponseArtifact, beginOrbConversa
 import { toOrbSpokenText } from '@/lib/orb-interaction/spoken-text'
 import { mutationReceiptRefreshScopes, type OrbInteractionIdentity } from '@/lib/orb-interaction/types'
 import { deletedProjectIdsFromPendingMutation } from '@/lib/orb-interaction/project-refresh'
-import { withExplicitSpellingClarification } from '@/lib/orb-interaction/spelled-identifiers'
+import { withExplicitSpellingClarification, withHistorySpellingClarifications } from '@/lib/orb-interaction/spelled-identifiers'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -82,7 +85,7 @@ export type OrbResponse = {
   deletedProjectIds?: string[]
   mutatedProductId?: string
   mutationType?: 'create' | 'update' | 'delete' | 'project_create' | 'project_update' | 'project_delete' | 'dormancy' | 'knowledge_update' | 'ticket_create'
-  clientAction?: { action: string; target?: string }
+  clientAction?: { action: string; target?: string; projectId?: string }
   error?: string
   isServiceError?: boolean // True when the error is a service-level issue (billing, overloaded, network)
   isStreaming?: boolean
@@ -326,7 +329,19 @@ IMPORTANT: Do not skip stages. Set the preference immediately when you present t
 }
 
 export async function orbConverse(req: OrbRequest) {
-  const stream = createStreamableValue<OrbResponse>()
+  const rawStream = createStreamableValue<OrbResponse>()
+  // Every value that reaches the client passes here, so no update path can
+  // show a history provenance label, complete or partial.
+  const presentable = (value: OrbResponse): OrbResponse => ({
+    ...value,
+    ...(typeof value.speech === 'string' ? { speech: presentableStreamingSpeech(value.speech) } : {}),
+    ...(typeof value.spokenText === 'string' ? { spokenText: stripHistoryProvenanceLabels(value.spokenText) } : {}),
+  })
+  const stream = {
+    update: (value: OrbResponse) => rawStream.update(presentable(value)),
+    done: (value: OrbResponse) => rawStream.done(presentable(value)),
+    value: rawStream.value,
+  }
 
   ;(async () => {
     let finalizeInteraction: ((response: OrbResponse) => Promise<OrbResponse>) | null = null
@@ -523,6 +538,7 @@ export async function orbConverse(req: OrbRequest) {
       // Keep the durable event verbatim, but make explicit letter-by-letter
       // spelling authoritative for model/tool selection.
       req.input = withExplicitSpellingClarification(req.input)
+      if (req.history) req.history = withHistorySpellingClarifications(req.history)
 
       const rejectPendingMutation = async (pending: PendingMutationRow) => {
         if (auth.interaction) {
@@ -613,6 +629,13 @@ export async function orbConverse(req: OrbRequest) {
       // specifically about data mutations. A held-but-not-executed
       // GATED_MUTATIONS call does NOT set this — being held isn't being done.
       let hasActed = false
+      // True once this request stored a mutation proposal through a tool. With
+      // a durable pending proposal, this is what may back confirmation-request
+      // language; the model writing "Want me to go ahead?" alone backs nothing.
+      let proposalStored = false
+      // Set when switch_project resolved a project this request; the server,
+      // not the model, then writes the switch confirmation.
+      let switchedProject: { id: string; name: string } | null = null
       const statusNames = ctx.statusList.map((s: any) => `${s.name}${s.is_closed ? ' (closed)' : s.is_open ? ' (default)' : ''}`).join(', ')
       const priorityInfo = ctx.priorityList.map((p: any) => `${p.value}:${p.label}${p.is_urgent ? ' (URGENT)' : ''}`).join(', ')
 
@@ -739,6 +762,50 @@ export async function orbConverse(req: OrbRequest) {
         auth.user.id,
         auth.interaction?.conversationId,
       )
+
+      // The exact go-ahead wording of the stored pending batch, rebuilt from
+      // its stored command summaries — never from anything the model wrote.
+      const pendingBatchSpeech = (pending: PendingMutationRow | null): string | null => {
+        if (!pending || pending.tool !== 'command_batch') return null
+        const commands: Array<Record<string, unknown>> = Array.isArray(pending.params.commands) ? pending.params.commands : []
+        const summaries = commands.map(command => String(command?.summary ?? '').trim()).filter(Boolean)
+        return summaries.length > 0 ? buildOrbConfirmationSpeechFromSummaries(summaries) : null
+      }
+      // Show the stored pending batch exactly, and record that this turn
+      // presented it, so the user's next confirmation approves what they saw.
+      const restatePendingBatch = async (pending: PendingMutationRow, canonical: string): Promise<string> => {
+        if (auth.interaction) {
+          try {
+            await appendOrbConversationEvent(auth, {
+              id: stableOrbConversationEventId(`${pending.proposal_id}:${auth.interaction.turnId}`, 'mutation_restated'),
+              conversationId: auth.interaction.conversationId,
+              turnId: auth.interaction.turnId,
+              actor: 'system',
+              eventType: 'mutation_proposed',
+              modality: auth.interaction.modality,
+              visibility: 'control',
+              proposalId: pending.proposal_id,
+              payload: { kind: 'command_batch_restatement', summary: pending.summary },
+            })
+          } catch (eventError) {
+            console.error('[orbConverse] Pending restatement event append failed:', eventError)
+          }
+        }
+        return `${ORB_PENDING_RESTATEMENT_PREFIX}\n\n${canonical}`
+      }
+      // A confirmation approves the stored batch only if the last go-ahead the
+      // user saw was that batch's own wording. Returns the restatement to send
+      // instead of committing, or null when the commit may proceed.
+      const shownProposalMismatch = async (pending: PendingMutationRow): Promise<string | null> => {
+        if (!auth.interaction) return null
+        const canonical = pendingBatchSpeech(pending)
+        if (!canonical) return null
+        if (lastShownProposalMatches(req.history ?? [], canonical)) return null
+        console.error('[orbConverse] Confirmation withheld: last shown proposal differs from the stored batch', {
+          proposalId: pending.proposal_id,
+        })
+        return restatePendingBatch(pending, canonical)
+      }
       const browserPendingTodoOps = pendingTodoOperations(req.pendingMutation)
       const canonicalTodoOps = canonicalPendingTodoOperations(pendingMutation)
       const pendingTodoOps = canonicalTodoOps.length > 0 ? canonicalTodoOps : browserPendingTodoOps
@@ -770,6 +837,13 @@ export async function orbConverse(req: OrbRequest) {
         }
 
         if (await authorizesPendingMutation(req.input)) {
+          const restatement = pendingMutation ? await shownProposalMismatch(pendingMutation) : null
+          if (restatement) {
+            recordModelRequest(restatement)
+            recordMetrics(restatement.length)
+            await finish({ speech: restatement, isStreaming: false })
+            return
+          }
           if (pendingMutation) {
             stream.update({ speech: '', thought: 'Confirming...', isStreaming: true })
             const confirmation = await confirmOrbMutation(auth, pendingMutation.proposal_id)
@@ -849,6 +923,13 @@ export async function orbConverse(req: OrbRequest) {
         }
 
         if (await authorizesPendingMutation(req.input)) {
+          const restatement = await shownProposalMismatch(pendingMutation)
+          if (restatement) {
+            recordModelRequest(restatement)
+            recordMetrics(restatement.length)
+            await finish({ speech: restatement, isStreaming: false })
+            return
+          }
           stream.update({ speech: '', thought: 'Confirming...', isStreaming: true })
           const deletedProjectIds = deletedProjectIdsFromPendingMutation(pendingMutation)
           const confirmation = await confirmOrbMutation(auth, pendingMutation.proposal_id)
@@ -915,6 +996,16 @@ export async function orbConverse(req: OrbRequest) {
           })
           return
         }
+      }
+
+      // A bare "stop", "cancel", or "wait" with nothing pending has
+      // nothing to decline and nothing to answer; the client already stopped
+      // any running reply. Acknowledge without a model call.
+      if (auth.interaction && !pendingMutation && pendingTodoOps.length === 0 && isBareHaltCommand(req.input)) {
+        recordModelRequest(BARE_STOP_ACKNOWLEDGEMENT)
+        recordMetrics(BARE_STOP_ACKNOWLEDGEMENT.length)
+        await finish({ speech: BARE_STOP_ACKNOWLEDGEMENT, isStreaming: false })
+        return
       }
 
       if (!auth.interaction && canonicalTodoOps.length > 0 && pendingMutation) {
@@ -1309,8 +1400,11 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             checkAndNotifyEscalation(auth.user.id, beforeUrgency, supabase)
               .catch(err => console.error('[orbConverse] Push check failed:', err))
           }
-          const parsed = extractInsight(accumulatedSpeech)
-          if (isFalseCompletionClaim(parsed.speech, toolProducedCodes, historyCodes, hasActed)) {
+          const parsed = extractInsight(stripHistoryProvenanceLabels(accumulatedSpeech))
+          // Only a proposal stored in THIS request backs go-ahead wording. A
+          // different pending batch does not: that let a model-written "test8"
+          // proposal through while "Test eight" was the one stored.
+          if (isFalseCompletionClaim(parsed.speech, toolProducedCodes, historyCodes, hasActed, proposalStored)) {
             console.error('[orbConverse] Blocked unverified completion claim', {
               toolProducedCodes: [...toolProducedCodes],
               citedCodes: [...extractCitedCodes(parsed.speech)],
@@ -1322,13 +1416,24 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               accumulatedSpeech = ''
               messages.push({
                 role: 'user',
-                content: 'SYSTEM CORRECTION: Your response claimed an outcome that no tool call in this request actually produced — either a task/project code no tool returned, or completion language ("Done", "I\'ve switched...", "X is now active") with no tool call behind it at all. If you intend to take an action, call the actual tool now and wait for its result before describing any outcome. Do not restate the same claim without calling the tool.',
+                content: (pendingMutation ? `SYSTEM NOTE: The only change actually waiting for confirmation is: ${pendingMutation.summary}. If the user wants something different, call the mutation tool with the corrected values; the server replaces the pending proposal. ` : '') + 'SYSTEM CORRECTION: Your response claimed an outcome or a pending confirmation that no tool call in this request actually produced — a task/project code no tool returned, completion language ("Done", "Created the project…", "I\'ve switched...") with no tool call behind it, or a go-ahead question ("I\'m about to…", "Want me to go ahead?") with no stored proposal. Only the server writes proposals and receipts; earlier ones in history are labeled as server-issued. If the user is asking for a change, call the actual mutation tool now. Do not restate the claim without calling the tool. The user cannot see this correction: do not acknowledge, apologize for, or mention it.',
               })
               stream.update({ speech: '', thought: 'Correcting...', isStreaming: true })
               continue
             }
-            recordModelRequest(parsed.speech)
-            recordMetrics(parsed.speech.length)
+            // The repair was already used and the claim survived it. Never
+            // deliver it: an unbacked "Created…" or "Want me to go ahead?"
+            // tells the user something happened, or is waiting, when nothing
+            // exists. Previously this branch fell through and sent the claim.
+            const pendingCanonical = pendingBatchSpeech(pendingMutation)
+            parsed.speech = pendingMutation && pendingCanonical && hasProposalLanguage(parsed.speech) && !hasCompletionLanguage(parsed.speech)
+              ? await restatePendingBatch(pendingMutation, pendingCanonical)
+              : UNBACKED_MUTATION_CLAIM_REPLACEMENT
+            parsed.insight = undefined
+          }
+          if (switchedProject) {
+            // Server-written confirmation of a switch that actually ran.
+            parsed.speech = switchConfirmationSpeech(parsed.speech, switchedProject.name, repairedNoToolMutationClaim)
           }
           recordModelRequest(parsed.speech)
           recordMetrics(parsed.speech.length)
@@ -1412,6 +1517,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               const list = proposal.candidates.map(c => c.code ? `${c.name} (${c.code})` : c.name).join(', ')
               output = { needs_disambiguation: true, candidates: proposal.candidates, _instruction: `More than one project matches: ${list}. Ask the user which one they mean — refer to them by name. Do not act yet.` }
             } else {
+              proposalStored = true
               await storePendingMutation(auth, {
                 tool: tc.name,
                 target_id: proposal.target_id,
@@ -1729,18 +1835,19 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               // client would have fuzzy-matched fine could fail server-side
               // first, and the model's target convention (name vs code) was
               // inconsistent with update_project/delete_project.
-              const match = resolveProjectByReference(ctx.productList, String(input.target))
+              const match = resolveProjectByReference<{ id: string; name: string; code?: string | null }>(ctx.productList, String(input.target))
               if (!match) {
                 output = { ok: false, error: `Project "${input.target}" not found or you don't have access to it.` }
               } else {
                 hasActed = true
-                accumulatedSpeech = ''
-                // Pass back the resolved NAME, not code — client_action is
-                // name-first like update_project/delete_project. The client
-                // re-resolves defensively but should never need to fall back
-                // to fuzzy-matching a code here.
-                stream.update({ speech: accumulatedSpeech, thought: `Switched to ${match.name}`, clientAction: { action: input.action, target: match.name } })
-                output = { ok: true }
+                switchedProject = { id: match.id, name: match.name }
+                // Keep the model's opening words unless they are themselves a
+                // claim ("Switching to…"); the confirmation is written below.
+                accumulatedSpeech = presentableLeadIn(accumulatedSpeech, toolProducedCodes, historyCodes, repairedNoToolMutationClaim)
+                // The id is authoritative: the client switches by id and only
+                // falls back to the name for an older server response.
+                stream.update({ speech: accumulatedSpeech, thought: `Switched to ${match.name}`, clientAction: { action: input.action, target: match.name, projectId: match.id } })
+                output = { ok: true, _instruction: 'The client is switching now and the server confirms the switch to the user. Do not announce the switch yourself.' }
               }
             } else {
               hasActed = true
@@ -2266,7 +2373,12 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               ? prepared[0].summary
               : `${prepared.length} actions: ${prepared.map(command => command.summary).join('; ')}`
             await persistOrbCommandBatch(auth, prepared, batchSummary)
-            const speech = buildOrbCommandBatchConfirmationSpeech(prepared)
+            // Keep what the model said before calling the tool ("You're right,
+            // it should be test8.") ahead of the server's exact proposal. It
+            // used to stream and then vanish when the proposal replaced it.
+            const leadIn = presentableLeadIn(extractInsight(accumulatedSpeech).speech, toolProducedCodes, historyCodes, repairedNoToolMutationClaim)
+            const proposalSpeech = buildOrbCommandBatchConfirmationSpeech(prepared)
+            const speech = leadIn ? `${leadIn}\n\n${proposalSpeech}` : proposalSpeech
             recordModelRequest(speech)
             recordMetrics(speech.length)
             await finish({ speech, isStreaming: false })
