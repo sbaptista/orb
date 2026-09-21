@@ -77,6 +77,15 @@ function parseArguments(value: string | undefined) {
 // Result of one tool call. The batch aggregates these into a single response.
 type ToolOutcome = { createResponse: boolean; exactText?: string; exitVoice?: boolean }
 
+// How long 'thinking' may last before the UI recovers itself. The provider
+// answering directly is fast, so a lapse there is a fault. A transport-only
+// turn is answered by Orb's own server action — a model call plus tools — so it
+// is legitimately slower and gets a longer leash. Neither is a deadline for the
+// work itself: the watchdog only releases the UI, and a later reply still
+// renders.
+const PROVIDER_RESPONSE_WATCHDOG_MS = 20_000
+const TRANSPORT_TURN_WATCHDOG_MS = 45_000
+
 // ORB-325 legacy mode used provider-owned turn-taking. The unified mode keeps
 // provider VAD only as a capture signal: Silero authenticates interruptions,
 // Orb's shared server action owns the answer/tools, and Realtime only renders
@@ -299,7 +308,7 @@ export function useRealtimeVoiceSpike(options: Options) {
   // Safety net only — the provider owns response timing, so this should not fire
   // in a healthy session. It recovers the UI to listening if a response (or a
   // tool continuation) never produces audio.
-  const armResponseWatchdog = useCallback((turnId: number) => {
+  const armResponseWatchdog = useCallback((turnId: number, timeoutMs = PROVIDER_RESPONSE_WATCHDOG_MS) => {
     clearResponseWatchdog()
     const timeout = window.setTimeout(() => {
       if (turnId !== activeTurnIdRef.current) return
@@ -315,7 +324,7 @@ export function useRealtimeVoiceSpike(options: Options) {
       turnFailureRef.current = null
       callbacksRef.current.onOrbTranscript('Voice response timed out. Please try again.')
       setStatus('listening')
-    }, 20_000)
+    }, timeoutMs)
     responseWatchdogRef.current = { timeout, turnId }
   }, [clearResponseWatchdog])
 
@@ -987,6 +996,13 @@ export function useRealtimeVoiceSpike(options: Options) {
       turnMeasurementRef.current?.mark('transcript_complete')
       if (options.transportOnly) {
         setStatus('thinking')
+        // The provider does not answer this turn — the server does, and its
+        // reply comes back through speakExact. Nothing here observes that
+        // round trip, so without a watchdog a server turn that errors, is
+        // stopped, or never produces speech leaves the UI on "Gathering
+        // data…" for the rest of the session. Every other path to 'thinking'
+        // arms one; this one did not.
+        armResponseWatchdog(turnId, TRANSPORT_TURN_WATCHDOG_MS)
         return
       }
       // The provider does not auto-create the response (create_response:false).

@@ -6,6 +6,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.335',
+    date: '2026-09-21',
+    changes: [
+      'Fixed approvals being refused for the way people actually phrase them. "Go ahead and do it", "yes, go ahead and apply it" and "confirm and proceed" were all rejected with "the current message did not explicitly confirm the proposed action", because the word "and" was treated as evidence that the approval came with a condition attached. That filter also gated the fallback check, so there was no second chance — no phrasing built on "and" could confirm anything. A reply that genuinely carries a change ("go ahead and also add a due date") is still refused.',
+      'Fixed Orb being unable to read tickets through its general database query. The allowed column list for that table had been generated from the schema notes and picked up two words out of a sentence rather than column names, so any ticket query that did not name its own columns failed outright.',
+      'Dictation now says something when it does nothing. A tap too brief to capture speech ended silently — no text, no message, no indication the button had worked — and pressing Enter while a recording was still being transcribed discarded the keystroke without a word. Both now explain themselves.',
+      'Fixed live voice sessions parking on "Gathering data…" for good. Once a transcript was handed to Orb for an answer, nothing was watching that round trip, so a turn that failed or was stopped left the indicator running with no way back except restarting voice mode. Every other path already had that safety net; this one did not.',
+    ],
+  },
+  {
     version: 'v0.6.334',
     date: '2026-09-21',
     changes: [

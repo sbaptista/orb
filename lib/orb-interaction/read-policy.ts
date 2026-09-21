@@ -95,9 +95,7 @@ const COLUMNS: Record<string, readonly string[]> = {
     "todo_id",
     "created_at",
     "closed_at",
-    "deleted_at",
-    "query_tickets",
-    "support"
+    "deleted_at"
   ]
 }
 const JOINS: Record<string, Record<string, readonly string[]>> = {

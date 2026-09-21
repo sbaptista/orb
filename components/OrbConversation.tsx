@@ -286,7 +286,10 @@ export default function OrbConversation({
                 if (audio.size === 0 || tooShort) {
                     measurement.end(true, 'skipped_too_short', { recordingDurationMs, audioBytes: audio.size, submitted: false })
                     dictation.current.finish(recordingId)
-                    // Empty audio never submits a pre-existing draft.
+                    // Empty audio never submits a pre-existing draft — but it
+                    // must say so. Silence here reads as a dead button, and a
+                    // brief tap is the commonest way to land in this branch.
+                    toast.neutral('That was too short to hear. Hold the button while you speak.')
                     return
                 }
 
@@ -393,7 +396,14 @@ export default function OrbConversation({
 
     function handleFormSubmit(e?: React.FormEvent, overrideValue?: string) {
         e?.preventDefault()
-        if (dictation.current.busy) return
+        // Sending mid-dictation would race the transcript into the draft. The
+        // mic button is already disabled while transcribing, but Enter in the
+        // textarea still reaches here, and dropping that keystroke without a
+        // word looks exactly like the message was lost.
+        if (dictation.current.busy) {
+            toast.neutral('Still writing down what you said — send it once the text appears.')
+            return
+        }
         const value = (overrideValue ?? textareaRef.current?.value ?? input).trim()
         if (!value || processing) return
 

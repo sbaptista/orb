@@ -14,10 +14,11 @@
 
 ## App State
 
-- **Branch:** `codex/interaction-safeguards`; HEAD `79b92c3` checked
-  2026-09-20. No commit or push performed in this session.
-- **Version:** local `0.6.334`, uncommitted interaction safeguards and live-voice verifier recovery.
-  Production was last reported as `0.6.331` on 2026-09-17; not rechecked here.
+- **Branch:** `codex/interaction-safeguards`; HEAD `be540d7`. Uncommitted
+  v0.6.335 fixes on top of it; no commit or push performed.
+- **Version:** local `0.6.335`. Production was last reported as `0.6.331` on
+  2026-09-17; not rechecked. `be540d7` (v0.6.334) is on this branch only —
+  `main` has not moved and `origin/main..main` is empty.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -99,76 +100,81 @@
 - **ORB-375:** implementation and credential rotation still in progress.
 ## Uncommitted Changes
 
-- `AGENTS.md`
 - `HANDOFF.md`
-- `app/actions/orb-converse.ts`
 - `components/OrbConversation.tsx`
-- `docs/orb-eval-transition.md`
-- `docs/orb-interaction-contract.md`
-- `docs/orb-interaction-scenarios.md`
-- `docs/orb-interaction-tool-policy.md`
 - `lib/changelog.ts`
-- `lib/orb-contract.ts`
 - `lib/hooks/useRealtimeVoiceSpike.ts`
-- `lib/orb-interaction/diagnostic-policy.ts`
-- `lib/orb-interaction/dictation-lifecycle.ts`
-- `lib/orb-interaction/memory-policy.ts`
 - `lib/orb-interaction/read-policy.ts`
-- `lib/orb-interaction/spelled-identifiers.ts`
-- `lib/orb-interaction/voice-authenticity.ts`
 - `lib/orb-model/approval-policy.ts`
-- `lib/orb-model/mutation-authorization.ts`
-- `lib/orb-mutations.ts`
-- `lib/orb-operations/confirmation-execution.ts`
-- `lib/orb-operations/confirmation.ts`
-- `lib/orb-prompt.ts`
 - `lib/version.ts`
-- `lib/voice/silero-shadow.ts`
 - `package.json`
-- `scripts/orb-eval.ts`
 - `scripts/verify-orb-interaction.ts`
-- `scripts/verify-orb-transactions.sql`
 
 ---
 
 ## Last Session Completed
 
-**2026-09-21 — Codex (GPT-5). Shared interaction safeguards and live-voice verifier recovery; zero paid verification.**
+**2026-09-21 — Claude Code (Opus 5). Four defects fixed in the v0.6.334
+interaction safeguards; v0.6.335 prepared, uncommitted.**
 
-- Stan approved continuing from the four-document checkpoint. Shared prompt now
-  uses four responsibilities. Approval policy uses raw user text, vetoes mixed
-  corrections/conditions, and caches semantic classification within a turn.
-- Shared guards enforce project spelling, unresolved scope, safe query joins,
-  admin developer relay, and autonomous-memory recorded evidence. Non-admin
-  knowledge reads/preparation and audit reads use RLS.
-- Confirmation production code uses the same I/O-adapter orchestration as
-  offline checks. Retained dictation rejects empty/late/duplicate results;
-  its button remains disabled. Device dictation still uses the text composer.
-- AGENTS.md removes mandatory paid gates. Existing diagnostic runner now
-  requires --allow-paid and --id, defaults to one execution in either tier,
-  and accepts explicit --runs. Runs are not provider-call/dollar caps.
-  All 127 historical cases remain; no new paid suite or paid run.
-- Latest model-free verifier and TypeScript check passed once after feature
-  changes. Focused ESLint passed with zero errors and six warnings in existing
-  OrbConversation code. No build/dev-server operation or database mutation.
-- Actual-RPC integration checks prepared in scripts/verify-orb-transactions.sql;
-  not run: installed libpq has no postgres server; no container runtime found.
-  Requires a local disposable migrated database named orb_interaction_test and
-  synthetic users, with external effects disabled. This is not a migration.
-- Fixed the reported session-wide “heard audio but could not verify speech”
-  failure. Silero now exposes whether its frame stream is current; a stalled
-  initialized detector uses the existing high-confidence provider fallback for
-  that turn and restarts automatically. Low/missing confidence remains blocked.
-  A fresh-frame/high-provider-confidence disagreement rejects the current turn
-  but also restarts Silero, preventing desynchronization from locking the rest
-  of the session.
-  Model-free healthy/stalled/fail-closed cases passed once. No direct device
-  acceptance has been run, so the reported failure is not yet called verified fixed.
-- Offline inventory/link/version check passed: 29 tools, 127 retained cases,
-  matching v0.6.334 files. Handoff verifier passed (advisory length warning); staged/unstaged whitespace checks passed. No commit, push, deployment, live model interpretation, or audio acceptance.
+- **Approval grammar (`lib/orb-model/approval-policy.ts`).** `and` was a
+  deterministic veto, so "go ahead and do it", "yes, go ahead and apply it" and
+  "confirm and proceed" were all refused. The same filter gates the semantic
+  fallback, so those phrasings had no path to approve anything. `and` removed as
+  a veto; the approval act now matches a conjunction of two acts. The other
+  vetoes (question, negation, qualifying condition, spelled identifier,
+  retrospective framing, edit verbs) are unchanged and still deterministic.
+- **Read allowlist (`lib/orb-interaction/read-policy.ts`).** `COLUMNS.tickets`
+  contained `query_tickets` and `support`, harvested from a prose sentence in
+  `lib/db-schema.ts`. `*` therefore expanded to a select PostgREST rejects, so
+  any `query_db` on tickets without explicit columns failed. Both removed.
+- **Dictation (`components/OrbConversation.tsx`).** A too-short recording and a
+  send attempted mid-transcription both returned silently. Both now toast.
+- **Voice status (`lib/hooks/useRealtimeVoiceSpike.ts`).** The transport-only
+  path set `'thinking'` with no `armResponseWatchdog`, so a server turn that
+  failed or was stopped left the UI on "Gathering data…" permanently. Watchdog
+  now armed there at 45 s (provider path unchanged at 20 s).
+- **Verified.** `npm run verify:interaction` and `npx tsc --noEmit` pass.
+  ESLint on the five changed files: 0 errors, 6 pre-existing warnings in
+  `OrbConversation.tsx`. New regression checks pin every `query_db` table's `*`
+  expansion exactly and cover conjunction approvals in both directions; **both
+  were proven to fail when the original defects were re-injected**, then pass
+  once reverted.
+- **Not verified.** No device acceptance, no live model call, no database
+  operation, no build, no dev-server operation. The voice fixes are source-level
+  only.
+- **Attribution correction.** The "heard audio but could not verify speech"
+  report that prompted this work was made against a browser bundle whose version
+  was never confirmed. v0.6.334's own changelog claims to fix that symptom, so
+  it may have been the pre-0.6.334 bug rather than anything new. Treat the cause
+  as unestablished until it is reproduced on a confirmed v0.6.335 client.
 
 ## Active Risks / Unresolved Work
 
+- **Project-switch loop — root-caused, NOT fixed.** Live log 2026-09-21:
+  `[orbConverse] Blocked unverified completion claim … hasActed: false,
+  speech: 'Switched to "Orb".'` The model reproduced the server's own
+  confirmation sentence from history instead of calling `client_action`
+  (straight quotes; the server writes curly). Two contributing defects, both
+  outside the v0.6.334 diff and both still present:
+  1. `lib/orb-interaction/types.ts:183` has no provenance category for a
+     successful `client_action`. It is neither a stored proposal nor a database
+     receipt, so it falls to `unbackedAssistantProvenance` and every **successful**
+     switch is labeled `[Unverified … nothing was proposed or changed]`.
+  2. `lib/orb-prompt.ts:106` instructs the model to say "Opening that project.",
+     which `lib/orb-model/false-claim-guard.ts:60` flags as a switch claim
+     (verified by running it). The compliant phrasing is itself a trap.
+  The one-retry repair currently rescues most attempts; when it does not, the
+  user gets "I have not made or proposed that change".
+- **Non-admin knowledge reads moved from admin to the RLS client** in
+  `app/actions/orb-converse.ts` (v0.6.334). That change deleted a comment
+  recording a live bug fixed at that exact spot — cross-project entries with
+  `product_id IS NULL` resolving and then returning empty because the RLS
+  policy's join cannot match a null. Untested; needs a non-admin account.
+- **"yes, remove it" is still refused** against a pending deletion. Edit verbs
+  remain deterministic vetoes on purpose (see the comment in
+  `lib/orb-model/approval-policy.ts`); loosening them is a policy decision for
+  Stan, not a passing fix.
 - **Bullet-list visual acceptance remains open.** The shared Markdown CSS now
   explicitly restores list markers, but Stan still saw no bullets before the
   requested hard refresh. The Browser plugin could not inspect localhost because
@@ -483,7 +489,7 @@
 
 ## AI Tool Used Last Session
 
-`2026-09-20 — Codex (GPT-6 Astra)`
+`2026-09-21 — Claude Code (Opus 5)`
 
 ---
 
