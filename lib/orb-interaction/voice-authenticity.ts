@@ -6,12 +6,34 @@ const SHORT_SPEECH_MINIMUM_POSITIVE_FRAMES = 2
 const SHORT_SPEECH_MINIMUM_POSITIVE_RATIO = 0.18
 const SHORT_SPEECH_MINIMUM_MAXIMUM_PROBABILITY = 0.65
 
+export function isStalledVoiceVerifier(metadata: VoiceAcousticMetadata) {
+  return metadata.sileroShadowState === 'ready'
+    && metadata.sileroFrameStreamFresh === false
+}
+
+/** Recover the local verifier without admitting a turn it disagreed with. */
+export function shouldRecoverVoiceVerifier(
+  metadata: VoiceAcousticMetadata,
+  transcriptionConfidence: number | null,
+) {
+  if (isStalledVoiceVerifier(metadata)) return true
+  return metadata.sileroShadowState === 'ready'
+    && metadata.sileroSpeechObserved === false
+    && transcriptionConfidence !== null
+    && transcriptionConfidence >= FALLBACK_PROVIDER_CONFIDENCE
+}
+
 /** Fail-closed boundary for transcripts entering the shared conversation. */
 export function isAuthenticVoiceTurn(
   metadata: VoiceAcousticMetadata,
   transcriptionConfidence: number | null,
 ) {
-  if (metadata.sileroShadowState === 'ready') {
+  // "Ready" describes successful initialization, not continued delivery of
+  // microphone frames. When that stream stalls, use the same conservative
+  // provider-confidence fallback as an unavailable classifier and let the
+  // caller restart Silero. Otherwise one stalled graph rejects every later
+  // utterance until the user manually restarts voice mode.
+  if (metadata.sileroShadowState === 'ready' && !isStalledVoiceVerifier(metadata)) {
     const frameCount = typeof metadata.sileroFrameCount === 'number'
       ? metadata.sileroFrameCount
       : 0

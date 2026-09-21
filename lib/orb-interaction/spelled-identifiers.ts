@@ -15,12 +15,12 @@ const SPELLED_IDENTIFIER = /(?:\bspell(?:ed|ing|s)?\b[^A-Za-z0-9]*(?:(?:it|that|
 const LOWERCASE_REQUEST = /\b(?:all\s+)?lower\s*-?\s*case\b|\bsmall letters\b/i
 
 /** Preserve explicit voice spelling as model context without rewriting history. */
-export function withExplicitSpellingClarification(input: string): string {
+export function explicitSpelledIdentifier(input: string): string | null {
   const match = input.match(SPELLED_IDENTIFIER)
-  if (!match) return input
+  if (!match) return null
 
   const spelled = match[2].replace(/[^a-z0-9]/gi, '')
-  if (spelled.length < 2) return input
+  if (spelled.length < 2) return null
   const lowercase = match[1]?.toLowerCase() === 'lowercase'
     || (match[1]?.toLowerCase() !== 'uppercase' && LOWERCASE_REQUEST.test(input))
   const letters = lowercase ? spelled.toLowerCase() : spelled.toUpperCase()
@@ -28,9 +28,31 @@ export function withExplicitSpellingClarification(input: string): string {
   const digits = digitToken
     ? DIGIT_WORDS[digitToken] ?? (/^\d+$/.test(digitToken) ? digitToken : '')
     : ''
-  const canonical = `${letters}${digits}`
+  return `${letters}${digits}`
+}
+
+export function withExplicitSpellingClarification(input: string): string {
+  const canonical = explicitSpelledIdentifier(input)
+  if (!canonical) return input
 
   return `${input}\n\n[SYSTEM: The user explicitly spelled the intended name or identifier as "${canonical}". Preserve that exact spelling in any tool call and confirmation. Do not substitute an earlier homophone.]`
+}
+
+/** Bind only explicitly named fields; never replace unrelated tool arguments. */
+export function validateSpelledProjectField(input: string, tool: string, params: Record<string, unknown>): string | null {
+  if (!['create_project', 'update_project'].includes(tool)) return null
+  const canonical = explicitSpelledIdentifier(input)
+  if (!canonical) return null
+  // Multiple spellings or multiple projects require interpretation, not a global override.
+  const segments = input.match(/(?<![A-Za-z0-9])[a-z0-9](?:\s*-\s*[a-z0-9])+(?![A-Za-z0-9])/gi) ?? []
+  if (segments.length !== 1) return 'Multiple spelled identifiers need separate, explicit field bindings before proposing this change.'
+  const codeRequested = /\b(?:project code|with code|code is|code should)\b/i.test(input)
+  const nameRequested = /\b(?:project (?:called|named)|project name|name (?:is|should)|rename)\b/i.test(input)
+  if (!codeRequested && !nameRequested) return 'The spelling is explicit but its field is unclear. Ask whether it is the project name or code before proposing a change.'
+  if (codeRequested && nameRequested) return 'Clarify which project field the explicit spelling refers to.'
+  if (tool === 'update_project' && codeRequested) return 'Project codes cannot be changed.'
+  const field = codeRequested ? 'code' : tool === 'create_project' ? 'name' : 'new_name'
+  return params[field] === canonical ? null : `The user explicitly spelled ${field} as "${canonical}". Use that exact value and present a new proposal; nothing has executed.`
 }
 
 /**

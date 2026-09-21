@@ -22,6 +22,9 @@ import { confirmOrbMutation } from '@/lib/orb-operations/confirmation'
 import { prepareSerialTodoOperations, proposeSerialTodoOperations, serialTodoFact } from '@/lib/orb-operations/serial-todos'
 import { buildOrbCommandBatchConfirmationSpeech, persistOrbCommandBatch, type PreparedOrbMutationCommand } from '@/lib/orb-operations/command-batches'
 import { ORB_PENDING_RESTATEMENT_PREFIX, buildOrbConfirmationSpeechFromSummaries } from '@/lib/orb-operations/command-batch-contract'
+import { validateMemory } from '@/lib/orb-interaction/memory-policy'
+import { oncePerTurnApproval } from '@/lib/orb-model/approval-policy'
+import { InteractionPolicyError, resolveReadProject, safeReadProjection, assertToolAccess } from '@/lib/orb-interaction/read-policy'
 import { lastShownProposalMatches } from '@/lib/orb-interaction/model-history'
 import { BARE_STOP_ACKNOWLEDGEMENT, isBareHaltCommand } from '@/lib/orb-interaction/interrupt-intent'
 import type { OrbCommandBatchReceipt, OrbRealtimeMutationReceipt } from '@/lib/orb-realtime/types'
@@ -50,7 +53,7 @@ import { appendOrbConversationEvent, appendOrbResponseArtifact, beginOrbConversa
 import { toOrbSpokenText } from '@/lib/orb-interaction/spoken-text'
 import { mutationReceiptRefreshScopes, type OrbInteractionIdentity } from '@/lib/orb-interaction/types'
 import { deletedProjectIdsFromPendingMutation } from '@/lib/orb-interaction/project-refresh'
-import { withExplicitSpellingClarification, withHistorySpellingClarifications } from '@/lib/orb-interaction/spelled-identifiers'
+import { validateSpelledProjectField, withExplicitSpellingClarification, withHistorySpellingClarifications } from '@/lib/orb-interaction/spelled-identifiers'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -192,14 +195,13 @@ function isDeleteRequest(input: string): boolean {
 
 async function inferConfirmedDeleteOpsFromHistory(
   history: Array<{ role: 'user' | 'assistant'; text: string }> | undefined,
-  input: string,
+  approve: () => Promise<boolean>,
 ): Promise<PendingMutationOperation[]> {
-  if (!(await authorizesPendingMutation(input))) return []
   const lastAssistant = [...(history ?? [])].reverse().find(h => h.role === 'assistant')?.text ?? ''
   if (!/\b(confirm|go ahead)\b/i.test(lastAssistant)) return []
   if (!/\b(delete|deleting|remove|removing)\b/i.test(lastAssistant)) return []
   const codes = [...extractCitedCodes(lastAssistant)]
-  if (codes.length === 0) return []
+  if (codes.length === 0 || !(await approve())) return []
   return codes.map(code => ({ tool: 'delete_todo', params: { code } }))
 }
 
@@ -535,6 +537,10 @@ export async function orbConverse(req: OrbRequest) {
         }
       }
 
+      const userInput = req.input
+      const recordedUserTexts = auth.interaction ? [...(req.history ?? []).filter(h => h.role === 'user').map(h => h.text), userInput] : []
+      const approvalForTurn = oncePerTurnApproval(userInput, authorizesPendingMutation)
+
       // Keep the durable event verbatim, but make explicit letter-by-letter
       // spelling authoritative for model/tool selection.
       req.input = withExplicitSpellingClarification(req.input)
@@ -836,7 +842,7 @@ export async function orbConverse(req: OrbRequest) {
           return
         }
 
-        if (await authorizesPendingMutation(req.input)) {
+        if (await approvalForTurn()) {
           const restatement = pendingMutation ? await shownProposalMismatch(pendingMutation) : null
           if (restatement) {
             recordModelRequest(restatement)
@@ -922,7 +928,7 @@ export async function orbConverse(req: OrbRequest) {
           return
         }
 
-        if (await authorizesPendingMutation(req.input)) {
+        if (await approvalForTurn()) {
           const restatement = await shownProposalMismatch(pendingMutation)
           if (restatement) {
             recordModelRequest(restatement)
@@ -1013,7 +1019,9 @@ export async function orbConverse(req: OrbRequest) {
         pendingMutation = null
       }
 
-      const confirmedDeleteOps = await inferConfirmedDeleteOpsFromHistory(req.history, req.input)
+      const confirmedDeleteOps = !auth.interaction && !req.pendingMutation
+        ? await inferConfirmedDeleteOpsFromHistory(req.history, approvalForTurn)
+        : []
       if (!req.interaction && !req.pendingMutation && confirmedDeleteOps.length > 0) {
         const summary = summarizeTodoOperations(confirmedDeleteOps)
         const proposal = await proposeSerialTodoOperations(auth, confirmedDeleteOps, {
@@ -1068,7 +1076,7 @@ export async function orbConverse(req: OrbRequest) {
         pendingMutation
         && isNamedPendingMutation(pendingMutation.tool),
       )
-      const namedConfirmationAllowed = hasNamedPendingMutation && (await authorizesPendingMutation(req.input))
+      const namedConfirmationAllowed = hasNamedPendingMutation && (await approvalForTurn())
       if (pendingMutation && hasNamedPendingMutation) {
         messages.push({ role: 'user', content: buildPendingMutationConfirmationInstruction(pendingMutation.summary) })
       }
@@ -1304,7 +1312,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               ...ORB_PREFERENCE_TOOLS,
               ...(memoryLevel !== 'off' ? ORB_MEMORY_TOOLS : []),
               ORB_CAPABILITIES_TOOL,
-              ORB_DEV_CHANNEL_TOOL,
+              ...(auth.isAdmin ? [ORB_DEV_CHANNEL_TOOL] : []),
               ORB_ADAPTATION_TOOL,
             ]
         let assistantMessage: any
@@ -1466,7 +1474,22 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             input = {}
             inputTruncated = true
           }
+          if (!input || typeof input !== 'object' || Array.isArray(input)) {
+            input = {}
+            inputTruncated = true
+          }
           let output: any
+
+          try { assertToolAccess(tc.name, auth.isAdmin) } catch (error) {
+            toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify({ error: (error as Error).message }) })
+            continue
+          }
+
+          const spellingError = validateSpelledProjectField(userInput, tc.name, input)
+          if (spellingError) {
+            toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify({ error: spellingError }) })
+            continue
+          }
 
           if (inputTruncated) {
             output = { error: 'Your tool call was truncated (incomplete JSON). The parameters were too long for the response limit. Try again with a shorter description, or create the task first with just a title and update it separately.' }
@@ -1504,7 +1527,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             const proposal = PROJECT_MUTATIONS.has(tc.name)
               ? await proposeProjectMutation(auth.admin, { userId: auth.user.id, isAdmin: auth.isAdmin }, tc.name, input)
               : await proposeKnowledgeMutation(
-                  auth.admin,
+                  auth.isAdmin ? auth.admin : supabase,
                   { userId: auth.user.id, isAdmin: auth.isAdmin },
                   tc.name,
                   tc.name === 'add_knowledge' && !input.product_code
@@ -1541,7 +1564,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
 
           // ── Project mutation: EXECUTE the exact stored intent ──
           if (tc.name === 'confirm_mutation') {
-            if (!(await authorizesPendingMutation(req.input))) {
+            if (!(await approvalForTurn())) {
               output = { error: 'The current message did not explicitly confirm the proposed action.' }
               toolErrors.push('confirm_mutation: current message did not explicitly approve the pending action')
               toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) })
@@ -1652,7 +1675,8 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           try {
 
           if (tc.name === 'query_todos') {
-            let results = ctx.todoList.slice()
+            const requestedProject = input.product_code ? resolveReadProject(ctx.productList, input.product_code) : null
+            let results = ctx.todoList.filter((t: any) => !requestedProject || t.product_id === requestedProject.id)
 
             if (input.codes && Array.isArray(input.codes) && input.codes.length > 0) {
               const parsedCodes = input.codes.map((c: string) => {
@@ -1679,10 +1703,6 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
                 results = results.filter((t: any) => t.status === input.status)
               }
               // No else — when no status filter is specified, return all statuses
-              if (input.product_code) {
-                const p = ctx.productList.find((pp: any) => pp.code?.toUpperCase() === String(input.product_code).toUpperCase())
-                if (p) results = results.filter((t: any) => t.product_id === p.id)
-              }
               if (input.text_match) {
                 const q = String(input.text_match).toLowerCase()
                 results = results.filter((t: any) => t.title?.toLowerCase().includes(q))
@@ -1864,7 +1884,9 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               // exact match, then a partial reference covering most of its own words.
               // Reusing it means a fix to one path (e.g. the wrong-target bug found in
               // ORB-302 live testing) automatically applies to the other.
-              const res = await resolveKnowledgeReference(auth.admin, String(input.title))
+              const requestedProject = input.product_code ? resolveReadProject(ctx.productList, input.product_code) : null
+              const readClient = auth.isAdmin ? auth.admin : supabase
+              const res = await resolveKnowledgeReference(readClient, String(input.title))
               if (res.status === 'not_found') {
                 output = { error: `I don't see a knowledge entry matching "${input.title}".` }
                 stream.update({ speech: accumulatedSpeech, thought: 'No matching entry found' })
@@ -1873,13 +1895,10 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
                 output = { needs_disambiguation: true, candidates: res.candidates, _instruction: `More than one entry matches: ${list}. Ask the user which one they mean — refer to them by title. Do not guess.` }
                 stream.update({ speech: accumulatedSpeech, thought: `${res.candidates.length} entries match — ambiguous` })
               } else {
-                // Fetch via admin, not ctx.knowledgeList (RLS-scoped) — resolveKnowledgeReference
-                // already used the admin client to resolve this id, and ctx.knowledgeList can be
-                // missing rows RLS hides (found live: cross-project entries with product_id IS
-                // NULL were resolvable but then came back empty, because the RLS SELECT policy's
-                // join can never match a null product_id — fixed at the RLS layer too, but this
-                // path shouldn't depend on RLS visibility matching what admin already resolved).
-                const { data: entry } = await auth.admin.from('knowledge_repo').select('title, content, projects(code)').eq('id', res.id).maybeSingle()
+                const { data: entry, error: entryError } = await readClient.from('knowledge_repo').select('title, content, product_id, projects(code)').eq('id', res.id).maybeSingle()
+                if (entryError) throw new Error(entryError.message)
+                if (entry && requestedProject && entry.product_id !== requestedProject.id) throw new InteractionPolicyError('The knowledge entry is outside the requested project.')
+                if (!entry) throw new InteractionPolicyError('The knowledge entry is no longer accessible.')
                 const returned = [{ title: res.title, content: entry?.content ?? '', code: (entry as any)?.projects?.code }]
                 output = { count: 1, returned }
                 stream.update({ speech: accumulatedSpeech, thought: `Found "${res.title}"`, knowledgeResults: returned })
@@ -1887,7 +1906,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             } else {
               let results = ctx.knowledgeList.slice()
               if (input.product_code) {
-                  const p = ctx.productList.find((pp: any) => pp.code?.toUpperCase() === String(input.product_code).toUpperCase())
+                  const p = resolveReadProject(ctx.productList, input.product_code)
                   if (p) results = results.filter((k: any) => k.product_id === p.id)
               }
               if (input.query) {
@@ -1906,17 +1925,18 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length} insights`, knowledgeResults: returned })
             }
           } else if (tc.name === 'query_audit_trail') {
-            let query = auth.admin.from('audit_log').select('*').order('created_at', { ascending: false })
+            const readClient = auth.isAdmin ? auth.admin : supabase
+            let query = readClient.from('audit_log').select('*').order('created_at', { ascending: false })
 
             if (input.code) {
               const [pc, numStr] = String(input.code).toUpperCase().split('-')
               const num = parseInt(numStr || '0')
-              const p = ctx.productList.find((pp: any) => pp.code?.toUpperCase() === pc)
+              const p = resolveReadProject(ctx.productList, pc)
               if (p) {
                 const todo = ctx.todoList.find((t: any) => t.product_id === p.id && t.todo_number === num)
                 if (todo) query = query.eq('record_id', todo.id)
                 else {
-                  const { data: found } = await auth.admin.from('todos').select('id').eq('todo_number', num).eq('product_id', p.id).maybeSingle()
+                  const { data: found } = await readClient.from('todos').select('id').eq('todo_number', num).eq('product_id', p.id).maybeSingle()
                   if (found) query = query.eq('record_id', found.id)
                   else { output = { error: `Task ${input.code} not found` }; toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(output) }); continue }
                 }
@@ -1967,7 +1987,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             if (!ALLOWED_TABLES.has(table)) {
               output = { error: `Table "${table}" is not queryable. Allowed: ${[...ALLOWED_TABLES].join(', ')}` }
             } else {
-              const selectStr = input.select || '*'
+              const selectStr = safeReadProjection(table, input.select)
               const limit = Math.min(Math.max(input.limit ?? 50, 1), 200)
 
               // Use RLS-scoped client for regular users, admin for admins
@@ -2136,18 +2156,28 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             }
 
           } else if (tc.name === 'save_memory') {
-            if (memoryLevel === 'off') {
-              output = { error: 'Memory is disabled. The user has set memory_level to "off".' }
+            const memoryError = validateMemory(input, memoryLevel, recordedUserTexts)
+            if (memoryError) {
+              output = { error: memoryError }
             } else {
               const expiresAt = memoryLevel === 'session'
                 ? new Date(new Date().setUTCHours(23, 59, 59, 999)).toISOString()
                 : null
+              const content = input.content.trim()
+              const { data: duplicate, error: duplicateError } = await supabase.from('orb_memory')
+                .select('id').eq('user_id', auth.user.id).eq('content', content)
+                .or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`).limit(1)
+              if (duplicateError) throw new Error(duplicateError.message)
+              if (duplicate?.length) {
+                toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify({ ok: true, id: duplicate[0].id, already_saved: true }) })
+                continue
+              }
               const { data: mem, error: memErr } = await supabase.from('orb_memory').insert({
                 user_id: auth.user.id,
                 track: input.track,
                 category: input.category,
-                content: input.content,
-                context: input.context || null,
+                content,
+                context: input.track === 'autonomous' ? JSON.stringify({ evidence: input.evidence, context: input.context ?? null }) : input.context || null,
                 expires_at: expiresAt,
               }).select('id, track, category').single()
               if (memErr) output = { error: memErr.message }
@@ -2220,6 +2250,10 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             }
           }
           } catch (toolErr: any) {
+            if (toolErr instanceof InteractionPolicyError) {
+              // Expected refusal is a tool result, not a new bug ticket.
+              output = { error: toolErr.message }
+            } else {
             console.error(`[orbConverse] Tool "${tc.name}" threw:`, toolErr)
             output = { error: `Tool execution failed: ${toolErr.message || 'Unknown error'}` }
             createTicket({
@@ -2231,6 +2265,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               reportedBy: auth.user.id,
               systemInfo: req.systemInfo,
             }).catch(e => console.error('[orbConverse] Failed to auto-file tool error ticket:', e))
+            }
           }
 
           if (output?.error) {
@@ -2313,7 +2348,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
                       mutationSnapshot,
                     )
                   : await proposeKnowledgeMutation(
-                      auth.admin,
+                      auth.isAdmin ? auth.admin : supabase,
                       { userId: auth.user.id, isAdmin: auth.isAdmin },
                       call.tool,
                       call.tool === 'add_knowledge' && !call.params.product_code

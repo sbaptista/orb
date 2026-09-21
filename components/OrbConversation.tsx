@@ -5,6 +5,7 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useToast } from '@/components/ui/Toast'
 import { startInteraction } from '@/lib/performance/telemetry'
+import { DictationLifecycle, appendDictation } from '@/lib/orb-interaction/dictation-lifecycle'
 import { collectClientEnvironment } from '@/lib/client-environment'
 
 // ORB-358: pause-based auto-segmentation was tried and reverted (Stan,
@@ -196,6 +197,7 @@ export default function OrbConversation({
     const mediaRecorderRef = useRef<MediaRecorder | null>(null)
     const mediaStreamRef = useRef<MediaStream | null>(null)
     const recordingStartedAtRef = useRef(0)
+    const dictation = useRef(new DictationLifecycle())
     const processing = submitting || messages.some(msg => msg.isStreaming)
     const toast = useToast()
 
@@ -212,7 +214,9 @@ export default function OrbConversation({
     }, [])
 
     useEffect(() => {
+        const lifecycle = dictation.current
         return () => {
+            lifecycle.cancel()
             try { mediaRecorderRef.current?.stop() } catch {}
             mediaStreamRef.current?.getTracks().forEach(track => track.stop())
         }
@@ -232,7 +236,9 @@ export default function OrbConversation({
     // focus/pattern already used for full voice mode (useVoiceMode.ts);
     // enable via DEV panel → Performance → focus areas → voice to capture.
     async function startListening() {
-        if (!supportsVoice || submitting) return
+        if (!supportsVoice || processing) return
+        const recordingId = dictation.current.begin()
+        if (recordingId === null) return
         const measurement = startInteraction({
             focus: 'voice',
             flow: 'dictate',
@@ -242,6 +248,7 @@ export default function OrbConversation({
         measurement.mark('permission_requested')
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            if (!dictation.current.isCurrent(recordingId)) { stream.getTracks().forEach(track => track.stop()); return }
             mediaStreamRef.current = stream
             measurement.mark('permission_granted')
 
@@ -253,6 +260,7 @@ export default function OrbConversation({
             recorder.ondataavailable = event => { if (event.data.size > 0) chunks.push(event.data) }
 
             recorder.onerror = () => {
+                if (!dictation.current.finish(recordingId)) return
                 stream.getTracks().forEach(track => track.stop())
                 mediaStreamRef.current = null
                 mediaRecorderRef.current = null
@@ -263,6 +271,7 @@ export default function OrbConversation({
             }
 
             recorder.onstop = async () => {
+                if (!dictation.current.isCurrent(recordingId)) return
                 stream.getTracks().forEach(track => track.stop())
                 mediaStreamRef.current = null
                 mediaRecorderRef.current = null
@@ -275,8 +284,9 @@ export default function OrbConversation({
                 const tooShort = recordingDurationMs < DICTATE_MIN_MS
                 const audio = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' })
                 if (audio.size === 0 || tooShort) {
-                    measurement.end(true, 'skipped_too_short', { recordingDurationMs, audioBytes: audio.size, submitted: wantsSubmit })
-                        if (wantsSubmit) handleFormSubmit()
+                    measurement.end(true, 'skipped_too_short', { recordingDurationMs, audioBytes: audio.size, submitted: false })
+                    dictation.current.finish(recordingId)
+                    // Empty audio never submits a pre-existing draft.
                     return
                 }
 
@@ -289,21 +299,25 @@ export default function OrbConversation({
                     const response = await fetch('/api/orb-transcribe', { method: 'POST', body: form })
                     measurement.mark('response_received')
                     const result = await response.json() as { text?: string; error?: string }
+                    if (!dictation.current.isCurrent(recordingId)) return
                     if (!response.ok || !result.text) throw new Error(result.error || 'Speech transcription failed')
                     const text = result.text.trim()
                     const current = textareaRef.current?.value ?? input
-                    const joiner = current && !/\s$/.test(current) ? ' ' : ''
-                    const finalValue = text ? current + joiner + text : current
-                    if (text) onInputChange(finalValue)
+                    const finalValue = appendDictation(current, text)
+                    if (finalValue === null) throw new Error('No speech was transcribed. Your draft has not been sent.')
+                    dictation.current.finish(recordingId)
+                    onInputChange(finalValue)
                     if (wantsSubmit) handleFormSubmit(undefined, finalValue)
                     measurement.end(true, null, { recordingDurationMs, audioBytes: audio.size, transcriptLength: text.length, submitted: wantsSubmit })
                 } catch (err) {
+                    if (!dictation.current.isCurrent(recordingId)) return
                     const message = err instanceof Error ? err.message : 'Could not transcribe speech. Try again.'
                     measurement.end(false, 'transcription_failed', { recordingDurationMs, audioBytes: audio.size, error: message })
                     toast.error(message)
                 } finally {
+                    dictation.current.finish(recordingId)
                     setIsTranscribing(false)
-                    }
+                }
             }
 
             measurement.mark('recording_started')
@@ -311,6 +325,7 @@ export default function OrbConversation({
             recorder.start()
             setIsListening(true)
         } catch (err: any) {
+            if (!dictation.current.finish(recordingId)) return
             setIsListening(false)
             submitAfterStopRef.current = false
             const failureCode = err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError'
@@ -378,6 +393,7 @@ export default function OrbConversation({
 
     function handleFormSubmit(e?: React.FormEvent, overrideValue?: string) {
         e?.preventDefault()
+        if (dictation.current.busy) return
         const value = (overrideValue ?? textareaRef.current?.value ?? input).trim()
         if (!value || processing) return
 

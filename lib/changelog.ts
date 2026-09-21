@@ -6,6 +6,32 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.334',
+    date: '2026-09-21',
+    changes: [
+      'Fixed a live voice session becoming permanently unable to accept speech while repeatedly saying it heard audio but could not verify it. The local Silero verifier could initialize successfully, later stop receiving microphone frames, and remain marked ready; that stale ready state overruled every subsequent provider transcript until voice mode was restarted.',
+      'Orb now measures the freshness of Silero’s frame stream. When the stream is stale, the current turn may use the existing conservative provider-confidence fallback and Orb restarts Silero automatically for later turns. A fresh-stream disagreement with a high-confidence provider transcript still rejects that disputed turn but restarts Silero to prevent a desynchronized verifier from locking the session. Low-confidence or missing-confidence transcripts remain rejected. Model-free interaction checks cover healthy, stalled, disagreement-recovery, high-confidence fallback, and fail-closed cases; TypeScript and focused lint passed once. Direct device acceptance remains required.',
+    ],
+  },
+  {
+    version: 'v0.6.333',
+    date: '2026-09-20',
+    changes: [
+      'Replaced the shared prompt principles with four responsibilities: understand the request, respect authorization, stay grounded, and exercise judgment. Added shared guards for mixed approval/corrections and explicit project spelling, with at most one semantic approval classification per turn and no legacy deletion classifier on durable conversations.',
+      'Made unresolved project filters fail closed, scoped knowledge and audit reads through user permissions, restricted generic database projections and joins, and required administrator access for developer relay. Autonomous memory now requires two distinct recorded observations and checks exact duplicates.',
+      'Removed mandatory paid eval gates. Routine verification is model-free; the retained diagnostic runner requires explicit opt-in and case IDs and defaults to one execution in both tiers. Repetitions require an explicit count. All 127 historical cases remain available for approved diagnosis.',
+      'Added model-free checks of shared safeguards and confirmation orchestration. Hardened retained dictation timing without enabling its disabled button. Prepared disposable-database transaction checks; database integration, model interpretation, and live audio acceptance have not been run.',
+    ],
+  },
+  {
+    version: 'v0.6.332',
+    date: '2026-09-20',
+    changes: [
+      'Documented the proposed shared interaction rules for text, dictation, and live voice, with a policy map of all 29 conversational tools and a migration map for the 127 existing eval cases. This is the design review checkpoint; runtime enforcement has not changed.',
+      'Revised the verification proposal at Stan’s direction: routine automated checks make no model API calls, the six conversations are an optional manual acceptance checklist, and paid diagnostics require explicit scope and budget approval. No new paid suite or automatic repetitions are proposed; existing eval cases have not been removed.',
+    ],
+  },
+  {
     version: 'v0.6.331',
     date: '2026-09-17',
     changes: [

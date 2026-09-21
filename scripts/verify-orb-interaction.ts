@@ -1,4 +1,11 @@
 import assert from 'node:assert/strict'
+import { executeConfirmation, type ConfirmationPorts, type OrbMutationConfirmation } from '../lib/orb-operations/confirmation-execution'
+import { diagnosticRunCount } from '../lib/orb-interaction/diagnostic-policy'
+import { evaluateMutationApproval, oncePerTurnApproval } from '../lib/orb-model/approval-policy'
+import { resolveReadProject, safeReadProjection, assertToolAccess } from '../lib/orb-interaction/read-policy'
+import { validateMemory } from '../lib/orb-interaction/memory-policy'
+import { DictationLifecycle, appendDictation } from '../lib/orb-interaction/dictation-lifecycle'
+import { validateSpelledProjectField } from '../lib/orb-interaction/spelled-identifiers'
 import {
   projectConversationMessages,
   projectModelHistory,
@@ -8,7 +15,7 @@ import {
 import { comparableSpokenWords, toOrbSpokenText } from '../lib/orb-interaction/spoken-text'
 import { isBareHaltCommand, isBareStopCommand, isOrbInterruptReason, mergedTurnText, TURN_CANCELLING_INTERRUPT_REASONS } from '../lib/orb-interaction/interrupt-intent'
 import { hasCompletionLanguage, hasProposalLanguage, isFalseCompletionClaim, presentableLeadIn, presentableStreamingSpeech, stripHistoryProvenanceLabels, switchConfirmationSpeech, withoutOutcomeSentences } from '../lib/orb-model/false-claim-guard'
-import { isAuthenticVoiceTurn } from '../lib/orb-interaction/voice-authenticity'
+import { isAuthenticVoiceTurn, isStalledVoiceVerifier, shouldRecoverVoiceVerifier } from '../lib/orb-interaction/voice-authenticity'
 import { isBareMutationAffirmation, isTypoTolerantBareMutationAffirmation } from '../lib/orb-model/confirmation-grammar'
 import { deletedProjectIdsFromPendingMutation, projectsAfterConfirmedCreation, projectsAfterConfirmedDeletion, selectedProjectAfterMutationRefresh } from '../lib/orb-interaction/project-refresh'
 import { ORB_REALTIME_TRANSPORT_ONLY } from '../lib/orb-interaction/runtime'
@@ -183,6 +190,41 @@ assert.equal(isAuthenticVoiceTurn({
   sileroSpeechObserved: false,
   sileroRealStartCount: 0,
 }, 0.99), false)
+// A detector can initialize successfully and later stop receiving frames. A
+// high-confidence provider transcript then uses the existing unavailable-VAD
+// fallback while the client restarts Silero; weak transcripts still fail.
+const stalledVerifier = {
+  sileroShadowState: 'ready',
+  sileroFrameStreamFresh: false,
+  sileroLatestFrameAgeMs: 4_500,
+  sileroFrameCount: 0,
+  sileroSpeechObserved: false,
+  sileroRealStartCount: 0,
+} as const
+assert.equal(isStalledVoiceVerifier(stalledVerifier), true)
+assert.equal(isAuthenticVoiceTurn(stalledVerifier, 0.91), true)
+assert.equal(isAuthenticVoiceTurn(stalledVerifier, 0.79), false)
+assert.equal(isAuthenticVoiceTurn(stalledVerifier, null), false)
+assert.equal(isStalledVoiceVerifier({
+  ...stalledVerifier,
+  sileroFrameStreamFresh: true,
+}), false)
+assert.equal(shouldRecoverVoiceVerifier(stalledVerifier, 0.91), true)
+assert.equal(shouldRecoverVoiceVerifier({
+  sileroShadowState: 'ready',
+  sileroFrameStreamFresh: true,
+  sileroSpeechObserved: false,
+}, 0.91), true)
+assert.equal(shouldRecoverVoiceVerifier({
+  sileroShadowState: 'ready',
+  sileroFrameStreamFresh: true,
+  sileroSpeechObserved: false,
+}, 0.79), false)
+assert.equal(shouldRecoverVoiceVerifier({
+  sileroShadowState: 'ready',
+  sileroFrameStreamFresh: true,
+  sileroSpeechObserved: true,
+}, 0.91), false)
 
 // A repeated confirmation is recognised as one, so the client can drop it.
 assert.equal(isBareMutationAffirmation('Yes Yes.'), true)
@@ -340,4 +382,103 @@ assert.deepEqual(projectConversationMessages(mergeEvents).map(message => message
   'Delete test eight.',
 ])
 
-console.log('Unified Orb interaction contracts passed.')
+assert.throws(() => diagnosticRunCount([]))
+assert.throws(() => diagnosticRunCount(['--tier', '2']))
+assert.throws(() => diagnosticRunCount(['--allow-paid', '--id']))
+assert.equal(diagnosticRunCount(['--allow-paid', '--id', 'case']), 1)
+assert.equal(diagnosticRunCount(['--allow-paid', '--id', 'case', '--runs', '2']), 2)
+assert.throws(() => diagnosticRunCount(['--allow-paid', '--id', 'case', '--runs', '0']))
+
+// Generic boundaries: the same functions are called by production dispatch.
+const visibleProjects = [{ id: 'one', code: 'ONE' }, { id: 'two', code: 'TWO' }]
+assert.equal(resolveReadProject(visibleProjects, ' one ').id, 'one')
+assert.throws(() => resolveReadProject(visibleProjects, 'unknown'))
+assert.throws(() => resolveReadProject([...visibleProjects, visibleProjects[0]], 'ONE'))
+assert.equal(safeReadProjection('todos', 'title,projects(code, name)'), 'title,projects(code,name)')
+assert.ok(safeReadProjection('todos', '*').includes('title'))
+for (const projection of ['users(email)', 'owner:users(*)', 'projects(*)', 'projects(users(email))', 'projects!inner(code)', 'title,', 'title)', 'title::text']) {
+  assert.throws(() => safeReadProjection('todos', projection), projection)
+}
+assert.throws(() => safeReadProjection('users', '*'))
+for (const tool of ['query_users', 'query_invitations', 'query_tickets', 'send_to_developer']) {
+  assert.throws(() => assertToolAccess(tool, false))
+  assert.doesNotThrow(() => assertToolAccess(tool, true))
+}
+assert.doesNotThrow(() => assertToolAccess('query_todos', false))
+const memory = { track: 'autonomous', category: 'pattern', content: 'Prefers short responses.', evidence: ['Please keep the answers short.', 'Short answers help me focus.'] }
+const observations = memory.evidence
+assert.equal(validateMemory(memory, 'full', observations), null)
+for (const texts of [[], [observations[0]], [observations[0], observations[0]], [observations.join(' ')]]) {
+  assert.ok(validateMemory(memory, 'full', texts))
+}
+assert.ok(validateMemory(memory, 'off', observations))
+assert.ok(validateMemory({ ...memory, track: 'invented' }, 'full', observations))
+assert.equal(validateMemory({ ...memory, track: 'offered', evidence: [] }, 'session', []), null)
+assert.equal(validateSpelledProjectField('Create a project called test, spelled T-E-S-T numeral 8.', 'create_project', { name: 'TEST8' }), null)
+assert.ok(validateSpelledProjectField('Create a project called test, spelled T-E-S-T numeral 8.', 'create_project', { name: 'Test eight' }))
+assert.ok(validateSpelledProjectField('Use T-E-S-T numeral 8.', 'create_project', { name: 'TEST8' }))
+assert.equal(validateSpelledProjectField('Create a project called test, spelled T-E-S-T numeral 8.', 'create_todo', { title: 'Other' }), null)
+const dictation = new DictationLifecycle()
+const firstRecording = dictation.begin()!
+assert.equal(dictation.begin(), null)
+dictation.cancel()
+const secondRecording = dictation.begin()!
+assert.equal(dictation.finish(firstRecording), false)
+assert.equal(dictation.isCurrent(secondRecording), true)
+assert.equal(dictation.finish(secondRecording), true)
+assert.equal(dictation.finish(secondRecording), false)
+assert.equal(appendDictation('Draft', '  '), null)
+assert.equal(appendDictation('Edited draft', 'new words'), 'Edited draft new words')
+
+async function verifyApprovalBoundary() {
+  let calls = 0
+  const approvingAdapter = async () => { calls++; return true }
+  for (const prefix of ['Yes', 'I approve', 'Proceed']) {
+    for (const suffix of [', but rename it', ', if it costs nothing', ', first change the target', ', except the last item', ', and remove the second item', '?', ', T-E-S-T numeral eight']) {
+      assert.equal(await evaluateMutationApproval(prefix + suffix, approvingAdapter), false, prefix + suffix)
+    }
+  }
+  assert.equal(calls, 0, 'A semantic adapter cannot override deterministic vetoes')
+  for (const text of ['yes', 'I approve the change', 'proceed', 'go ahead', 'yess']) {
+    assert.equal(await evaluateMutationApproval(text, approvingAdapter), true)
+  }
+  assert.equal(calls, 0, 'Ordinary approvals require no classifier call')
+  assert.equal(await evaluateMutationApproval('はい', approvingAdapter), true)
+  assert.equal(calls, 1)
+  assert.equal(await evaluateMutationApproval('oui', async () => { throw new Error('offline') }), false)
+  assert.equal(await evaluateMutationApproval('discussion', async () => false), false)
+  const classifyOnce = oncePerTurnApproval('oui', approvingAdapter)
+  assert.deepEqual(await Promise.all([classifyOnce(), classifyOnce(), classifyOnce()]), [true, true, true])
+  assert.equal(calls, 2, 'At most one adapter call for the same turn')
+}
+async function verifyConfirmationBoundary() {
+  const receipt: OrbMutationConfirmation = { replayed: false, receipt: {
+    kind: 'command_batch', receiptId: 'batch', commandCount: 1, receipts: [],
+    source: 'database', observedAt: '2026-09-20T00:00:00Z', spokenText: 'Saved.',
+  } }
+  let calls = 0, recorded = 0, failures = 0
+  const ports: ConfirmationPorts = {
+    findBatch: async (id, user) => { assert.equal(id, 'batch'); assert.equal(user, 'actor'); return true },
+    findProposal: async () => { throw new Error('wrong path') },
+    rpc: async (name, params) => {
+      assert.equal(name, 'confirm_orb_command_batch')
+      assert.deepEqual(params, { p_batch_id: 'batch', p_user_id: 'actor', p_confirming_event_id: 'later-event' })
+      calls++; return receipt
+    },
+    recordReceipt: async () => { recorded++ },
+    receiptLogFailed: () => { failures++ },
+  }
+  const request = { userId: 'actor', proposalId: 'batch', durable: true, confirmingEventId: 'later-event' }
+  assert.equal(await executeConfirmation(request, ports), receipt)
+  assert.equal(calls, 1); assert.equal(recorded, 1)
+  assert.equal(await executeConfirmation(request, { ...ports, recordReceipt: async () => { throw new Error('projection unavailable') } }), receipt)
+  assert.equal(failures, 1, 'A secondary log failure cannot undo a committed receipt')
+  const replay = { ...receipt, replayed: true }
+  assert.equal(await executeConfirmation(request, { ...ports, rpc: async () => replay }), replay)
+  await assert.rejects(() => executeConfirmation({ ...request, confirmingEventId: undefined }, ports))
+  await assert.rejects(() => executeConfirmation(request, { ...ports, rpc: async () => null }))
+  await assert.rejects(() => executeConfirmation(request, { ...ports, rpc: async () => { throw new Error('stale target') } }))
+  await assert.rejects(() => executeConfirmation(request, { ...ports, findBatch: async () => false, findProposal: async () => null }))
+  // This verifies orchestration against fake I/O, not database locking or rollback.
+}
+Promise.all([verifyApprovalBoundary(), verifyConfirmationBoundary()]).then(() => console.log('Unified Orb interaction contracts passed (model-free).')).catch(error => { console.error(error); process.exitCode = 1 })

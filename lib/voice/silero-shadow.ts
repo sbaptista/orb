@@ -6,6 +6,10 @@ const ASSET_BASE_PATH = '/vad/0.0.30/'
 const SELF_HOSTED_ASSET_BYTES = 15_834_162
 const FRAME_RETENTION_MS = 30_000
 const PROVIDER_EVENT_LEAD_IN_MS = 1_000
+// MicVAD normally emits a frame about every 32 ms. A much older latest frame
+// means the classifier's audio graph has stalled even if initialization still
+// reports "ready". Keep this generous for background-tab scheduling delays.
+const FRAME_STREAM_STALE_AFTER_MS = 1_500
 const PLAYBACK_GUARD_MINIMUM_FRAMES = 20
 const PLAYBACK_GUARD_MAXIMUM_TRANSCRIPTION_CONFIDENCE = 0.5
 
@@ -169,8 +173,15 @@ export async function startSileroShadow(
           value >= vad.options.positiveSpeechThreshold
         ).length
         const probabilityTotal = probabilities.reduce((total, value) => total + value, 0)
+        const latestFrameAtMs = frames.at(-1)?.atMs
+        const latestFrameAgeMs = latestFrameAtMs === undefined
+          ? null
+          : Math.max(0, endedAtMs - latestFrameAtMs)
         return {
           sileroShadowState: 'ready',
+          sileroFrameStreamFresh: latestFrameAgeMs !== null
+            && latestFrameAgeMs <= FRAME_STREAM_STALE_AFTER_MS,
+          sileroLatestFrameAgeMs: latestFrameAgeMs === null ? null : round(latestFrameAgeMs),
           sileroFrameCount: probabilities.length,
           sileroSpeechObserved: positiveFrames > 0,
           sileroPositiveFrameCount: positiveFrames,

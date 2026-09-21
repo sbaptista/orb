@@ -202,7 +202,7 @@ export async function loadOrbMutationPreparationSnapshot(
   const [projectResult, knowledgeResult] = await Promise.all([
     projectQuery,
     options.includeKnowledge
-      ? auth.admin.from('knowledge_repo').select('id, title, content, tags, updated_at, product_id')
+      ? (auth.isAdmin ? auth.admin : auth.supabase).from('knowledge_repo').select('id, title, content, tags, updated_at, product_id')
       : Promise.resolve({ data: [], error: null }),
   ])
   if (projectResult.error) throw projectResult.error

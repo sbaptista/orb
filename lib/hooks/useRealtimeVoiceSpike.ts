@@ -9,7 +9,7 @@ import {
   type SileroShadowController,
   type SileroShadowMetadata,
 } from '@/lib/voice/silero-shadow'
-import { isAuthenticVoiceTurn } from '@/lib/orb-interaction/voice-authenticity'
+import { isAuthenticVoiceTurn, shouldRecoverVoiceVerifier } from '@/lib/orb-interaction/voice-authenticity'
 import { comparableSpokenWords } from '@/lib/orb-interaction/spoken-text'
 
 type SpikeStatus = 'off' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'error'
@@ -287,6 +287,14 @@ export function useRealtimeVoiceSpike(options: Options) {
         if (sileroGenerationRef.current === generation) sileroShadowStateRef.current = 'failed'
       })
   }, [pauseSpeech])
+
+  const restartSileroShadow = useCallback(() => {
+    const stream = streamRef.current
+    if (!stream) return
+    emitTrace.current('Silero evidence unhealthy; restarting classifier')
+    stopSileroShadow()
+    beginSileroShadow(stream)
+  }, [beginSileroShadow, stopSileroShadow])
 
   // Safety net only — the provider owns response timing, so this should not fire
   // in a healthy session. It recovers the UI to listening if a response (or a
@@ -941,6 +949,7 @@ export function useRealtimeVoiceSpike(options: Options) {
       if (message.item_id) inputItemTurnIdsRef.current.delete(message.item_id)
       const acousticEvidence = sileroSnapshot()
       const providerConfidence = transcriptionConfidence(message.logprobs)
+      if (shouldRecoverVoiceVerifier(acousticEvidence, providerConfidence)) restartSileroShadow()
       turnMetadataRef.current = {
         ...turnMetadataRef.current,
         ...acousticEvidence,
@@ -1135,7 +1144,7 @@ export function useRealtimeVoiceSpike(options: Options) {
       setError(realtimeError)
       setStatus('error')
     }
-  }, [armResponseWatchdog, clearResponseWatchdog, endTurnMeasurement, executeToolBatch, options.transportOnly, pauseSpeech, resumePausedSpeech, send, sileroSnapshot, stop])
+  }, [armResponseWatchdog, clearResponseWatchdog, endTurnMeasurement, executeToolBatch, options.transportOnly, pauseSpeech, restartSileroShadow, resumePausedSpeech, send, sileroSnapshot, stop])
 
   const start = useCallback(async (source = 'unknown') => {
     if (peerRef.current) return

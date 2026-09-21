@@ -502,7 +502,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         },
         "select": {
           "type": "string",
-          "description": "Comma-separated plain column names. Defaults to all columns."
+          "description": "Comma-separated documented column names. * expands only to documented columns. Only joins explicitly listed in DATABASE SCHEMA are allowed, with their listed fields; no aliases, nested joins, relation wildcards, or casts."
         },
         "filters": {
           "type": "array",

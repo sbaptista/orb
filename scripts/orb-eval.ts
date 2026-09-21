@@ -8,6 +8,7 @@
  * Run with --help for usage, or --list to see every available case id.
  */
 
+import { diagnosticRunCount } from '../lib/orb-interaction/diagnostic-policy'
 import { execFileSync } from 'node:child_process'
 import { createClient } from '@supabase/supabase-js'
 import { EVAL_CASES, EVAL_CATEGORIES, EVAL_SUITES, type EvalCase, type EvalCategory, type EvalSuite } from './eval-cases'
@@ -32,47 +33,24 @@ const BASE_URL = process.env.EVAL_BASE_URL || 'https://localhost:3001'
 // dev server ever sees the request — a confusing "fetch failed" with no
 // indication why. A raw npx tsx example here would be a real, followed
 // instruction that reproduces exactly that failure, not just inert text.
-const USAGE = `Orb Eval Runner
+const USAGE = `Orb optional paid diagnostics
 
-Tests the Orb's decision-making: does it call the right tools with the right
-parameters, and does its speech contain the expected content?
+Routine verification: npm run verify:interaction (zero model calls).
+--help and --list are offline. Paid runs need Stan's explicit issue, selection,
+and budget approval. Agents never run them. These are diagnostics, not release gates.
 
-Usage:
-  npm run eval                                  Run all tests
-  npm run eval:t1                               Run only Tier 1 (single-shot tool contract)
-  npm run eval:t2                               Run only Tier 2 (behavioral)
-  npm run eval -- --suite smoke                 Run the cross-cutting safety smoke suite
-  npm run eval -- --suite serial-tool-contract  Run one representative case per serial tool
-  npm run eval -- --category <name>[,<name>...] Run one or more affected capability categories
-  npm run eval -- --id <id>[,<id>...]           Run one or more specific cases by id
-  npm run eval -- --list                        List every case id, grouped by tier
-  npm run eval -- --help                        Show this message
+Usage after approval:
+  npm run eval -- --allow-paid --id <id>[,<id>...] [--runs <count>]
+  npm run eval -- --list
+  npm run eval -- --help
 
---tier and --id compose: --id filters within whatever --tier already selected.
---suite accepts comma-separated suites. Suites and categories compose by union
-so an affected category can run beside smoke or tool-contract coverage.
---tier and --id narrow that combined selection.
-
-Examples:
-  npm run eval -- --id switch-project-partial-name-resolves
-  npm run eval:t1 -- --suite smoke
-  npm run eval:t1 -- --suite smoke --category mutation-safety
-  npm run eval -- --suite serial-tool-contract,smoke
-  npm run eval:t1 -- --category todo-crud,project-crud
-  npm run eval -- --id bulk-delete-project-todos-calls-tools,switch-project-partial-name-resolves
-  npm run eval:t1 -- --id create-default-project
-
-Case ids come from scripts/eval-cases.ts (the "id" field on each case) — run
---list to see them all without opening that file.
-
-Requires the dev server reachable at ${BASE_URL} (override via EVAL_BASE_URL
-in .env.local). --help and --list make no network calls and need no server.
-Default evaluator: the Evaluation Model selected in Settings → AI Settings.
-Override one run by supplying EVAL_PROVIDER and EVAL_MODEL together.
-
-Direct npx invocation (skips the npm wrapper) needs the TLS bypass BASE_URL
-requires as a self-signed-HTTPS target, added manually:
-  NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts --id <id>
+Default: ONE execution per selected case, in either tier. No automatic repeats.
+--runs is an explicit repeat count, not a provider-call or dollar cap; one case
+may make several provider requests including repairs. Agree that budget before
+running. Report the actual sample size, not a claim that one pass proves a fix.
+Legacy --tier, --suite, and --category filters can narrow the explicit ID list.
+Requires the dev server at ${BASE_URL}; evaluator comes from AI Settings unless
+EVAL_PROVIDER and EVAL_MODEL are supplied together.
 `
 
 // --help/--list need no network/auth setup, so they're handled before the
@@ -112,6 +90,12 @@ if (BASE_URL.startsWith('https://') && process.env.NODE_TLS_REJECT_UNAUTHORIZED 
   console.error('   fetch() will fail the TLS handshake before the dev server ever sees a request.')
   console.error('   Run via the npm wrapper instead: npm run eval -- <args>')
   console.error('   Or, for direct npx: NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx scripts/orb-eval.ts <args>')
+  process.exit(1)
+}
+
+let approvedRuns: number
+try { approvedRuns = diagnosticRunCount(earlyArgs) } catch (error) {
+  console.error((error as Error).message)
   process.exit(1)
 }
 
@@ -690,7 +674,7 @@ async function main() {
     process.exit(1)
   }
 
-  const totalRuns = cases.reduce((sum, c) => sum + (c.tier === 2 ? 3 : 1), 0)
+  const totalRuns = cases.length * approvedRuns
   const selection = [
     suiteFilters ? `suite:${suiteFilters.join(',')}` : null,
     categoryFilters ? `category:${categoryFilters.join(',')}` : null,
@@ -718,7 +702,7 @@ async function main() {
     : `${resolvedEvaluatorLabel ?? 'unavailable'} (Settings → AI Settings selection)`}`)
   console.log(`   Selection: ${selection}`)
   console.log(`   Tier 1 (single-shot tool contract): ${cases.filter(c => c.tier === 1).length} cases`)
-  console.log(`   Tier 2 (behavioral, 3× each): ${cases.filter(c => c.tier === 2).length} cases`)
+  console.log(`   Tier 2 (behavioral, ${approvedRuns}× each): ${cases.filter(c => c.tier === 2).length} cases`)
   console.log()
 
   const results: TestResult[] = []
@@ -732,7 +716,7 @@ async function main() {
 
   for (const testCaseRaw of cases) {
     const testCase = substituteUnique(testCaseRaw)
-    const runs = testCase.tier === 2 ? 3 : 1
+    const runs = approvedRuns
     let passCount = 0
     let lastFailures: string[] = []
     let lastResponse: EvalResponse | null = null
@@ -784,9 +768,8 @@ async function main() {
 
     }
 
-    // Tier 1: must pass 1/1. Tier 2: must pass majority of COMPLETED runs.
-    // Skipped runs (API limits) don't count against the test.
-    const passThreshold = testCase.tier === 2 ? Math.max(1, Math.ceil(completedCaseRuns * 0.66)) : 1
+    // Report every requested sample; interrupted or failed samples do not pass.
+    const passThreshold = runs
     const passed = passCount >= passThreshold
     if (passed) passedCases++; else failedCases++
     const diagnosticResponse = passed ? lastResponse : lastFailureResponse
