@@ -583,6 +583,19 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
   },
 
   {
+    id: 'switch-project-misheard-name-clarifies',
+    description: 'A plausible but unresolved spoken project name gets one contextual clarification and is not silently switched',
+    productCode: 'ORB',
+    backlogOverride: evalBacklog([{ name: 'Shunyata', code: 'SHUNYATA' }, { name: 'Orb', code: 'ORB' }]),
+    input: 'Switch to Jinata.',
+    voiceMode: true,
+    tier: 2,
+    expectTool: { name: 'client_action', params: { action: 'switch_project', target: 'Jinata' } },
+    speechContains: ['did you mean', 'Shunyata'],
+    speechNotContains: ['switched to'],
+  },
+
+  {
     id: 'restated-request-reproposes-not-confirms',
     description: 'A restated request with a stale pending re-proposes (update_project), never auto-confirms',
     productCode: 'ORB',
@@ -1346,6 +1359,15 @@ DORMANT:
     speechNotContains: ['privacy model', 'blocked by', 'depends on', 'can’t finalize', 'cannot finalize', 'gating'],
   },
 
+  {
+    id: 'query-owned-project-status-breakdown',
+    description: 'A request for status counts across my projects uses the explicit current-user ownership scope instead of including every project visible to an admin',
+    productCode: 'ORB',
+    input: 'List all my projects in a table, listing their to-dos by type.',
+    tier: 1,
+    expectTool: { name: 'query_todos', params: { ownership_scope: 'current_user', format: 'table' } },
+  },
+
   // ── ORB-225: Mutation Verification ─────────────────────────────────────
 
   {
@@ -1650,13 +1672,39 @@ Helm [code: HELM]:
 
   {
     id: 'voice-garbled-input-clarifies',
-    description: 'Voice mode asks for clarification when transcription is fragmentary',
+    description: 'Voice mode handles a completed but fragmentary provider transcript conversationally',
     productCode: 'ORB',
     input: 'the reason the loud is you go would be interesting',
     voiceMode: true,
     tier: 2,
     expectNoTool: true,
     speechContains: ['say again', 'say that again', 'repeat', 'didn’t catch', "didn't catch", 'not catching', 'clarify', 'rephrase', 'trouble parsing', 'garbled'],
+  },
+
+  {
+    id: 'voice-single-character-fragment-clarifies',
+    description: 'Voice mode does not infer a command from a clipped one-character transcript',
+    productCode: 'ORB',
+    input: 'S.',
+    voiceMode: true,
+    tier: 2,
+    expectNoTool: true,
+    speechContains: ['say again', 'repeat', 'only caught', 'didn’t catch', "didn't catch"],
+  },
+
+  {
+    id: 'mixed-approval-discussion-never-fabricates-receipt',
+    description: 'Discussion attached to an apparent approval cannot produce a completion claim unless the stored mutation actually commits',
+    productCode: 'ORB',
+    mutationApproval: 'ask',
+    pendingSummary: 'delete ORB-381, “Compare AI model costs”, from Orb',
+    history: [
+      { role: 'user', text: 'Delete ORB-381.' },
+      { role: 'assistant', text: 'I\'m about to delete ORB-381.\n\nWant me to go ahead?', provenance: 'server_proposal' },
+    ],
+    input: "Yes. But you didn't switch projects first.",
+    tier: 2,
+    speechNotContains: ['Deleted ORB-381', 'Successfully deleted'],
   },
 
   {
@@ -1682,6 +1730,17 @@ Helm [code: HELM]:
     speechContains: ['Orb', 'active', 'parked'],
     speechPattern: /^(.|\n){1,360}$/,
     speechNotContains: ['project is moving well', 'moving well', '**', '- **', '\n-'],
+  },
+
+  {
+    id: 'voice-project-status-breakdown-preserves-table',
+    description: 'An explicit voice request for a status breakdown remains a complete on-screen table instead of collapsing into the broad project-state summary',
+    productCode: 'ORB',
+    input: 'Show me a status breakdown for project Orb.',
+    voiceMode: true,
+    tier: 2,
+    speechContains: ['Project', 'Open', 'In Progress'],
+    speechPattern: /\|\s*Project\s*\|/i,
   },
 
   {
@@ -1937,6 +1996,14 @@ Helm [code: HELM]:
     expectNoTool: true,
     speechContains: ['Okay.'],
   },
+  {
+    id: 'derived-arithmetic-uses-calculator',
+    description: 'A derived total is computed by the deterministic calculator rather than model arithmetic',
+    productCode: 'ORB',
+    input: 'What is the total of 4 active, 21 parked, and 295 closed tasks?',
+    tier: 1,
+    expectTool: { name: 'calculate' },
+  },
 ]
 
 const SMOKE_CASE_IDS = new Set([
@@ -1957,6 +2024,7 @@ const SMOKE_CASE_IDS = new Set([
 // cases are provider-neutral by design: EVAL_PROVIDER/EVAL_MODEL reruns this
 // same inventory against an experimental transport such as Moonshot Kimi K3.
 const SERIAL_TOOL_CONTRACT_CASE_BY_TOOL = {
+  calculate: 'derived-arithmetic-uses-calculator',
   create_todo: 'create-default-project',
   update_todo: 'realtime-exact-title-update-analogue',
   delete_todo: 'bulk-delete-project-todos-calls-tools',
@@ -2010,9 +2078,11 @@ const MODEL_FREE_CASE_IDS = new Set([
   'strategic-budget-preserves-operations',
   'voice-project-state-uses-brief-summary',
   'voice-current-project-status-update-uses-brief-summary',
+  'voice-project-status-breakdown-preserves-table',
 ])
 
 function evalCategory(id: string): EvalCategory {
+  if (/arithmetic|calculator/.test(id)) return 'grounding-speech'
   if (id.startsWith('realtime-')) return 'capability-gaps'
   if (/knowledge/.test(id)) return 'knowledge'
   if (/ticket|bugs-question/.test(id)) return 'tickets'

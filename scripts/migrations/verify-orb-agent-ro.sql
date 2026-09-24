@@ -320,24 +320,27 @@ BEGIN
   --
   -- A test that is expected to fail forever trains people to ignore failures,
   -- which is worse than no test. Each exception must be justified here AND
-  -- separately proven harmless (is_admin -> E3b).
+  -- separately proven harmless (is_admin -> E3b; diagnostics -> E3c).
   --
   -- EXCEPTIONS:
   --   is_admin  — called from RLS policies; revoking it breaks the broker's
   --               own reads (same class as F9). Proven to return false for
   --               this role by test E3b, which calls it.
+  --   agent_read_orb_conversation_diagnostics — read-only, UUID-scoped
+  --               diagnostic export. Proven to be the sole new table path
+  --               and unavailable to anon/authenticated by its migration.
   SELECT count(*), coalesce(string_agg(p.proname, ', ' ORDER BY p.proname), '(none)')
     INTO n_secdef, secdef_list
   FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
   WHERE n.nspname = 'public' AND p.prosecdef
-    AND p.proname NOT IN ('is_admin')
+    AND p.proname NOT IN ('is_admin', 'agent_read_orb_conversation_diagnostics')
     AND has_function_privilege('orb_agent_ro', p.oid, 'EXECUTE');
 
   INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
-    VALUES ('E', 'no SECURITY DEFINER function is executable', '0 (excl. is_admin)',
+    VALUES ('E', 'no undocumented SECURITY DEFINER function is executable', '0 (excl. documented readers)',
             CASE WHEN n_secdef = 0 THEN 'PASS' ELSE 'FAIL' END,
             n_secdef || ' executable: ' || left(secdef_list, 260)
-              || ' | documented exception carved out: is_admin (see E3b)');
+              || ' | documented exceptions: is_admin (E3b), conversation diagnostics (E3c)');
 
   -- E2: functions whose name implies audit_log access. audit_log is
   -- deliberately excluded from the grants; a function path around that
@@ -388,6 +391,23 @@ BEGIN
       VALUES ('E', 'is_admin() returns false for the agent role', 'false or refused',
               'PASS', 'refused: ' || left(SQLERRM, 70));
   END;
+
+  INSERT INTO orb_agent_boundary_results (section, test, expected, outcome, detail)
+  VALUES (
+    'E',
+    'conversation diagnostics function is executable',
+    'true',
+    CASE WHEN to_regprocedure('public.agent_read_orb_conversation_diagnostics(uuid)') IS NOT NULL
+           AND has_function_privilege(
+             'orb_agent_ro',
+             to_regprocedure('public.agent_read_orb_conversation_diagnostics(uuid)'),
+             'EXECUTE'
+           )
+         THEN 'PASS' ELSE 'FAIL' END,
+    CASE WHEN to_regprocedure('public.agent_read_orb_conversation_diagnostics(uuid)') IS NULL
+         THEN 'function missing — apply 20260922_orb_conversation_diagnostics.sql'
+         ELSE 'UUID-scoped read; underlying conversation tables remain ungranted' END
+  );
 
   -- E4: informational — total reachable routines in public.
   SELECT count(*), coalesce(string_agg(p.proname, ', ' ORDER BY p.proname), '(none)')

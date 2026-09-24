@@ -50,7 +50,7 @@ type Props = {
     onShowAddProject: () => void
     conversationActive?: boolean
     onRestoreConversation?: () => void
-    onClearTranscript?: () => void
+    onClearTranscript?: () => void | Promise<void>
     onStop?: () => void
     projectStrip?: React.ReactNode
     orbElement?: React.ReactNode
@@ -60,6 +60,7 @@ type Props = {
     supportsVoiceMode?: boolean
     onStartVoiceMode?: () => void
     onExitVoiceMode?: () => void
+    onCopyDiagnostics?: () => Promise<void>
 }
 
 function OrbCard({ msg }: { msg: ConversationMessage }) {
@@ -183,6 +184,7 @@ export default function OrbConversation({
     supportsVoiceMode = false,
     onStartVoiceMode,
     onExitVoiceMode,
+    onCopyDiagnostics,
 }: Props) {
     const threadRef             = useRef<HTMLDivElement>(null)
     const textareaRef           = useRef<HTMLTextAreaElement>(null)
@@ -190,6 +192,7 @@ export default function OrbConversation({
     const [inputFocused, setInputFocused] = useState(false)
     const [copiedInput, setCopiedInput] = useState(false)
     const [copiedTranscript, setCopiedTranscript] = useState(false)
+    const [copiedDiagnostics, setCopiedDiagnostics] = useState(false)
     const [isListening, setIsListening] = useState(false)
     const [isTranscribing, setIsTranscribing] = useState(false)
     const [supportsVoice, setSupportsVoice] = useState(false)
@@ -881,11 +884,27 @@ export default function OrbConversation({
                                                         <span className="oc-more-label">Export</span>
                                                         <span className="oc-more-desc">Download as markdown</span>
                                                     </button>
+                                                    {onCopyDiagnostics && (
+                                                        <button
+                                                            type="button"
+                                                            className="oc-more-item"
+                                                            onClick={() => {
+                                                                void onCopyDiagnostics().then(() => {
+                                                                    setCopiedDiagnostics(true)
+                                                                    setTimeout(() => setCopiedDiagnostics(false), 1500)
+                                                                }).catch(e => console.warn('[conversation diagnostics]', e))
+                                                                setMoreMenuOpen(false)
+                                                            }}
+                                                        >
+                                                            <span className="oc-more-label">{copiedDiagnostics ? '✓ Copied' : 'Copy diagnostics'}</span>
+                                                            <span className="oc-more-desc">Admin event and timing trace</span>
+                                                        </button>
+                                                    )}
                                                     {onClearTranscript && (
                                                         <button
                                                             type="button"
                                                             className="oc-more-item"
-                                                            onClick={() => { onClearTranscript(); setMoreMenuOpen(false) }}
+                                                            onClick={() => { void onClearTranscript(); setMoreMenuOpen(false) }}
                                                             disabled={messages.length === 0 || processing}
                                                         >
                                                             <span className="oc-more-label">Clear</span>

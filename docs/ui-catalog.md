@@ -414,7 +414,7 @@ answer or business-tool result.
 Used for buttons below the input field in the Orb conversation view. Styled with standard primary button background (`var(--btn-primary-bg)`).
 
 ### Orb Conversation Overflow (`oc-toolbar-overflow`, `oc-more-*`)
-The Orb command toolbar uses the same compact command model on Mac, iPad, and iPhone: primary actions stay visible (`Cmds`, Send/Stop) and secondary actions (`Prev`, `Next`, `Copy text` (input field), `Copy convo` (full conversation), `Export`, `Clear`) live behind the `More` overflow button. Voice conversation mode starts through `More → Talk to Orb` or the Orb itself. This avoids viewport-specific command layouts and keeps the small-pane/iPhone interaction model consistent everywhere.
+The Orb command toolbar uses the same compact command model on Mac, iPad, and iPhone: primary actions stay visible (`Cmds`, Send/Stop) and secondary actions (`Prev`, `Next`, `Copy text` (input field), `Copy convo` (full conversation), `Export`, admin-only `Copy diagnostics`, `Clear`) live behind the `More` overflow button. `Copy diagnostics` exports the current user's durable conversation events, command batches, and acknowledgement timing as JSON; it contains no audio or hidden reasoning. Voice conversation mode starts through `More → Talk to Orb` or the Orb itself. This avoids viewport-specific command layouts and keeps the small-pane/iPhone interaction model consistent everywhere.
 
 The menu is positioned and width-constrained against the full toolbar—not the `More` button—and its descriptions may wrap. Do not restore button-relative positioning or intrinsic no-wrap sizing: either can make the menu cross and be clipped by a narrow dashboard pane.
 

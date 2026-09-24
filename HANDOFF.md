@@ -14,21 +14,19 @@
 
 ## App State
 
-- **Branch:** `codex/interaction-safeguards`; HEAD `be540d7`. Uncommitted
-  v0.6.335 fixes on top of it; no commit or push performed.
-- **Version:** local `0.6.335`. Production was last reported as `0.6.331` on
-  2026-09-17; not rechecked. `be540d7` (v0.6.334) is on this branch only —
+- **Branch:** `codex/interaction-safeguards`; v0.6.336 is committed locally on
+  this branch and has not been pushed.
+- **Version:** local `0.6.336`. Production was last reported as `0.6.331` on
+  2026-09-17; not rechecked. `be540d7` and `0cb2cec` are on this branch only;
   `main` has not moved and `origin/main..main` is empty.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
 - **Production maintenance:** off.
-- **Installed launchers: IN SYNC — verified 2026-09-17** by
-  `bash scripts/security/test-orb-launcher.sh` (**5 checked**; bytes, owner and
-  mode asserted) after reinstalling `orb-agent` and `orb-agent-approve`. All
-  five `root:wheel 755`. `orb-agent` joined the manifest on
-  2026-09-06 after being installed root-owned.
-  **2026-09-17: both were reinstalled and are in sync.** `orb-agent-approve`: the empty-body bug (`--config -` and
+- **Installed launchers: IN SYNC.** Stan reinstalled `orb-agent` on 2026-09-22;
+  `bash scripts/security/test-orb-launcher.sh` reported all 5 launchers matched,
+  owner/mode asserted, with syntax and helper checks passing. `orb-agent-approve`:
+  the empty-body bug (`--config -` and
   `--data-binary @-` both read stdin; PGRST102) was fixed and the installed copy
   was reinstalled, so ORB-359 applied; the repo copy has since gained
   project-id resolution for the Knowledge entry (the tasks API select omits
@@ -91,6 +89,10 @@
   `scripts/migrations/20260912_orb_command_batches.sql` is **applied**. Stan
   reported every column from `verify-20260912-orb-command-batches.sql` true on
   2026-09-12. Live acceptance is in progress.
+- **Conversation-diagnostics migration is applied.** Stan ran
+  `scripts/migrations/20260922_orb_conversation_diagnostics.sql` on 2026-09-22
+  and reported every closing check true. It grants one UUID-scoped read
+  function and no direct conversation-table access.
 - **`~/Projects/shared` is now a git repository** (`02b0f46`) with **no remote
   configured**. It holds the shared `AGENTS.md` governing every project in
   `~/Projects`. Adding a remote is Stan's decision — it names credential
@@ -100,57 +102,102 @@
 - **ORB-375:** implementation and credential rotation still in progress.
 ## Uncommitted Changes
 
-- `HANDOFF.md`
-- `components/OrbConversation.tsx`
-- `lib/changelog.ts`
-- `lib/hooks/useRealtimeVoiceSpike.ts`
-- `lib/orb-interaction/read-policy.ts`
-- `lib/orb-model/approval-policy.ts`
-- `lib/version.ts`
-- `package.json`
-- `scripts/verify-orb-interaction.ts`
+None.
 
 ---
 
 ## Last Session Completed
 
-**2026-09-21 — Claude Code (Opus 5). Four defects fixed in the v0.6.334
-interaction safeguards; v0.6.335 prepared, uncommitted.**
+**2026-09-23 — Codex (GPT-6). Voice acceptance, deterministic arithmetic, and conversation diagnostics completed as v0.6.336 and committed locally; not pushed.**
 
-- **Approval grammar (`lib/orb-model/approval-policy.ts`).** `and` was a
-  deterministic veto, so "go ahead and do it", "yes, go ahead and apply it" and
-  "confirm and proceed" were all refused. The same filter gates the semantic
-  fallback, so those phrasings had no path to approve anything. `and` removed as
-  a veto; the approval act now matches a conjunction of two acts. The other
-  vetoes (question, negation, qualifying condition, spelled identifier,
-  retrospective framing, edit verbs) are unchanged and still deterministic.
-- **Read allowlist (`lib/orb-interaction/read-policy.ts`).** `COLUMNS.tickets`
-  contained `query_tickets` and `support`, harvested from a prose sentence in
-  `lib/db-schema.ts`. `*` therefore expanded to a select PostgREST rejects, so
-  any `query_db` on tickets without explicit columns failed. Both removed.
-- **Dictation (`components/OrbConversation.tsx`).** A too-short recording and a
-  send attempted mid-transcription both returned silently. Both now toast.
-- **Voice status (`lib/hooks/useRealtimeVoiceSpike.ts`).** The transport-only
-  path set `'thinking'` with no `armResponseWatchdog`, so a server turn that
-  failed or was stopped left the UI on "Gathering data…" permanently. Watchdog
-  now armed there at 45 s (provider path unchanged at 20 s).
-- **Verified.** `npm run verify:interaction` and `npx tsc --noEmit` pass.
-  ESLint on the five changed files: 0 errors, 6 pre-existing warnings in
-  `OrbConversation.tsx`. New regression checks pin every `query_db` table's `*`
-  expansion exactly and cover conjunction approvals in both directions; **both
-  were proven to fail when the original defects were re-injected**, then pass
-  once reverted.
-- **Not verified.** No device acceptance, no live model call, no database
-  operation, no build, no dev-server operation. The voice fixes are source-level
-  only.
-- **Attribution correction.** The "heard audio but could not verify speech"
-  report that prompted this work was made against a browser bundle whose version
-  was never confirmed. v0.6.334's own changelog claims to fix that symptom, so
-  it may have been the pre-0.6.334 bug rather than anything new. Treat the cause
-  as unestablished until it is reproduced on a confirmed v0.6.335 client.
+- A live v0.6.335 session accepted one voice question, then rejected every later
+  utterance with the acoustic-verification error while the same requests worked
+  promptly as text. The rejection path was still active whenever fresh Silero
+  evidence disagreed with a completed provider transcript.
+- Completed nonempty provider transcripts now enter the same shared conversation
+  path as typed text. Silero remains telemetry and can restart on disagreement,
+  but has no authority to discard the transcript. Empty and failed provider
+  transcriptions still do not become user turns.
+- A clipped “I meant…” arrived as `S.` and the model answered “Stopped.” A
+  one-character voice fragment is now withheld before the shared conversation;
+  Orb asks the user to repeat it and stays in voice mode.
+- Arithmetic is now deterministic across modalities. BACKLOG summaries include
+  authoritative `total_count` plus status subtotals; the new `calculate` tool
+  owns derived arithmetic. A final semantic aggregate guard accepts numbers only
+  from matching SUMMARY fields or calculator results, repairs once, then
+  withholds an unsupported value rather than guessing.
+- Admins can copy the current conversation's event, command-batch, and
+  acknowledgement JSON through Orb's overflow menu. The broker adds
+  `orb-agent conversations events <conversation-uuid>` for that trace through
+  a read-only UUID-scoped function. Used existing `oc-more-item`, modeled on
+  the Transcript actions.
+- The first export identified four shared failures. Fragment merging now removes
+  repeated overlap and stays within one modality; near-simultaneous transcript
+  admissions coalesce before they can create parallel turns; an unrelated
+  successful UI action no longer validates an unconfirmed mutation claim; and
+  a uniquely plausible misheard project name produces a clarification without
+  switching. Two matching diagnostic eval cases were added but not run.
+- The second export confirmed those four repairs in one alternating text/voice
+  session: no repeated leading phrase, no parallel user turns, the misheard
+  Shunyata name was clarified before switching, and both deletion claims had
+  matching proposals and receipts. It also exposed the aggregate guard refusing
+  a requested project/status table after a complete read.
+- `query_todos` now returns deterministic per-project status summaries over its
+  complete filtered result even when detail rows are truncated. Those values
+  enter the final grounding check. The new `ownership_scope=current_user`
+  contract keeps “my projects” reports scoped to authenticated-user ownership.
+  A matching Tier 1 case was added but not run.
+- Clear transcript was browser-only while `/clear` also closed the durable
+  conversation, so restored events could repopulate the menu-cleared transcript.
+  Both controls now await one server-backed reset, and Clear invalidates any
+  startup restore already in flight. TypeScript and focused ESLint passed once
+  with 0 errors and 12 existing warnings; live browser acceptance is pending.
+- The next voice diagnostic showed “status breakdown” and an explicit table
+  request both being collapsed into the brief active/parked project summary;
+  the follow-up then hit the aggregate refusal. Explicit status breakdown,
+  count-by-status, and status-table requests now use one deterministic complete
+  report for text and voice, with a separate concise spoken summary. Its eval
+  analogue is model-free and uses zero provider tokens; it was not run.
+- Investigated a stale Chrome tab retaining a deleted current project and then
+  violating `users_current_project_id_fkey`. The dashboard has multiple project
+  state paths with inconsistent deletion filtering and no shared resume-time
+  reconciliation. No narrow repair was made. The next implementation should
+  converge startup, visibility/pageshow/focus, Realtime, mutation receipts,
+  modal changes, Orb switches, and persistence recovery on one authoritative
+  project-workspace snapshot and one reconciliation function.
+- `npm run verify:interaction`, `npx tsc --noEmit`, UI-catalog verification,
+  and `git diff --check` passed once. Focused ESLint returned 0 errors and 6
+  pre-existing dashboard warnings. Stan applied the diagnostics migration and
+  reinstalled the broker; its 5-launcher integrity check passed. No paid model
+  eval or direct device acceptance was completed.
 
 ## Active Risks / Unresolved Work
 
+- **Stale browser project state is an unresolved architecture defect.** A tab
+  unused for several days displayed a deleted project and stale project list,
+  then tried to persist that deleted ID and hit the current-project foreign key.
+  `visibleProjectsQuery()` does not consistently exclude `deleted_at`, project
+  lists have no shared resume-time synchronization path, and independent UI,
+  Orb, modal, persistence, and navigation repair paths can disagree. Build one
+  authoritative snapshot and reconciliation entry point; do not add another
+  local focus callback or merely catch the foreign-key error.
+- **v0.6.336 requires direct repeated-turn voice acceptance.** Exercise at least
+  five consecutive factual/follow-up turns. A completed transcript must never
+  produce the acoustic-verification error. Capture stage telemetry if latency
+  remains high; do not add another speech-acceptance gate.
+- **Deterministic arithmetic needs live acceptance.** The 2026-09-22 transcript
+  showed 14 active rows reported as 27, 31 parked rows reported as 21, and status
+  rows totaling 320 reported as 328. v0.6.336 adds authoritative totals, a
+  calculator, and a final aggregate-provenance guard. The first live cross-project
+  table was withheld because query results were absent from the guard's context;
+  the code now supplies complete filtered summaries despite row truncation, but
+  that repair has not been exercised live.
+- **The deterministic status report needs live acceptance.** The 2026-09-23
+  voice trace proved the old shortcut dropped the requested table. Repeat the
+  exact status-breakdown and table phrases after a hard refresh.
+- **One compound read/write request dropped its final navigation action.** In the
+  second diagnostic export, “Add todo ‘test’ to Shuyatta then switch to that
+  project” created the todo after confirmation but did not visibly switch.
 - **Project-switch loop — root-caused, NOT fixed.** Live log 2026-09-21:
   `[orbConverse] Blocked unverified completion claim … hasActed: false,
   speech: 'Switched to "Orb".'` The model reproduced the server's own
@@ -259,6 +306,20 @@ interaction safeguards; v0.6.335 prepared, uncommitted.**
 
 ## Next Priorities
 
+0. Design and review the converged project-workspace synchronization boundary,
+   then implement stale-tab recovery through that single path. Include startup,
+   visibility/pageshow/focus, Realtime project changes, mutation receipts,
+   modal changes, Orb switches, persistence recovery, response generations,
+   request deduplication, and optional same-browser `BroadcastChannel` updates.
+0. Run direct v0.6.336 voice acceptance: five or more consecutive turns, including
+   a follow-up after a count query. If it fails, capture the `[orb-rt]` lifecycle
+   trace and stage timings; do not restore Silero as an admission gate.
+0. Verify both More → Clear and `/clear`: each must stay empty without a reload,
+   then accept a new turn in a new durable conversation.
+0. Exercise v0.6.336 arithmetic in text and voice: first repeat “List all my
+   projects in a table, listing their to-dos by type,” then test cross-project totals,
+   a percentage, and free-form arithmetic. No reported
+   aggregate may lack a matching SUMMARY field or calculator result.
 0. Optional manual/device acceptance using docs/orb-interaction-scenarios.md.
    No automatic repetition or paid gate. Execute the prepared model-free SQL
    only when an isolated local test database is available. Cross-connection
@@ -489,7 +550,7 @@ interaction safeguards; v0.6.335 prepared, uncommitted.**
 
 ## AI Tool Used Last Session
 
-`2026-09-21 — Claude Code (Opus 5)`
+`2026-09-23 — Codex (GPT-6)`
 
 ---
 

@@ -6,6 +6,21 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: 'v0.6.336',
+    date: '2026-09-23',
+    changes: [
+      'Removed the local Silero classifier as a gate on completed voice transcripts. A nonempty transcript returned by the speech provider now enters the same shared conversation path as typed text even when Silero disagrees, is stale, or has failed. Silero evidence remains in telemetry and a disagreement can still restart the classifier, but it can no longer strand a live session behind “I heard audio but could not verify speech.”',
+      'A clipped one-character voice transcript can no longer be interpreted as a command. After “I meant…” was transcribed only as “S.” and Orb stopped the turn, single-character fragments are now withheld from the conversation and Orb asks the user to repeat them while remaining in voice mode.',
+      'Moved arithmetic and aggregate statistics out of generated prose. Project summaries now provide an authoritative total alongside every status subtotal; a deterministic calculator handles derived arithmetic. Before either text or voice receives a final answer, aggregate claims are matched by meaning against authoritative summary fields or calculator results. Unsupported numbers get one repair attempt and are withheld if they remain unsupported.',
+      'Added inspectable conversation diagnostics for voice and text timing failures. Admins can copy the current durable event, command-batch, and acknowledgement trace from the Orb overflow menu. A matching `orb-agent conversations events <conversation-uuid>` command reads that one trace through a UUID-scoped database function without granting the agent role direct access to conversation tables.',
+      'Used the first diagnostic trace to fix cross-modality turn corruption. Transcript fragments now remove repeated overlap, merge only within the same modality, and coalesce near-simultaneous admissions before either can become a parallel turn. A successful UI action can no longer substantiate a different unconfirmed mutation, and plausible misheard project names produce a contextual clarification instead of an action.',
+      'Fixed the aggregate guard withholding a requested project/status table after a todo query. Every query now carries deterministic per-project status summaries for its complete filtered set into both the model result and the final grounding check, even when detailed rows are truncated. An explicit current-user ownership scope keeps “my projects” reports from including other projects visible to an admin.',
+      'Fixed Clear transcript erasing only the browser copy while leaving the durable conversation active, which allowed its messages to return. The menu and `/clear` now share one awaited server-backed reset, and a late startup restore is invalidated before it can repopulate the cleared transcript.',
+      'Fixed explicit voice requests for a status breakdown or table being intercepted by the brief project-state shortcut. Status reports now render deterministically from the complete authoritative todo set for text and voice, with every canonical status and total shown on screen and a concise separate spoken summary.',
+      'Model-free interaction checks now pin the actual acceptance boundary: completed nonempty provider transcripts proceed and empty transcripts do not. The existing fragmentary-transcript conversation case remains as the diagnostic for asking the user to clarify after words reach Orb. The model-free verifier and TypeScript passed once; focused ESLint reported zero errors and six pre-existing dashboard warnings. Direct repeated-turn device acceptance remains required.',
+    ],
+  },
+  {
     version: 'v0.6.335',
     date: '2026-09-21',
     changes: [

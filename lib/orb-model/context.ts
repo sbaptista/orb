@@ -65,11 +65,6 @@ function findMentionedProject(input: string | undefined, productList: any[]): an
   }) ?? null
 }
 
-export function isBroadProjectStateQuestion(input: string): boolean {
-  return /\b(state|status|status update|update|snapshot|summary|overview)\b/i.test(input)
-    && /\b(projects|project|backlog|everything|all|orb|helm)\b/i.test(input)
-}
-
 export function isRecentTodoReference(input: string): boolean {
   return /\b(them|those|these|all of them|the ones|the tasks|the todos|the to dos)\b/i.test(input)
     || /\b(first|1st|second|2nd|third|3rd|last|latest|newest|initial|most recent)\b[^.!?]*\b(tasks|todos|to dos)\b/i.test(input)
@@ -253,7 +248,7 @@ export async function buildOrbContext(
     const inProgressCount = activeTodos.filter((t: any) => t.status === 'in progress').length
     const deferredCount = parkedTodos.filter((t: any) => t.status === 'deferred').length
     const onHoldCount = parkedTodos.filter((t: any) => t.status === 'on hold').length
-    const summary = `  SUMMARY: open_count=${openCount}; in_progress_count=${inProgressCount}; active_count=${activeTodos.length} (open + in progress); deferred_count=${deferredCount}; on_hold_count=${onHoldCount}; parked_count=${parkedTodos.length} (deferred + on hold); closed_count=${closedCount} (excluded)`
+    const summary = `  SUMMARY: total_count=${projectTodos.length}; open_count=${openCount}; in_progress_count=${inProgressCount}; active_count=${activeTodos.length} (open + in progress); deferred_count=${deferredCount}; on_hold_count=${onHoldCount}; parked_count=${parkedTodos.length} (deferred + on hold); other_non_closed_count=${otherNonClosedTodos.length}; closed_count=${closedCount}`
     const activeLine = activeTodos.map(todoLine).join('\n')
     const parkedLine = parkedTodos.map(todoLine).join('\n')
     const otherLine = otherNonClosedTodos.map(todoLine).join('\n')

@@ -14,7 +14,7 @@ import OrbConversation, { type ConversationMessage } from './OrbConversation'
 import { registerOrbTour, unregisterOrbTour, runOrbTour, launchOrbTour } from './OrbTour'
 import { OrbDevPanel, DevTestError, type MoodOverride, type SimulateError } from './OrbDevPanel'
 import { orbConverse, type ActionSet, type OrbResponse, type PendingMutation } from '@/app/actions/orb-converse'
-import { acknowledgeOrbResponse, clearOrbConversation, interruptOrbConversation, loadOrbConversation } from '@/app/actions/orb-interaction'
+import { acknowledgeOrbResponse, clearOrbConversation, exportOrbConversationDiagnostics, interruptOrbConversation, loadOrbConversation } from '@/app/actions/orb-interaction'
 import { collectSystemInfo, type SystemInfo } from '@/lib/system-info'
 import { collectClientEnvironment } from '@/lib/client-environment'
 import { getUrgencySnapshot, notifyIfEscalated } from '@/app/actions/push-actions'
@@ -289,7 +289,6 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       setMessages(previous => [...previous, { id: genId(), type: 'orb', text }])
       setConversationActive(true)
     },
-    onUntrustedTranscript: () => toast.neutral('I heard audio but could not verify speech. Please try again.'),
     onMutation: () => {
       setPulse(true)
       window.setTimeout(() => setPulse(false), 420)
@@ -370,9 +369,18 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     userEventId: string
     replyVisible: boolean
   } | null>(null)
+  const pendingSubmissionAdmissionRef = useRef<{
+    id: number
+    text: string
+    modality: 'text' | 'voice'
+    cancelled: boolean
+    admitted: boolean
+  } | null>(null)
+  const submissionAdmissionSequenceRef = useRef(0)
   const cancelledConversationRequestIdsRef = useRef<Set<number>>(new Set())
   const conversationIdRef      = useRef<string | null>(null)
   const interactionClientIdRef  = useRef<string | null>(null)
+  const conversationRestoreSequenceRef = useRef(0)
   const voiceSendRef            = useRef<(text: string) => void>(() => {})
   const messagesRef            = useRef<ConversationMessage[]>([])
   messagesRef.current = messages
@@ -780,6 +788,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
 
   // Restore conversation on mount
   useEffect(() => {
+    const restoreSequence = ++conversationRestoreSequenceRef.current
     let clientId = window.localStorage.getItem(ORB_CLIENT_ID_KEY)
     if (!clientId) {
       clientId = genUuid()
@@ -788,6 +797,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     interactionClientIdRef.current = clientId
     loadOrbConversation(undefined, clientId)
       .then(async snapshot => {
+        if (conversationRestoreSequenceRef.current !== restoreSequence) return
         setConversationId(snapshot.conversationId)
         const restored: ConversationMessage[] = snapshot.messages.map(message => ({
           id: message.eventId,
@@ -1320,9 +1330,45 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // HANDLERS — Conversation
   // ══════════════════════════════════════════════════════════
 
+  async function handleClearConversation() {
+    // Invalidate a startup restore before closing the durable conversation so
+    // a late snapshot cannot repopulate the transcript after Clear.
+    conversationRestoreSequenceRef.current += 1
+    try {
+      const snapshot = await clearOrbConversation(conversationIdRef.current ?? undefined)
+      conversationIdRef.current = snapshot.conversationId
+      setConversationId(snapshot.conversationId)
+      setMessages([])
+      clearActionSets()
+      setConversationActive(false)
+      sessionStorage.removeItem(SS_CONVERSATION)
+      greetingFiredRef.current = false
+    } catch (error) {
+      console.error('[UnifiedDashboard] Conversation clear failed:', error)
+      toast.error('Could not clear the conversation. Please try again.')
+    }
+  }
+
   async function handleSubmit(value?: string) {
     let text = (value ?? input).trim()
     if (!text) return
+    const modality = (voiceEngaged ? 'voice' : 'text') as 'text' | 'voice'
+    const previousAdmission = pendingSubmissionAdmissionRef.current
+    const admission = {
+      id: ++submissionAdmissionSequenceRef.current,
+      text,
+      modality,
+      cancelled: false,
+      admitted: false,
+    }
+    if (previousAdmission && !previousAdmission.admitted) {
+      previousAdmission.cancelled = true
+      if (previousAdmission.modality === modality) {
+        admission.text = mergedTurnText(previousAdmission.text, text)
+      }
+    }
+    pendingSubmissionAdmissionRef.current = admission
+    text = admission.text
     const activeRequest = activeConversationRequestRef.current
     if (activeRequest) {
       if (isBareStopCommand(text)) {
@@ -1331,6 +1377,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         setInput('')
         sessionStorage.removeItem(SS_INPUT)
         await handleStop('stop')
+        if (pendingSubmissionAdmissionRef.current?.id === admission.id) pendingSubmissionAdmissionRef.current = null
         return
       }
       if (isBareMutationAffirmation(text) && isBareMutationAffirmation(activeRequest.text)) {
@@ -1340,21 +1387,26 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         console.info('[UnifiedDashboard] Ignored a repeated confirmation while one is in flight:', text)
         setInput('')
         sessionStorage.removeItem(SS_INPUT)
+        if (pendingSubmissionAdmissionRef.current?.id === admission.id) pendingSubmissionAdmissionRef.current = null
         return
       }
-      if (!activeRequest.replyVisible && !text.startsWith('/')) {
+      if (!activeRequest.replyVisible && !text.startsWith('/') && activeRequest.modality === modality) {
         // Nothing has been shown for the running turn yet, so this is the
         // rest of the same request (a pause split it). Continue it as one turn
         // and remove the fragment instead of leaving "Stopped." behind.
         text = mergedTurnText(activeRequest.text, text)
         await handleStop('merge')
+        if (admission.cancelled) return
         setMessages(prev => prev.filter(m => m.id !== activeRequest.userEventId && m.id !== activeRequest.processingId))
       } else {
         // A new request replaces the running turn without cancelling an
         // approved commit.
         await handleStop('replacement')
+        if (admission.cancelled) return
       }
     }
+    admission.admitted = true
+    if (pendingSubmissionAdmissionRef.current?.id === admission.id) pendingSubmissionAdmissionRef.current = null
 
     if (text === '?' || text === '/?') { openHelp(); setInput(''); return }
 
@@ -1365,10 +1417,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       if (cmd === '/settings') router.push('/settings')
       else if (cmd === '/help' || cmd === '/?') openHelp()
       else if (cmd === '/clear') {
-        void clearOrbConversation(conversationIdRef.current ?? undefined)
-          .then(snapshot => setConversationId(snapshot.conversationId))
-          .catch(error => console.error('[UnifiedDashboard] Conversation clear failed:', error))
-        setMessages([]); clearActionSets(); setConversationActive(false); sessionStorage.removeItem(SS_CONVERSATION); greetingFiredRef.current = false
+        await handleClearConversation()
       }
       else if (cmd === '/add') {
         const task = args.join(' ').trim()
@@ -1428,7 +1477,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       id: ++conversationRequestSequenceRef.current,
       processingId,
       turnId,
-      modality: (voiceEngaged ? 'voice' : 'text') as 'voice' | 'text',
+      modality,
       aborted: false,
       text,
       userEventId,
@@ -1436,9 +1485,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     }
     activeConversationRequestRef.current = request
     const submitMeasurement = startDashboardInteraction(
-      voiceEngaged ? 'voice_orb_submit' : 'orb_submit',
+      modality === 'voice' ? 'voice_orb_submit' : 'orb_submit',
       { inputLength: text.length, hasPendingMutation: !!pendingMutationRef.current },
-      voiceEngaged ? 'voice' : 'dashboard-clicks',
+      modality === 'voice' ? 'voice' : 'dashboard-clicks',
     )
     let submitMeasurementEnded = false
     let coordinatorPersistenceMs: number | undefined
@@ -1458,7 +1507,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       if (!systemInfoRef.current) systemInfoRef.current = collectSystemInfo()
       pendingMutationRef.current = null
       submitMeasurement.mark('server_action_start')
-      const stream = await orbConverse({ input: text, productId: selectedId, dryRun, simulateError, systemInfo: systemInfoRef.current, clientEnvironment: collectClientEnvironment(), clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, actionSets: actionSetsRef.current, interaction: { conversationId: conversationIdRef.current, turnId, userEventId, modality: voiceEngaged ? 'voice' : 'text' }, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive, voiceMode: voiceEngaged, availableVoices: voiceEngaged ? voice.availableVoices.map(v => v.name) : undefined, currentVoice: voiceEngaged ? voice.selectedVoiceName || undefined : undefined, ttsProvider: voiceEngaged ? ttsConfig?.provider : undefined, ttsModel: voiceEngaged ? ttsConfig?.model : undefined, ttsVoiceId: voiceEngaged ? ttsConfig?.voiceId : undefined } })
+      const stream = await orbConverse({ input: text, productId: selectedId, dryRun, simulateError, systemInfo: systemInfoRef.current, clientEnvironment: collectClientEnvironment(), clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, actionSets: actionSetsRef.current, interaction: { conversationId: conversationIdRef.current, turnId, userEventId, modality }, uiContext: { viewMode, filterStatus, filterPriority, sortAsc, orbPaneVisible, listPaneVisible, isMobile, daysActive, voiceMode: modality === 'voice', availableVoices: modality === 'voice' ? voice.availableVoices.map(v => v.name) : undefined, currentVoice: modality === 'voice' ? voice.selectedVoiceName || undefined : undefined, ttsProvider: modality === 'voice' ? ttsConfig?.provider : undefined, ttsModel: modality === 'voice' ? ttsConfig?.model : undefined, ttsVoiceId: modality === 'voice' ? ttsConfig?.voiceId : undefined } })
       submitMeasurement.mark('server_action_stream_opened')
       // Committed effects are true regardless of presentation: a receipt must
       // reach the project and todo lists even if the user stopped or replaced
@@ -2208,7 +2257,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               products={products}
               conversationActive={conversationActive}
               onRestoreConversation={() => setConversationActive(true)}
-              onClearTranscript={() => { setMessages([]); clearActionSets(); setConversationActive(false); sessionStorage.removeItem(SS_CONVERSATION) }}
+              onClearTranscript={handleClearConversation}
               onInputChange={v => { setInput(v); sessionStorage.setItem(SS_INPUT, v) }}
               onSubmit={handleSubmit}
               onStop={() => { void handleStop('stop') }}
@@ -2231,6 +2280,11 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
               supportsVoiceMode
               onStartVoiceMode={handleOrbTap}
               onExitVoiceMode={() => { void handleStop('exit_voice'); realtimeSpike.stop('exit_voice') }}
+              onCopyDiagnostics={isAdmin ? async () => {
+                const diagnostic = await exportOrbConversationDiagnostics(conversationIdRef.current)
+                await navigator.clipboard.writeText(diagnostic)
+                toast.success('Conversation diagnostics copied.')
+              } : undefined}
             />
           </div>
           )}

@@ -34,7 +34,25 @@ export function isOrbInterruptReason(value: unknown): value is OrbInterruptReaso
  * submitted as one turn. Shared by text and voice.
  */
 export function mergedTurnText(previousText: string, nextText: string): string {
-  return `${previousText.trim()} ${nextText.trim()}`.trim()
+  const previous = previousText.trim()
+  const next = nextText.trim()
+  if (!previous) return next
+  if (!next) return previous
+
+  const previousWords = previous.split(/\s+/)
+  const nextWords = next.split(/\s+/)
+  const comparable = (word: string) => word.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+  const previousComparable = previousWords.map(comparable)
+  const nextComparable = nextWords.map(comparable)
+  const maxOverlap = Math.min(previousWords.length, nextWords.length)
+  for (let length = maxOverlap; length > 0; length -= 1) {
+    const previousSuffix = previousComparable.slice(-length)
+    const nextPrefix = nextComparable.slice(0, length)
+    if (previousSuffix.every((word, index) => word && word === nextPrefix[index])) {
+      return [...previousWords, ...nextWords.slice(length)].join(' ')
+    }
+  }
+  return `${previous} ${next}`
 }
 
 /** Reply to a bare stop word when nothing is running and nothing is pending. */

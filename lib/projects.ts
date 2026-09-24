@@ -4,7 +4,7 @@
  * filtering is applied in exactly one place.
  */
 
-import { fuzzyMatch } from '@/lib/fuzzy-search'
+import { fuzzyMatch } from './fuzzy-search'
 
 type SupabaseClient = { from: (table: string) => any }
 
@@ -36,6 +36,42 @@ export function resolveProjectByReference<T extends { name: string; code?: strin
   if (byFuzzy.length === 1) return byFuzzy[0]
 
   return null
+}
+
+function editDistance(left: string, right: string): number {
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index)
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    const current = [leftIndex]
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      current.push(Math.min(
+        current[rightIndex - 1] + 1,
+        previous[rightIndex] + 1,
+        previous[rightIndex - 1] + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1),
+      ))
+    }
+    previous = current
+  }
+  return previous[right.length]
+}
+
+/**
+ * Returns one plausible project-name correction for clarification only. It
+ * never authorizes an action: exact/fuzzy resolution above remains the gate.
+ */
+export function suggestProjectByReference<T extends { name: string; code?: string | null }>(
+  products: T[],
+  reference: string,
+): T | null {
+  const normalize = (value: string) => value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+  const ref = normalize(reference)
+  if (ref.length < 3) return null
+  const ranked = products
+    .map(project => ({ project, distance: editDistance(ref, normalize(project.name)) }))
+    .sort((left, right) => left.distance - right.distance)
+  const best = ranked[0]
+  if (!best || best.distance > Math.max(2, Math.floor(Math.max(ref.length, normalize(best.project.name).length) / 2))) return null
+  if (ranked[1]?.distance === best.distance) return null
+  return best.project
 }
 
 /**
@@ -101,4 +137,3 @@ export function clampProjectName(name: string): string {
   }
   return '…'
 }
-

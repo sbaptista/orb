@@ -7,6 +7,7 @@ repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
 /bin/bash -n "$repo_root/scripts/security/orb-dev"
 /bin/bash -n "$repo_root/scripts/security/orb-secrets-seal"
 /bin/bash -n "$repo_root/scripts/security/orb-secrets-set"
+/bin/bash -n "$repo_root/scripts/security/orb-agent"
 
 source "$repo_root/scripts/security/orb-dev"
 source "$repo_root/scripts/security/orb-secrets-set"

@@ -47,6 +47,7 @@ orb-agent — read-only Orb data access for AI development agents
   orb-agent tickets list [--status NAME] [--limit N]
   orb-agent knowledge search <term> [--limit N]
   orb-agent knowledge get <uuid>
+  orb-agent conversations events <conversation-uuid>
   orb-agent db health
   orb-agent propose todo-close <CODE-NUMBER> --notes-file PATH
                      [--knowledge-file PATH --knowledge-title TITLE [--knowledge-tags a,b]]
@@ -350,6 +351,23 @@ cmd_knowledge_get() {
   audit "knowledge get $1"
 }
 
+cmd_conversation_events() {
+  [[ $# -eq 1 ]] || fail "usage: orb-agent conversations events <conversation-uuid>"
+  valid_uuid "$1" || fail "invalid conversation uuid"
+
+  if (( JSON_OUTPUT == 1 )); then
+    run_sql \
+      "SELECT public.agent_read_orb_conversation_diagnostics(:'conversation'::uuid)::text;" \
+      "conversation=$1"
+  else
+    run_sql \
+      "SELECT jsonb_pretty(public.agent_read_orb_conversation_diagnostics(:'conversation'::uuid)) AS diagnostics;" \
+      "conversation=$1"
+  fi
+
+  audit "conversations events $1"
+}
+
 cmd_db_health() {
   (( $# == 0 )) || fail "'db health' takes no options"
 
@@ -564,6 +582,9 @@ main() {
         get)    require_credential; cmd_knowledge_get "$@" ;;
         *) fail "unknown knowledge verb: $ksub" ;;
       esac ;;
+    conversations)
+      [[ $# -ge 1 && "$1" == "events" ]] || fail "usage: orb-agent conversations events <conversation-uuid>"
+      shift; require_credential; cmd_conversation_events "$@" ;;
     db)
       [[ $# -ge 1 && "$1" == "health" ]] || fail "usage: orb-agent db health"
       shift; require_credential; cmd_db_health "$@" ;;

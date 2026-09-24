@@ -95,7 +95,7 @@ if (startIdx !== -1) {
     if (!/^\s*[-*]\s/.test(line)) continue;
     for (const m of line.matchAll(/`([^`]+)`/g)) {
       const candidate = m[1].trim();
-      if (/^[\w./-]+\.[A-Za-z0-9]+$/.test(candidate) || candidate.endsWith('/')) {
+      if (/^[\w./-]+$/.test(candidate) && (candidate.includes('/') || candidate.includes('.'))) {
         claimed.push(candidate);
       }
     }

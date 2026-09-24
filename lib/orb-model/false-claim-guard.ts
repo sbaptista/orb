@@ -39,6 +39,7 @@ const COMPLETION_LANGUAGE = /\b(done\s*—|done\.|created as|i'?ve (created|adde
 // first-person subject, so a read-only account like "You created the project
 // in August" is not treated as a claim of action.
 const MUTATION_OUTCOME_LANGUAGE = /(?:^|[.!?:\n]\s*|\bI(?:['’]ve| have)?\s+)(?:just\s+)?(?:successfully\s+)?(?:permanently\s+)?(?:created|deleted|removed|renamed|updated|closed|reopened|moved|archived|added|filed|saved)\s+(?:the|a|an|your|new|both|all|those|these)\s+(?:\S+\s+){0,2}?(?:projects?|todos?|tasks?|tickets?|knowledge entry|entries|entry)\b/i
+const DIRECT_MUTATION_RECEIPT_LANGUAGE = /(?:^|[.!?:\n]\s*)(?:created|deleted|removed|renamed|updated|closed|reopened|moved|archived|added|filed|saved)\s+[A-Z][A-Z0-9]{1,15}-\d+\b/i
 
 // A sentence that places the outcome in the past ("I created that project
 // earlier") recounts history rather than claiming this request acted. History
@@ -47,9 +48,14 @@ const RETROSPECTIVE_OUTCOME = /\b(?:earlier|previously|already|before|ago|yester
 
 function hasPresentMutationOutcome(speech: string): boolean {
   for (const sentence of speech.split(/(?<=[.!?])\s+|\n+/)) {
-    if (MUTATION_OUTCOME_LANGUAGE.test(sentence) && !RETROSPECTIVE_OUTCOME.test(sentence)) return true
+    if ((MUTATION_OUTCOME_LANGUAGE.test(sentence) || DIRECT_MUTATION_RECEIPT_LANGUAGE.test(sentence)) && !RETROSPECTIVE_OUTCOME.test(sentence)) return true
   }
   return false
+}
+
+export function hasMutationCompletionLanguage(speech: string): boolean {
+  return hasPresentMutationOutcome(speech)
+    || /\bi'?ve (?:created|added|filed|updated|changed|closed|completed|deleted|removed|moved|archived|deferred|saved)\b/i.test(speech)
 }
 
 // Project-switch claims. The prompt already forbids "Switching to…" before the
@@ -65,6 +71,19 @@ export function hasSwitchClaimLanguage(speech: string): boolean {
 
 export function hasCompletionLanguage(speech: string): boolean {
   return COMPLETION_LANGUAGE.test(speech) || hasPresentMutationOutcome(speech) || hasSwitchClaimLanguage(speech)
+}
+
+/** One successful side effect cannot substantiate a different pending mutation. */
+export function isUnconfirmedPendingMutationClaim(
+  speech: string,
+  pendingProposalId: string | null | undefined,
+  committedProposalId: string | null | undefined,
+): boolean {
+  return Boolean(
+    pendingProposalId
+    && pendingProposalId !== committedProposalId
+    && hasMutationCompletionLanguage(speech),
+  )
 }
 
 /** Sentences of `speech` that claim an outcome or a project switch, removed. */

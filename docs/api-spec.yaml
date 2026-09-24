@@ -26,6 +26,18 @@ info:
         5: Low
 
   x-orb-internal-tools:
+    calculate:
+      confidence: deterministic
+      description: 'Evaluate arithmetic deterministically. Use for every derived number, including sums, differences, products, ratios, percentages, averages, subtotals, and totals that are not already supplied as an authoritative field by another tool or the BACKLOG summary. Never perform arithmetic yourself. Supports decimal numbers, parentheses, +, -, *, /, and postfix %.'
+      input_schema:
+        type: object
+        additionalProperties: false
+        properties:
+          expression:
+            type: string
+            description: 'Arithmetic expression using decimal numbers, parentheses, +, -, *, /, and postfix %.'
+        required: ['expression']
+
     query_repository:
       confidence: new
       description: 'Inspect the Orb source repository. Use this for questions about implementation, components, routes, configuration, documentation, or actual code behavior. On localhost, source=local reads the current working tree and source=production reads the current Vercel deployment. In production, only source=production is available. Access is restricted to Admin, Super Admin, and Developer roles.'
@@ -59,12 +71,13 @@ info:
 
     query_todos:
       confidence: well-tested
-      description: 'Find todos matching criteria and return the complete readable task record: identifiers/address, title, description, status, priority, project/owner, group, category, linked ticket, resolution notes, URL values, ordering, lifecycle timestamps, due date/timezone/city, reminder lead, delivery timestamp, and reminder-nudge dismissal. Server-owned identifiers, ordering, and timestamps are read-only. Prefer this first-class tool over query_db whenever its filters and returned fields can answer the request. Use code for single-todo lookup (e.g. "ORB-73"). Otherwise filters by status, product, priority, category, or text. Returns all statuses by default — pass status to narrow. Use category to find todos tagged with a specific category (e.g. "Bug") — a general bug-count question ("how many bugs do I have") should filter by category="Bug", not guess from title text_match.'
+      description: 'Find todos matching criteria and return the complete readable task record: identifiers/address, title, description, status, priority, project/owner, group, category, linked ticket, resolution notes, URL values, ordering, lifecycle timestamps, due date/timezone/city, reminder lead, delivery timestamp, and reminder-nudge dismissal. Server-owned identifiers, ordering, and timestamps are read-only. Prefer this first-class tool over query_db whenever its filters and returned fields can answer the request. Use code for single-todo lookup (e.g. "ORB-73"). Otherwise filters by status, product, ownership, priority, category, or text. Returns all statuses by default — pass status to narrow. For requests about "my" todos or projects, pass ownership_scope="current_user"; admins otherwise search every visible project. Aggregate summaries cover the complete filtered result even when returned detail rows are truncated. Use category to find todos tagged with a specific category (e.g. "Bug") — a general bug-count question ("how many bugs do I have") should filter by category="Bug", not guess from title text_match.'
       input_schema:
         type: object
         properties:
           code: { type: string, description: 'Exact task code for single-todo lookup, e.g. "ORB-62". Overrides all other filters.' }
           product_code: { type: string }
+          ownership_scope: { type: string, enum: ['current_user', 'all_visible'], description: 'Project ownership filter. Use current_user for "my" tasks/projects. Defaults to all_visible.' }
           status: { type: string }
           category: { type: string, description: 'Filter by category name, e.g. "Bug". Case-insensitive, exact match against the CATEGORIES list for that project.' }
           priority_max: { type: integer }
@@ -141,7 +154,7 @@ info:
             description: 'Allowlisted table to query.'
           select:
             type: string
-            description: 'Comma-separated plain column names. Defaults to all columns.'
+            description: 'Comma-separated documented column names. * expands only to documented columns. Only joins explicitly listed in DATABASE SCHEMA are allowed, with their listed fields; no aliases, nested joins, relation wildcards, or casts.'
           filters:
             type: array
             items:

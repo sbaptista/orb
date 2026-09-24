@@ -9,7 +9,7 @@ import {
   type SileroShadowController,
   type SileroShadowMetadata,
 } from '@/lib/voice/silero-shadow'
-import { isAuthenticVoiceTurn, shouldRecoverVoiceVerifier } from '@/lib/orb-interaction/voice-authenticity'
+import { isClearlyFragmentaryProviderTranscript, isUsableProviderTranscript, shouldRecoverVoiceVerifier } from '@/lib/orb-interaction/voice-authenticity'
 import { comparableSpokenWords } from '@/lib/orb-interaction/spoken-text'
 
 type SpikeStatus = 'off' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'error'
@@ -19,7 +19,6 @@ type Options = {
   transportOnly?: boolean
   onUserTranscript: (text: string) => void
   onOrbTranscript: (text: string) => void
-  onUntrustedTranscript?: () => void
   onMutation: () => void
   onClientAction: (action: { action: string; target?: string }) => void
 }
@@ -93,7 +92,7 @@ const TRANSPORT_TURN_WATCHDOG_MS = 45_000
 //
 // Both modes use server VAD with automatic response creation disabled. Legacy
 // mode still asks the Realtime model to answer after a transcript. Unified mode
-// forwards only trusted text and later creates one out-of-band audio response
+// forwards completed provider transcripts and later creates one out-of-band audio response
 // with tools disabled. There is no greeting.
 export function useRealtimeVoiceSpike(options: Options) {
   const [status, setStatus] = useState<SpikeStatus>('off')
@@ -243,14 +242,14 @@ export function useRealtimeVoiceSpike(options: Options) {
     try { send({ type: 'response.cancel' }) } catch { /* channel teardown wins */ }
   }, [markExpectedSpeechInterrupted, send])
 
-  // The sound that paused speech was not trusted speech (wind, a cough, a
-  // siren, a voice the authenticity check rejected, or nothing transcribable).
+  // The sound that paused speech produced no usable transcript (wind, a cough,
+  // a siren, or a provider transcription failure).
   // Speak the unfinished reply again so nothing Orb said is silently lost.
   const resumePausedSpeech = useCallback(() => {
     const paused = pausedSpeechRef.current
     pausedSpeechRef.current = null
     if (!paused || responseInFlightRef.current) return false
-    emitTrace.current(`resuming speech paused by untrusted sound (${paused.responseId})`)
+    emitTrace.current(`resuming speech paused by untranscribed sound (${paused.responseId})`)
     turnMeasurementRef.current?.mark('speech_resumed_after_untrusted_sound')
     return speakExact(paused.text, paused.responseId)
   }, [speakExact])
@@ -964,17 +963,23 @@ export function useRealtimeVoiceSpike(options: Options) {
         ...acousticEvidence,
         transcriptionConfidence: providerConfidence,
       }
-      if (options.transportOnly && !isAuthenticVoiceTurn(acousticEvidence, providerConfidence)) {
-        emitTrace.current('transcript rejected: insufficient acoustic evidence')
-        turnFailureRef.current = 'untrusted_transcript'
-        endTurnMeasurement(turnFailureRef.current)
-        sileroTurnStartedAtRef.current = null
+      // A completed provider transcript is the voice equivalent of submitted
+      // text. Silero is retained in telemetry and restarted on disagreement,
+      // but no longer has authority to discard a usable transcript.
+      if (!isUsableProviderTranscript(transcript)) return
+      if (options.transportOnly && isClearlyFragmentaryProviderTranscript(transcript)) {
+        emitTrace.current(`fragmentary transcript withheld (characters=${transcript.length})`)
         pendingAcousticInterruptRef.current = false
-        // Untrusted sound never becomes input and never cancels anything. Give
-        // back the reply it paused; only mention it when there was none.
-        if (!resumePausedSpeech()) {
+        pausedSpeechRef.current = null
+        sileroTurnStartedAtRef.current = null
+        turnMeasurementRef.current?.mark('transcript_complete')
+        turnMetadataRef.current.fragmentaryTranscript = true
+        const turnId = transcriptTurnId ?? activeTurnIdRef.current
+        if (speakExact('I only caught part of that. Please say it again.', `fragment-${turnId}`)) {
+          armResponseWatchdog(turnId)
+        } else {
+          endTurnMeasurement('fragment_clarification_unavailable')
           setStatus('listening')
-          callbacksRef.current.onUntrustedTranscript?.()
         }
         return
       }
@@ -982,12 +987,12 @@ export function useRealtimeVoiceSpike(options: Options) {
         pendingAcousticInterruptRef.current = false
         pauseSpeech()
       }
-      // Trusted speech is the user's next turn; the paused reply is superseded
+      // Transcribed speech is the user's next turn; the paused reply is superseded
       // and the shared conversation decides whether that is a stop, a
       // replacement, or an answer.
       pausedSpeechRef.current = null
       callbacksRef.current.onUserTranscript(transcript)
-      // Attribute the trusted utterance to its turn so a mutation tool can only
+      // Attribute the transcribed utterance to its turn so a mutation tool can only
       // act on the current turn's actual words.
       const turnId = transcriptTurnId ?? activeTurnIdRef.current
       currentUtteranceRef.current = transcript
@@ -1160,7 +1165,7 @@ export function useRealtimeVoiceSpike(options: Options) {
       setError(realtimeError)
       setStatus('error')
     }
-  }, [armResponseWatchdog, clearResponseWatchdog, endTurnMeasurement, executeToolBatch, options.transportOnly, pauseSpeech, restartSileroShadow, resumePausedSpeech, send, sileroSnapshot, stop])
+  }, [armResponseWatchdog, clearResponseWatchdog, endTurnMeasurement, executeToolBatch, options.transportOnly, pauseSpeech, restartSileroShadow, resumePausedSpeech, send, sileroSnapshot, speakExact, stop])
 
   const start = useCallback(async (source = 'unknown') => {
     if (peerRef.current) return

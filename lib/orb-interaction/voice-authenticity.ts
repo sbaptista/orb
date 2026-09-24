@@ -1,10 +1,6 @@
 export type VoiceAcousticMetadata = Record<string, string | number | boolean | null>
 
-const MINIMUM_FRAMES = 20
 const FALLBACK_PROVIDER_CONFIDENCE = 0.8
-const SHORT_SPEECH_MINIMUM_POSITIVE_FRAMES = 2
-const SHORT_SPEECH_MINIMUM_POSITIVE_RATIO = 0.18
-const SHORT_SPEECH_MINIMUM_MAXIMUM_PROBABILITY = 0.65
 
 export function isStalledVoiceVerifier(metadata: VoiceAcousticMetadata) {
   return metadata.sileroShadowState === 'ready'
@@ -23,41 +19,21 @@ export function shouldRecoverVoiceVerifier(
     && transcriptionConfidence >= FALLBACK_PROVIDER_CONFIDENCE
 }
 
-/** Fail-closed boundary for transcripts entering the shared conversation. */
-export function isAuthenticVoiceTurn(
-  metadata: VoiceAcousticMetadata,
-  transcriptionConfidence: number | null,
-) {
-  // "Ready" describes successful initialization, not continued delivery of
-  // microphone frames. When that stream stalls, use the same conservative
-  // provider-confidence fallback as an unavailable classifier and let the
-  // caller restart Silero. Otherwise one stalled graph rejects every later
-  // utterance until the user manually restarts voice mode.
-  if (metadata.sileroShadowState === 'ready' && !isStalledVoiceVerifier(metadata)) {
-    const frameCount = typeof metadata.sileroFrameCount === 'number'
-      ? metadata.sileroFrameCount
-      : 0
-    const realStartCount = typeof metadata.sileroRealStartCount === 'number'
-      ? metadata.sileroRealStartCount
-      : 0
-    const speechObserved = metadata.sileroSpeechObserved === true
-    if (!speechObserved) return false
-    if (realStartCount > 0) return true
-    const positiveFrames = typeof metadata.sileroPositiveFrameCount === 'number'
-      ? metadata.sileroPositiveFrameCount
-      : 0
-    const positiveRatio = typeof metadata.sileroPositiveFrameRatio === 'number'
-      ? metadata.sileroPositiveFrameRatio
-      : 0
-    const maximumProbability = typeof metadata.sileroMaximumProbability === 'number'
-      ? metadata.sileroMaximumProbability
-      : 0
-    return positiveFrames >= (frameCount >= MINIMUM_FRAMES
-      ? SHORT_SPEECH_MINIMUM_POSITIVE_FRAMES + 1
-      : SHORT_SPEECH_MINIMUM_POSITIVE_FRAMES)
-      && positiveRatio >= SHORT_SPEECH_MINIMUM_POSITIVE_RATIO
-      && maximumProbability >= SHORT_SPEECH_MINIMUM_MAXIMUM_PROBABILITY
-  }
-  return transcriptionConfidence !== null
-    && transcriptionConfidence >= FALLBACK_PROVIDER_CONFIDENCE
+/**
+ * A completed, non-empty provider transcript is usable input. Silero remains
+ * diagnostic evidence and may be restarted when it disagrees, but it cannot
+ * discard words the provider has already transcribed. The caller handles
+ * failed and empty transcription events before reaching this boundary.
+ */
+export function isUsableProviderTranscript(transcript: string) {
+  return transcript.trim().length > 0
+}
+
+/**
+ * A lone character is evidence of a clipped transcription, not enough context
+ * to infer a command. In particular, "S." must never be promoted to Stop.
+ */
+export function isClearlyFragmentaryProviderTranscript(transcript: string) {
+  const spokenCharacters = transcript.normalize('NFKC').match(/[\p{L}\p{N}]/gu) ?? []
+  return spokenCharacters.length <= 1
 }

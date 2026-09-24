@@ -1,6 +1,6 @@
 'use server'
 
-import { getAuthContext } from '@/lib/auth'
+import { getAuthContext, requireAdmin } from '@/lib/auth'
 import {
   acknowledgeOrbConversationResponse,
   appendOrbInterrupt,
@@ -42,4 +42,27 @@ export async function interruptOrbConversation(input: {
   if (!isOrbInterruptReason(input.reason)) throw new Error('Invalid interrupt reason')
   const auth = await getAuthContext()
   await appendOrbInterrupt(auth, input)
+}
+
+export async function exportOrbConversationDiagnostics(conversationId?: string | null) {
+  const auth = await requireAdmin()
+  const conversationQuery = auth.admin
+    .from('orb_conversations')
+    .select('id, status, created_at, updated_at, closed_at')
+    .eq('user_id', auth.user.id)
+  const { data: conversation, error: conversationError } = conversationId
+    ? await conversationQuery.eq('id', conversationId).maybeSingle()
+    : await conversationQuery.order('updated_at', { ascending: false }).limit(1).maybeSingle()
+  if (conversationError) throw conversationError
+  if (!conversation) throw new Error('Conversation not found')
+
+  const [{ data: events, error: eventsError }, { data: batches, error: batchesError }, { data: acknowledgements, error: acknowledgementsError }] = await Promise.all([
+    auth.admin.from('orb_conversation_events').select('*').eq('conversation_id', conversation.id).order('sequence'),
+    auth.admin.from('orb_command_batches').select('*, orb_command_batch_items(*)').eq('conversation_id', conversation.id).order('created_at'),
+    auth.admin.from('orb_conversation_acknowledgements').select('client_id, event_id, acknowledged_at').eq('conversation_id', conversation.id).order('acknowledged_at'),
+  ])
+  if (eventsError) throw eventsError
+  if (batchesError) throw batchesError
+  if (acknowledgementsError) throw acknowledgementsError
+  return JSON.stringify({ exportedAt: new Date().toISOString(), conversation, events, batches, acknowledgements }, null, 2)
 }

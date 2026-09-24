@@ -8,9 +8,10 @@ import { headers } from 'next/headers'
 import { getAuthContext } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/audit'
 import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
+import { aggregateSummariesContext, calculateArithmetic, summarizeTodoFacts, unsupportedAggregateClaims } from '@/lib/orb-interaction/arithmetic'
 import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_FOUNDATIONAL_DEFINITIONS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, ORB_PROJECT_HEALTH_SUMMARY, ORB_NEXT_STEP_READ, buildVoicePrompt, buildVoiceConversationPrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildOrbScopePrompt, buildPreferencesPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, buildAdaptationsPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, getCapabilities, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
 // computeInsights suspended — code preserved in lib/insights.ts for future use
-import { resolveProjectByReference } from '@/lib/projects'
+import { resolveProjectByReference, suggestProjectByReference } from '@/lib/projects'
 import { isActive, isParked, STATUS_VOCABULARY } from '@/lib/status-groups'
 import { checkAndNotifyEscalation, snapshotUrgency } from '@/lib/push'
 import { createTicket, getTickets, notifyCreatedTicket } from '@/app/actions/ticket-actions'
@@ -42,8 +43,9 @@ import { routeOrbRequest, type OrbRouteRole } from '@/lib/orb-model/routing'
 import { checkOrbBudget, budgetBlockMessage } from '@/lib/orb-model/budget'
 import { classifyProviderFailure, notifyOrbIncident } from '@/lib/orb-model/incidents'
 import type { OrbModelProviderId } from '@/lib/orb-model/types'
-import { UNBACKED_MUTATION_CLAIM_REPLACEMENT, extractCitedCodes, hasCompletionLanguage, hasProposalLanguage, isFalseCompletionClaim, presentableLeadIn, presentableStreamingSpeech, stripHistoryProvenanceLabels, switchConfirmationSpeech } from '@/lib/orb-model/false-claim-guard'
-import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, pendingTodoUndercount, resolveActionSetReference, todoCode } from '@/lib/orb-model/context'
+import { UNBACKED_MUTATION_CLAIM_REPLACEMENT, extractCitedCodes, hasCompletionLanguage, hasProposalLanguage, isFalseCompletionClaim, isUnconfirmedPendingMutationClaim, presentableLeadIn, presentableStreamingSpeech, stripHistoryProvenanceLabels, switchConfirmationSpeech } from '@/lib/orb-model/false-claim-guard'
+import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, pendingTodoUndercount, resolveActionSetReference, todoCode } from '@/lib/orb-model/context'
+import { buildTodoStatusReport, isBroadProjectStateQuestion, isTodoStatusBreakdownRequest } from '@/lib/orb-interaction/status-report'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
 import { ORB_PRESENTABLE_QUERY_TOOL_NAMES, buildOrbQueryPresentation, orbQueryPresentationRequest } from '@/lib/orb-query-presentation'
 import { authorizesPendingMutation, buildPendingMutationConfirmationInstruction, isBareMutationDecline } from '@/lib/orb-model/mutation-authorization'
@@ -746,6 +748,18 @@ export async function orbConverse(req: OrbRequest) {
         : 'TICKET ACCESS: The CURRENT USER (not you — Orb has no admin/non-admin identity of its own, only the user does) is not an Admin, so query_tickets (the full admin tool, sees every ticket) is not available to them. But they CAN see tickets they filed themselves, including ones you filed on their behalf via create_ticket — use query_db with table="tickets" for this; RLS automatically scopes the results to their own reported_by rows, so no explicit filter is needed. When explaining this scoping, phrase it about THEM — "you\'re not an admin", "your account doesn\'t have admin access" — never "I am not an admin" or "I am non-admin"; you are never the one being permission-checked. Only refuse (and suggest checking with an admin) if they ask about tickets broadly across all users, or about another specific user\'s ticket.'
       const ticketStatusRoutingHint = buildTicketStatusRoutingHint(req.input, req.history, auth.isAdmin)
 
+      if (isTodoStatusBreakdownRequest(req.input)) {
+        const report = buildTodoStatusReport({
+          ...ctx,
+          currentUserId: auth.user.id,
+          input: req.input,
+        })
+        recordModelRequest(report.speech)
+        recordMetrics(report.speech.length)
+        await finish({ speech: report.speech, spokenText: report.spokenText, isStreaming: false })
+        return
+      }
+
       if (req.uiContext?.voiceMode && isBroadProjectStateQuestion(req.input)) {
         const speech = buildVoiceProjectStateSummary({ ...ctx, input: req.input })
         recordModelRequest(speech)
@@ -1109,6 +1123,9 @@ export async function orbConverse(req: OrbRequest) {
       let turnCount = 0
       const MAX_TURNS = 5
       let repairedNoToolMutationClaim = false
+      let repairedUnsupportedAggregate = false
+      const calculatedResults = new Set<number>()
+      let authoritativeToolContext = ''
       const toolErrors: string[] = []
       const heldTodoOperations: PendingMutationOperation[] = []
       const heldMutationCalls: HeldMutationCall[] = []
@@ -1136,7 +1153,7 @@ export async function orbConverse(req: OrbRequest) {
           ORB_FOUNDATIONAL_DEFINITIONS,
           `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,
           STATUS_VOCABULARY,
-          `The BACKLOG below gives a SUMMARY line for each project and then separates ACTIVE from PARKED. When answering counts or project-health questions, copy the SUMMARY counts exactly; do not recalculate by counting visible lines. When the user asks "how many tasks" or "my tasks" without specifying, report the active_count. If parked_count is above zero, mention it separately. If you list tasks, make sure the number you claim matches the number of listed items, or say "including" instead of implying a complete list.`,
+          `The BACKLOG below gives one authoritative SUMMARY per project, including total_count and every status subtotal. Copy those named values exactly; never derive one by counting visible lines. When the user asks "how many tasks" or "my tasks" without specifying, report active_count. If parked_count is above zero, mention it separately. If you list tasks, make sure the number you claim matches the number of listed items, or say "including" instead of implying a complete list. For every derived number not already supplied as an authoritative field—any sum, difference, product, ratio, percentage, average, subtotal, or total—call calculate and copy its result exactly. Never perform arithmetic in generated prose.`,
           buildUrgencyRules(),
           ORB_QUERY_ROUTING,
           repositoryAccessPrompt,
@@ -1409,10 +1426,35 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               .catch(err => console.error('[orbConverse] Push check failed:', err))
           }
           const parsed = extractInsight(stripHistoryProvenanceLabels(accumulatedSpeech))
+          const unsupportedAggregates = unsupportedAggregateClaims(
+            parsed.speech,
+            `${ctx.contextString}\n${authoritativeToolContext}`,
+            calculatedResults,
+          )
+          if (unsupportedAggregates.length > 0) {
+            console.error('[orbConverse] Blocked unsupported aggregate claims', unsupportedAggregates)
+            if (!repairedUnsupportedAggregate && turnCount < MAX_TURNS) {
+              repairedUnsupportedAggregate = true
+              accumulatedSpeech = ''
+              messages.push({
+                role: 'user',
+                content: `SYSTEM CORRECTION: Your response contains aggregate values without matching authoritative SUMMARY fields or calculate results: ${JSON.stringify(unsupportedAggregates)}. Copy an existing named SUMMARY value exactly, or call calculate for every derived value. Do not perform arithmetic yourself. The user cannot see this correction: return only the corrected answer.`,
+              })
+              stream.update({ speech: '', thought: 'Verifying numbers...', isStreaming: true })
+              continue
+            }
+            parsed.speech = 'I could not verify the aggregate values reliably, so I will not report an unsupported total.'
+            parsed.insight = undefined
+          }
           // Only a proposal stored in THIS request backs go-ahead wording. A
           // different pending batch does not: that let a model-written "test8"
           // proposal through while "Test eight" was the one stored.
-          if (isFalseCompletionClaim(parsed.speech, toolProducedCodes, historyCodes, hasActed, proposalStored)) {
+          const claimsUnconfirmedPendingMutation = isUnconfirmedPendingMutationClaim(
+            parsed.speech,
+            pendingMutation?.proposal_id,
+            committedProposalId,
+          )
+          if (claimsUnconfirmedPendingMutation || isFalseCompletionClaim(parsed.speech, toolProducedCodes, historyCodes, hasActed, proposalStored)) {
             console.error('[orbConverse] Blocked unverified completion claim', {
               toolProducedCodes: [...toolProducedCodes],
               citedCodes: [...extractCitedCodes(parsed.speech)],
@@ -1678,6 +1720,15 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             const requestedProject = input.product_code ? resolveReadProject(ctx.productList, input.product_code) : null
             let results = ctx.todoList.filter((t: any) => !requestedProject || t.product_id === requestedProject.id)
 
+            if (input.ownership_scope === 'current_user') {
+              const ownedProjectIds = new Set(
+                ctx.productList
+                  .filter((project: any) => project.created_by === auth.user.id)
+                  .map((project: any) => project.id),
+              )
+              results = results.filter((todo: any) => ownedProjectIds.has(todo.product_id))
+            }
+
             if (input.codes && Array.isArray(input.codes) && input.codes.length > 0) {
               const parsedCodes = input.codes.map((c: string) => {
                 const [pc, numStr] = String(c).toUpperCase().split('-')
@@ -1718,12 +1769,25 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             }
 
             const limit = input.max_results ?? 100
+            const aggregateFacts = results.map((todo: any) => ({
+              status: todo.status,
+              project: ctx.productList.find((project: any) => project.id === todo.product_id),
+            }))
+            const aggregateSummaries = summarizeTodoFacts(aggregateFacts)
             const returned = results.slice(0, limit).map((t: any) => {
               const proj = ctx.productList.find((pp: any) => pp.id === t.product_id)
               const ownerName = proj ? ctx.userMap.get(proj.created_by) : undefined
               return serialTodoFact({ ...t, projects: proj }, ownerName)
             })
-            output = { count: results.length, returned }
+            if (aggregateSummaries.length > 0) {
+              authoritativeToolContext += `\n${aggregateSummariesContext(aggregateSummaries)}`
+            }
+            output = {
+              count: results.length,
+              returned,
+              aggregate_summaries: aggregateSummaries,
+              truncated: returned.length < results.length,
+            }
             stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length} items` })
           } else if (tc.name === 'query_projects') {
             // In-memory over the already-loaded context (like query_todos) —
@@ -1857,7 +1921,10 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               // inconsistent with update_project/delete_project.
               const match = resolveProjectByReference<{ id: string; name: string; code?: string | null }>(ctx.productList, String(input.target))
               if (!match) {
-                output = { ok: false, error: `Project "${input.target}" not found or you don't have access to it.` }
+                const suggestion = suggestProjectByReference(ctx.productList, String(input.target))
+                output = suggestion
+                  ? { ok: false, needs_clarification: true, suggested_project: suggestion.name, _instruction: `The project name was not resolved. Ask one concise question: "Did you mean ${suggestion.name}?" Do not switch yet.` }
+                  : { ok: false, error: `Project "${input.target}" not found or you don't have access to it.` }
               } else {
                 hasActed = true
                 switchedProject = { id: match.id, name: match.name }
@@ -1980,6 +2047,15 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
                 output = { ok: true, code: project.code, dormant: !!input.dormant }
                 stream.update({ speech: accumulatedSpeech, thought: `${project.code} is now ${verb}`, refresh: true, mutationType: 'dormancy' })
               }
+            }
+          } else if (tc.name === 'calculate') {
+            try {
+              const expression = String(input.expression ?? '')
+              const result = calculateArithmetic(expression)
+              calculatedResults.add(result)
+              output = { expression, result }
+            } catch (error) {
+              output = { error: error instanceof Error ? error.message : 'Invalid arithmetic expression.' }
             }
           } else if (tc.name === 'query_db') {
             // ── Read-only database query via Supabase query builder ──

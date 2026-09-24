@@ -26,7 +26,8 @@ import { ORB_PENDING_RESTATEMENT_PREFIX, buildOrbConfirmationSpeechFromSummaries
 import { frameModelHistoryEntry, type OrbModelHistoryEntry } from '@/lib/orb-interaction/model-history'
 import { BARE_STOP_ACKNOWLEDGEMENT, isBareHaltCommand } from '@/lib/orb-interaction/interrupt-intent'
 import { withExplicitSpellingClarification, withHistorySpellingClarifications } from '@/lib/orb-interaction/spelled-identifiers'
-import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, isBroadProjectStateQuestion, pendingTodoUndercount, resolveActionSetReference, todoCode, type OrbActionSetReference } from '@/lib/orb-model/context'
+import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, pendingTodoUndercount, resolveActionSetReference, todoCode, type OrbActionSetReference } from '@/lib/orb-model/context'
+import { buildTodoStatusReport, isBroadProjectStateQuestion, isTodoStatusBreakdownRequest } from '@/lib/orb-interaction/status-report'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
 import { authorizesPendingMutation, buildPendingMutationConfirmationInstruction } from '@/lib/orb-model/mutation-authorization'
 import { getRuntimeOrbAiPolicy } from '@/lib/orb-model/runtime-policy'
@@ -334,6 +335,20 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
     const routeRole = autoRoute
       ? routeOrbRequest(input, true, true)
       : 'operational'
+    if (isTodoStatusBreakdownRequest(input)) {
+      const report = buildTodoStatusReport({
+        ...ctx,
+        currentUserId: auth.user.id,
+        input,
+      })
+      return NextResponse.json({
+        speech: report.speech,
+        toolCalls: [],
+        stopReason: 'deterministic_todo_status_report',
+        tokenUsage: { input_tokens: 0, output_tokens: 0 },
+        routeRole,
+      })
+    }
     if (voiceMode && isBroadProjectStateQuestion(input)) {
       return NextResponse.json({
         speech: buildVoiceProjectStateSummary({ ...ctx, input }),

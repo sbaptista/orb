@@ -172,6 +172,23 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
     }
   },
   {
+    "name": "calculate",
+    "description": "[Confidence: deterministic] Evaluate arithmetic deterministically. Use for every derived number, including sums, differences, products, ratios, percentages, averages, subtotals, and totals that are not already supplied as an authoritative field by another tool or the BACKLOG summary. Never perform arithmetic yourself. Supports decimal numbers, parentheses, +, -, *, /, and postfix %.",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expression": {
+          "type": "string",
+          "description": "Arithmetic expression using decimal numbers, parentheses, +, -, *, /, and postfix %."
+        }
+      },
+      "required": [
+        "expression"
+      ]
+    }
+  },
+  {
     "name": "query_repository",
     "description": "[Confidence: new] Inspect the Orb source repository. Use this for questions about implementation, components, routes, configuration, documentation, or actual code behavior. On localhost, source=local reads the current working tree and source=production reads the current Vercel deployment. In production, only source=production is available. Access is restricted to Admin, Super Admin, and Developer roles.",
     "input_schema": {
@@ -223,7 +240,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "query_todos",
-    "description": "[Confidence: well-tested] Find todos matching criteria and return the complete readable task record: identifiers/address, title, description, status, priority, project/owner, group, category, linked ticket, resolution notes, URL values, ordering, lifecycle timestamps, due date/timezone/city, reminder lead, delivery timestamp, and reminder-nudge dismissal. Server-owned identifiers, ordering, and timestamps are read-only. Prefer this first-class tool over query_db whenever its filters and returned fields can answer the request. Use code for single-todo lookup (e.g. \"ORB-73\"). Otherwise filters by status, product, priority, category, or text. Returns all statuses by default — pass status to narrow. Use category to find todos tagged with a specific category (e.g. \"Bug\") — a general bug-count question (\"how many bugs do I have\") should filter by category=\"Bug\", not guess from title text_match.",
+    "description": "[Confidence: well-tested] Find todos matching criteria and return the complete readable task record: identifiers/address, title, description, status, priority, project/owner, group, category, linked ticket, resolution notes, URL values, ordering, lifecycle timestamps, due date/timezone/city, reminder lead, delivery timestamp, and reminder-nudge dismissal. Server-owned identifiers, ordering, and timestamps are read-only. Prefer this first-class tool over query_db whenever its filters and returned fields can answer the request. Use code for single-todo lookup (e.g. \"ORB-73\"). Otherwise filters by status, product, ownership, priority, category, or text. Returns all statuses by default — pass status to narrow. For requests about \"my\" todos or projects, pass ownership_scope=\"current_user\"; admins otherwise search every visible project. Aggregate summaries cover the complete filtered result even when returned detail rows are truncated. Use category to find todos tagged with a specific category (e.g. \"Bug\") — a general bug-count question (\"how many bugs do I have\") should filter by category=\"Bug\", not guess from title text_match.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -233,6 +250,14 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         },
         "product_code": {
           "type": "string"
+        },
+        "ownership_scope": {
+          "type": "string",
+          "enum": [
+            "current_user",
+            "all_visible"
+          ],
+          "description": "Project ownership filter. Use current_user for \"my\" tasks/projects. Defaults to all_visible."
         },
         "status": {
           "type": "string"
@@ -908,6 +933,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
 ]
 
 export const ORB_TOOL_LABELS: Record<string, string> = {
+  calculate: 'Calculating...',
   create_todo: 'Creating task...',
   query_todos: 'Searching backlog...',
   query_projects: 'Checking projects...',

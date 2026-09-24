@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
 import { executeConfirmation, type ConfirmationPorts, type OrbMutationConfirmation } from '../lib/orb-operations/confirmation-execution'
 import { diagnosticRunCount } from '../lib/orb-interaction/diagnostic-policy'
+import { aggregateSummariesContext, ArithmeticError, calculateArithmetic, summarizeTodoFacts, unsupportedAggregateClaims } from '../lib/orb-interaction/arithmetic'
 import { evaluateMutationApproval, oncePerTurnApproval } from '../lib/orb-model/approval-policy'
 import { resolveReadProject, safeReadProjection, assertToolAccess } from '../lib/orb-interaction/read-policy'
 import { validateMemory } from '../lib/orb-interaction/memory-policy'
+import { buildTodoStatusReport, isBroadProjectStateQuestion, isTodoStatusBreakdownRequest } from '../lib/orb-interaction/status-report'
 import { DictationLifecycle, appendDictation } from '../lib/orb-interaction/dictation-lifecycle'
 import { validateSpelledProjectField } from '../lib/orb-interaction/spelled-identifiers'
 import {
@@ -14,13 +16,14 @@ import {
 } from '../lib/orb-interaction/types'
 import { comparableSpokenWords, toOrbSpokenText } from '../lib/orb-interaction/spoken-text'
 import { isBareHaltCommand, isBareStopCommand, isOrbInterruptReason, mergedTurnText, TURN_CANCELLING_INTERRUPT_REASONS } from '../lib/orb-interaction/interrupt-intent'
-import { hasCompletionLanguage, hasProposalLanguage, isFalseCompletionClaim, presentableLeadIn, presentableStreamingSpeech, stripHistoryProvenanceLabels, switchConfirmationSpeech, withoutOutcomeSentences } from '../lib/orb-model/false-claim-guard'
-import { isAuthenticVoiceTurn, isStalledVoiceVerifier, shouldRecoverVoiceVerifier } from '../lib/orb-interaction/voice-authenticity'
+import { hasCompletionLanguage, hasProposalLanguage, isFalseCompletionClaim, isUnconfirmedPendingMutationClaim, presentableLeadIn, presentableStreamingSpeech, stripHistoryProvenanceLabels, switchConfirmationSpeech, withoutOutcomeSentences } from '../lib/orb-model/false-claim-guard'
+import { isClearlyFragmentaryProviderTranscript, isStalledVoiceVerifier, isUsableProviderTranscript, shouldRecoverVoiceVerifier } from '../lib/orb-interaction/voice-authenticity'
 import { isBareMutationAffirmation, isTypoTolerantBareMutationAffirmation } from '../lib/orb-model/confirmation-grammar'
 import { deletedProjectIdsFromPendingMutation, projectsAfterConfirmedCreation, projectsAfterConfirmedDeletion, selectedProjectAfterMutationRefresh } from '../lib/orb-interaction/project-refresh'
 import { ORB_REALTIME_TRANSPORT_ONLY } from '../lib/orb-interaction/runtime'
 import { withExplicitSpellingClarification, withHistorySpellingClarifications } from '../lib/orb-interaction/spelled-identifiers'
 import { lastShownProposalMatches } from '../lib/orb-interaction/model-history'
+import { suggestProjectByReference } from '../lib/projects'
 import {
   ORB_PENDING_RESTATEMENT_PREFIX,
   buildOrbConfirmationSpeechFromSummaries,
@@ -39,6 +42,50 @@ const base = {
 } as const
 
 assert.equal(ORB_REALTIME_TRANSPORT_ONLY, true)
+assert.equal(calculateArithmetic('4 + 21 + 295'), 320)
+assert.equal(calculateArithmetic('(3 + 1) + (18 + 3) + 295'), 320)
+assert.equal(calculateArithmetic('25% * 80'), 20)
+assert.equal(calculateArithmetic('-2 + 3.5 * 4'), 12)
+assert.throws(() => calculateArithmetic('1 / 0'), ArithmeticError)
+assert.throws(() => calculateArithmetic('Math.random()'), ArithmeticError)
+const todoSummaries = summarizeTodoFacts([
+  { status: 'open', project: { code: 'ORB' } },
+  { status: 'in progress', project: { code: 'ORB' } },
+  { status: 'deferred', project: { code: 'ORB' } },
+  { status: 'on hold', project: { code: 'ORB' } },
+  { status: 'closed', project: { code: 'ORB' } },
+])
+assert.deepEqual(todoSummaries, [{ project: 'ORB', total_count: 5, open_count: 1, in_progress_count: 1, active_count: 2, deferred_count: 1, on_hold_count: 1, parked_count: 2, closed_count: 1 }])
+assert.deepEqual(unsupportedAggregateClaims('| Open | 1 |\n| Total | 5 |', aggregateSummariesContext(todoSummaries), new Set()), [])
+assert.equal(isBroadProjectStateQuestion('Give me a status update on Orb'), true)
+assert.equal(isBroadProjectStateQuestion('Show me a status breakdown for project Orb'), false)
+assert.equal(isTodoStatusBreakdownRequest('Show all Orb to-dos in a table by status or type'), true)
+const statusReport = buildTodoStatusReport({
+  currentUserId: 'user-1',
+  input: 'Show me a status breakdown for project Orb',
+  current: null,
+  productList: [{ id: 'orb', name: 'Orb', code: 'ORB', created_by: 'user-1' }],
+  todoList: [
+    { product_id: 'orb', status: 'open' },
+    { product_id: 'orb', status: 'in progress' },
+    { product_id: 'orb', status: 'deferred' },
+    { product_id: 'orb', status: 'on hold' },
+    { product_id: 'orb', status: 'closed' },
+  ],
+})
+assert.deepEqual(statusReport.rows, [{ project: 'Orb', open: 1, inProgress: 1, deferred: 1, onHold: 1, closed: 1, total: 5 }])
+assert.match(statusReport.speech, /\| Orb \| 1 \| 1 \| 1 \| 1 \| 1 \| 5 \|/)
+assert.match(statusReport.spokenText, /5 total to-dos/)
+const aggregateContext = 'SUMMARY: total_count=320; open_count=3; in_progress_count=1; active_count=4; deferred_count=18; on_hold_count=3; parked_count=21; closed_count=295'
+assert.deepEqual(unsupportedAggregateClaims('Orb has 320 total tasks (4 active, 21 parked, 295 closed).', aggregateContext, new Set()), [])
+assert.deepEqual(unsupportedAggregateClaims('Orb has 328 total tasks.', aggregateContext, new Set()), [{ label: 'total', value: 328 }])
+assert.deepEqual(unsupportedAggregateClaims('| Total | **328** |', aggregateContext, new Set()), [{ label: 'total', value: 328 }])
+assert.deepEqual(unsupportedAggregateClaims('| **Total** | **328** |', aggregateContext, new Set()), [{ label: 'total', value: 328 }])
+assert.deepEqual(unsupportedAggregateClaims('Orb has **328 total tasks**.', aggregateContext, new Set()), [{ label: 'total', value: 328 }])
+assert.deepEqual(unsupportedAggregateClaims('The completion rate is 92.2%.', aggregateContext, new Set([92.2])), [])
+assert.deepEqual(unsupportedAggregateClaims('The completion rate is 92.2%.', aggregateContext, new Set()), [{ label: 'percentage', value: 92.2 }])
+assert.deepEqual(unsupportedAggregateClaims('The average is 12.5.', aggregateContext, new Set([12.5])), [])
+assert.deepEqual(unsupportedAggregateClaims('The average is 12.5.', aggregateContext, new Set()), [{ label: 'average', value: 12.5 }])
 assert.equal(ORB_COMMAND_BATCH_TTL_MS, 30 * 60_000)
 assert.match(
   withExplicitSpellingClarification('Create test one, that\'s spelled T-E-S-T numeral one.'),
@@ -134,6 +181,9 @@ assert.equal(isFalseCompletionClaim('I\'m about to create a new project called "
 assert.equal(isFalseCompletionClaim('I\'m about to create a new project called "test1".\n\nWant me to go ahead?', noCodes, noCodes, false, true), false)
 assert.equal(isFalseCompletionClaim('Created the project "test1".', noCodes, noCodes, false, true), true)
 assert.equal(isFalseCompletionClaim('Created the project “test1”.', noCodes, noCodes, true, false), false)
+assert.equal(isUnconfirmedPendingMutationClaim('Deleted ORB-381.', 'pending-delete', null), true)
+assert.equal(isUnconfirmedPendingMutationClaim('Switched to Orb.', 'pending-delete', null), false)
+assert.equal(isUnconfirmedPendingMutationClaim('Deleted ORB-381.', 'pending-delete', 'pending-delete'), false)
 assert.equal(
   stripHistoryProvenanceLabels('[Server-issued database receipt: committed.]\nCreated the project “x”.'),
   'Created the project “x”.',
@@ -153,43 +203,14 @@ assert.notEqual(
   comparableSpokenWords('Deleted the project test8.'),
 )
 
-assert.equal(isAuthenticVoiceTurn({
-  sileroShadowState: 'ready',
-  sileroFrameCount: 40,
-  sileroSpeechObserved: true,
-  sileroRealStartCount: 1,
-}, 0.9), true)
-assert.equal(isAuthenticVoiceTurn({
-  sileroShadowState: 'ready',
-  sileroFrameCount: 30,
-  sileroSpeechObserved: true,
-  sileroRealStartCount: 0,
-  sileroPositiveFrameCount: 8,
-  sileroPositiveFrameRatio: 0.2667,
-  sileroMaximumProbability: 0.7289,
-}, 0.2), true)
-assert.equal(isAuthenticVoiceTurn({
-  sileroShadowState: 'ready',
-  sileroFrameCount: 40,
-  sileroSpeechObserved: false,
-  sileroRealStartCount: 0,
-}, 0.3), false)
-assert.equal(isAuthenticVoiceTurn({
-  sileroShadowState: 'ready',
-  sileroFrameCount: 68,
-  sileroSpeechObserved: true,
-  sileroRealStartCount: 0,
-  sileroPositiveFrameCount: 8,
-  sileroPositiveFrameRatio: 0.1176,
-  sileroMaximumProbability: 0.7,
-}, 0.33), false)
-assert.equal(isAuthenticVoiceTurn({ sileroShadowState: 'failed' }, null), false)
-assert.equal(isAuthenticVoiceTurn({
-  sileroShadowState: 'ready',
-  sileroFrameCount: 8,
-  sileroSpeechObserved: false,
-  sileroRealStartCount: 0,
-}, 0.99), false)
+assert.equal(isUsableProviderTranscript('How many closed to-dos are in Orb?'), true)
+assert.equal(isUsableProviderTranscript('  continue  '), true)
+assert.equal(isUsableProviderTranscript(''), false)
+assert.equal(isUsableProviderTranscript('   '), false)
+assert.equal(isClearlyFragmentaryProviderTranscript('S.'), true)
+assert.equal(isClearlyFragmentaryProviderTranscript(' I '), true)
+assert.equal(isClearlyFragmentaryProviderTranscript('No.'), false)
+assert.equal(isClearlyFragmentaryProviderTranscript('OK'), false)
 // A detector can initialize successfully and later stop receiving frames. A
 // high-confidence provider transcript then uses the existing unavailable-VAD
 // fallback while the client restarts Silero; weak transcripts still fail.
@@ -202,9 +223,6 @@ const stalledVerifier = {
   sileroRealStartCount: 0,
 } as const
 assert.equal(isStalledVoiceVerifier(stalledVerifier), true)
-assert.equal(isAuthenticVoiceTurn(stalledVerifier, 0.91), true)
-assert.equal(isAuthenticVoiceTurn(stalledVerifier, 0.79), false)
-assert.equal(isAuthenticVoiceTurn(stalledVerifier, null), false)
 assert.equal(isStalledVoiceVerifier({
   ...stalledVerifier,
   sileroFrameStreamFresh: true,
@@ -368,6 +386,10 @@ assert.equal(isBareHaltCommand('wait, wait'), true)
 assert.equal(isBareHaltCommand('No.'), false)
 assert.equal(isBareHaltCommand('Nope'), false)
 assert.equal(mergedTurnText('Now create test 9.', ' Let me spell that: T-E-S-T numeral 9. '), 'Now create test 9. Let me spell that: T-E-S-T numeral 9.')
+assert.equal(mergedTurnText('Switch to the Orb project.', 'Switch to the Orb project.'), 'Switch to the Orb project.')
+assert.equal(mergedTurnText('Okay, switch to Orb.', 'Okay, switch to Orb. Now list tasks.'), 'Okay, switch to Orb. Now list tasks.')
+assert.equal(suggestProjectByReference([{ name: 'Shunyata', code: 'SHUNYATA' }, { name: 'Orb', code: 'ORB' }], 'Jinata')?.name, 'Shunyata')
+assert.equal(suggestProjectByReference([{ name: 'Alpha' }, { name: 'Alphi' }], 'Alphx'), null)
 
 // A turn merged into its successor hides its fragment but keeps any receipt.
 const mergeEvents: OrbConversationEvent[] = [

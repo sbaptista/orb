@@ -141,6 +141,7 @@ function generate() {
 export const ORB_TOOLS: Anthropic.Tool[] = ${JSON.stringify(tools, null, 2)}
 
 export const ORB_TOOL_LABELS: Record<string, string> = {
+  calculate: 'Calculating...',
   create_todo: 'Creating task...',
   query_todos: 'Searching backlog...',
   query_projects: 'Checking projects...',
