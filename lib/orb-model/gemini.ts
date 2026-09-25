@@ -13,7 +13,9 @@ const GEMINI_3_1_PRO_RATE_SNAPSHOT: OrbModelRateSnapshot = {
 
 type GeminiPart = {
   text?: string
-  functionCall?: { name?: string; args?: Record<string, unknown> }
+  thoughtSignature?: string
+  functionCall?: { id?: string; name?: string; args?: Record<string, unknown> }
+  functionResponse?: { id?: string; name: string; response: Record<string, unknown> }
 }
 
 type GeminiResponse = {
@@ -34,11 +36,74 @@ function numberOrZero(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
-function toGeminiContents(messages: Array<{ role: 'user' | 'assistant'; content: unknown }>) {
-  return messages.map(message => ({
-    role: message.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: typeof message.content === 'string' ? message.content : JSON.stringify(message.content) }],
-  }))
+function toolResponseContent(content: unknown): Record<string, unknown> {
+  if (typeof content !== 'string') return { result: content }
+  try {
+    const parsed = JSON.parse(content)
+    return isRecord(parsed) ? parsed : { result: parsed }
+  } catch {
+    return { result: content }
+  }
+}
+
+export function toGeminiContents(messages: Array<{ role: 'user' | 'assistant'; content: unknown }>) {
+  const toolNames = new Map<string, string>()
+  return messages.flatMap(message => {
+    if (typeof message.content === 'string') {
+      return [{ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.content }] }]
+    }
+    if (!Array.isArray(message.content)) {
+      return [{ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: JSON.stringify(message.content) }] }]
+    }
+
+    const parts: GeminiPart[] = []
+    for (const block of message.content) {
+      if (!isRecord(block)) continue
+      if (block.type === 'text' && typeof block.text === 'string') {
+        parts.push({
+          text: block.text,
+          ...(typeof block.thought_signature === 'string'
+            ? { thoughtSignature: block.thought_signature }
+            : {}),
+        })
+      } else if (
+        message.role === 'assistant'
+        && block.type === 'tool_use'
+        && typeof block.id === 'string'
+        && typeof block.name === 'string'
+      ) {
+        toolNames.set(block.id, block.name)
+        parts.push({
+          ...(typeof block.thought_signature === 'string'
+            ? { thoughtSignature: block.thought_signature }
+            : {}),
+          functionCall: {
+            id: block.id,
+            name: block.name,
+            args: isRecord(block.input) ? block.input : {},
+          },
+        })
+      } else if (
+        message.role === 'user'
+        && block.type === 'tool_result'
+        && typeof block.tool_use_id === 'string'
+      ) {
+        const name = toolNames.get(block.tool_use_id)
+        if (name) {
+          parts.push({
+            functionResponse: {
+              id: block.tool_use_id,
+              name,
+              response: toolResponseContent(block.content),
+            },
+          })
+        }
+      }
+    }
+    return parts.length > 0
+      ? [{ role: message.role === 'assistant' ? 'model' : 'user', parts }]
+      : []
+  })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -182,10 +247,35 @@ export async function completeGeminiEvaluation(options: {
   }
 
   const parts = payload.candidates?.[0]?.content?.parts ?? []
-  const toolCalls = parts.flatMap(part => part.functionCall?.name
-    ? [{ name: part.functionCall.name, params: part.functionCall.args ?? {} }]
+  const toolCalls = parts.flatMap((part, index) => part.functionCall?.name
+    ? [{
+        id: part.functionCall.id ?? `gemini-tool-${index}`,
+        name: part.functionCall.name,
+        params: part.functionCall.args ?? {},
+        thoughtSignature: part.thoughtSignature,
+      }]
     : [])
   const speech = parts.map(part => part.text ?? '').join('')
+  const assistantContent: Array<Record<string, unknown>> = []
+  let toolIndex = 0
+  for (const part of parts) {
+    if (part.text !== undefined) {
+      assistantContent.push({
+        type: 'text',
+        text: part.text,
+        ...(part.thoughtSignature ? { thought_signature: part.thoughtSignature } : {}),
+      })
+    } else if (part.functionCall?.name) {
+      const toolCall = toolCalls[toolIndex++]
+      assistantContent.push({
+        type: 'tool_use',
+        id: toolCall.id,
+        name: toolCall.name,
+        input: toolCall.params,
+        ...(toolCall.thoughtSignature ? { thought_signature: toolCall.thoughtSignature } : {}),
+      })
+    }
+  }
   const modelUsage = normalizeGeminiUsage(payload.usageMetadata, {
     model,
     source: options.source ?? 'eval',
@@ -196,6 +286,10 @@ export async function completeGeminiEvaluation(options: {
   return {
     speech,
     toolCalls,
+    assistantMessage: {
+      role: 'assistant' as const,
+      content: assistantContent,
+    },
     stopReason: payload.candidates?.[0]?.finishReason ?? 'unknown',
     tokenUsage: {
       input_tokens: modelUsage.inputTokens,

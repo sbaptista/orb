@@ -13,6 +13,8 @@ export type OrbAiPolicy = {
   strategicModel: string
   evaluationProvider: OrbModelProviderId
   evaluationModel: string
+  voiceProvider: OrbModelProviderId
+  voiceModel: string
   monthlyBudgetUsd: number
   strategicBudgetUsd: number
   operationalBudgetUsd: number
@@ -54,6 +56,8 @@ export const DEFAULT_ORB_AI_POLICY: OrbAiPolicy = {
   strategicModel: 'gemini-3.1-pro-preview',
   evaluationProvider: 'anthropic',
   evaluationModel: 'claude-haiku-4-5',
+  voiceProvider: 'openai',
+  voiceModel: 'gpt-realtime-2.1-mini',
   monthlyBudgetUsd: 40,
   strategicBudgetUsd: 24,
   operationalBudgetUsd: 16,
@@ -71,4 +75,5 @@ export const ORB_MODEL_OPTIONS = {
   operational: getOrbModelOptions('operational'),
   strategic: getOrbModelOptions('strategic'),
   evaluation: getOrbModelOptions('evaluation'),
+  voice: getOrbModelOptions('voice'),
 } as const

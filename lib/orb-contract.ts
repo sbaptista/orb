@@ -240,7 +240,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
   },
   {
     "name": "query_todos",
-    "description": "[Confidence: well-tested] Find todos matching criteria and return the complete readable task record: identifiers/address, title, description, status, priority, project/owner, group, category, linked ticket, resolution notes, URL values, ordering, lifecycle timestamps, due date/timezone/city, reminder lead, delivery timestamp, and reminder-nudge dismissal. Server-owned identifiers, ordering, and timestamps are read-only. Prefer this first-class tool over query_db whenever its filters and returned fields can answer the request. Use code for single-todo lookup (e.g. \"ORB-73\"). Otherwise filters by status, product, ownership, priority, category, or text. Returns all statuses by default — pass status to narrow. For requests about \"my\" todos or projects, pass ownership_scope=\"current_user\"; admins otherwise search every visible project. Aggregate summaries cover the complete filtered result even when returned detail rows are truncated. Use category to find todos tagged with a specific category (e.g. \"Bug\") — a general bug-count question (\"how many bugs do I have\") should filter by category=\"Bug\", not guess from title text_match.",
+    "description": "[Confidence: well-tested] Find todos matching criteria and return the complete readable task record: identifiers/address, title, description, status, priority, project/owner, group, category, linked ticket, resolution notes, URL values, ordering, lifecycle timestamps, due date/timezone/city, reminder lead, delivery timestamp, and reminder-nudge dismissal. Server-owned identifiers, ordering, and timestamps are read-only. Prefer this first-class tool over query_db whenever its filters and returned fields can answer the request. Use code for single-todo lookup (e.g. \"ORB-73\"). Otherwise filters by status, product, ownership, priority, category, or text. Returns all statuses by default — pass status to narrow. An unqualified list defaults to the selected project. For an explicit cross-project request about \"my\" todos or projects, pass ownership_scope=\"current_user\"; use all_visible only when the user explicitly asks for every accessible project. Aggregate summaries cover the complete filtered result even when returned detail rows are truncated. Use category to find todos tagged with a specific category (e.g. \"Bug\") — a general bug-count question (\"how many bugs do I have\") should filter by category=\"Bug\", not guess from title text_match.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -257,7 +257,7 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
             "current_user",
             "all_visible"
           ],
-          "description": "Project ownership filter. Use current_user for \"my\" tasks/projects. Defaults to all_visible."
+          "description": "Explicit cross-project ownership filter. Use current_user for \"my tasks across my projects\" and all_visible only for every accessible project. Omit for the selected project."
         },
         "status": {
           "type": "string"
@@ -274,6 +274,26 @@ export const ORB_TOOLS: Anthropic.Tool[] = [
         },
         "max_results": {
           "type": "integer"
+        },
+        "sort_by": {
+          "type": "string",
+          "enum": [
+            "priority",
+            "created_at",
+            "updated_at",
+            "closed_at",
+            "due_at",
+            "todo_number"
+          ],
+          "description": "Sort field. Use closed_at descending for most-recent/LIFO closed todos, created_at descending for newest-created todos, and updated_at descending for most recently changed todos. Defaults to priority ascending."
+        },
+        "sort_direction": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "description": "Sort direction. Use desc for most recent, newest, or LIFO; asc for oldest or FIFO."
         },
         "format": {
           "type": "string",

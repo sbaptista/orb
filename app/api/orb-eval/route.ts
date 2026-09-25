@@ -6,8 +6,8 @@ import path from 'path'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canRoleInspectRepository } from '@/lib/repository-access'
-import { ORB_TOOLS, ORB_TOOL_LABELS } from '@/lib/orb-contract'
-import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_FOUNDATIONAL_DEFINITIONS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, ORB_PROJECT_HEALTH_SUMMARY, ORB_NEXT_STEP_READ, buildVoicePrompt, buildVoiceConversationPrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildOrbScopePrompt, buildPreferencesPrompt, buildAdaptationsPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT, VALID_PREFERENCE_KEYS } from '@/lib/orb-prompt'
+import { ORB_TOOLS } from '@/lib/orb-contract'
+import { ORB_PRINCIPLES, ORB_RESOLUTION_LAWS, ORB_FOUNDATIONAL_DEFINITIONS, ORB_NO_SESSION_RECORD_NOTE, ORB_ATTRIBUTION, ORB_MUTATION_VERIFICATION, ORB_QUERY_ROUTING, ORB_SCOPE_RULES, ORB_SESSION_ADAPTATION, ORB_PREFERENCE_DISCOVERY, ORB_COMMITMENT_INTEGRITY, ORB_SELF_DIAGNOSTICS, ORB_PROJECT_HEALTH_SUMMARY, ORB_NEXT_STEP_READ, buildVoicePrompt, buildVoiceConversationPrompt, buildFeedbackTonePrompt, buildProactiveTonePrompt, buildCoachingPrompt, buildUrgencyRules, buildOrbScopePrompt, buildPreferencesPrompt, buildAdaptationsPrompt, buildObservationsPrompt, buildMutationApprovalPrompt, buildMemoryPrompt, ORB_MEMORY_BEHAVIOR, ORB_STRATEGIC_REASONING, ORB_ADAPTATION_BEHAVIOR, ORB_ADAPTATION_TOOL, ORB_PREFERENCE_TOOLS, ORB_MEMORY_TOOLS, ORB_CAPABILITIES_TOOL, ORB_DEV_CHANNEL_TOOL, ORB_DEV_CHANNEL_PROMPT } from '@/lib/orb-prompt'
 import { STATUS_VOCABULARY } from '@/lib/status-groups'
 import { DB_SCHEMA } from '@/lib/db-schema'
 import { CHANGELOG } from '@/lib/changelog'
@@ -26,8 +26,9 @@ import { ORB_PENDING_RESTATEMENT_PREFIX, buildOrbConfirmationSpeechFromSummaries
 import { frameModelHistoryEntry, type OrbModelHistoryEntry } from '@/lib/orb-interaction/model-history'
 import { BARE_STOP_ACKNOWLEDGEMENT, isBareHaltCommand } from '@/lib/orb-interaction/interrupt-intent'
 import { withExplicitSpellingClarification, withHistorySpellingClarifications } from '@/lib/orb-interaction/spelled-identifiers'
-import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, pendingTodoUndercount, resolveActionSetReference, todoCode, type OrbActionSetReference } from '@/lib/orb-model/context'
-import { buildTodoStatusReport, isBroadProjectStateQuestion, isTodoStatusBreakdownRequest } from '@/lib/orb-interaction/status-report'
+import { buildOrbContext, buildTicketStatusRoutingHint, pendingTodoUndercount, resolveActionSetReference, todoCode, type OrbActionSetReference } from '@/lib/orb-model/context'
+import { buildTodoStatusReport, isTodoStatusBreakdownRequest } from '@/lib/orb-interaction/status-report'
+import { ORB_TODO_FULL_SELECT } from '@/lib/orb-operations/todo-facts'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
 import { authorizesPendingMutation, buildPendingMutationConfirmationInstruction } from '@/lib/orb-model/mutation-authorization'
 import { getRuntimeOrbAiPolicy } from '@/lib/orb-model/runtime-policy'
@@ -148,12 +149,21 @@ export async function POST(request: NextRequest) {
     admin,
   }
 
-  const ctx = await buildOrbContext(admin, auth)
+  const { data: selectedProjectForContext, error: selectedProjectError } = productCode
+    ? await admin
+        .from('projects')
+        .select('id')
+        .ilike('code', productCode)
+        .eq('is_dormant', false)
+        .is('deleted_at', null)
+        .maybeSingle()
+    : { data: null, error: null }
+  if (selectedProjectError) throw new Error(selectedProjectError.message)
+  const ctx = await buildOrbContext(admin, auth, { currentProductId: selectedProjectForContext?.id ?? null })
   const productList = ctx.productList
   const todoList = ctx.todoList
   const statusList = ctx.statusList
   const priorityList = ctx.priorityList
-  const knowledgeList = ctx.knowledgeList
   const preferenceList = ctx.preferenceList
   const behaviorRuleList = ctx.behaviorRuleList
   // Force mutation_approval to allow by default in evaluation to test tool calls directly.
@@ -229,7 +239,7 @@ export async function POST(request: NextRequest) {
     ORB_FOUNDATIONAL_DEFINITIONS,
     `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,
     STATUS_VOCABULARY,
-    `The BACKLOG below gives a SUMMARY line for each project and then separates ACTIVE from PARKED. When answering counts or project-health questions, copy the SUMMARY counts exactly; do not recalculate by counting visible lines. When the user asks "how many tasks" or "my tasks" without specifying, report the active_count. If parked_count is above zero, mention it separately. If you list tasks, make sure the number you claim matches the number of listed items, or say "including" instead of implying a complete list.`,
+    `The WORKING CONTEXT below is intentionally compact in production: accessible active project names/codes/owners plus the current project's complete open and in-progress todos. Eval fixtures may supply authoritative SUMMARY fields; copy those fields exactly when present. Otherwise use the relevant read tool for omitted facts and never treat absence as proof that a record does not exist.`,
     buildUrgencyRules(),
     ORB_QUERY_ROUTING,
     `REPOSITORY ACCESS: You may inspect the local working tree with query_repository source="local", or the current Vercel deployment with source="production".`,
@@ -269,11 +279,8 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
   const voiceContextPrompt = voiceMode
     ? buildVoiceConversationPrompt({ ttsProvider, ttsModel, ttsVoiceId })
     : ''
-  const backlogPrompt = `BACKLOG:\n${contextString}`
-  const knowledgePrompt = `KNOWLEDGE BASE (Recent):\n${knowledgeList.slice(0, 5).map((k: any) => {
-      const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
-      return `- [${k.projects?.name ?? k.projects?.code ?? '?'}] ${k.title}${tags}: ${k.content.slice(0, 100)}...`
-    }).join('\n')}`
+  const backlogPrompt = `WORKING CONTEXT:\n${contextString}`
+  const knowledgePrompt = `KNOWLEDGE ACCESS: Knowledge entries are loaded only through search_knowledge when the request needs them.`
   const whatsNewPrompt = `WHAT'S NEW:\n${CHANGELOG.slice(0, 3).map(r => `${r.version} (${r.date}):\n${r.changes.map(c => `  - ${c}`).join('\n')}`).join('\n\n')}`
   const mutationApprovalPrompt = buildMutationApprovalPrompt(preferenceList)
   const behaviorRulesPrompt = behaviorRuleList.length > 0
@@ -336,8 +343,16 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       ? routeOrbRequest(input, true, true)
       : 'operational'
     if (isTodoStatusBreakdownRequest(input)) {
+      const { data: completeTodoList, error: completeTodoError } = await admin
+        .from('todos')
+        .select(ORB_TODO_FULL_SELECT)
+        .is('deleted_at', null)
+        .is('projects.deleted_at', null)
+        .eq('projects.is_dormant', false)
+      if (completeTodoError) throw new Error(completeTodoError.message)
       const report = buildTodoStatusReport({
         ...ctx,
+        todoList: completeTodoList ?? [],
         currentUserId: auth.user.id,
         input,
       })
@@ -345,15 +360,6 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         speech: report.speech,
         toolCalls: [],
         stopReason: 'deterministic_todo_status_report',
-        tokenUsage: { input_tokens: 0, output_tokens: 0 },
-        routeRole,
-      })
-    }
-    if (voiceMode && isBroadProjectStateQuestion(input)) {
-      return NextResponse.json({
-        speech: buildVoiceProjectStateSummary({ ...ctx, input }),
-        toolCalls: [],
-        stopReason: 'deterministic_voice_project_state',
         tokenUsage: { input_tokens: 0, output_tokens: 0 },
         routeRole,
       })
@@ -425,7 +431,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
       ? renderStrategicEvaluationPrompt(strategicContextPacket)
       : null
     const evalSystemPrompt = isStrategicEvaluation
-      ? frozenStrategicPrompt ?? `${systemPrompt}\n\nEVALUATION MODE: This is a strategic-quality comparison. The supplied BACKLOG, audit context, memories, and preferences are complete for this answer. Do not call tools. Analyze the supplied evidence directly, state uncertainty when warranted, and give your best strategic response.`
+      ? frozenStrategicPrompt ?? `${systemPrompt}\n\nEVALUATION MODE: This is a strategic-quality comparison. The supplied evaluation evidence is complete for this answer. Do not call tools. Analyze that evidence directly, state uncertainty when warranted, and give your best strategic response.`
       : systemPrompt
     const confirmMutationAllowed = isStrategicEvaluation
       ? false

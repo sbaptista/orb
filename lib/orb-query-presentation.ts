@@ -21,6 +21,48 @@ export type OrbQueryDisplayPacket = Record<string, unknown> & {
   offset?: number
 }
 
+export type DirectQueryPresentationMode = 'count' | 'records'
+
+/** Recognize a request whose desired result is the trusted data itself. */
+export function directQueryPresentationMode(input: string): DirectQueryPresentationMode | null {
+  const normalized = input.trim()
+  if (!normalized) return null
+  if (/\b(?:why|explain|recommend|suggest|should|analy[sz]e|compare|interpret|evaluate|assess|summarize)\b/i.test(normalized)) {
+    return null
+  }
+  if (/\b(?:how many|number of|count(?: of)?|total number of)\b/i.test(normalized)) return 'count'
+  if (/\b(?:list|show|display|see|give me|what are|which are)\b/i.test(normalized)) return 'records'
+  return null
+}
+
+export function directQueryPresentationModeForTurn(
+  input: string,
+  history: Array<{ role: 'user' | 'assistant'; text: string }> = [],
+): DirectQueryPresentationMode | null {
+  const direct = directQueryPresentationMode(input)
+  if (direct) return direct
+
+  const confirmsClarification = /\b(?:yes|yeah|yep|correct|right|i meant)\b/i.test(input)
+  if (!confirmsClarification) return null
+  const latestAssistantIndex = history.findLastIndex(message => message.role === 'assistant')
+  if (latestAssistantIndex < 0 || !/\bdid you mean\b/i.test(history[latestAssistantIndex].text)) return null
+  for (let index = latestAssistantIndex - 1; index >= 0; index -= 1) {
+    if (history[index].role !== 'user') continue
+    return directQueryPresentationMode(history[index].text)
+  }
+  return null
+}
+
+export function renderDirectQueryCount(packet: OrbQueryDisplayPacket | null | undefined): string | null {
+  if (!packet || typeof packet.count !== 'number') return null
+  return `${packet.count} matching result${packet.count === 1 ? '' : 's'}.`
+}
+
+export function directQuerySpokenSummary(packet: OrbQueryDisplayPacket | null | undefined): string | undefined {
+  if (!packet || typeof packet.count !== 'number') return undefined
+  return `${packet.count} matching result${packet.count === 1 ? '' : 's'}. I put the details on screen.`
+}
+
 /** Shared by the serial and Realtime tool inventories. Retrieval stays
  * independent of presentation: these arguments select only how trusted rows
  * are shown after the database command returns. */
@@ -110,6 +152,12 @@ function fieldKeys(rows: DisplayRow[]) {
   return keys
 }
 
+function defaultDisplayFields(available: string[]) {
+  const preferred = ['code', 'title', 'name', 'summary', 'status', 'project', 'owner', 'type']
+  const selected = preferred.filter(field => available.includes(field)).slice(0, 5)
+  return selected.length > 0 ? selected : available.slice(0, 5)
+}
+
 function resolveField(requested: string, available: string[]) {
   const wanted = normalizedField(requested)
   const exact = available.find(field => normalizedField(field) === wanted)
@@ -181,7 +229,8 @@ export function buildOrbQueryPresentation(
   const requested = requestsAllFields ? [] : rawRequested
   const resolved = requested.length
     ? requested.map(field => ({ requested: field, resolved: resolveField(field, available) }))
-    : available.map(field => ({ requested: field, resolved: field }))
+    : (requestsAllFields ? available : defaultDisplayFields(available))
+      .map(field => ({ requested: field, resolved: field }))
   const fields = resolved.flatMap(field => field.resolved ? [field.resolved] : [])
   if (fields.length === 0) return null
 

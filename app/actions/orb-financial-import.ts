@@ -26,7 +26,6 @@ export type FinancialModelOption = {
   label: string
   poolKey: string
   poolAvailable: boolean
-  experimental: boolean
 }
 
 export type FinancialImportSourceRow = {
@@ -148,7 +147,6 @@ export async function getFinancialImportSetup(): Promise<{ pools: FinancialPoolO
       label: option.label,
       poolKey: option.fundingPoolKey,
       poolAvailable: poolKeys.has(option.fundingPoolKey),
-      experimental: Boolean(option.experimental),
     })).sort((a, b) => a.label.localeCompare(b.label)),
   }
 }

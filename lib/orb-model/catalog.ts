@@ -11,13 +11,11 @@ export type OrbModelDefinition = {
   toolCapable: boolean
   /** Accounting pool used when a provider statement row is assigned to this model. */
   fundingPoolKey: string
-  experimental?: boolean
 }
 
-// Production entries have a production adapter, normalized telemetry, and a
-// completed evaluation decision. An explicitly experimental entry may appear
-// in local development while those gates are being run, but is filtered out of
-// production Settings and policy validation until promoted.
+// Role membership means the model has an Orb adapter for that execution
+// contract. Qualification evidence belongs in the request/eval ledgers rather
+// than a catalog flag that silently hides a model by environment.
 export const ORB_MODEL_CATALOG: readonly OrbModelDefinition[] = [
   {
     provider: 'anthropic',
@@ -31,27 +29,38 @@ export const ORB_MODEL_CATALOG: readonly OrbModelDefinition[] = [
     provider: 'google',
     model: 'gemini-3.1-pro-preview',
     label: 'Gemini 3.1 Pro Preview',
-    roles: ['strategic'],
-    toolCapable: false,
+    roles: ['operational', 'strategic', 'evaluation'],
+    toolCapable: true,
     fundingPoolKey: 'google_cloud_historical',
   },
   {
     provider: 'moonshot',
     model: 'kimi-k3',
-    label: 'Kimi K3 — Experimental',
+    label: 'Kimi K3',
     roles: ['operational', 'strategic', 'evaluation'],
     toolCapable: true,
     fundingPoolKey: 'moonshot_api',
-    experimental: true,
+  },
+  {
+    provider: 'openai',
+    model: 'gpt-realtime-2.1-mini',
+    label: 'GPT Realtime 2.1 Mini',
+    roles: ['voice'],
+    toolCapable: false,
+    fundingPoolKey: 'openai_api',
+  },
+  {
+    provider: 'openai',
+    model: 'gpt-realtime-2.1',
+    label: 'GPT Realtime 2.1',
+    roles: ['voice'],
+    toolCapable: false,
+    fundingPoolKey: 'openai_api',
   },
 ]
 
-function isAvailable(model: OrbModelDefinition): boolean {
-  return !model.experimental || process.env.NODE_ENV !== 'production'
-}
-
 export function getOrbModelOptions(role: OrbModelCatalogRole): readonly OrbModelDefinition[] {
-  return ORB_MODEL_CATALOG.filter(model => isAvailable(model) && model.roles.includes(role))
+  return ORB_MODEL_CATALOG.filter(model => model.roles.includes(role))
 }
 
 export function getOrbModelDefinition(provider: string, model: string): OrbModelDefinition | undefined {
@@ -60,5 +69,5 @@ export function getOrbModelDefinition(provider: string, model: string): OrbModel
 
 export function supportsOrbRole(provider: string, model: string, role: OrbModelCatalogRole): boolean {
   const definition = getOrbModelDefinition(provider, model)
-  return definition ? isAvailable(definition) && definition.roles.includes(role) : false
+  return definition ? definition.roles.includes(role) : false
 }

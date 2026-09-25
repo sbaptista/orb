@@ -254,11 +254,13 @@ export async function beginOrbConversationTurn(
     userEventId: string
     modality: OrbInputModality
     text: string
+    onStage?: (name: string) => void
   },
 ) {
   const text = input.text.trim()
   if (!text) throw new Error('A user turn cannot be empty')
   const conversation = await getOrCreateOrbConversation(auth, input.conversationId)
+  input.onStage?.('conversation_resolved')
   const userEvent = await appendOrbConversationEvent(auth, {
     id: input.userEventId,
     conversationId: conversation.id,
@@ -269,7 +271,9 @@ export async function beginOrbConversationTurn(
     visibility: 'visible',
     payload: { text },
   })
+  input.onStage?.('user_event_persisted')
   const events = await loadOrbConversationEvents(auth, conversation.id)
+  input.onStage?.('conversation_history_loaded')
   const existingResponse = events.find(event =>
     event.turnId === input.turnId
     && event.eventType === 'assistant_message'
@@ -603,20 +607,23 @@ export async function isOrbTurnInterrupted(
   conversationId: string,
   turnId: string,
 ) {
-  const conversation = await ownedActiveConversation(auth, conversationId)
-  if (!conversation) return true
-  const { count, error } = await auth.admin
-    .from('orb_conversation_events')
-    .select('id', { count: 'exact', head: true })
-    .eq('conversation_id', conversationId)
+  // Read the conversation and matching interrupts through one embedded query.
+  // Checking status matters because clearing a transcript closes the
+  // conversation without requiring a separate interrupt row.
+  const { data, error } = await auth.admin
+    .from('orb_conversations')
+    .select('status, orb_conversation_events(id)')
+    .eq('id', conversationId)
     .eq('user_id', auth.user.id)
-    .eq('turn_id', turnId)
-    .eq('event_type', 'interrupt')
+    .eq('orb_conversation_events.turn_id', turnId)
+    .eq('orb_conversation_events.event_type', 'interrupt')
     // Legacy acoustic `barge_in` rows and `exit_voice` do not cancel a turn;
     // see lib/orb-interaction/interrupt-intent.ts.
-    .in('payload->>reason', [...TURN_CANCELLING_INTERRUPT_REASONS])
+    .in('orb_conversation_events.payload->>reason', [...TURN_CANCELLING_INTERRUPT_REASONS])
+    .maybeSingle()
   if (error) throw error
-  return (count ?? 0) > 0
+  if (!data || data.status !== 'active') return true
+  return data.orb_conversation_events.length > 0
 }
 
 export async function acknowledgeOrbConversationResponse(

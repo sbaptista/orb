@@ -34,8 +34,11 @@ export function isOrbInterruptReason(value: unknown): value is OrbInterruptReaso
  * submitted as one turn. Shared by text and voice.
  */
 export function mergedTurnText(previousText: string, nextText: string): string {
-  const previous = previousText.trim()
-  const next = nextText.trim()
+  const previous = normalizeSpokenTurnText(previousText)
+  const normalizedNext = normalizeSpokenTurnText(nextText)
+  const replacement = restartReplacementText(normalizedNext)
+  if (replacement) return replacement
+  const next = normalizedNext
   if (!previous) return next
   if (!next) return previous
 
@@ -63,7 +66,7 @@ export const BARE_STOP_ACKNOWLEDGEMENT = 'Okay.'
  * in it. "Stop, and add milk" is a new request (a replacement), not a stop.
  */
 export function isBareStopCommand(input: string): boolean {
-  return /^(?:(?:stop|cancel|wait|hold on|hold off|never ?mind|no|nope|quiet|be quiet|shush|enough|that['’]s enough|stop talking)[,.!\s]*)+$/i
+  return /^(?:(?:ok(?:ay)?|all right|alright)[,.!\s]+)?(?:(?:stop|cancel|wait|hold on|hold off|never ?mind|no|nope|quiet|be quiet|shush|enough|that['’]s enough|stop talking)[,.!\s]*)+$/i
     .test(input.trim())
 }
 
@@ -73,5 +76,7 @@ export function isBareStopCommand(input: string): boolean {
  * question ("Did you mean test8?") and still goes to the model; a halt does not.
  */
 export function isBareHaltCommand(input: string): boolean {
-  return isBareStopCommand(input) && !/^(?:(?:no|nope)[,.!\s]*)+$/i.test(input.trim())
+  return isBareStopCommand(input)
+    && !/^(?:(?:ok(?:ay)?|all right|alright)[,.!\s]+)?(?:(?:no|nope)[,.!\s]*)+$/i.test(input.trim())
 }
+import { normalizeSpokenTurnText, restartReplacementText } from './turn-text'

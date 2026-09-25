@@ -82,6 +82,7 @@ export async function saveOrbAiPolicy(next: OrbAiPolicy) {
   if (!supportsOrbRole(next.operationalProvider, next.operationalModel, 'operational')) throw new Error('Unsupported operational model.')
   if (!supportsOrbRole(next.strategicProvider, next.strategicModel, 'strategic')) throw new Error('Unsupported strategic model.')
   if (!supportsOrbRole(next.evaluationProvider, next.evaluationModel, 'evaluation')) throw new Error('Unsupported evaluation model.')
+  if (!supportsOrbRole(next.voiceProvider, next.voiceModel, 'voice')) throw new Error('Unsupported voice transport model.')
   const monthlyBudgetUsd = toNumber(next.monthlyBudgetUsd, 'Monthly budget')
   const strategicBudgetUsd = toNumber(next.strategicBudgetUsd, 'Strategic budget')
   const operationalBudgetUsd = toNumber(next.operationalBudgetUsd, 'Operational budget')
@@ -105,6 +106,8 @@ export async function saveOrbAiPolicy(next: OrbAiPolicy) {
     strategic_model: next.strategicModel,
     evaluation_provider: next.evaluationProvider,
     evaluation_model: next.evaluationModel,
+    voice_provider: next.voiceProvider,
+    voice_model: next.voiceModel,
     monthly_budget_usd: monthlyBudgetUsd,
     strategic_budget_usd: strategicBudgetUsd,
     operational_budget_usd: operationalBudgetUsd,

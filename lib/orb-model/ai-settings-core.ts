@@ -12,6 +12,7 @@ export function mapPolicy(row: any): OrbAiPolicy {
   const operationalSupported = supportsOrbRole(row.operational_provider, row.operational_model, 'operational')
   const strategicSupported = supportsOrbRole(row.strategic_provider, row.strategic_model, 'strategic')
   const evaluationSupported = supportsOrbRole(row.evaluation_provider, row.evaluation_model, 'evaluation')
+  const voiceSupported = supportsOrbRole(row.voice_provider, row.voice_model, 'voice')
   return {
     routingEnabled: row.routing_enabled,
     strategicReadsEnabled: row.strategic_reads_enabled,
@@ -21,6 +22,8 @@ export function mapPolicy(row: any): OrbAiPolicy {
     strategicModel: strategicSupported ? row.strategic_model : DEFAULT_ORB_AI_POLICY.strategicModel,
     evaluationProvider: evaluationSupported ? row.evaluation_provider : DEFAULT_ORB_AI_POLICY.evaluationProvider,
     evaluationModel: evaluationSupported ? row.evaluation_model : DEFAULT_ORB_AI_POLICY.evaluationModel,
+    voiceProvider: voiceSupported ? row.voice_provider : DEFAULT_ORB_AI_POLICY.voiceProvider,
+    voiceModel: voiceSupported ? row.voice_model : DEFAULT_ORB_AI_POLICY.voiceModel,
     monthlyBudgetUsd: Number(row.monthly_budget_usd),
     strategicBudgetUsd: Number(row.strategic_budget_usd),
     operationalBudgetUsd: Number(row.operational_budget_usd),

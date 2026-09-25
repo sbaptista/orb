@@ -5,7 +5,7 @@ import { collectClientEnvironment } from '@/lib/client-environment'
 
 export type PerfFocus = 'auth' | 'dashboard-init' | 'dashboard-clicks' | 'settings' | 'voice' | 'background'
 
-type PerfStage = {
+export type PerfStage = {
   name: string
   atMs: number
   durationMs?: number
@@ -28,6 +28,7 @@ type PerfEvent = {
   success: boolean
   failureCode?: string | null
   metadata?: Record<string, unknown>
+  diagnostic?: boolean
 }
 
 type PerfOptions = {
@@ -38,6 +39,10 @@ type PerfOptions = {
   startTimeMs?: number
   immediateFlush?: boolean
   metadata?: Record<string, unknown>
+  /** Conversation diagnostics must exist even when optional UI sampling is off. */
+  always?: boolean
+  /** A caller-owned UUID joins client, server, and durable conversation traces. */
+  correlationId?: string
 }
 
 const STORAGE_ENABLED = 'orb_perf_enabled'
@@ -204,10 +209,10 @@ function enqueue(event: PerfEvent) {
 }
 
 export function startInteraction(options: PerfOptions) {
-  const enabled = shouldMeasurePerformance(options.focus)
+  const enabled = options.always === true || shouldMeasurePerformance(options.focus)
   const start = options.startTimeMs ?? (typeof performance !== 'undefined' ? performance.now() : Date.now())
   const stages: PerfStage[] = []
-  const correlationId = uuid()
+  const correlationId = options.correlationId ?? uuid()
 
   return {
     correlationId,
@@ -236,10 +241,48 @@ export function startInteraction(options: PerfOptions) {
         success,
         failureCode: failureCode ?? null,
         metadata: sanitizeMetadata({ ...options.metadata, ...metadata }),
+        diagnostic: options.always === true,
       })
       if (options.immediateFlush) flushPerformanceEvents()
     },
   }
+}
+
+export function recordCompletedInteraction(options: {
+  focus: PerfFocus
+  flow: string
+  interaction: string
+  surface: string
+  correlationId: string
+  durationMs: number
+  stages: PerfStage[]
+  success: boolean
+  failureCode?: string | null
+  metadata?: Record<string, unknown>
+  immediateFlush?: boolean
+}) {
+  if (typeof window === 'undefined') return
+  const environment = collectClientEnvironment()
+  enqueue({
+    appVersion: VERSION,
+    sessionId: getSessionId(),
+    correlationId: options.correlationId,
+    route: window.location.pathname,
+    focus: options.focus,
+    flow: options.flow,
+    interaction: options.interaction,
+    surface: options.surface,
+    platform: environment.platform,
+    browser: environment.browser,
+    viewport: environment.viewport,
+    durationMs: Math.max(0, Math.round(options.durationMs)),
+    stages: options.stages.slice(0, 80),
+    success: options.success,
+    failureCode: options.failureCode ?? null,
+    metadata: sanitizeMetadata(options.metadata),
+    diagnostic: true,
+  })
+  if (options.immediateFlush) flushPerformanceEvents()
 }
 
 if (typeof window !== 'undefined') {

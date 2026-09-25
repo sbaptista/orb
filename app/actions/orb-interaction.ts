@@ -64,5 +64,19 @@ export async function exportOrbConversationDiagnostics(conversationId?: string |
   if (eventsError) throw eventsError
   if (batchesError) throw batchesError
   if (acknowledgementsError) throw acknowledgementsError
-  return JSON.stringify({ exportedAt: new Date().toISOString(), conversation, events, batches, acknowledgements }, null, 2)
+  const turnIds = [...new Set((events ?? [])
+    .map(event => event.turn_id as string)
+    .filter(Boolean))]
+  let timings: unknown[] = []
+  if (turnIds.length > 0) {
+    const { data, error } = await auth.admin
+      .from('performance_events')
+      .select('created_at, correlation_id, focus, flow, interaction, surface, platform, browser, duration_ms, stages, success, failure_code, metadata')
+      .eq('user_id', auth.user.id)
+      .in('correlation_id', turnIds)
+      .order('created_at')
+    if (error) throw error
+    timings = data ?? []
+  }
+  return JSON.stringify({ exportedAt: new Date().toISOString(), conversation, events, batches, acknowledgements, timings }, null, 2)
 }

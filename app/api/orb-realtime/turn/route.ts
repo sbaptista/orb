@@ -26,7 +26,7 @@ import { ORB_TODO_FULL_SELECT, type OrbTodoRow } from '@/lib/orb-operations/todo
 
 export const runtime = 'nodejs'
 
-const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1'
+const REALTIME_MODEL = 'gpt-realtime-2.1-mini'
 
 // Shared attribution rule (AGENTS.md working rule #9): every AI-authored
 // resolution note / knowledge entry leads with `YYYY-MM-DD — Tool (Model)`.

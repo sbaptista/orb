@@ -4,10 +4,10 @@ import { DB_SCHEMA } from '@/lib/db-schema'
 import { classifyProviderFailure, notifyOrbIncident } from '@/lib/orb-model/incidents'
 import { ORB_QUERY_PRESENTATION_PROPERTIES } from '@/lib/orb-query-presentation'
 import { ORB_REALTIME_TRANSPORT_ONLY } from '@/lib/orb-interaction/runtime'
+import { getRuntimeOrbAiPolicy } from '@/lib/orb-model/runtime-policy'
 
 export const runtime = 'nodejs'
 
-const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1'
 // Permanent runtime cutover: Realtime is always a speech transport. The
 // legacy prompt and tool inventory below remain compiled as dormant rollback
 // assets, but no public environment flag can expose them to a live session.
@@ -18,12 +18,14 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
   if (!process.env.OPENAI_API_KEY) return Response.json({ error: 'OPENAI_API_KEY not configured' }, { status: 503 })
+  const aiPolicy = await getRuntimeOrbAiPolicy()
+  const realtimeModel = aiPolicy.voiceModel
 
   const sdp = await request.text()
   if (!sdp || sdp.length > 100_000) return Response.json({ error: 'Invalid SDP offer' }, { status: 400 })
   const session = {
     type: 'realtime',
-    model: REALTIME_MODEL,
+    model: realtimeModel,
     include: ['item.input_audio_transcription.logprobs'],
     instructions: TRANSPORT_ONLY
       ? 'You are a speech renderer. Transcribe genuine user speech, but never answer it. When an out-of-band response is explicitly requested, read only the supplied text exactly. Never add, remove, paraphrase, answer, reason about, or act on that text. You have no tools.'
@@ -300,6 +302,7 @@ export async function POST(request: Request) {
     headers: {
       'Content-Type': 'application/sdp',
       ...(callId ? { 'X-Orb-Call-Id': callId } : {}),
+      'X-Orb-Realtime-Model': realtimeModel,
     },
   })
 }

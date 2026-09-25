@@ -71,10 +71,6 @@ async function getOptionalUserId() {
 }
 
 export async function POST(request: Request) {
-  if (!telemetryEnabled()) {
-    return NextResponse.json({ ok: true, stored: 0, disabled: true })
-  }
-
   let body: any
   try {
     body = await request.json()
@@ -82,10 +78,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const events = Array.isArray(body?.events) ? body.events.slice(0, MAX_EVENTS) : []
-  if (events.length === 0) return NextResponse.json({ ok: true, stored: 0 })
-
   const userId = await getOptionalUserId()
+  const submittedEvents = Array.isArray(body?.events) ? body.events.slice(0, MAX_EVENTS) : []
+  const events = telemetryEnabled()
+    ? submittedEvents
+    : userId
+      ? submittedEvents.filter((event: any) => event?.diagnostic === true && event?.flow === 'orb-conversation')
+      : []
+  if (events.length === 0) {
+    return NextResponse.json({ ok: true, stored: 0, disabled: !telemetryEnabled() })
+  }
+
   const admin = createAdminClient()
   const rows = events.map((event: unknown) => cleanEvent(event, userId))
 

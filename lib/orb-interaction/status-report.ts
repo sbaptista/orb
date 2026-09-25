@@ -2,9 +2,13 @@
  * short conversational project-state summary. */
 export function isTodoStatusBreakdownRequest(input: string): boolean {
   const asksBreakdown = /\b(status\s+breakdown|breakdown\s+by\s+status|status\s+counts?|count\s+by\s+status|by\s+(?:todo\s+)?(?:status|type))\b/i.test(input)
+  const statusTerms = new Set(
+    [...input.matchAll(/\b(open|in progress|deferred|on hold|closed|total)\b/gi)]
+      .map(match => match[1].toLowerCase()),
+  )
   const asksStatusTable = /\btable\b/i.test(input)
     && /\b(todo(?:s|'s)?|to[ -]?dos?|tasks?|projects?|backlog)\b/i.test(input)
-    && /\b(status|type|open|closed|progress|deferred|hold|total)\b/i.test(input)
+    && (/\b(?:counts?|breakdown|by\s+(?:status|type))\b/i.test(input) || statusTerms.size >= 2)
   return asksBreakdown || asksStatusTable
 }
 

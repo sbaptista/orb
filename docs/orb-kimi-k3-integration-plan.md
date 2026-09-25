@@ -1,8 +1,8 @@
 # Kimi K3 Integration and Evaluation Plan
 
-**Status:** Implemented and accepted for experimental local use as of 2026-08-15
-**Scope:** Direct Moonshot API integration for local Operational, Strategic, and Evaluation roles in Orb
-**Production status:** Not promoted; no production credential or model default changes were made
+**Status:** Implemented; environment-specific experimental gating removed by Stan on 2026-09-24
+**Scope:** Direct Moonshot API integration for Operational, Strategic, and Evaluation roles in Orb
+**Production status:** Catalog-selectable; runtime use requires `MOONSHOT_API_KEY` in that environment
 
 ## 1. Objective
 
@@ -21,7 +21,7 @@ Test `kimi-k3` as both of Orb's text-model roles while preserving Orb's existing
 4. Use explicit `max_completion_tokens: 4096`; K3's much larger provider default must not determine Orb's rate-limit reservation or output size.
 5. Use `reasoning_effort: low` for Operational and `reasoning_effort: high` for Strategic during the first evaluation. A `max` comparison is optional after the baseline.
 6. Preserve `reasoning_content` on assistant messages across K3 tool turns, as required by K3's preserved-thinking protocol.
-7. Expose Kimi in AI Settings as **Experimental** in local development. Production promotion remains a separate decision after evaluation.
+7. Superseded 2026-09-24 by Stan: expose Kimi in every applicable role without an environment-specific experimental label or availability gate. Qualification evidence remains visible in the eval and request ledgers.
 8. Reuse the existing Settings shell, selects, rate-card form, funding controls, and AI Metrics request ledger. No new UI pattern or CSS family is required.
 9. Add performance data through the existing model-request ledger (`latency_ms`, role, provider, model, source); no parallel telemetry path is required.
 
@@ -70,7 +70,7 @@ The provider adapter changes model transport only. It does not weaken or duplica
 
 ### AI Settings
 
-- Add `Kimi K3 — Experimental` to Operational, Strategic, and Evaluation model selectors in local development.
+- Add `Kimi K3` to Operational, Strategic, and Evaluation model selectors in every environment.
 - Routine eval commands use the independently persisted Evaluation selection. A paired `EVAL_PROVIDER`/`EVAL_MODEL` environment override still pins a one-off comparison without changing Settings.
 - The existing role-routing and strategic-read switches remain authoritative.
 - No reasoning-effort control is added initially; fixed role defaults make the first comparison reproducible.
@@ -96,7 +96,7 @@ The provider adapter changes model transport only. It does not weaken or duplica
 
 ## 6. Evaluation Plan
 
-Stan installed the API key in the encrypted environment and ran every model eval. The completed evidence is summarized in the v0.6.296 changelog and handoff; the gates below remain the requirements for any future production promotion, except where Stan explicitly accepted the recorded 63/65 Operational evidence for experimental local use.
+Stan installed the API key in the encrypted development environment and ran every model eval. The completed evidence is summarized in the v0.6.296 changelog and handoff. These results are qualification evidence, not an availability gate; future comparisons should use the smallest risk-based selection that answers the decision at hand.
 
 ### Gate A — Provider smoke
 
@@ -118,7 +118,7 @@ Required: Tier 1 hard gate passes; mutation confirmation and no-tool sentinels r
 EVAL_PROVIDER=moonshot EVAL_MODEL=kimi-k3 orb-dev --eval-t1
 ```
 
-Required before any production model promotion because provider/model request construction is a shared conversation surface. Stan accepted Kimi's observed 63/65 full-suite behavior as experimental evidence rather than requiring a perfect Operational promotion gate; failures moved between cases across full runs while focused reruns passed, so the valid assertions remain unchanged and no Kimi-specific prompt exceptions are added.
+Historical broad-gate evidence: Kimi reached 63/65, with failures moving between cases while focused reruns passed. The valid assertions remain unchanged and no Kimi-specific prompt exceptions are added.
 
 ### Gate D — Behavioral suite
 

@@ -24,6 +24,15 @@ export const VERSION_VOLATILE_SESSION_KEYS = [
 // localStorage marker: the last app version whose version-volatile state was cleared.
 export const LAST_APPLIED_VERSION_KEY = 'orb_last_applied_version'
 
+// sessionStorage marker used only by the development server. Unlike a React
+// ref, it survives the remounts caused by failed RSC navigation after `.next`
+// is rebuilt, allowing the recovered page to recognize a new server process.
+export const DEV_SERVER_BOOT_ID_KEY = 'orb_dev_server_boot_id'
+
+export function isDifferentDevServerBoot(previousBootId: string | null, nextBootId: string): boolean {
+  return previousBootId !== null && previousBootId !== nextBootId
+}
+
 /** Remove all version-volatile session state. Safe to call anywhere client-side. */
 export function clearVersionVolatileState(): void {
   if (typeof window === 'undefined') return

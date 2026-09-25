@@ -44,10 +44,10 @@ import { checkOrbBudget, budgetBlockMessage } from '@/lib/orb-model/budget'
 import { classifyProviderFailure, notifyOrbIncident } from '@/lib/orb-model/incidents'
 import type { OrbModelProviderId } from '@/lib/orb-model/types'
 import { UNBACKED_MUTATION_CLAIM_REPLACEMENT, extractCitedCodes, hasCompletionLanguage, hasProposalLanguage, isFalseCompletionClaim, isUnconfirmedPendingMutationClaim, presentableLeadIn, presentableStreamingSpeech, stripHistoryProvenanceLabels, switchConfirmationSpeech } from '@/lib/orb-model/false-claim-guard'
-import { buildOrbContext, buildTicketStatusRoutingHint, buildVoiceProjectStateSummary, pendingTodoUndercount, resolveActionSetReference, todoCode } from '@/lib/orb-model/context'
-import { buildTodoStatusReport, isBroadProjectStateQuestion, isTodoStatusBreakdownRequest } from '@/lib/orb-interaction/status-report'
+import { buildOrbContext, buildTicketStatusRoutingHint, pendingTodoUndercount, resolveActionSetReference, todoCode } from '@/lib/orb-model/context'
+import { buildTodoStatusReport, isTodoStatusBreakdownRequest } from '@/lib/orb-interaction/status-report'
 import { sanitizeUserFacingSpeech } from '@/lib/orb-model/speech-sanitizer'
-import { ORB_PRESENTABLE_QUERY_TOOL_NAMES, buildOrbQueryPresentation, orbQueryPresentationRequest } from '@/lib/orb-query-presentation'
+import { ORB_PRESENTABLE_QUERY_TOOL_NAMES, buildOrbQueryPresentation, directQueryPresentationModeForTurn, directQuerySpokenSummary, orbQueryPresentationRequest, renderDirectQueryCount, renderOrbQueryPacketMarkdown } from '@/lib/orb-query-presentation'
 import { authorizesPendingMutation, buildPendingMutationConfirmationInstruction, isBareMutationDecline } from '@/lib/orb-model/mutation-authorization'
 import { activeModelIdentitySpeech, isActiveModelIdentityQuestion } from '@/lib/orb-model/model-identity'
 import type { ClientEnvironmentSnapshot } from '@/lib/client-environment'
@@ -56,6 +56,10 @@ import { toOrbSpokenText } from '@/lib/orb-interaction/spoken-text'
 import { mutationReceiptRefreshScopes, type OrbInteractionIdentity } from '@/lib/orb-interaction/types'
 import { deletedProjectIdsFromPendingMutation } from '@/lib/orb-interaction/project-refresh'
 import { validateSpelledProjectField, withExplicitSpellingClarification, withHistorySpellingClarifications } from '@/lib/orb-interaction/spelled-identifiers'
+import { createOrbTurnTiming } from '@/lib/orb-interaction/turn-timing'
+import { completeToolRound, type TerminalToolResponse } from '@/lib/orb-interaction/tool-round-completion'
+import { defaultTodoQueryProjectCode, sortTodoQueryRows, type TodoQuerySortDirection, type TodoQuerySortField } from '@/lib/orb-interaction/todo-query'
+import { ORB_TODO_FULL_SELECT } from '@/lib/orb-operations/todo-facts'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -64,6 +68,27 @@ import { validateSpelledProjectField, withExplicitSpellingClarification, withHis
 export type PendingMutationOperation = { tool: string; params: Record<string, any> }
 
 type HeldMutationCall = PendingMutationOperation & { toolUseId: string }
+
+class OrbTurnInterruptedError extends Error {
+  constructor() {
+    super('Orb turn interrupted')
+    this.name = 'OrbTurnInterruptedError'
+  }
+}
+
+const INTERRUPTIBLE_READ_TOOL_NAMES = new Set([
+  'query_todos',
+  'query_projects',
+  'query_users',
+  'query_invitations',
+  'query_tickets',
+  'search_knowledge',
+  'query_audit_trail',
+  'query_db',
+  'get_preferences',
+  'query_repository',
+  'recall_memories',
+])
 
 export type PendingMutation =
   | { tool: string; params: Record<string, any> }
@@ -77,6 +102,19 @@ export type ActionSet = {
   codes: string[]
   summary: string
   createdAt: string
+}
+
+async function loadAccessibleTodoRows(auth: Awaited<ReturnType<typeof getAuthContext>>): Promise<any[]> {
+  const client = auth.isAdmin ? auth.admin : auth.supabase
+  const query = client
+    .from('todos')
+    .select(ORB_TODO_FULL_SELECT)
+    .is('deleted_at', null)
+    .is('projects.deleted_at', null)
+    .eq('projects.is_dormant', false)
+  const { data, error } = await query
+  if (error) throw new Error(error.message)
+  return data ?? []
 }
 
 export type OrbResponse = {
@@ -108,6 +146,16 @@ export type OrbResponse = {
     userEventId: string
     responseEventId?: string
     persistenceMs?: number
+    serverTiming?: {
+      startedAt: string
+      durationMs: number
+      stages: Array<{ name: string; atMs: number }>
+      provider: OrbModelProviderId
+      model: string
+      routeRole: OrbRouteRole
+      modelRounds: number
+      toolCalls: number
+    }
   }
 }
 
@@ -131,6 +179,21 @@ function mutationReceiptItems(
   receipt: OrbRealtimeMutationReceipt | OrbCommandBatchReceipt,
 ): OrbRealtimeMutationReceipt[] {
   return receipt.kind === 'command_batch' ? receipt.receipts : [receipt]
+}
+
+function responseMutationType(receipts: OrbRealtimeMutationReceipt[]): OrbResponse['mutationType'] {
+  const kinds = new Set(receipts.map(item => item.kind))
+  if (kinds.size !== 1) return undefined
+  const kind = receipts[0]?.kind
+  if (kind === 'create_project') return 'project_create'
+  if (kind === 'update_project') return 'project_update'
+  if (kind === 'delete_project') return 'project_delete'
+  if (kind === 'create_ticket') return 'ticket_create'
+  if (kind === 'add_knowledge' || kind === 'update_knowledge') return 'knowledge_update'
+  if (kind === 'create_todo') return 'create'
+  if (kind === 'delete_todo') return 'delete'
+  if (kind === 'update_todo' || kind === 'move_todo' || kind === 'close_todo') return 'update'
+  return undefined
 }
 
 // ── Structural mutation guard (false-claim detection) ──
@@ -333,6 +396,7 @@ IMPORTANT: Do not skip stages. Set the preference immediately when you present t
 }
 
 export async function orbConverse(req: OrbRequest) {
+  const serverTiming = createOrbTurnTiming()
   const rawStream = createStreamableValue<OrbResponse>()
   // Every value that reaches the client passes here, so no update path can
   // show a history provenance label, complete or partial.
@@ -350,9 +414,21 @@ export async function orbConverse(req: OrbRequest) {
   ;(async () => {
     let finalizeInteraction: ((response: OrbResponse) => Promise<OrbResponse>) | null = null
     const finish = async (response: OrbResponse) => {
+      serverTiming.mark('finalization_started')
       const finalResponse = finalizeInteraction
         ? await finalizeInteraction(response)
         : response
+      serverTiming.mark('response_ready_to_stream')
+      if (finalResponse.interaction) {
+        finalResponse.interaction.serverTiming = {
+          ...serverTiming.snapshot(),
+          provider: metricProvider,
+          model: metricModel,
+          routeRole: metricRouteRole,
+          modelRounds: turnCountMetric,
+          toolCalls: metricToolCalls,
+        }
+      }
       stream.done(finalResponse)
     }
     let accumulatedSpeech = ''
@@ -369,9 +445,25 @@ export async function orbConverse(req: OrbRequest) {
     let metricModel = 'claude-haiku-4-5'
     let metricProvider: OrbModelProviderId = 'anthropic'
     let metricRouteRole: OrbRouteRole = 'operational'
+    let turnCountMetric = 0
     const requestStartedAt = Date.now()
     let requestRecorded = false
     let providerInvocationStarted = false
+    let confirmationAttempt = 0
+
+    async function confirmMutationWithTiming(
+      auth: Parameters<typeof confirmOrbMutation>[0],
+      proposalId: string,
+    ) {
+      confirmationAttempt += 1
+      const label = `confirmation_${confirmationAttempt}`
+      serverTiming.mark(`${label}_started`)
+      try {
+        return await confirmOrbMutation(auth, proposalId)
+      } finally {
+        serverTiming.mark(`${label}_complete`)
+      }
+    }
 
     function recordMetrics(speechChars: number) {
       if (!metricUserId) return
@@ -433,6 +525,7 @@ export async function orbConverse(req: OrbRequest) {
     try {
       const auth = await getAuthContext()
       metricUserId = auth.user.id
+      serverTiming.mark('authentication_complete')
 
       if (req.interaction) {
         const beginPersistenceAt = performance.now()
@@ -442,6 +535,7 @@ export async function orbConverse(req: OrbRequest) {
           userEventId: req.interaction.userEventId,
           modality: req.interaction.modality,
           text: req.input,
+          onStage: name => serverTiming.mark(name),
         })
         auth.interaction = {
           conversationId: turn.conversationId,
@@ -450,6 +544,7 @@ export async function orbConverse(req: OrbRequest) {
           modality: turn.modality,
         }
         interactionPersistenceMs += performance.now() - beginPersistenceAt
+        serverTiming.mark('conversation_turn_persisted')
         req.history = turn.history
         stream.update({
           speech: '',
@@ -469,6 +564,8 @@ export async function orbConverse(req: OrbRequest) {
           )
           const spokenText = response.spokenText ?? toOrbSpokenText(response.speech)
           const interrupted = await isOrbTurnInterrupted(auth, turn.conversationId, turn.turnId)
+          serverTiming.mark('interrupt_check_complete')
+          let responseEventPersisted = false
           // Ordinary interrupted work is not committed to history. A database
           // mutation receipt is durable even if presentation was interrupted.
           if (!interrupted || proposalId) {
@@ -491,6 +588,7 @@ export async function orbConverse(req: OrbRequest) {
                 newProjects: response.newProjects,
                 proposalId: proposalId ?? undefined,
               })
+              responseEventPersisted = true
             } catch (persistenceError) {
               if (!proposalId) throw persistenceError
               // The transaction receipt in orb_realtime_proposals is the
@@ -499,6 +597,11 @@ export async function orbConverse(req: OrbRequest) {
               console.error('[orbConverse] Committed receipt presentation append failed:', persistenceError)
             }
             interactionPersistenceMs += performance.now() - responsePersistenceAt
+            serverTiming.mark(responseEventPersisted
+              ? 'response_event_persisted'
+              : 'response_event_persistence_deferred')
+          } else {
+            serverTiming.mark('response_event_persistence_skipped_after_interrupt')
           }
           return {
             ...response,
@@ -507,7 +610,7 @@ export async function orbConverse(req: OrbRequest) {
               conversationId: turn.conversationId,
               turnId: turn.turnId,
               userEventId: turn.userEventId,
-              responseEventId,
+              ...(responseEventPersisted ? { responseEventId } : {}),
               persistenceMs: Math.round(interactionPersistenceMs),
             },
           }
@@ -539,6 +642,20 @@ export async function orbConverse(req: OrbRequest) {
         }
       }
 
+      const assertTurnActive = async (stage: string) => {
+        if (!auth.interaction) return
+        const interrupted = await isOrbTurnInterrupted(
+          auth,
+          auth.interaction.conversationId,
+          auth.interaction.turnId,
+        )
+        serverTiming.mark(`${stage}_interrupt_checked`)
+        if (interrupted) {
+          serverTiming.mark(`${stage}_interrupted`)
+          throw new OrbTurnInterruptedError()
+        }
+      }
+
       const userInput = req.input
       const recordedUserTexts = auth.interaction ? [...(req.history ?? []).filter(h => h.role === 'user').map(h => h.text), userInput] : []
       const approvalForTurn = oncePerTurnApproval(userInput, authorizesPendingMutation)
@@ -565,6 +682,149 @@ export async function orbConverse(req: OrbRequest) {
         await clearPendingMutation(auth.admin, auth.user.id, auth.interaction?.conversationId)
       }
 
+      let pendingMutation: PendingMutationRow | null = await getPendingMutation(
+        auth.admin,
+        auth.user.id,
+        auth.interaction?.conversationId,
+      )
+      serverTiming.mark('pending_mutation_loaded')
+
+      // The exact go-ahead wording of the stored pending batch, rebuilt from
+      // its stored command summaries — never from anything the model wrote.
+      const pendingBatchSpeech = (pending: PendingMutationRow | null): string | null => {
+        if (!pending || pending.tool !== 'command_batch') return null
+        const commands: Array<Record<string, unknown>> = Array.isArray(pending.params.commands) ? pending.params.commands : []
+        const summaries = commands.map(command => String(command?.summary ?? '').trim()).filter(Boolean)
+        return summaries.length > 0 ? buildOrbConfirmationSpeechFromSummaries(summaries) : null
+      }
+      const restatePendingBatch = async (pending: PendingMutationRow, canonical: string): Promise<string> => {
+        if (auth.interaction) {
+          try {
+            await appendOrbConversationEvent(auth, {
+              id: stableOrbConversationEventId(`${pending.proposal_id}:${auth.interaction.turnId}`, 'mutation_restated'),
+              conversationId: auth.interaction.conversationId,
+              turnId: auth.interaction.turnId,
+              actor: 'system',
+              eventType: 'mutation_proposed',
+              modality: auth.interaction.modality,
+              visibility: 'control',
+              proposalId: pending.proposal_id,
+              payload: { kind: 'command_batch_restatement', summary: pending.summary },
+            })
+          } catch (eventError) {
+            console.error('[orbConverse] Pending restatement event append failed:', eventError)
+          }
+        }
+        return `${ORB_PENDING_RESTATEMENT_PREFIX}\n\n${canonical}`
+      }
+      const shownProposalMismatch = async (pending: PendingMutationRow): Promise<string | null> => {
+        if (!auth.interaction) return null
+        const canonical = pendingBatchSpeech(pending)
+        if (!canonical) return null
+        if (lastShownProposalMatches(req.history ?? [], canonical)) return null
+        console.error('[orbConverse] Confirmation withheld: last shown proposal differs from the stored batch', {
+          proposalId: pending.proposal_id,
+        })
+        return restatePendingBatch(pending, canonical)
+      }
+
+      const canonicalTodoOps = canonicalPendingTodoOperations(pendingMutation)
+      const browserPendingTodoOps = pendingTodoOperations(req.pendingMutation)
+      const hasCanonicalPendingMutation = Boolean(
+        pendingMutation
+        && (canonicalTodoOps.length > 0 || isNamedPendingMutation(pendingMutation.tool)),
+      )
+
+      // Stored confirmations are a deterministic transaction boundary. Handle
+      // them before AI policy, the broad context packet, routing, budgets, and
+      // model setup. A one-word approval should not pay the cost of an ordinary
+      // conversational turn before executing the exact proposal already shown.
+      if (pendingMutation && hasCanonicalPendingMutation) {
+        if (isBareMutationDecline(req.input)) {
+          await rejectPendingMutation(pendingMutation)
+          const speech = `Okay — I did not ${pendingMutation.summary}.`
+          recordMetrics(speech.length)
+          await finish({ speech, isStreaming: false })
+          return
+        }
+
+        if (isPendingStatusQuestion(req.input)) {
+          const speech = `Not yet — I was waiting for your go-ahead to ${pendingMutation.summary}. Want me to do it?`
+          recordMetrics(speech.length)
+          await finish({ speech, isStreaming: false })
+          return
+        }
+
+        if (await approvalForTurn()) {
+          const restatement = await shownProposalMismatch(pendingMutation)
+          if (restatement) {
+            recordMetrics(restatement.length)
+            await finish({ speech: restatement, isStreaming: false })
+            return
+          }
+
+          stream.update({ speech: '', thought: 'Confirming...', isStreaming: true })
+          // Preserve urgency escalation notifications while keeping the broad
+          // conversation context out of this path.
+          const beforeUrgency = await snapshotUrgency(auth.supabase, auth.user.id)
+          serverTiming.mark('confirmation_urgency_snapshot_loaded')
+          const deletedProjectIds = deletedProjectIdsFromPendingMutation(pendingMutation)
+          const confirmation = await confirmMutationWithTiming(auth, pendingMutation.proposal_id)
+          committedProposalId = pendingMutation.proposal_id
+          const receipt = confirmation.receipt
+          const receipts = mutationReceiptItems(receipt)
+          const refreshScopes = mutationReceiptRefreshScopes(receipt)
+          const mutationType = responseMutationType(receipts)
+
+          for (const item of receipts) {
+            if (item.kind === 'create_ticket' && item.ticketId && !confirmation.replayed) {
+              notifyCreatedTicket(item.ticketId).catch(error =>
+                console.error('[orbConverse] Ticket notification failed:', error),
+              )
+            }
+          }
+
+          const createdProjectCodes = receipts
+            .filter(item => item.kind === 'create_project' && item.code)
+            .map(item => item.code as string)
+          let newProjects: NonNullable<OrbResponse['newProjects']> = []
+          if (createdProjectCodes.length > 0) {
+            const { data, error } = await auth.admin
+              .from('projects')
+              .select('id, name, code, description, created_by')
+              .in('code', createdProjectCodes)
+              .eq('created_by', auth.user.id)
+              .is('deleted_at', null)
+            if (error) throw error
+            newProjects = data ?? []
+          }
+          const newProject = newProjects.length === 1 ? newProjects[0] : undefined
+          const speech = receipt.spokenText
+          checkAndNotifyEscalation(auth.user.id, beforeUrgency, auth.supabase)
+            .catch(error => console.error('[orbConverse] Push check failed:', error))
+          recordMetrics(speech.length)
+          await finish({
+            speech,
+            isStreaming: false,
+            refresh: true,
+            refreshProjects: refreshScopes.projects,
+            refreshTodos: refreshScopes.todos,
+            ...(deletedProjectIds.length > 0 ? { deletedProjectIds } : {}),
+            ...(pendingMutation.project_id && refreshScopes.todos ? { mutatedProductId: pendingMutation.project_id } : {}),
+            ...(mutationType ? { mutationType } : {}),
+            ...(newProject ? { newProject } : {}),
+            ...(newProjects.length > 0 ? { newProjects } : {}),
+          })
+          return
+        }
+      }
+
+      if (auth.interaction && !pendingMutation && browserPendingTodoOps.length === 0 && isBareHaltCommand(req.input)) {
+        recordMetrics(BARE_STOP_ACKNOWLEDGEMENT.length)
+        await finish({ speech: BARE_STOP_ACKNOWLEDGEMENT, isStreaming: false })
+        return
+      }
+
       // DEV-only error simulation — throws synthetic errors to test error UX
       if (process.env.NODE_ENV === 'development' && req.simulateError) {
         const syntheticErrors: Record<string, any> = {
@@ -578,7 +838,9 @@ export async function orbConverse(req: OrbRequest) {
         }
       }
 
+      const supabase = auth.supabase
       const aiPolicy = await getRuntimeOrbAiPolicy()
+      serverTiming.mark('ai_policy_loaded')
       const identityRouteRole = routeOrbRequest(req.input, aiPolicy.routingEnabled, aiPolicy.strategicReadsEnabled)
       if (isActiveModelIdentityQuestion(req.input)) {
         metricRouteRole = identityRouteRole
@@ -595,8 +857,12 @@ export async function orbConverse(req: OrbRequest) {
         return
       }
 
-      const supabase = auth.supabase
-      const ctx = await buildOrbContext(supabase, auth, { currentProductId: req.productId })
+      const ctx = await buildOrbContext(supabase, auth, {
+        currentProductId: req.productId,
+        onStage: name => serverTiming.mark(name),
+      })
+      serverTiming.mark('conversation_context_built')
+      await assertTurnActive('context_complete')
 
       // ORB-361 Phase 3.4: spend the no-reminder nudge the moment it is offered
       // to the model, so it can never fire twice for the same todo. Stamping on
@@ -628,6 +894,7 @@ export async function orbConverse(req: OrbRequest) {
         console.error('[orbConverse] Failed to read ui-catalog.md:', err)
       }
       const beforeUrgency = await snapshotUrgency(supabase, auth.user.id)
+      serverTiming.mark('urgency_snapshot_loaded')
       let hasMutated = false
       // True once ANY tool call in this request actually took effect — a
       // superset of hasMutated (data mutations) that also includes
@@ -749,22 +1016,19 @@ export async function orbConverse(req: OrbRequest) {
       const ticketStatusRoutingHint = buildTicketStatusRoutingHint(req.input, req.history, auth.isAdmin)
 
       if (isTodoStatusBreakdownRequest(req.input)) {
+        await assertTurnActive('status_read_before')
+        const completeTodoList = await loadAccessibleTodoRows(auth)
+        serverTiming.mark('status_report_rows_loaded')
+        await assertTurnActive('status_read_after')
         const report = buildTodoStatusReport({
           ...ctx,
+          todoList: completeTodoList,
           currentUserId: auth.user.id,
           input: req.input,
         })
         recordModelRequest(report.speech)
         recordMetrics(report.speech.length)
         await finish({ speech: report.speech, spokenText: report.spokenText, isStreaming: false })
-        return
-      }
-
-      if (req.uiContext?.voiceMode && isBroadProjectStateQuestion(req.input)) {
-        const speech = buildVoiceProjectStateSummary({ ...ctx, input: req.input })
-        recordModelRequest(speech)
-        recordMetrics(speech.length)
-        await finish({ speech, isStreaming: false })
         return
       }
 
@@ -777,57 +1041,6 @@ export async function orbConverse(req: OrbRequest) {
         + ' ' + (ctx.nextStepContext ?? '')
       )
 
-      let pendingMutation: PendingMutationRow | null = await getPendingMutation(
-        auth.admin,
-        auth.user.id,
-        auth.interaction?.conversationId,
-      )
-
-      // The exact go-ahead wording of the stored pending batch, rebuilt from
-      // its stored command summaries — never from anything the model wrote.
-      const pendingBatchSpeech = (pending: PendingMutationRow | null): string | null => {
-        if (!pending || pending.tool !== 'command_batch') return null
-        const commands: Array<Record<string, unknown>> = Array.isArray(pending.params.commands) ? pending.params.commands : []
-        const summaries = commands.map(command => String(command?.summary ?? '').trim()).filter(Boolean)
-        return summaries.length > 0 ? buildOrbConfirmationSpeechFromSummaries(summaries) : null
-      }
-      // Show the stored pending batch exactly, and record that this turn
-      // presented it, so the user's next confirmation approves what they saw.
-      const restatePendingBatch = async (pending: PendingMutationRow, canonical: string): Promise<string> => {
-        if (auth.interaction) {
-          try {
-            await appendOrbConversationEvent(auth, {
-              id: stableOrbConversationEventId(`${pending.proposal_id}:${auth.interaction.turnId}`, 'mutation_restated'),
-              conversationId: auth.interaction.conversationId,
-              turnId: auth.interaction.turnId,
-              actor: 'system',
-              eventType: 'mutation_proposed',
-              modality: auth.interaction.modality,
-              visibility: 'control',
-              proposalId: pending.proposal_id,
-              payload: { kind: 'command_batch_restatement', summary: pending.summary },
-            })
-          } catch (eventError) {
-            console.error('[orbConverse] Pending restatement event append failed:', eventError)
-          }
-        }
-        return `${ORB_PENDING_RESTATEMENT_PREFIX}\n\n${canonical}`
-      }
-      // A confirmation approves the stored batch only if the last go-ahead the
-      // user saw was that batch's own wording. Returns the restatement to send
-      // instead of committing, or null when the commit may proceed.
-      const shownProposalMismatch = async (pending: PendingMutationRow): Promise<string | null> => {
-        if (!auth.interaction) return null
-        const canonical = pendingBatchSpeech(pending)
-        if (!canonical) return null
-        if (lastShownProposalMatches(req.history ?? [], canonical)) return null
-        console.error('[orbConverse] Confirmation withheld: last shown proposal differs from the stored batch', {
-          proposalId: pending.proposal_id,
-        })
-        return restatePendingBatch(pending, canonical)
-      }
-      const browserPendingTodoOps = pendingTodoOperations(req.pendingMutation)
-      const canonicalTodoOps = canonicalPendingTodoOperations(pendingMutation)
       const pendingTodoOps = canonicalTodoOps.length > 0 ? canonicalTodoOps : browserPendingTodoOps
       if (pendingTodoOps.length > 0) {
         const browserPendingSummary = req.pendingMutation
@@ -839,8 +1052,10 @@ export async function orbConverse(req: OrbRequest) {
           ?? browserPendingSummary
           ?? summarizeTodoOperations(pendingTodoOps)
 
-        if (isBareMutationDecline(req.input)) {
-          if (pendingMutation) await rejectPendingMutation(pendingMutation)
+        // Browser-held pending state is a one-deployment compatibility bridge.
+        // Canonical proposals were already handled by the deterministic fast
+        // path above; do not maintain a second execution route here.
+        if (!pendingMutation && isBareMutationDecline(req.input)) {
           const speech = `Okay — I did not ${pendingSummary}.`
           recordModelRequest(speech)
           recordMetrics(speech.length)
@@ -848,7 +1063,7 @@ export async function orbConverse(req: OrbRequest) {
           return
         }
 
-        if (isPendingStatusQuestion(req.input)) {
+        if (!pendingMutation && isPendingStatusQuestion(req.input)) {
           const speech = `Not yet — I was waiting for your go-ahead to ${pendingSummary}. Want me to do it?`
           recordModelRequest(speech)
           recordMetrics(speech.length)
@@ -856,62 +1071,27 @@ export async function orbConverse(req: OrbRequest) {
           return
         }
 
-        if (await approvalForTurn()) {
-          const restatement = pendingMutation ? await shownProposalMismatch(pendingMutation) : null
-          if (restatement) {
-            recordModelRequest(restatement)
-            recordMetrics(restatement.length)
-            await finish({ speech: restatement, isStreaming: false })
-            return
-          }
-          if (pendingMutation) {
-            stream.update({ speech: '', thought: 'Confirming...', isStreaming: true })
-            const confirmation = await confirmOrbMutation(auth, pendingMutation.proposal_id)
-            committedProposalId = pendingMutation.proposal_id
-            const receipt = mutationReceiptItems(confirmation.receipt)[0]
-            if (!receipt) throw new Error('The database returned an empty mutation receipt.')
-            const receiptItems = mutationReceiptItems(receipt)
-            for (const item of receiptItems) {
-              if (item.code) toolProducedCodes.add(item.code)
-              if (item.oldCode) toolProducedCodes.add(item.oldCode)
-            }
-            hasMutated = true
-            hasActed = true
-            const firstKind = receiptItems[0]?.kind
-            const mutationType = firstKind === 'delete_todo' ? 'delete' : firstKind === 'create_todo' ? 'create' : 'update'
-            const speech = receipt.spokenText
-            checkAndNotifyEscalation(auth.user.id, beforeUrgency, supabase)
-              .catch(err => console.error('[orbConverse] Push check failed:', err))
-            recordModelRequest(speech)
-            recordMetrics(speech.length)
-            await finish({
-              speech,
-              isStreaming: false,
-              refresh: true,
-              mutatedProductId: pendingMutation.project_id ?? undefined,
-              mutationType,
-            })
-          } else {
-            // A tab opened before the ORB-342 deployment may still echo the
-            // old browser-held shape. Convert it to a durable proposal before
-            // confirming; even the compatibility bridge uses the canonical DB
-            // transaction and never invokes the legacy executor.
-            const summary = browserPendingSummary ?? summarizeTodoOperations(pendingTodoOps)
-            const proposal = await proposeSerialTodoOperations(auth, pendingTodoOps, {
-              currentProjectId: req.productId,
-              requestZone,
-              summary,
-            })
-            const confirmation = await confirmOrbMutation(auth, proposal.proposalId)
-            committedProposalId = proposal.proposalId
-            const receipt = confirmation.receipt
-            const firstKind = mutationReceiptItems(receipt)[0]?.kind
-            const mutationType = firstKind === 'delete_todo' ? 'delete' : firstKind === 'create_todo' ? 'create' : 'update'
-            const speech = receipt.spokenText
-            recordModelRequest(speech)
-            recordMetrics(speech.length)
-            await finish({ speech, isStreaming: false, refresh: true, mutationType })
-          }
+        if (!pendingMutation && await approvalForTurn()) {
+          // A tab opened before the ORB-342 deployment may still echo the old
+          // browser-held shape. Convert it to a durable proposal before
+          // confirming; even the compatibility bridge uses the canonical DB
+          // transaction and never invokes the legacy executor.
+          const summary = browserPendingSummary ?? summarizeTodoOperations(pendingTodoOps)
+          await assertTurnActive('compat_proposal_before')
+          const proposal = await proposeSerialTodoOperations(auth, pendingTodoOps, {
+            currentProjectId: req.productId,
+            requestZone,
+            summary,
+          })
+          const confirmation = await confirmMutationWithTiming(auth, proposal.proposalId)
+          committedProposalId = proposal.proposalId
+          const receipt = confirmation.receipt
+          const firstKind = mutationReceiptItems(receipt)[0]?.kind
+          const mutationType = firstKind === 'delete_todo' ? 'delete' : firstKind === 'create_todo' ? 'create' : 'update'
+          const speech = receipt.spokenText
+          recordModelRequest(speech)
+          recordMetrics(speech.length)
+          await finish({ speech, isStreaming: false, refresh: true, mutationType })
           return
         }
 
@@ -924,110 +1104,6 @@ export async function orbConverse(req: OrbRequest) {
           return
         }
       }
-      if (pendingMutation && isNamedPendingMutation(pendingMutation.tool)) {
-        if (isBareMutationDecline(req.input)) {
-          await rejectPendingMutation(pendingMutation)
-          const speech = `Okay — I did not ${pendingMutation.summary}.`
-          recordModelRequest(speech)
-          recordMetrics(speech.length)
-          await finish({ speech, isStreaming: false })
-          return
-        }
-
-        if (isPendingStatusQuestion(req.input)) {
-          const speech = `Not yet — I was waiting for your go-ahead to ${pendingMutation.summary}. Want me to do it?`
-          recordModelRequest(speech)
-          recordMetrics(speech.length)
-          await finish({ speech, isStreaming: false })
-          return
-        }
-
-        if (await approvalForTurn()) {
-          const restatement = await shownProposalMismatch(pendingMutation)
-          if (restatement) {
-            recordModelRequest(restatement)
-            recordMetrics(restatement.length)
-            await finish({ speech: restatement, isStreaming: false })
-            return
-          }
-          stream.update({ speech: '', thought: 'Confirming...', isStreaming: true })
-          const deletedProjectIds = deletedProjectIdsFromPendingMutation(pendingMutation)
-          const confirmation = await confirmOrbMutation(auth, pendingMutation.proposal_id)
-          committedProposalId = pendingMutation.proposal_id
-          const receipt = confirmation.receipt
-          const receipts = mutationReceiptItems(receipt)
-          for (const item of receipts) {
-            if (item.code) toolProducedCodes.add(item.code)
-            if (item.oldCode) toolProducedCodes.add(item.oldCode)
-            if (item.kind === 'create_ticket' && item.ticketId && !confirmation.replayed) {
-              notifyCreatedTicket(item.ticketId).catch(error =>
-                console.error('[orbConverse] Ticket notification failed:', error),
-              )
-            }
-          }
-          const onlyKind = receipts.every(item => item.kind === receipts[0]?.kind)
-            ? receipts[0]?.kind
-            : null
-          const refreshScopes = mutationReceiptRefreshScopes(receipt)
-          const mutationType = onlyKind === 'create_project'
-            ? 'project_create'
-            : onlyKind === 'update_project'
-              ? 'project_update'
-              : onlyKind === 'delete_project'
-                ? 'project_delete'
-                : onlyKind === 'create_ticket'
-                  ? 'ticket_create'
-                  : onlyKind === 'create_todo'
-                    ? 'create'
-                    : onlyKind === 'delete_todo'
-                      ? 'delete'
-                      : onlyKind && ['update_todo', 'move_todo', 'close_todo'].includes(onlyKind)
-                        ? 'update'
-                        : undefined
-          const createdProjectCodes = receipts
-            .filter(item => item.kind === 'create_project' && item.code)
-            .map(item => item.code as string)
-          let newProjects: NonNullable<OrbResponse['newProjects']> = []
-          if (createdProjectCodes.length > 0) {
-            const { data } = await auth.admin
-              .from('projects')
-              .select('id, name, code, description, created_by')
-              .in('code', createdProjectCodes)
-              .eq('created_by', auth.user.id)
-              .is('deleted_at', null)
-            newProjects = data ?? []
-          }
-          const newProject = newProjects.length === 1 ? newProjects[0] : undefined
-          const speech = receipt.spokenText
-          checkAndNotifyEscalation(auth.user.id, beforeUrgency, supabase)
-            .catch(err => console.error('[orbConverse] Push check failed:', err))
-          recordModelRequest(speech)
-          recordMetrics(speech.length)
-          await finish({
-            speech,
-            isStreaming: false,
-            refresh: true,
-            refreshProjects: refreshScopes.projects,
-            refreshTodos: refreshScopes.todos,
-            ...(deletedProjectIds.length > 0 ? { deletedProjectIds } : {}),
-            ...(mutationType ? { mutationType } : {}),
-            ...(newProject ? { newProject } : {}),
-            ...(newProjects.length > 0 ? { newProjects } : {}),
-          })
-          return
-        }
-      }
-
-      // A bare "stop", "cancel", or "wait" with nothing pending has
-      // nothing to decline and nothing to answer; the client already stopped
-      // any running reply. Acknowledge without a model call.
-      if (auth.interaction && !pendingMutation && pendingTodoOps.length === 0 && isBareHaltCommand(req.input)) {
-        recordModelRequest(BARE_STOP_ACKNOWLEDGEMENT)
-        recordMetrics(BARE_STOP_ACKNOWLEDGEMENT.length)
-        await finish({ speech: BARE_STOP_ACKNOWLEDGEMENT, isStreaming: false })
-        return
-      }
-
       if (!auth.interaction && canonicalTodoOps.length > 0 && pendingMutation) {
         await clearPendingMutation(auth.admin, auth.user.id)
         pendingMutation = null
@@ -1038,12 +1114,13 @@ export async function orbConverse(req: OrbRequest) {
         : []
       if (!req.interaction && !req.pendingMutation && confirmedDeleteOps.length > 0) {
         const summary = summarizeTodoOperations(confirmedDeleteOps)
+        await assertTurnActive('delete_proposal_before')
         const proposal = await proposeSerialTodoOperations(auth, confirmedDeleteOps, {
           currentProjectId: req.productId,
           requestZone,
           summary,
         })
-        const confirmation = await confirmOrbMutation(auth, proposal.proposalId)
+        const confirmation = await confirmMutationWithTiming(auth, proposal.proposalId)
         committedProposalId = proposal.proposalId
         const speech = confirmation.receipt.spokenText
         recordModelRequest(speech)
@@ -1056,6 +1133,7 @@ export async function orbConverse(req: OrbRequest) {
       if (!req.pendingMutation && referencedSet && isDeleteRequest(req.input)) {
         const operations = referencedSet.codes.map(code => ({ tool: 'delete_todo', params: { code } }))
         const summary = summarizeTodoOperations(operations)
+        await assertTurnActive('action_set_proposal_before')
         await proposeSerialTodoOperations(auth, operations, {
           currentProjectId: req.productId,
           requestZone,
@@ -1100,6 +1178,7 @@ export async function orbConverse(req: OrbRequest) {
       metricProvider = routeRole === 'strategic' ? aiPolicy.strategicProvider : aiPolicy.operationalProvider
       metricModel = routeRole === 'strategic' ? aiPolicy.strategicModel : aiPolicy.operationalModel
       const budgetCheck = await checkOrbBudget(auth.admin, aiPolicy, routeRole)
+      serverTiming.mark('routing_and_budget_complete')
       if (!budgetCheck.allowed) {
         const speech = budgetBlockMessage(budgetCheck)
         const month = new Date().toISOString().slice(0, 7)
@@ -1144,6 +1223,8 @@ export async function orbConverse(req: OrbRequest) {
 
       while (turnCount < MAX_TURNS) {
         turnCount++
+        turnCountMetric = turnCount
+        await assertTurnActive(`model_${turnCount}_before`)
         // Split system prompt into stable (cacheable) and dynamic blocks
         const stablePrompt = [
           `You are the voice of the orb — the conversational layer of Orb.`,
@@ -1153,7 +1234,7 @@ export async function orbConverse(req: OrbRequest) {
           ORB_FOUNDATIONAL_DEFINITIONS,
           `VALID VALUES: Statuses: ${statusNames} | Priorities: ${priorityInfo}`,
           STATUS_VOCABULARY,
-          `The BACKLOG below gives one authoritative SUMMARY per project, including total_count and every status subtotal. Copy those named values exactly; never derive one by counting visible lines. When the user asks "how many tasks" or "my tasks" without specifying, report active_count. If parked_count is above zero, mention it separately. If you list tasks, make sure the number you claim matches the number of listed items, or say "including" instead of implying a complete list. For every derived number not already supplied as an authoritative field—any sum, difference, product, ratio, percentage, average, subtotal, or total—call calculate and copy its result exactly. Never perform arithmetic in generated prose.`,
+          `The WORKING CONTEXT below is intentionally compact: accessible active project names/codes/owners plus the current project's complete open and in-progress todos. It is not a complete backlog. Use the relevant read tool before stating facts about parked or closed todos, other-project todos, dormant projects, aggregate counts, descriptions, history, tickets, knowledge, users, invitations, categories, or groups. Never interpret an omitted record as nonexistent. For every derived number not already supplied by an authoritative tool result—any sum, difference, product, ratio, percentage, average, subtotal, or total—call calculate and copy its result exactly. Never perform arithmetic in generated prose.`,
           buildUrgencyRules(),
           ORB_QUERY_ROUTING,
           repositoryAccessPrompt,
@@ -1197,18 +1278,10 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             currentVoice: req.uiContext.currentVoice,
             availableVoices: req.uiContext.availableVoices,
           }) : '',
-          `BACKLOG (includes DORMANT section if any exist — answer dormant project questions from here, do not query):\n${ctx.contextString}`,
+          `WORKING CONTEXT:\n${ctx.contextString}`,
           ctx.projectHealthContext,
           ctx.nextStepContext,
-          `KNOWLEDGE BASE (Recent):\n${ctx.knowledgeList.slice(0, 5).map((k: any) => {
-              const tags = (k.tags && k.tags.length > 0) ? ` [${k.tags.join(', ')}]` : ''
-              let origin = ''
-              if (k.origin_todo_id) {
-                const srcTodo = ctx.todoList.find((t: any) => t.id === k.origin_todo_id)
-                if (srcTodo) origin = ` [from: ${todoCode(srcTodo, ctx.productList)}]`
-              }
-              return `- [${k.projects?.name ?? k.projects?.code ?? '?'}] ${k.title}${tags}${origin}: ${k.content.slice(0, 100)}...`
-            }).join('\n')}\n(Note: Use the 'search_knowledge' tool to query the full repository if the answer isn't here.)`,
+          `KNOWLEDGE ACCESS: Knowledge entries are loaded only through search_knowledge when the request needs them.`,
           `WHAT'S NEW (recent releases — use when the user asks "what's new?", "what changed?", or "what version is this?"):\n${CHANGELOG.slice(0, 3).map(r => `${r.version} (${r.date}):\n${r.changes.map(c => `  - ${c}`).join('\n')}`).join('\n\n')}`,
           buildMutationApprovalPrompt(ctx.preferenceList),
           ctx.behaviorRuleList.length > 0
@@ -1221,7 +1294,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           memoryLevel !== 'off' ? buildMemoryPrompt(ctx.memoryList, memoryLevel) : '',
           memoryLevel !== 'off' ? ORB_MEMORY_BEHAVIOR : '',
           routeRole === 'strategic'
-            ? `STRATEGIC READ MODE: The user explicitly asked for strategic guidance. You have no tools and cannot create, update, delete, or otherwise change anything. Base recommendations only on the supplied context, state uncertainty when evidence is incomplete, and wrap the core recommendation in [INSIGHT:strategic]...[/INSIGHT].`
+            ? `STRATEGIC READ MODE: The user explicitly asked for strategic guidance. You have no tools and cannot create, update, delete, or otherwise change anything. The supplied working context covers the current project's active todos and the accessible project directory; do not imply it covers other projects' todos or any parked/closed work. State that scope when it matters, state uncertainty when evidence is incomplete, and wrap the core recommendation in [INSIGHT:strategic]...[/INSIGHT].`
             : '',
         ].filter(Boolean).join('\n\n')
 
@@ -1233,6 +1306,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           stream.update({ speech: '', thought: 'Preparing strategic read...', isStreaming: true })
 
           providerInvocationStarted = true
+          serverTiming.mark('model_round_1_started')
           const strategicResult = await completeGeminiEvaluation({
             model: aiPolicy.strategicModel,
             source: 'strategic_review',
@@ -1244,10 +1318,12 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             messages,
             tools: [],
           })
+          await assertTurnActive('strategic_google_after')
 
           if (strategicResult.toolCalls.length > 0) {
             throw new Error('Strategic adviser attempted a tool call despite a no-tools route.')
           }
+          serverTiming.mark('model_round_1_complete')
 
           metricInputTokens = strategicResult.modelUsage.inputTokens
           metricOutputTokens = strategicResult.modelUsage.outputTokens
@@ -1275,6 +1351,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           stream.update({ speech: '', thought: 'Preparing strategic read...', isStreaming: true })
 
           providerInvocationStarted = true
+          serverTiming.mark('model_round_1_started')
           const strategicResult = await completeMoonshot({
             model: aiPolicy.strategicModel,
             source: 'strategic_review',
@@ -1288,10 +1365,12 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             reasoningEffort: 'high',
             promptCacheKey: 'orb-live-strategic-v1',
           })
+          await assertTurnActive('strategic_moonshot_after')
 
           if (strategicResult.toolCalls.length > 0) {
             throw new Error('Strategic adviser attempted a tool call despite a no-tools route.')
           }
+          serverTiming.mark('model_round_1_complete')
 
           metricInputTokens = strategicResult.modelUsage.inputTokens
           metricOutputTokens = strategicResult.modelUsage.outputTokens
@@ -1316,6 +1395,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         }
 
         providerInvocationStarted = true
+        serverTiming.mark(`model_round_${turnCount}_started`)
         let currentTurnSpeech = ''
         let currentInsight: OrbInsight | undefined
         // Separate this turn's speech from any prior turn's (e.g. proposal text before
@@ -1334,7 +1414,38 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             ]
         let assistantMessage: any
 
-        if (metricProvider === 'moonshot') {
+        if (metricProvider === 'google') {
+          const result = await completeGeminiEvaluation({
+            model: metricModel,
+            source: 'conversation',
+            systemPrompt: [stablePrompt, dynamicPrompt].join('\n\n'),
+            messages,
+            tools: turnTools,
+          })
+          currentTurnSpeech = result.speech
+          const parsed = extractInsight(baseSpeech + currentTurnSpeech)
+          accumulatedSpeech = parsed.speech
+          currentInsight = parsed.insight
+          stream.update({ speech: accumulatedSpeech, insight: currentInsight, isStreaming: true })
+          for (const toolCall of result.toolCalls) {
+            if (toolCall.name !== 'client_action') {
+              stream.update({
+                speech: accumulatedSpeech,
+                thought: ORB_TOOL_LABELS[toolCall.name] || 'Thinking...',
+                isStreaming: true,
+              })
+            }
+            toolCalls.push({
+              id: toolCall.id,
+              name: toolCall.name,
+              input: JSON.stringify(toolCall.params),
+            })
+          }
+          metricInputTokens += result.modelUsage.inputTokens
+          metricOutputTokens += result.modelUsage.outputTokens
+          metricCacheReadTokens += result.modelUsage.cachedInputTokens ?? 0
+          assistantMessage = result.assistantMessage
+        } else if (metricProvider === 'moonshot') {
           const result = await completeMoonshot({
             model: metricModel,
             source: 'conversation',
@@ -1382,6 +1493,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
 
           for await (const chunk of response) {
             if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+              if (!currentTurnSpeech) serverTiming.mark(`model_round_${turnCount}_first_output`)
               currentTurnSpeech += chunk.delta.text
               const parsed = extractInsight(baseSpeech + currentTurnSpeech)
               accumulatedSpeech = parsed.speech
@@ -1412,6 +1524,9 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           }
           assistantMessage = { role: 'assistant', content: assistantContent }
         }
+
+        serverTiming.mark(`model_round_${turnCount}_complete`)
+        await assertTurnActive(`model_${turnCount}_after`)
 
         metricToolCalls += toolCalls.length
         messages.push(assistantMessage)
@@ -1508,6 +1623,8 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         ])
 
         const toolOutputs: any[] = []
+        const terminalToolResponses: TerminalToolResponse[] = []
+        serverTiming.mark(`tool_round_${turnCount}_started`)
         for (const tc of toolCalls) {
           let input: any
           let inputTruncated = false
@@ -1532,6 +1649,9 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             toolOutputs.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify({ error: spellingError }) })
             continue
           }
+
+          const interruptibleRead = INTERRUPTIBLE_READ_TOOL_NAMES.has(tc.name)
+          if (interruptibleRead) await assertTurnActive(`read_${tc.name}_before`)
 
           if (inputTruncated) {
             output = { error: 'Your tool call was truncated (incomplete JSON). The parameters were too long for the response limit. Try again with a shorter description, or create the task first with just a title and update it separately.' }
@@ -1583,6 +1703,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               output = { needs_disambiguation: true, candidates: proposal.candidates, _instruction: `More than one project matches: ${list}. Ask the user which one they mean — refer to them by name. Do not act yet.` }
             } else {
               proposalStored = true
+              await assertTurnActive('legacy_proposal_before')
               await storePendingMutation(auth, {
                 tool: tc.name,
                 target_id: proposal.target_id,
@@ -1620,7 +1741,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             }
             let confirmation
             try {
-              confirmation = await confirmOrbMutation(auth, pend.proposal_id)
+              confirmation = await confirmMutationWithTiming(auth, pend.proposal_id)
               committedProposalId = pend.proposal_id
             } catch (error) {
               const message = error instanceof Error ? error.message : String(error)
@@ -1717,8 +1838,11 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           try {
 
           if (tc.name === 'query_todos') {
-            const requestedProject = input.product_code ? resolveReadProject(ctx.productList, input.product_code) : null
-            let results = ctx.todoList.filter((t: any) => !requestedProject || t.product_id === requestedProject.id)
+            const projectCode = defaultTodoQueryProjectCode(input, ctx.current?.code, req.input)
+            const requestedProject = projectCode ? resolveReadProject(ctx.productList, projectCode) : null
+            let results = (await loadAccessibleTodoRows(auth))
+              .filter((t: any) => !requestedProject || t.product_id === requestedProject.id)
+            serverTiming.mark(`tool_round_${turnCount}_query_todos_rows_loaded`)
 
             if (input.ownership_scope === 'current_user') {
               const ownedProjectIds = new Set(
@@ -1765,8 +1889,13 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               if (input.priority_max) {
                 results = results.filter((t: any) => t.priority_value != null && t.priority_value <= input.priority_max)
               }
-              results.sort((a: any, b: any) => (a.priority_value ?? 99) - (b.priority_value ?? 99))
             }
+
+            results = sortTodoQueryRows(
+              results,
+              (input.sort_by ?? 'priority') as TodoQuerySortField,
+              (input.sort_direction ?? 'asc') as TodoQuerySortDirection,
+            )
 
             const limit = input.max_results ?? 100
             const aggregateFacts = results.map((todo: any) => ({
@@ -1790,9 +1919,8 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             }
             stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length} items` })
           } else if (tc.name === 'query_projects') {
-            // In-memory over the already-loaded context (like query_todos) —
-            // zero extra DB reads. Visibility is inherited: productList is
-            // ownership/admin-filtered at load, dormantList is admin-only.
+            // Project names and owners are preloaded. Descriptions, dormancy
+            // and counts are fetched only when the request needs them.
             const ref = input.name ? String(input.name).trim() : ''
             const refUpper = ref.toUpperCase()
             const matchesRef = (p: any) =>
@@ -1800,30 +1928,48 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               p.name.toUpperCase().includes(refUpper) ||
               (p.code ?? '').toUpperCase() === refUpper ||
               fuzzyMatch(ref, p.name)
-            const results = ctx.productList.filter(matchesRef)
-            const dormantMatches = input.include_dormant ? ctx.dormantList.filter(matchesRef) : []
+            const projectClient = auth.isAdmin ? auth.admin : supabase
+            let projectQuery = projectClient
+              .from('projects')
+              .select('id, name, code, description, created_by, is_dormant, users!created_by(first_name, last_name, email)')
+              .is('deleted_at', null)
+              .order('sort_order')
+            if (!input.include_dormant) projectQuery = projectQuery.eq('is_dormant', false)
+            const { data: projectRows, error: projectError } = await projectQuery
+            if (projectError) throw new Error(projectError.message)
+            const results = (projectRows ?? []).filter(matchesRef)
+            const projectIds = results.map((project: any) => project.id)
+            let projectTodos: any[] = []
+            if (projectIds.length > 0) {
+              const { data: rows, error: todoError } = await projectClient
+                .from('todos')
+                .select('product_id, status')
+                .in('product_id', projectIds)
+                .is('deleted_at', null)
+              if (todoError) throw new Error(todoError.message)
+              projectTodos = rows ?? []
+            }
+            serverTiming.mark(`tool_round_${turnCount}_query_projects_rows_loaded`)
             const limit = input.max_results ?? 50
             const returned: any[] = results.slice(0, limit).map((p: any) => {
-              const ownerName = ctx.userMap.get(p.created_by)
-              const projectTodos = ctx.todoList.filter((t: any) => t.product_id === p.id)
+              const joinedOwner = Array.isArray(p.users) ? p.users[0] : p.users
+              const ownerName = joinedOwner
+                ? [joinedOwner.first_name, joinedOwner.last_name].filter(Boolean).join(' ') || joinedOwner.email
+                : ctx.userMap.get(p.created_by)
+              const todosForProject = projectTodos.filter((t: any) => t.product_id === p.id)
               const out: any = {
                 name: p.name,
                 code: p.code,
-                active_tasks: projectTodos.filter((t: any) => isActive(t.status)).length,
-                total_tasks: projectTodos.length,
+                active_tasks: todosForProject.filter((t: any) => isActive(t.status)).length,
+                total_tasks: todosForProject.length,
+                dormant: Boolean(p.is_dormant),
               }
               if (p.description) out.description = p.description
               if (ownerName) out.owner = ownerName
               return out
             })
-            for (const p of dormantMatches.slice(0, Math.max(0, limit - returned.length))) {
-              const dormantOwner = ctx.userMap.get(p.created_by)
-              const out: any = { name: p.name, code: p.code, dormant: true }
-              if (dormantOwner) out.owner = dormantOwner
-              returned.push(out)
-            }
-            output = { count: results.length + dormantMatches.length, returned }
-            stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length + dormantMatches.length} projects` })
+            output = { count: results.length, returned }
+            stream.update({ speech: accumulatedSpeech, thought: `Found ${results.length} projects` })
           } else if (tc.name === 'query_users') {
             const packet = await queryOrbUsers(auth, {
               search: input.search,
@@ -1935,6 +2081,11 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
                 // falls back to the name for an older server response.
                 stream.update({ speech: accumulatedSpeech, thought: `Switched to ${match.name}`, clientAction: { action: input.action, target: match.name, projectId: match.id } })
                 output = { ok: true, _instruction: 'The client is switching now and the server confirms the switch to the user. Do not announce the switch yourself.' }
+                terminalToolResponses.push({
+                  toolUseId: tc.id,
+                  speech: switchConfirmationSpeech(accumulatedSpeech, match.name, repairedNoToolMutationClaim),
+                  clientAction: { action: input.action, target: match.name, projectId: match.id },
+                })
               }
             } else {
               hasActed = true
@@ -1971,7 +2122,15 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
                 stream.update({ speech: accumulatedSpeech, thought: `Found "${res.title}"`, knowledgeResults: returned })
               }
             } else {
-              let results = ctx.knowledgeList.slice()
+              const readClient = auth.isAdmin ? auth.admin : supabase
+              const { data: knowledgeRows, error: knowledgeError } = await readClient
+                .from('knowledge_repo')
+                .select('id, title, content, product_id, tags, created_at, projects(code, name)')
+                .order('created_at', { ascending: false })
+                .limit(500)
+              if (knowledgeError) throw new Error(knowledgeError.message)
+              let results = knowledgeRows ?? []
+              serverTiming.mark(`tool_round_${turnCount}_knowledge_rows_loaded`)
               if (input.product_code) {
                   const p = resolveReadProject(ctx.productList, input.product_code)
                   if (p) results = results.filter((k: any) => k.product_id === p.id)
@@ -2157,6 +2316,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
                 ...(input.detail ? { detail: String(input.detail).slice(0, 4000) } : {}),
                 ...(req.systemInfo ? { system: req.systemInfo } : {}),
               }
+              await assertTurnActive('ticket_proposal_before')
               await storePendingMutation(auth, {
                 tool: 'create_ticket',
                 target_id: null,
@@ -2326,6 +2486,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             }
           }
           } catch (toolErr: any) {
+            if (toolErr instanceof OrbTurnInterruptedError) throw toolErr
             if (toolErr instanceof InteractionPolicyError) {
               // Expected refusal is a tool result, not a new bug ticket.
               output = { error: toolErr.message }
@@ -2342,6 +2503,8 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
               systemInfo: req.systemInfo,
             }).catch(e => console.error('[orbConverse] Failed to auto-file tool error ticket:', e))
             }
+          } finally {
+            if (interruptibleRead) await assertTurnActive(`read_${tc.name}_after`)
           }
 
           if (output?.error) {
@@ -2350,8 +2513,31 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
           }
 
           if (!output?.error && ORB_PRESENTABLE_QUERY_TOOL_NAMES.has(tc.name)) {
-            const presentation = buildOrbQueryPresentation(output, orbQueryPresentationRequest(input))
-            if (presentation) output.presentation = presentation
+            const presentationRequest = orbQueryPresentationRequest(input)
+            const directPresentation = directQueryPresentationModeForTurn(req.input, req.history)
+            const presentation = buildOrbQueryPresentation(output, presentationRequest)
+            if (presentation) {
+              output.presentation = presentation
+              const presentationWasExplicit = Boolean(
+                presentationRequest.format
+                || presentationRequest.detail
+                || presentationRequest.fields?.length,
+              )
+              if (directPresentation !== 'count' && (presentationWasExplicit || directPresentation === 'records')) {
+                terminalToolResponses.push({
+                  toolUseId: tc.id,
+                  speech: renderOrbQueryPacketMarkdown(output, presentationRequest) ?? presentation.markdown,
+                  spokenText: directQuerySpokenSummary(output),
+                })
+              }
+            }
+            if (directPresentation === 'count') {
+              const countSpeech = renderDirectQueryCount(output)
+              if (countSpeech) terminalToolResponses.push({ toolUseId: tc.id, speech: countSpeech, spokenText: countSpeech })
+            } else if (directPresentation === 'records' && !presentation) {
+              const emptySpeech = renderDirectQueryCount(output)
+              if (emptySpeech) terminalToolResponses.push({ toolUseId: tc.id, speech: emptySpeech, spokenText: emptySpeech })
+            }
           }
 
           // For mutation tools, inject explicit verification signals so the model
@@ -2390,8 +2576,10 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             }
           }
         }
+        serverTiming.mark(`tool_round_${turnCount}_complete`)
         if (heldMutationCalls.length > 0) {
           try {
+            serverTiming.mark('mutation_batch_preparation_started')
             const preparedByToolUseId = new Map<string, PreparedOrbMutationCommand>()
             const needsMutationSnapshot = heldMutationCalls.some(call =>
               PROJECT_MUTATIONS.has(call.tool) || KNOWLEDGE_MUTATIONS.has(call.tool)
@@ -2483,7 +2671,11 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             const batchSummary = prepared.length === 1
               ? prepared[0].summary
               : `${prepared.length} actions: ${prepared.map(command => command.summary).join('; ')}`
+            serverTiming.mark('mutation_batch_preparation_complete')
+            await assertTurnActive('mutation_persist_before')
+            serverTiming.mark('mutation_batch_persistence_started')
             await persistOrbCommandBatch(auth, prepared, batchSummary)
+            serverTiming.mark('mutation_batch_persistence_complete')
             // Keep what the model said before calling the tool ("You're right,
             // it should be test8.") ahead of the server's exact proposal. It
             // used to stream and then vanish when the proposal replaced it.
@@ -2495,6 +2687,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
             await finish({ speech, isStreaming: false })
             return
           } catch (error) {
+            if (error instanceof OrbTurnInterruptedError) throw error
             const message = error instanceof Error ? error.message : String(error)
             const speech = `I couldn't prepare that complete request: ${message} No changes were made.`
             recordModelRequest(speech)
@@ -2505,6 +2698,7 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         }
         if (heldTodoOperations.length > 0) {
           const summary = summarizeTodoOperations(heldTodoOperations)
+          await assertTurnActive('todo_proposal_before')
           await proposeSerialTodoOperations(auth, heldTodoOperations, {
             currentProjectId: req.productId,
             requestZone,
@@ -2521,6 +2715,23 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         if (!hasMutated && toolErrors.length > 0) {
           toolOutputs.push({ type: 'text' as const, text: `[SYSTEM: No data was modified. Errors occurred: ${toolErrors.join('; ')}. Report these errors to the user. Do NOT claim success.]` })
         }
+        const completedToolRound = completeToolRound(
+          toolCalls.map(call => call.id),
+          terminalToolResponses,
+        )
+        if (completedToolRound) {
+          serverTiming.mark('tool_round_completed_without_model')
+          recordModelRequest(completedToolRound.speech)
+          recordMetrics(completedToolRound.speech.length)
+          await finish({
+            speech: completedToolRound.speech,
+            spokenText: completedToolRound.spokenText,
+            isStreaming: false,
+            ...(completedToolRound.clientAction ? { clientAction: completedToolRound.clientAction } : {}),
+          })
+          return
+        }
+        serverTiming.mark('tool_round_requires_model')
         // Tool results are about to be shown to the model — register their
         // codes as legitimate provenance for subsequent mutation calls.
         for (const to of toolOutputs) {
@@ -2529,8 +2740,10 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         }
         messages.push({ role: 'user', content: toolOutputs })
 
-        // Slight artificial delay between turns to make thoughts readable
-        await new Promise(r => setTimeout(r, 600))
+        // Continue immediately. Thought updates remain visible while the next
+        // provider round runs; delaying the transaction path made both text and
+        // voice slower without adding correctness or readability.
+        serverTiming.mark(`model_continuation_${turnCount}_ready`)
       }
       // Check if urgency escalated after mutations
       if (hasMutated) {
@@ -2548,6 +2761,11 @@ Use observation for backlog facts worth noticing, coaching for work-rhythm guida
         isStreaming: false,
       })
     } catch (err: any) {
+      if (err instanceof OrbTurnInterruptedError) {
+        serverTiming.mark('interrupted_turn_stopped')
+        await finish({ speech: BARE_STOP_ACKNOWLEDGEMENT, isStreaming: false })
+        return
+      }
       console.error('[orbConverse] Error:', err)
       const failure = classifyProviderFailure(err, metricProvider, metricRouteRole)
       if (providerInvocationStarted) {
@@ -2594,10 +2812,10 @@ export async function orbGreeting(productId: string | null): Promise<string | nu
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5',
       max_tokens: 200,
-      system: `You are the voice of the orb. Generate a brief, ambient opening observation (1-2 sentences) based on the backlog below. Plain text, no markdown. Factual tone — no cheerleading. Address the user directly ("you"). Do not greet them or say hello. SCOPE TRANSPARENCY: Every number you cite must state its scope — say "across all projects" or name the specific projects by their display names (e.g. "across Orb, Helm"). Never present a count without saying where it comes from. Only state facts visible in the backlog — do not infer patterns or compute statistics. If a proactive observation is provided, prefer weaving it into the opening naturally over generic backlog stats.\n\n${STATUS_VOCABULARY}${observationsSection}`,
+      system: `You are the voice of the orb. Generate a brief, ambient opening observation (1-2 sentences) from the compact working context below. Plain text, no markdown. Factual tone — no cheerleading. Address the user directly ("you"). Do not greet them or say hello. The context contains only the current project's active todos plus the accessible project directory. Every number must name the current project; never describe it as an all-project total. Only state facts visible in the working context — do not infer patterns or compute statistics. If a proactive observation is provided, prefer weaving it into the opening naturally over generic task counts.\n\n${STATUS_VOCABULARY}${observationsSection}`,
       messages: [{
         role: 'user',
-        content: `Backlog:\n${ctx.contextString}`,
+        content: `Working context:\n${ctx.contextString}`,
       }],
     })
 

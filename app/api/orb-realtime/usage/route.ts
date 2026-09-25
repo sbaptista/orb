@@ -1,10 +1,10 @@
 import { getAuthContext } from '@/lib/auth'
 import { recordOrbModelRequest } from '@/lib/orb-model/record'
 import { sanitizeModelRequestPlatform } from '@/lib/client-environment'
+import { DEFAULT_ORB_AI_POLICY } from '@/lib/orb-model/policy'
+import { supportsOrbRole } from '@/lib/orb-model/catalog'
 
 export const runtime = 'nodejs'
-
-const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1'
 
 type RealtimeUsage = {
   total_tokens?: number
@@ -21,9 +21,12 @@ type RealtimeUsage = {
 export async function POST(request: Request) {
   try {
     const auth = await getAuthContext()
-    const body = await request.json() as { usage?: RealtimeUsage; platform?: unknown }
+    const body = await request.json() as { usage?: RealtimeUsage; platform?: unknown; model?: unknown }
     const usage = body.usage
     if (!usage) return Response.json({ ok: true })
+    const model = typeof body.model === 'string' && supportsOrbRole('openai', body.model, 'voice')
+      ? body.model
+      : DEFAULT_ORB_AI_POLICY.voiceModel
 
     await recordOrbModelRequest(auth.admin, {
       userId: auth.user.id,
@@ -31,7 +34,7 @@ export async function POST(request: Request) {
       platform: sanitizeModelRequestPlatform(body.platform),
       usage: {
         provider: 'openai',
-        model: REALTIME_MODEL,
+        model,
         source: 'voice_realtime',
         inputTokens: usage.input_tokens ?? 0,
         outputTokens: usage.output_tokens ?? 0,

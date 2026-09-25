@@ -183,8 +183,8 @@ async function paceExpectedModelCall(testCase: EvalCase): Promise<void> {
 }
 
 async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
-  const provider = testCase.provider ?? EVAL_PROVIDER
-  const model = testCase.model ?? EVAL_MODEL
+  const provider = EVAL_PROVIDER
+  const model = EVAL_MODEL
   const res = await fetch(`${BASE_URL}/api/orb-eval`, {
     method: 'POST',
     headers: {
@@ -219,7 +219,7 @@ async function callOrb(testCase: EvalCase): Promise<EvalResponse> {
 
   if (!res.ok) {
     const text = await res.text()
-    let evaluator: string | null = testCase.provider && testCase.model ? `${testCase.provider}/${testCase.model}` : null
+    let evaluator: string | null = null
     let detail = text
     try {
       const body = JSON.parse(text) as { error?: string; evaluator?: string | null }
@@ -421,9 +421,6 @@ function assertSpeech(response: EvalResponse, testCase: EvalCase): string[] {
 
 function assertRouting(response: EvalResponse, testCase: EvalCase): string[] {
   const failures: string[] = []
-  if (testCase.expectProvider && response.modelUsage?.provider !== testCase.expectProvider) {
-    failures.push(`Expected provider "${testCase.expectProvider}", got "${response.modelUsage?.provider ?? 'none'}"`)
-  }
   if (testCase.expectRouteRole && response.routeRole !== testCase.expectRouteRole) {
     failures.push(`Expected route role "${testCase.expectRouteRole}", got "${response.routeRole ?? 'none'}"`)
   }

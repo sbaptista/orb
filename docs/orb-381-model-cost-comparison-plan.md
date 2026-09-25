@@ -510,7 +510,7 @@ Stan's approval should confirm or modify these recommended decisions:
    to eval campaigns without provider-supplied scope.
 6. Keep comparison evidence separate from aggregate provider reconciliation.
 7. Place Model Cost Comparisons in AI Metrics → Orb using existing UI patterns.
-8. Keep Kimi experimental until comparison and live-use evidence support a
-   separate promotion decision.
+8. Keep Kimi qualification evidence explicit in the eval and request ledgers;
+   do not hide catalog availability behind an experimental flag.
 
 Implementation begins only after Stan explicitly approves this plan.

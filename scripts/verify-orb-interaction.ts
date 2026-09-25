@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { executeConfirmation, type ConfirmationPorts, type OrbMutationConfirmation } from '../lib/orb-operations/confirmation-execution'
 import { diagnosticRunCount } from '../lib/orb-interaction/diagnostic-policy'
 import { aggregateSummariesContext, ArithmeticError, calculateArithmetic, summarizeTodoFacts, unsupportedAggregateClaims } from '../lib/orb-interaction/arithmetic'
@@ -21,9 +22,24 @@ import { isClearlyFragmentaryProviderTranscript, isStalledVoiceVerifier, isUsabl
 import { isBareMutationAffirmation, isTypoTolerantBareMutationAffirmation } from '../lib/orb-model/confirmation-grammar'
 import { deletedProjectIdsFromPendingMutation, projectsAfterConfirmedCreation, projectsAfterConfirmedDeletion, selectedProjectAfterMutationRefresh } from '../lib/orb-interaction/project-refresh'
 import { ORB_REALTIME_TRANSPORT_ONLY } from '../lib/orb-interaction/runtime'
+import { getOrbModelOptions, supportsOrbRole } from '../lib/orb-model/catalog'
+import { DEFAULT_ORB_AI_POLICY } from '../lib/orb-model/policy'
+import { toGeminiContents } from '../lib/orb-model/gemini'
+import { activeModelIdentitySpeech } from '../lib/orb-model/model-identity'
 import { withExplicitSpellingClarification, withHistorySpellingClarifications } from '../lib/orb-interaction/spelled-identifiers'
 import { lastShownProposalMatches } from '../lib/orb-interaction/model-history'
+import { createOrbTurnTiming } from '../lib/orb-interaction/turn-timing'
+import { completeToolRound } from '../lib/orb-interaction/tool-round-completion'
+import { buildOrbQueryPresentation, directQueryPresentationMode, directQueryPresentationModeForTurn, directQuerySpokenSummary, renderDirectQueryCount } from '../lib/orb-query-presentation'
 import { suggestProjectByReference } from '../lib/projects'
+import {
+  isRestartOnlyCommand,
+  normalizeSpokenTurnText,
+  restartReplacementText,
+} from '../lib/orb-interaction/turn-text'
+import { reconcileMessageIdentity, uniqueMessagesById } from '../lib/orb-interaction/message-identity'
+import { isDifferentDevServerBoot } from '../lib/client-state'
+import { defaultTodoQueryProjectCode, sortTodoQueryRows } from '../lib/orb-interaction/todo-query'
 import {
   ORB_PENDING_RESTATEMENT_PREFIX,
   buildOrbConfirmationSpeechFromSummaries,
@@ -41,7 +57,105 @@ const base = {
   createdAt: '2026-09-11T00:00:00.000Z',
 } as const
 
+const reconciledTranscript = reconcileMessageIdentity([
+  { id: 'durable-response', text: 'Earlier replay' },
+  { id: 'local-processing', text: 'Processing…' },
+], 'local-processing', message => ({ ...message, id: 'durable-response', text: 'Final response' }))
+assert.deepEqual(reconciledTranscript, [{ id: 'durable-response', text: 'Final response' }])
+assert.deepEqual(uniqueMessagesById([
+  { id: 'event-a', text: 'stale' },
+  { id: 'event-a', text: 'authoritative' },
+  { id: 'event-b', text: 'next' },
+]), [
+  { id: 'event-a', text: 'authoritative' },
+  { id: 'event-b', text: 'next' },
+])
+assert.equal(isDifferentDevServerBoot(null, 'boot-a'), false)
+assert.equal(isDifferentDevServerBoot('boot-a', 'boot-a'), false)
+assert.equal(isDifferentDevServerBoot('boot-a', 'boot-b'), true)
+
+const contextSource = readFileSync('lib/orb-model/context.ts', 'utf8')
+const compactContextSource = contextSource.slice(contextSource.indexOf('export async function buildOrbContext'))
+assert.equal((compactContextSource.match(/\.from\(/g) ?? []).length, 8, 'ordinary context should issue two workspace reads plus six control-plane reads')
+assert.match(compactContextSource, /\.in\('status', \['open', 'in progress'\]\)/)
+assert.match(compactContextSource, /users!created_by\(first_name, last_name, email\)/)
+for (const eagerTable of ['audit_log', 'tickets', 'categories', 'groups', 'roles', 'platforms', 'invitations', 'orb_friction']) {
+  assert.doesNotMatch(compactContextSource, new RegExp(`from\\('${eagerTable}'\\)`), `${eagerTable} must remain lazy`)
+}
+
+const converseSource = readFileSync('app/actions/orb-converse.ts', 'utf8')
+const interruptionStoreSource = readFileSync('lib/orb-interaction/conversation-store.ts', 'utf8')
+const interruptionLookupSource = interruptionStoreSource.slice(
+  interruptionStoreSource.indexOf('export async function isOrbTurnInterrupted'),
+  interruptionStoreSource.indexOf('export async function acknowledgeOrbConversationResponse'),
+)
+assert.doesNotMatch(interruptionLookupSource, /ownedActiveConversation/, 'an interruption checkpoint must remain one database query')
+assert.equal((interruptionLookupSource.match(/\.from\(/g) ?? []).length, 1, 'an interruption checkpoint must issue one database request')
+assert.match(interruptionLookupSource, /data\.status !== 'active'/, 'closing a conversation must still cancel its active turn')
+assert.match(converseSource, /await assertTurnActive\('context_complete'\)/)
+assert.match(converseSource, /await assertTurnActive\(`model_\$\{turnCount\}_before`\)/)
+assert.match(converseSource, /await assertTurnActive\(`model_\$\{turnCount\}_after`\)/)
+assert.match(converseSource, /await assertTurnActive\('mutation_persist_before'\)/)
+assert.match(converseSource, /if \(interruptibleRead\) await assertTurnActive\(`read_\$\{tc\.name\}_after`\)/)
+
+const turnTiming = createOrbTurnTiming('2026-09-25T00:00:00.000Z')
+turnTiming.mark('authentication_complete')
+const turnTimingSnapshot = turnTiming.snapshot()
+assert.equal(turnTimingSnapshot.startedAt, '2026-09-25T00:00:00.000Z')
+assert.deepEqual(turnTimingSnapshot.stages.map(stage => stage.name), ['request_received', 'authentication_complete'])
+assert.ok(turnTimingSnapshot.durationMs >= 0)
+
 assert.equal(ORB_REALTIME_TRANSPORT_ONLY, true)
+assert.equal(DEFAULT_ORB_AI_POLICY.voiceModel, 'gpt-realtime-2.1-mini')
+assert.deepEqual(
+  getOrbModelOptions('operational').map(model => `${model.provider}/${model.model}`),
+  ['anthropic/claude-haiku-4-5', 'google/gemini-3.1-pro-preview', 'moonshot/kimi-k3'],
+)
+assert.deepEqual(
+  getOrbModelOptions('strategic').map(model => `${model.provider}/${model.model}`),
+  ['anthropic/claude-haiku-4-5', 'google/gemini-3.1-pro-preview', 'moonshot/kimi-k3'],
+)
+assert.deepEqual(
+  getOrbModelOptions('evaluation').map(model => `${model.provider}/${model.model}`),
+  ['anthropic/claude-haiku-4-5', 'google/gemini-3.1-pro-preview', 'moonshot/kimi-k3'],
+)
+assert.deepEqual(
+  getOrbModelOptions('voice').map(model => `${model.provider}/${model.model}`),
+  ['openai/gpt-realtime-2.1-mini', 'openai/gpt-realtime-2.1'],
+)
+assert.equal(supportsOrbRole('moonshot', 'kimi-k3', 'operational'), true)
+assert.equal(supportsOrbRole('moonshot', 'kimi-k3', 'strategic'), true)
+assert.equal(supportsOrbRole('moonshot', 'kimi-k3', 'evaluation'), true)
+assert.match(
+  activeModelIdentitySpeech({
+    provider: 'moonshot',
+    model: 'kimi-k3',
+    role: 'operational',
+    environment: 'development',
+  }),
+  /Kimi K3 from Moonshot/,
+)
+assert.match(
+  activeModelIdentitySpeech({
+    provider: 'anthropic',
+    model: 'claude-haiku-4-5',
+    role: 'strategic',
+    environment: 'production',
+  }),
+  /Claude Haiku 4\.5 from Anthropic/,
+)
+assert.deepEqual(
+  toGeminiContents([
+    { role: 'user', content: 'Find Orb tasks.' },
+    { role: 'assistant', content: [{ type: 'tool_use', id: 'call-1', name: 'query_todos', input: { product_code: 'ORB' }, thought_signature: 'signed-reasoning' }] },
+    { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call-1', content: '{"count":2}' }] },
+  ]),
+  [
+    { role: 'user', parts: [{ text: 'Find Orb tasks.' }] },
+    { role: 'model', parts: [{ thoughtSignature: 'signed-reasoning', functionCall: { id: 'call-1', name: 'query_todos', args: { product_code: 'ORB' } } }] },
+    { role: 'user', parts: [{ functionResponse: { id: 'call-1', name: 'query_todos', response: { count: 2 } } }] },
+  ],
+)
 assert.equal(calculateArithmetic('4 + 21 + 295'), 320)
 assert.equal(calculateArithmetic('(3 + 1) + (18 + 3) + 295'), 320)
 assert.equal(calculateArithmetic('25% * 80'), 20)
@@ -60,6 +174,16 @@ assert.deepEqual(unsupportedAggregateClaims('| Open | 1 |\n| Total | 5 |', aggre
 assert.equal(isBroadProjectStateQuestion('Give me a status update on Orb'), true)
 assert.equal(isBroadProjectStateQuestion('Show me a status breakdown for project Orb'), false)
 assert.equal(isTodoStatusBreakdownRequest('Show all Orb to-dos in a table by status or type'), true)
+assert.equal(isTodoStatusBreakdownRequest('Show me the most recent closed to-dos in a table.'), false)
+assert.equal(isTodoStatusBreakdownRequest('Show a table of all todo counts by type.'), true)
+assert.equal(defaultTodoQueryProjectCode({}, 'ORB', 'List the 10 most recent closed todos.'), 'ORB')
+assert.equal(defaultTodoQueryProjectCode({ ownership_scope: 'current_user' }, 'ORB', 'List closed todos across my projects.'), null)
+assert.equal(defaultTodoQueryProjectCode({ code: 'HELM-3' }, 'ORB', 'Show HELM-3.'), null)
+assert.deepEqual(sortTodoQueryRows([
+  { code: 'ORB-1', closed_at: '2026-09-01T00:00:00Z' },
+  { code: 'ORB-3', closed_at: null },
+  { code: 'ORB-2', closed_at: '2026-09-03T00:00:00Z' },
+], 'closed_at', 'desc').map(row => row.code), ['ORB-2', 'ORB-1', 'ORB-3'])
 const statusReport = buildTodoStatusReport({
   currentUserId: 'user-1',
   input: 'Show me a status breakdown for project Orb',
@@ -382,14 +506,65 @@ assert.equal(isOrbInterruptReason('exit_voice'), true)
 assert.deepEqual([...TURN_CANCELLING_INTERRUPT_REASONS].sort(), ['merge', 'replacement', 'stop'])
 assert.equal(isOrbInterruptReason('merge'), true)
 assert.equal(isBareHaltCommand('Stop.'), true)
+assert.equal(isBareHaltCommand('OK, stop.'), true)
+assert.equal(isBareHaltCommand('Okay, wait.'), true)
 assert.equal(isBareHaltCommand('wait, wait'), true)
+assert.equal(isBareHaltCommand('Okay, tell me what is active.'), false)
 assert.equal(isBareHaltCommand('No.'), false)
 assert.equal(isBareHaltCommand('Nope'), false)
+assert.equal(isBareHaltCommand('Okay, no.'), false)
 assert.equal(mergedTurnText('Now create test 9.', ' Let me spell that: T-E-S-T numeral 9. '), 'Now create test 9. Let me spell that: T-E-S-T numeral 9.')
 assert.equal(mergedTurnText('Switch to the Orb project.', 'Switch to the Orb project.'), 'Switch to the Orb project.')
 assert.equal(mergedTurnText('Okay, switch to Orb.', 'Okay, switch to Orb. Now list tasks.'), 'Okay, switch to Orb. Now list tasks.')
+assert.equal(normalizeSpokenTurnText('Let me try againCreate a to-do.'), 'Let me try again Create a to-do.')
+assert.equal(isRestartOnlyCommand('Let me try again.'), true)
+assert.equal(restartReplacementText('Let me try againCreate a to-do called Test in project Shunyata.'), 'Create a to-do called Test in project Shunyata.')
+assert.equal(restartReplacementText('Try again switch to project Shunyata.'), 'switch to project Shunyata.')
+assert.equal(
+  mergedTurnText('Create a to-do called test.', 'Let me try againCreate a to-do called Test in project Shunyata.'),
+  'Create a to-do called Test in project Shunyata.',
+)
 assert.equal(suggestProjectByReference([{ name: 'Shunyata', code: 'SHUNYATA' }, { name: 'Orb', code: 'ORB' }], 'Jinata')?.name, 'Shunyata')
 assert.equal(suggestProjectByReference([{ name: 'Alpha' }, { name: 'Alphi' }], 'Alphx'), null)
+assert.deepEqual(completeToolRound(['tool-1'], [{
+  toolUseId: 'tool-1',
+  speech: 'Switched to “Shunyata”.',
+  clientAction: { action: 'switch_project', target: 'Shunyata', projectId: 'project-1' },
+}]), {
+  speech: 'Switched to “Shunyata”.',
+  clientAction: { action: 'switch_project', target: 'Shunyata', projectId: 'project-1' },
+})
+assert.deepEqual(completeToolRound(['tool-1', 'tool-2'], [
+  { toolUseId: 'tool-2', speech: 'Second result.' },
+  { toolUseId: 'tool-1', speech: 'First result.' },
+]), { speech: 'First result.\n\nSecond result.' })
+assert.deepEqual(completeToolRound(['tool-1'], [{
+  toolUseId: 'tool-1',
+  speech: '| Code | Title |\n| --- | --- |\n| ORB-1 | Test |',
+  spokenText: '295 matching results. I put the details on screen.',
+}]), {
+  speech: '| Code | Title |\n| --- | --- |\n| ORB-1 | Test |',
+  spokenText: '295 matching results. I put the details on screen.',
+})
+assert.equal(completeToolRound(['tool-1', 'tool-2'], [{ toolUseId: 'tool-1', speech: 'Only one.' }]), null)
+assert.equal(completeToolRound(['tool-1'], []), null)
+assert.equal(directQueryPresentationMode('Show me all of my closed tasks.'), 'records')
+assert.equal(directQueryPresentationMode('How many closed tasks do I have?'), 'count')
+assert.equal(directQueryPresentationMode('Analyze my closed tasks and recommend what to archive.'), null)
+assert.equal(directQueryPresentationModeForTurn('Yes, I meant Orb.', [
+  { role: 'user', text: 'Show me all of my closed tasks in project CORB.' },
+  { role: 'assistant', text: 'I do not have CORB. Did you mean Orb?' },
+]), 'records')
+assert.equal(directQueryPresentationModeForTurn('Yes.', [
+  { role: 'user', text: 'Why are my closed tasks increasing?' },
+  { role: 'assistant', text: 'Did you mean Orb?' },
+]), null)
+assert.equal(renderDirectQueryCount({ count: 295 }), '295 matching results.')
+assert.equal(directQuerySpokenSummary({ count: 295 }), '295 matching results. I put the details on screen.')
+assert.deepEqual(buildOrbQueryPresentation({ returned: [{
+  id: 'uuid', code: 'ORB-1', todo_number: 1, title: 'Test', description: 'Long detail', status: 'closed',
+  project: { name: 'Orb', code: 'ORB' }, owner: 'Stan', created_at: '2026-01-01',
+}] })?.fields, ['code', 'title', 'status', 'project', 'owner'])
 
 // A turn merged into its successor hides its fragment but keeps any receipt.
 const mergeEvents: OrbConversationEvent[] = [

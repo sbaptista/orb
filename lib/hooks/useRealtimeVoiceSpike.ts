@@ -17,7 +17,7 @@ type SpikeStatus = 'off' | 'connecting' | 'listening' | 'thinking' | 'speaking' 
 type Options = {
   currentProjectId: string | null
   transportOnly?: boolean
-  onUserTranscript: (text: string) => void
+  onUserTranscript: (text: string, turnId: string) => void
   onOrbTranscript: (text: string) => void
   onMutation: () => void
   onClientAction: (action: { action: string; target?: string }) => void
@@ -59,12 +59,12 @@ function transcriptionConfidence(logprobs: RealtimeEvent['logprobs']) {
 // Fire-and-forget: log this response's token usage to Orb's own ledger so
 // ORB-353's usage warnings can see voice spend. Never blocks or throws into
 // the turn-taking path — a failed usage log must never affect the call.
-function reportRealtimeUsage(usage: RealtimeUsage | undefined) {
+function reportRealtimeUsage(usage: RealtimeUsage | undefined, model: string | null) {
   if (!usage) return
   fetch('/api/orb-realtime/usage', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usage, platform: collectClientEnvironment().platform }),
+    body: JSON.stringify({ usage, model, platform: collectClientEnvironment().platform }),
     keepalive: true,
   }).catch(() => {})
 }
@@ -102,6 +102,7 @@ export function useRealtimeVoiceSpike(options: Options) {
   // ORB-372: OpenAI's handle for the live call, so stop() can end it there
   // and not just locally. Null once ended or never established.
   const callIdRef = useRef<string | null>(null)
+  const realtimeModelRef = useRef<string | null>(null)
   const channelRef = useRef<RTCDataChannel | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const sileroShadowRef = useRef<SileroShadowController | null>(null)
@@ -150,6 +151,7 @@ export function useRealtimeVoiceSpike(options: Options) {
   const callbacksRef = useRef(options)
   const startupMeasurementRef = useRef<ReturnType<typeof startInteraction> | null>(null)
   const turnMeasurementRef = useRef<ReturnType<typeof startInteraction> | null>(null)
+  const turnCorrelationIdRef = useRef<string | null>(null)
   const turnMetadataRef = useRef<Record<string, unknown>>({})
   const turnFailureRef = useRef<string | null>(null)
   const responseWatchdogRef = useRef<{ timeout: number; turnId: number } | null>(null)
@@ -219,6 +221,12 @@ export function useRealtimeVoiceSpike(options: Options) {
       },
     })
     if (!sent) return false
+    turnMeasurementRef.current?.mark('server_response_ready_for_audio')
+    turnMetadataRef.current = {
+      ...turnMetadataRef.current,
+      responseEventId: responseId,
+      realtimeModel: realtimeModelRef.current,
+    }
     expectedSpeechRef.current = { responseId, text: spokenText, interrupted: false }
     orbTranscriptRef.current = ''
     setStatus('thinking')
@@ -853,6 +861,7 @@ export function useRealtimeVoiceSpike(options: Options) {
     turnMeasurementRef.current?.mark('mic_return')
     turnMeasurementRef.current?.end(!failureCode, failureCode, turnMetadataRef.current)
     turnMeasurementRef.current = null
+    turnCorrelationIdRef.current = null
     turnMetadataRef.current = {}
     turnFailureRef.current = null
   }, [])
@@ -871,9 +880,15 @@ export function useRealtimeVoiceSpike(options: Options) {
     // Map a committed input item to the turn that was active when it committed,
     // so a completed transcript is attributed to the right turn for tools.
     if (message.type === 'input_audio_buffer.committed' && message.item_id) {
+      turnMeasurementRef.current?.mark('input_audio_committed')
       if (!inputItemTurnIdsRef.current.has(message.item_id)) {
         inputItemTurnIdsRef.current.set(message.item_id, activeTurnIdRef.current)
       }
+      return
+    }
+
+    if (message.type === 'input_audio_buffer.speech_stopped') {
+      turnMeasurementRef.current?.mark('speech_stopped')
       return
     }
 
@@ -886,6 +901,8 @@ export function useRealtimeVoiceSpike(options: Options) {
       pendingCreateTurnRef.current = null
       if (turnMeasurementRef.current) endTurnMeasurement('interrupted')
       activeTurnIdRef.current += 1
+      const turnCorrelationId = crypto.randomUUID()
+      turnCorrelationIdRef.current = turnCorrelationId
       toolControllersRef.current.forEach(controller => controller.abort())
       toolControllersRef.current.clear()
       assistantSpeakingRef.current = false
@@ -896,7 +913,10 @@ export function useRealtimeVoiceSpike(options: Options) {
       if (message.item_id) inputItemTurnIdsRef.current.set(message.item_id, activeTurnIdRef.current)
       turnMeasurementRef.current = startInteraction({
         focus: 'voice', flow: 'voice-realtime-spike', interaction: 'speech_to_mic_return',
-        surface: 'orb-realtime-spike', immediateFlush: true,
+        surface: 'orb-realtime-spike',
+        always: true,
+        correlationId: turnCorrelationId,
+        metadata: { turnId: turnCorrelationId, modality: 'voice' },
       })
       turnMeasurementRef.current.mark('speech_started')
       setStatus('listening')
@@ -922,6 +942,8 @@ export function useRealtimeVoiceSpike(options: Options) {
     if (message.type === 'output_audio_buffer.stopped' || message.type === 'output_audio_buffer.cleared') {
       assistantSpeakingRef.current = false
       if (message.type === 'output_audio_buffer.stopped' && !responseInFlightRef.current) {
+        turnMeasurementRef.current?.mark('audio_playback_finished')
+        endTurnMeasurement(turnFailureRef.current)
         setStatus('listening')
       }
       return
@@ -991,7 +1013,10 @@ export function useRealtimeVoiceSpike(options: Options) {
       // and the shared conversation decides whether that is a stop, a
       // replacement, or an answer.
       pausedSpeechRef.current = null
-      callbacksRef.current.onUserTranscript(transcript)
+      const turnCorrelationId = turnCorrelationIdRef.current ?? crypto.randomUUID()
+      turnCorrelationIdRef.current = turnCorrelationId
+      turnMetadataRef.current = { ...turnMetadataRef.current, turnId: turnCorrelationId, modality: 'voice' }
+      callbacksRef.current.onUserTranscript(transcript, turnCorrelationId)
       // Attribute the transcribed utterance to its turn so a mutation tool can only
       // act on the current turn's actual words.
       const turnId = transcriptTurnId ?? activeTurnIdRef.current
@@ -1029,6 +1054,7 @@ export function useRealtimeVoiceSpike(options: Options) {
 
     if (message.type === 'response.created') {
       responseInFlightRef.current = true
+      turnMeasurementRef.current?.mark('audio_response_created')
       if (
         options.transportOnly
         && message.response?.id
@@ -1101,7 +1127,7 @@ export function useRealtimeVoiceSpike(options: Options) {
       }
       if (responseId) handledResponseIdsRef.current.add(responseId)
       responseInFlightRef.current = false
-      reportRealtimeUsage(message.response?.usage)
+      reportRealtimeUsage(message.response?.usage, realtimeModelRef.current)
       const calls = message.response?.output?.filter(item => item.type === 'function_call') ?? []
       const responseTurnId = responseId
         ? responseTurnIdsRef.current.get(responseId) ?? activeTurnIdRef.current
@@ -1125,8 +1151,11 @@ export function useRealtimeVoiceSpike(options: Options) {
       // .stopped will. Only settle for the current turn.
       if (responseTurnId === activeTurnIdRef.current) {
         clearResponseWatchdog()
-        endTurnMeasurement(turnFailureRef.current)
-        if (!assistantSpeakingRef.current) setStatus('listening')
+        turnMeasurementRef.current?.mark('audio_response_generated')
+        if (!assistantSpeakingRef.current) {
+          endTurnMeasurement(turnFailureRef.current)
+          setStatus('listening')
+        }
       }
       if (
         options.transportOnly
@@ -1282,6 +1311,7 @@ export function useRealtimeVoiceSpike(options: Options) {
       })
       // ORB-372: OpenAI's handle for this call, so stop() can end it there.
       callIdRef.current = response.headers.get('X-Orb-Call-Id') || null
+      realtimeModelRef.current = response.headers.get('X-Orb-Realtime-Model') || null
       if (!isCurrent()) {
         disposeLocal()
         return

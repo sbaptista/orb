@@ -2,8 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { VERSION } from '@/lib/version'
-import { clearVersionVolatileState, LAST_APPLIED_VERSION_KEY } from '@/lib/client-state'
-import { startInteraction } from '@/lib/performance/telemetry'
+import { clearVersionVolatileState, DEV_SERVER_BOOT_ID_KEY, isDifferentDevServerBoot, LAST_APPLIED_VERSION_KEY } from '@/lib/client-state'
 
 type BroadcastType = 'info' | 'warning' | 'urgent'
 
@@ -20,7 +19,6 @@ interface SystemState {
   updateAvailable: boolean
   updateReason: 'version' | 'dev-restart' | 'simulated' | null
   isApplyingUpdate: boolean
-  lastCheckedAt: number | null
   maintenance: boolean
   lockedOut: boolean
   broadcast: Broadcast | null
@@ -39,41 +37,35 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
   const [simulatedUpdate, setSimulatedUpdate] = useState<boolean>(false)
   const [reloadRecommended, setReloadRecommended] = useState<boolean>(false)
   const [isApplyingUpdate, setIsApplyingUpdate] = useState<boolean>(false)
-  const [lastCheckedAt, setLastCheckedAt] = useState<number | null>(null)
   const [maintenance, setMaintenance] = useState<boolean>(false)
   const [lockedOut, setLockedOut] = useState<boolean>(false)
   const [broadcast, setBroadcast] = useState<Broadcast | null>(null)
 
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const serverBootIdRef = useRef<string | null>(null)
+  const checkInFlightRef = useRef(false)
 
   // ORB-326: a successful /api/version response doubles as the reachability
   // check, so this single poll also drives isOnline — the old separate
   // /api/health fetch was redundant (it only ever set isOnline). One request
   // per tick instead of two.
   const checkSystemState = useCallback(async () => {
-    const measurement = startInteraction({
-      focus: 'background',
-      flow: 'system-state',
-      interaction: 'version_poll',
-      surface: 'app-shell',
-    })
-
-    // Dev-only offline simulation short-circuit.
-    if (typeof window !== 'undefined' && localStorage.getItem('todos_dev_simulate_offline') === 'true') {
-      setIsOnline(false)
-      measurement.end(true, null, { simulatedOffline: true })
-      return
-    }
+    if (checkInFlightRef.current) return
+    checkInFlightRef.current = true
 
     try {
+      // Dev-only offline simulation short-circuit.
+      if (typeof window !== 'undefined' && localStorage.getItem('todos_dev_simulate_offline') === 'true') {
+        setIsOnline(false)
+        return
+      }
+
       const res = await fetch(`/api/version?t=${Date.now()}`, {
         cache: 'no-store',
         headers: { 'cache-control': 'no-cache' },
       })
       if (!res.ok) {
         setIsOnline(false)
-        measurement.end(false, `http_${res.status}`)
         return
       }
       const data = await res.json()
@@ -81,23 +73,49 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
 
       setVersion(data.version || '')
       if (IS_DEVELOPMENT && data.serverBootId) {
-        if (!serverBootIdRef.current) {
-          serverBootIdRef.current = data.serverBootId
-        } else if (serverBootIdRef.current !== data.serverBootId) {
+        let previousBootId = serverBootIdRef.current
+        if (!previousBootId) {
+          try { previousBootId = sessionStorage.getItem(DEV_SERVER_BOOT_ID_KEY) } catch {}
+        }
+        const nextBootId = String(data.serverBootId)
+        serverBootIdRef.current = nextBootId
+
+        let bootIdPersisted = false
+        try {
+          sessionStorage.setItem(DEV_SERVER_BOOT_ID_KEY, nextBootId)
+          bootIdPersisted = sessionStorage.getItem(DEV_SERVER_BOOT_ID_KEY) === nextBootId
+        } catch {}
+
+        if (isDifferentDevServerBoot(previousBootId, nextBootId)) {
+          if (bootIdPersisted) {
+            // Store the new boot id before reloading. The next mount therefore
+            // recognizes the current server and cannot enter a reload loop.
+            clearVersionVolatileState()
+            window.location.reload()
+            return
+          }
+          // Privacy/storage restrictions can make sessionStorage unavailable.
+          // In that case keep the existing explicit Update path.
           setReloadRecommended(true)
         }
       }
       setMaintenance(!!data.maintenance)
       setLockedOut(!!data.lockedOut)
-      setBroadcast(data.broadcast ?? null)
-      setLastCheckedAt(Date.now())
-      measurement.end(true)
+      const nextBroadcast = data.broadcast ?? null
+      setBroadcast((current) => {
+        if (current === nextBroadcast) return current
+        if (!current || !nextBroadcast) return nextBroadcast
+        return current.id === nextBroadcast.id
+          && current.message === nextBroadcast.message
+          && current.type === nextBroadcast.type
+          ? current
+          : nextBroadcast
+      })
     } catch (err) {
       setIsOnline(false)
-      measurement.end(false, 'network_error', {
-        errorName: err instanceof Error ? err.name : 'UnknownError',
-      })
       console.error('[SystemStateProvider] Failed to fetch server version/maintenance status:', err)
+    } finally {
+      checkInFlightRef.current = false
     }
   }, [])
 
@@ -236,7 +254,6 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
     updateAvailable,
     updateReason,
     isApplyingUpdate,
-    lastCheckedAt,
     maintenance,
     lockedOut,
     broadcast,
@@ -244,7 +261,7 @@ export function SystemStateProvider({ children }: { children: React.ReactNode })
       checkSystemState()
     },
     applyUpdate,
-  }), [isOnline, version, clientVersion, updateAvailable, updateReason, isApplyingUpdate, lastCheckedAt, maintenance, lockedOut, broadcast, checkSystemState, applyUpdate])
+  }), [isOnline, version, clientVersion, updateAvailable, updateReason, isApplyingUpdate, maintenance, lockedOut, broadcast, checkSystemState, applyUpdate])
 
   return (
     <SystemStateContext.Provider value={value}>

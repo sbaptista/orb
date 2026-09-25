@@ -137,14 +137,14 @@ universal language coverage or all subjective adviser quality.
 | `update-knowledge-no-self-attribution` | D/I; manual S5; X | Data scope, capability boundaries and factual presentation. |
 | `no-knowledge-delete-tool` | D/I; manual S5; X | Data scope, capability boundaries and factual presentation. |
 | `repository-inspection-tool` | D/I; manual S5; X | Data scope, capability boundaries and factual presentation. |
-| `explicit-strategic-read-routes-to-gemini` | D; X | Routing/calculations; subjective adviser quality remains diagnostic. |
+| `explicit-strategic-read-stays-tool-free` | D; X | Provider-neutral routing diagnostic; uses the Evaluation Model selected in Settings. |
 | `mutation-stays-on-operational-route` | D; X | Routing/calculations; subjective adviser quality remains diagnostic. |
 | `voice-status-question-stays-operational` | D; X | Routing/calculations; subjective adviser quality remains diagnostic. |
 | `voice-provider-uses-context` | D; X | Routing/calculations; subjective adviser quality remains diagnostic. |
-| `active-model-identity-kimi-is-server-stamped` | D | Already server-owned; move out of model runner. |
-| `active-model-identity-haiku-is-server-stamped` | D | Already server-owned; move out of model runner. |
+| ~~`active-model-identity-kimi-is-server-stamped`~~ | D | Moved to `npm run verify:interaction`; no provider call. |
+| ~~`active-model-identity-haiku-is-server-stamped`~~ | D | Moved to `npm run verify:interaction`; no provider call. |
 | `strategic-budget-preserves-operations` | D | Already server-owned; move out of model runner. |
-| `one-model-strategic-route-stays-tool-free` | D; X | Routing/calculations; subjective adviser quality remains diagnostic. |
+| ~~`one-model-strategic-route-stays-tool-free`~~ | D | Removed as a duplicate of `explicit-strategic-read-stays-tool-free`. |
 | `scope-transparency` | D/I; manual S5; X | Data scope, capability boundaries and factual presentation. |
 | `distant-reminder-does-not-make-orb-urgent` | D; X | Routing/calculations; subjective adviser quality remains diagnostic. |
 | `reminder-nudge-decline-dismisses` | D; X | Routing/calculations; subjective adviser quality remains diagnostic. |

@@ -14,11 +14,12 @@
 
 ## App State
 
-- **Branch:** `codex/interaction-safeguards`; v0.6.336 is committed locally on
-  this branch and has not been pushed.
-- **Version:** local `0.6.336`. Production was last reported as `0.6.331` on
-  2026-09-17; not rechecked. `be540d7` and `0cb2cec` are on this branch only;
-  `main` has not moved and `origin/main..main` is empty.
+- **Branch:** `codex/interaction-safeguards`; v0.6.337 is committed locally and
+  awaits push to `origin/main`. The local branch has no upstream ref. `2e60aaf`
+  (v0.6.336) is confirmed on `origin/main`.
+- **Version:** local `0.6.337`. Production was last reported as `0.6.331` on
+  2026-09-17; not rechecked. `main` has not moved and `origin/main..main` is
+  empty.
 - **Dev server:** runs through the installed `orb-dev` launcher; Stan verified
   Mac, iPhone, and iPad access over localhost, Bonjour, and LAN IP.
 - **Live URL:** https://orb-eight-lake.vercel.app
@@ -93,6 +94,11 @@
   `scripts/migrations/20260922_orb_conversation_diagnostics.sql` on 2026-09-22
   and reported every closing check true. It grants one UUID-scoped read
   function and no direct conversation-table access.
+- **Conversation-timing diagnostics migration is applied.** The 2026-09-24
+  admin export returned 36 correlated `timings` rows, exercising the function
+  added by `scripts/migrations/20260925_orb_conversation_timing_diagnostics.sql`.
+- **Outstanding migration:** `scripts/migrations/20260924_orb_voice_model_policy.sql`
+  adds the selectable Realtime voice model policy.
 - **`~/Projects/shared` is now a git repository** (`02b0f46`) with **no remote
   configured**. It holds the shared `AGENTS.md` governing every project in
   `~/Projects`. Adding a remote is Stan's decision — it names credential
@@ -108,71 +114,131 @@ None.
 
 ## Last Session Completed
 
-**2026-09-23 — Codex (GPT-6). Voice acceptance, deterministic arithmetic, and conversation diagnostics completed as v0.6.336 and committed locally; not pushed.**
+**2026-09-25 — Codex (GPT-6). Model policy expansion, correlated latency diagnostics, and compact lazy conversation context committed locally as v0.6.337.**
 
-- A live v0.6.335 session accepted one voice question, then rejected every later
-  utterance with the acoustic-verification error while the same requests worked
-  promptly as text. The rejection path was still active whenever fresh Silero
-  evidence disagreed with a completed provider transcript.
-- Completed nonempty provider transcripts now enter the same shared conversation
-  path as typed text. Silero remains telemetry and can restart on disagreement,
-  but has no authority to discard the transcript. Empty and failed provider
-  transcriptions still do not become user turns.
-- A clipped “I meant…” arrived as `S.` and the model answered “Stopped.” A
-  one-character voice fragment is now withheld before the shared conversation;
-  Orb asks the user to repeat it and stays in voice mode.
-- Arithmetic is now deterministic across modalities. BACKLOG summaries include
-  authoritative `total_count` plus status subtotals; the new `calculate` tool
-  owns derived arithmetic. A final semantic aggregate guard accepts numbers only
-  from matching SUMMARY fields or calculator results, repairs once, then
-  withholds an unsupported value rather than guessing.
-- Admins can copy the current conversation's event, command-batch, and
-  acknowledgement JSON through Orb's overflow menu. The broker adds
-  `orb-agent conversations events <conversation-uuid>` for that trace through
-  a read-only UUID-scoped function. Used existing `oc-more-item`, modeled on
-  the Transcript actions.
-- The first export identified four shared failures. Fragment merging now removes
-  repeated overlap and stays within one modality; near-simultaneous transcript
-  admissions coalesce before they can create parallel turns; an unrelated
-  successful UI action no longer validates an unconfirmed mutation claim; and
-  a uniquely plausible misheard project name produces a clarification without
-  switching. Two matching diagnostic eval cases were added but not run.
-- The second export confirmed those four repairs in one alternating text/voice
-  session: no repeated leading phrase, no parallel user turns, the misheard
-  Shunyata name was clarified before switching, and both deletion claims had
-  matching proposals and receipts. It also exposed the aggregate guard refusing
-  a requested project/status table after a complete read.
-- `query_todos` now returns deterministic per-project status summaries over its
-  complete filtered result even when detail rows are truncated. Those values
-  enter the final grounding check. The new `ownership_scope=current_user`
-  contract keeps “my projects” reports scoped to authenticated-user ownership.
-  A matching Tier 1 case was added but not run.
-- Clear transcript was browser-only while `/clear` also closed the durable
-  conversation, so restored events could repopulate the menu-cleared transcript.
-  Both controls now await one server-backed reset, and Clear invalidates any
-  startup restore already in flight. TypeScript and focused ESLint passed once
-  with 0 errors and 12 existing warnings; live browser acceptance is pending.
-- The next voice diagnostic showed “status breakdown” and an explicit table
-  request both being collapsed into the brief active/parked project summary;
-  the follow-up then hit the aggregate refusal. Explicit status breakdown,
-  count-by-status, and status-table requests now use one deterministic complete
-  report for text and voice, with a separate concise spoken summary. Its eval
-  analogue is model-free and uses zero provider tokens; it was not run.
-- Investigated a stale Chrome tab retaining a deleted current project and then
-  violating `users_current_project_id_fkey`. The dashboard has multiple project
-  state paths with inconsistent deletion filtering and no shared resume-time
-  reconciliation. No narrow repair was made. The next implementation should
-  converge startup, visibility/pageshow/focus, Realtime, mutation receipts,
-  modal changes, Orb switches, and persistence recovery on one authoritative
-  project-workspace snapshot and one reconciliation function.
-- `npm run verify:interaction`, `npx tsc --noEmit`, UI-catalog verification,
-  and `git diff --check` passed once. Focused ESLint returned 0 errors and 6
-  pre-existing dashboard warnings. Stan applied the diagnostics migration and
-  reinstalled the broker; its 5-launcher integrity check passed. No paid model
-  eval or direct device acceptance was completed.
+- Operational, strategic, and evaluation selectors expose every applicable
+  catalog model. Voice exposes both applicable OpenAI Realtime models and
+  defaults to `gpt-realtime-2.1-mini`. Kimi no longer has a separate
+  experimental flag. Gemini operational tool continuations preserve thought
+  signatures.
+- Paid eval cases no longer carry hidden provider/model pins. Settings owns the
+  default evaluation model; explicit environment overrides still pin a run.
+  The earlier `mutation-stays-on-operational-route` result was 1/1 in 7601ms on
+  Gemini because the old case pin was still active, so it is not Haiku evidence.
+- Every admitted text/voice turn now uses its durable `turnId` as the correlation
+  id for three traces: Realtime speech/transcription/audio, browser
+  transcript-to-response/refresh, and server coordinator stages. The server
+  trace covers auth, durable turn load, context, urgency, routing/budget, every
+  model round, tool rounds, confirmations, response persistence, and the
+  existing 600ms inter-round presentation pause.
+- Voice timing now ends at actual audio playback completion and microphone
+  return, rather than at provider generation completion while audio could still
+  be playing. A separate correlated trace measures response paint and durable
+  acknowledgement.
+- Admin and `orb-agent conversations events` diagnostics include matching
+  `performance_events` rows. Conversation traces are recorded even when
+  optional performance sampling is off; production accepts these diagnostic
+  events only for an authenticated user and the Orb conversation flow.
+- Fixed `Response event not found` from the acknowledgement action. An
+  interrupted ordinary response, or a receipt presentation awaiting snapshot
+  repair, no longer exposes a response event ID before the assistant event
+  exists durably.
+- The first correlated live trace showed median completed-voice stages of 0.69s
+  for transcription finalization, 7.80s from transcript to server response,
+  0.59s to first audio, and 3.51s of playback. Shared server turns ranged from
+  4.0s to 17.4s; this is one session, not a general latency distribution.
+- Stored confirmations now execute through one deterministic fast path before
+  AI policy, the broad context packet, routing, budgets, or any model call. The
+  urgency snapshot and exact transaction/receipt boundary remain. The duplicate
+  post-context canonical confirmation routes were removed; only the old
+  browser-held compatibility bridge remains there.
+- Removed the fixed 600ms delay between provider tool rounds. Mutation proposal
+  traces now separate preparation and persistence. “OK, stop” reaches the
+  shared stop boundary, and a merged transcript gets a distinct durable turn ID
+  so its interrupt cannot hide both the fragment and its replacement.
+- The second correlated voice trace showed confirmations at 2.9–3.1s with no
+  model call, ordinary server turns at 4.9–10.3s, transcription completion in
+  0.44–0.57s after audio commit, and first audio 0.34–0.66s after the response.
+  Correlated diagnostics now batch through the telemetry queue instead of
+  issuing separate immediate writes during response audio.
+- Ordinary turns now preload only accessible active project names/codes/owners
+  and the current project’s open/in-progress todos. The context builder performs
+  two workspace reads plus six control-plane reads instead of 20 eager queries.
+  Other task states/projects, dormant projects, knowledge, audit, tickets,
+  directories, and taxonomy load through read tools only when requested.
+  Complete status tables perform an authoritative lazy read; the former voice
+  summary shortcut was removed because it assumed a full backlog.
+- Durable interruption checks now guard context completion, both sides of each
+  provider round, lazy read tools, and proposal persistence. The lookup reads
+  conversation status plus matching interrupt events in one database request,
+  preserving Clear-transcript cancellation without restoring the prior
+  two-query checkpoint. Work already in flight may finish, but cannot continue
+  past the next boundary; committed mutation receipts remain durable.
+- A third trace showed a 37.5s server turn during degraded Supabase API Gateway
+  service: conversation setup 5.3s, context/policy/urgency 12.5s, proposal
+  persistence 7.7s, and post-paint acknowledgement 11.8s; the model itself took
+  2.2s. An attempted policy/context/urgency overlap increased database/API
+  contention and was reverted. The stream warning reflected the long unfinished
+  turn; `stream.done()` ran at completion.
+- Development startup keeps `rm -rf .next`: Knowledge entry `0b87c5b4` records
+  that it prevents stale compiled CSS. System-state checks now reject overlap,
+  avoid poll telemetry, and preserve unchanged provider state instead of
+  rerendering the app tree every five seconds.
+- Dev restart detection now survives the RSC/remount failures it is meant to
+  repair. The tab retains the server boot id in session storage, stores a newly
+  observed id before issuing one automatic reload, and falls back to the manual
+  update banner when storage is unavailable. This keeps the clean `.next`
+  startup while removing the need to notice and manually refresh a stale tab.
+- Voice response identity now converges at the transcript state boundary. A
+  correlated provider turn can enter the shared submit path only once per
+  mounted session, restored messages retain one row per durable event id, and a
+  final response atomically replaces its local placeholder while removing any
+  replay copy with the same durable id. This fixes the reported duplicate React
+  key without hiding it behind index-based keys.
+- The 2026-09-25 diagnostic trace showed that Orb never delivered the requested
+  closed-task result: the query succeeded, then two extra model rounds spent
+  9.3 seconds producing and repairing prose before the aggregate guard replaced
+  it with a refusal. Direct list/show/display/see/count requests now end at the
+  shared structured-query presentation boundary with authoritative rows and
+  count. Requests for analysis, comparison, explanation, or recommendations
+  still continue through the model. The direct intent survives a confirmed
+  “Did you mean …?” project clarification, covering the exact failed trace.
+  Plain “try again …” also replaces an unfinished voice request instead of
+  accumulating repeated transcript text.
+- The next diagnostic confirmed the direct-query terminal boundary: the typed
+  fallback returned ten records after one model selection call and one database
+  read, with no model continuation. It also exposed two correctness gaps. The
+  voice request for recent closed records was intercepted by the status-count
+  table because that classifier treated any table plus “closed” as a breakdown;
+  the typed fallback searched all accessible projects and had no enforceable
+  LIFO sort. Status-table routing now requires count/breakdown language or
+  multiple status terms. Unqualified todo reads default to the selected project,
+  while explicit cross-project reads remain available, and query_todos now has
+  deterministic sort field/direction parameters including closed_at descending.
+- The supplied pre-instrumentation timestamps show shared post-transcript delay:
+  voice requests took 16.8s, 11.2s, 8.7s, and 4.7s; a comparable text mutation
+  proposal took 7.2s. Confirmation receipt delays ranged from 2.1s to 8.1s.
+  These are coarse event gaps, not attribution to a specific internal stage.
+- `npx tsc --noEmit`, `npm run verify:interaction`, focused ESLint, and
+  `git diff --check` passed once after the latency and compact-context repairs.
+  Focused ESLint had zero errors and zero warnings in the final focused set.
+  No paid model eval was run.
 
 ## Active Risks / Unresolved Work
 
+- **Latency repairs need live repeated acceptance.** Three correlated sessions
+  established that shared server work dominates transcription and audio startup.
+  The second felt faster; the third coincided with Supabase reporting degraded
+  API Gateway performance. Repeat a
+  create-confirm, delete-confirm, project switch, no-tool answer, “OK, stop”, and
+  split/merged utterance after restart. Confirm that approvals omit
+  `ai_policy_loaded` / `conversation_context_built`, mutation proposals show the
+  new preparation/persistence stages, merged fragments restore as one user
+  message, and Stop during context, a lazy read, or a provider wait prevents any
+  later model round or proposal while preserving a receipt that already
+  committed. Durable
+  event/acknowledgement round trips remain the next measured database cost; any
+  reduction needs a transactional ownership-preserving database function.
 - **Stale browser project state is an unresolved architecture defect.** A tab
   unused for several days displayed a deleted project and stale project list,
   then tried to persist that deleted ID and hit the current-project foreign key.
@@ -250,11 +316,10 @@ None.
   inter-command dependencies, and a transactional notification outbox remain
   outside this implementation slice.
 
-- **Kimi K3 is experimental and development-only.** It passed the accepted
-  evidence above but did not achieve deterministic 65/65 Tier 1 behavior.
-  Production promotion, a Vercel `MOONSHOT_API_KEY`, and changing any production
-  model default require a separate explicit decision. Do not infer promotion
-  from the presence of the adapter or catalog entry.
+- **Kimi K3 has no experimental UI flag but remains unevaluated for production
+  default use.** It previously passed 63/65 twice, not deterministic 65/65.
+  Production needs a Vercel `MOONSHOT_API_KEY`; changing a default still
+  requires a separate explicit decision.
 - *(closed 2026-08-07 — the cron-execution item is resolved; see Last Session
   Completed. Both jobs are registered and a Vercel-initiated invocation of
   `/api/cron/usage-check` returned **GET 200**, so scheduler, auth, and check
@@ -306,12 +371,17 @@ None.
 
 ## Next Priorities
 
+0. Apply any outstanding v0.6.337 migration, restart/hard-refresh local dev,
+   then repeat create-confirm, delete-confirm, project switch, no-tool answer,
+   “OK, stop”, and a split/merged utterance. Copy diagnostics and verify the
+   latency/interrupt acceptance points in Active Risks, including fewer
+   performance-event requests.
 0. Design and review the converged project-workspace synchronization boundary,
    then implement stale-tab recovery through that single path. Include startup,
    visibility/pageshow/focus, Realtime project changes, mutation receipts,
    modal changes, Orb switches, persistence recovery, response generations,
    request deduplication, and optional same-browser `BroadcastChannel` updates.
-0. Run direct v0.6.336 voice acceptance: five or more consecutive turns, including
+0. Run direct v0.6.337 voice acceptance: five or more consecutive turns, including
    a follow-up after a count query. If it fails, capture the `[orb-rt]` lifecycle
    trace and stage timings; do not restore Silero as an admission gate.
 0. Verify both More → Clear and `/clear`: each must stay empty without a reload,
@@ -393,9 +463,9 @@ None.
    `/Users/stanleybaptista` from `0750` to `0700`, and consider a read-only Git
    credential as the structural complement to the policy-based push gate.
    Neither is scheduled.
-5. Use Kimi experimentally in the Operational, Strategic, and Evaluation roles;
-   compare live quality, latency, and AI Metrics cost before deciding whether
-   to promote it beyond development.
+5. Compare Haiku, Gemini, and Kimi in Operational, Strategic, and Evaluation
+   roles using Settings-selected models; compare live quality, latency, and AI
+   Metrics cost before changing any defaults.
 6. ORB-359's prior B1/A3 implementation gap is incorporated in v0.6.313.
    Retain the older plan only as design history; current acceptance and rollout
    are governed by `docs/orb-unified-interaction-architecture-plan.md`.
@@ -424,6 +494,14 @@ None.
 
 ## Key Current Decisions
 
+- **Conversation timing is always-on diagnostic data.** Optional general
+  performance sampling may be disabled; admitted Orb turns still record
+  correlated client/server timing under the durable turn UUID and expose it
+  through the admin/agent diagnostic export.
+- **Settings owns role model selection.** Operational, strategic, and evaluation
+  use their selected applicable model; paid diagnostics inherit the Evaluation
+  Model unless the operator supplies an explicit override. Voice defaults to
+  `gpt-realtime-2.1-mini` and may select another applicable Realtime model.
 - **Evals stay strict on first-attempt imitation (2026-09-16, Stan).** The eval
   route does not mirror production's one-retry false-claim repair;
   `hallucinated-proposal-history-new-create-calls-tool` fails until the model
@@ -452,10 +530,9 @@ None.
 - **Stan owns the encompassing Knowledge entry.** Keep complete implementation
   notes, but do not write Knowledge until final acceptance and Stan's manual
   save.
-- **Kimi K3 is an experimental development candidate, not a production
-  promotion.** Its Operational evidence is accepted at 63/65 twice without
-  weakening provider-neutral assertions. Evaluation selection is independent
-  from live Operational and Strategic selection.
+- **Kimi has no separate experimental flag.** Orb itself is experimental;
+  applicability, explicit model selection, measured quality, cost, and required
+  credentials govern use. Its prior Operational evidence was 63/65 twice.
 - **Model identity is server-stamped.** Orb must report the current
   environment's selected model from policy, never rely on a provider's
   self-identification or contaminated conversation history.
@@ -550,7 +627,7 @@ None.
 
 ## AI Tool Used Last Session
 
-`2026-09-23 — Codex (GPT-6)`
+`2026-09-25 — Codex (GPT-6)`
 
 ---
 

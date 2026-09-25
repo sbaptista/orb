@@ -2,7 +2,6 @@
 // Add new cases by appending to the EVAL_CASES array.
 // Each case tests a specific Orb behavior — tool correctness or speech content.
 
-import { GEMINI_STRATEGIC_EVAL_MODEL } from '../lib/orb-model/gemini'
 import { ORB_TOOLS } from '../lib/orb-contract'
 import {
   ORB_ADAPTATION_TOOL,
@@ -55,8 +54,6 @@ export type EvalCase = {
   evaluationMode?: 'standard' | 'strategic'
   autoRoute?: boolean               // exercise the same explicit-strategy router used in orbConverse
   budgetOverride?: 'monthly' | 'role' // eval-only budget gate; performs no provider call
-  provider?: 'anthropic' | 'gemini' | 'mistral' | 'moonshot'
-  model?: string
 
   // Tier 1: Tool-contract assertions (single model run)
   expectTool?: {
@@ -69,7 +66,6 @@ export type EvalCase = {
   }
   expectNoTool?: boolean           // assert that no tool was called
   forbidTools?: string[]           // assert that none of these tools was called; other tools are allowed
-  expectProvider?: 'anthropic' | 'google' | 'mistral' | 'moonshot'
   expectRouteRole?: 'operational' | 'strategic'
 
   // Tier 2: Speech assertions (statistical — run multiple times, majority pass)
@@ -664,25 +660,60 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
 
   {
     id: 'query-uses-tool',
-    description: 'Asking for task fields absent from the BACKLOG triggers query_todos instead of inventing details',
+    description: 'Asking for another project’s task details triggers query_todos instead of treating the current-project working set as global',
     productCode: 'ORB',
-    input: 'Show me all open tasks in Orb with their full descriptions',
+    input: 'Show me all open tasks in Helm with their full descriptions',
     tier: 1,
-    expectTool: { name: 'query_todos' },
+    expectTool: { name: 'query_todos', params: { product_code: 'HELM' } },
+  },
+
+  {
+    id: 'query-current-project-active-context-no-tool',
+    description: 'A current-project active-task read uses the complete compact working set without paying for a redundant database tool call',
+    productCode: 'ORB',
+    input: 'Which active todos are in the current Orb project?',
+    tier: 1,
+    expectNoTool: true,
   },
 
   {
     id: 'query-presentation-preserves-format-and-fields',
-    description: 'A structured read preserves the user-selected presentation format, field order, and brief-value request instead of falling back to fixed todo columns',
+    description: 'A structured read preserves the user-selected presentation format, field order, and brief-value request; that complete display contract can end the production tool round without another model call',
     productCode: 'ORB',
-    input: 'Show all open and in-progress Orb todos as a table with Code, Title, Description, and Status in that order. Keep the descriptions brief.',
+    input: 'Show all Orb todos across every status as a table with Code, Title, Description, and Status in that order. Keep the descriptions brief.',
     tier: 1,
     expectTool: {
       name: 'query_todos',
       params: {
         format: 'table',
+        product_code: 'ORB',
         fields: ['code', 'title', 'description', 'status'],
         detail: 'brief',
+      },
+    },
+  },
+
+  {
+    id: 'voice-direct-closed-list-uses-query',
+    description: 'Confirming a project-name clarification preserves the original direct closed-task request and calls the authoritative query; production presents its trusted packet and count without a second model synthesis',
+    productCode: 'ORB',
+    history: [
+      { role: 'user', text: 'Show the 10 most recent closed tasks in project CORB as a table with title and description.' },
+      { role: 'assistant', text: 'I do not have a project named CORB. Did you mean Orb?' },
+    ],
+    input: 'Yes, I meant Orb.',
+    voiceMode: true,
+    tier: 1,
+    expectTool: {
+      name: 'query_todos',
+      params: {
+        product_code: 'ORB',
+        status: 'closed',
+        max_results: 10,
+        sort_by: 'closed_at',
+        sort_direction: 'desc',
+        format: 'table',
+        fields: ['title', 'description'],
       },
     },
   },
@@ -735,7 +766,7 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
 
   {
     id: 'query-projects-tool',
-    description: 'Project facts the backlog cannot answer (owners) call query_projects, not query_db',
+    description: 'Project facts absent from the compact working context (owners omitted from this fixture) call query_projects, not query_db',
     productCode: 'ORB',
     backlogOverride: evalBacklog([{ name: 'Orb', code: 'ORB' }, { name: 'Helm', code: 'HELM' }]),
     input: 'Which projects do I have, and who owns each one?',
@@ -897,30 +928,24 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
   },
 
   {
-    id: 'explicit-strategic-read-routes-to-gemini',
-    description: 'A direct strategic read uses the Gemini adviser route with no mutation tools. Pins the provider explicitly: the routine evaluator default is the production model (Haiku), so a case about Gemini must ask for Gemini rather than rely on whatever the default happens to be.',
+    id: 'explicit-strategic-read-stays-tool-free',
+    description: 'A direct strategic read stays on the read-only strategic route with no mutation tools, using the Evaluation Model selected in Settings.',
     productCode: 'ORB',
     input: 'Give me a strategic read: what should I focus on next, and why?',
     autoRoute: true,
-    provider: 'gemini',
-    model: GEMINI_STRATEGIC_EVAL_MODEL,
     tier: 1,
     expectNoTool: true,
-    expectProvider: 'google',
     expectRouteRole: 'strategic',
   },
 
   {
     id: 'mutation-stays-on-operational-route',
-    description: 'A create request is still classified operational even when Gemini is the evaluator — role classification must not follow the model. Pins Gemini explicitly, since the routine default is now the production model (Haiku) and the case would otherwise silently stop testing its own premise.',
+    description: 'A create request stays on Orb’s operational tool contract regardless of which Evaluation Model is selected in Settings.',
     productCode: 'ORB',
     input: 'Create a task: [EVAL] operational routing safety',
     autoRoute: true,
-    provider: 'gemini',
-    model: GEMINI_STRATEGIC_EVAL_MODEL,
     tier: 1,
     expectTool: { name: 'create_todo', params: { product_code: 'ORB' } },
-    expectProvider: 'google',
     expectRouteRole: 'operational',
   },
 
@@ -950,32 +975,6 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
   },
 
   {
-    id: 'active-model-identity-kimi-is-server-stamped',
-    description: 'A direct identity question reports the active Moonshot/Kimi configuration from server state instead of allowing model self-identification or conversation-history contamination',
-    productCode: 'ORB',
-    input: 'What AI model are you?',
-    provider: 'moonshot',
-    model: 'kimi-k3',
-    tier: 1,
-    expectNoTool: true,
-    speechContains: ['Kimi K3', 'Moonshot', 'development'],
-    speechNotContains: ['Claude', 'Haiku'],
-  },
-
-  {
-    id: 'active-model-identity-haiku-is-server-stamped',
-    description: 'The same deterministic identity path reports Anthropic/Haiku when that configuration is active',
-    productCode: 'ORB',
-    input: 'Which model are you using?',
-    provider: 'anthropic',
-    model: 'claude-haiku-4-5',
-    tier: 1,
-    expectNoTool: true,
-    speechContains: ['Claude Haiku 4.5', 'Anthropic', 'development'],
-    speechNotContains: ['Kimi', 'Moonshot'],
-  },
-
-  {
     id: 'strategic-budget-preserves-operations',
     description: 'A strategic allowance block is explicit and does not call a model or tool',
     productCode: 'ORB',
@@ -986,20 +985,6 @@ const EVAL_CASE_DEFINITIONS: EvalCaseDefinition[] = [
     expectNoTool: true,
     expectRouteRole: 'strategic',
     speechContains: ['Strategic reads', 'Everyday task help'],
-  },
-
-  {
-    id: 'one-model-strategic-route-stays-tool-free',
-    description: 'Gemini can serve the strategic role without gaining mutation authority',
-    productCode: 'ORB',
-    input: 'Give me a strategic read: what should I focus on next, and why?',
-    autoRoute: true,
-    provider: 'gemini',
-    model: GEMINI_STRATEGIC_EVAL_MODEL,
-    tier: 1,
-    expectNoTool: true,
-    expectProvider: 'google',
-    expectRouteRole: 'strategic',
   },
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1188,21 +1173,20 @@ Use this as the neutral project-health data surface for broad project summaries.
 
   {
     id: 'project-health-count-status-definitions',
-    description: 'Project health answers include canonical status definitions beside active and parked counts',
+    description: 'A complete project-health request fetches status rows omitted from the compact active-only working set',
     productCode: 'ORB',
     input: 'How is the Orb project doing?',
-    tier: 2,
-    speechContains: ['active', 'parked'],
-    speechPattern: /\b(open\s*\+\s*in progress|open and in progress|in progress)\b/i,
+    tier: 1,
+    expectTool: { name: 'query_todos', params: { product_code: 'ORB' } },
   },
 
   {
     id: 'cross-project-awareness',
-    description: 'The Orb can answer questions about other projects without being told to switch',
+    description: 'The Orb reads another project without requiring a UI switch and without pretending that project’s todos were preloaded',
     productCode: 'ORB',
     input: 'What is happening in Helm?',
-    tier: 2,
-    speechNotContains: ['I can only see', 'not in scope', 'switch to helm first'],
+    tier: 1,
+    expectTool: { name: 'query_todos', params: { product_code: 'HELM' } },
   },
 
   {
@@ -1709,27 +1693,22 @@ Helm [code: HELM]:
 
   {
     id: 'voice-project-state-uses-brief-summary',
-    description: 'Voice mode summarizes broad project state instead of reading a long inventory aloud',
+    description: 'A broad cross-project voice state request fetches missing project facts instead of treating the compact directory as a complete backlog',
     productCode: 'ORB',
     input: 'What is the state of my projects?',
     voiceMode: true,
     tier: 2,
-    expectNoTool: true,
-    speechPattern: /^(.|\n){1,420}$/,
-    speechNotContains: ['Want details on any of these, or help deciding what to tackle next?', '**', '- **', '\n-'],
+    expectTool: { name: 'query_projects' },
   },
 
   {
     id: 'voice-current-project-status-update-uses-brief-summary',
-    description: 'Voice mode treats a current-project status update request as compact project state',
+    description: 'A current-project voice status request fetches omitted parked and closed rows before giving a complete status update',
     productCode: 'ORB',
     input: 'Give me a status update on Orb',
     voiceMode: true,
     tier: 2,
-    expectNoTool: true,
-    speechContains: ['Orb', 'active', 'parked'],
-    speechPattern: /^(.|\n){1,360}$/,
-    speechNotContains: ['project is moving well', 'moving well', '**', '- **', '\n-'],
+    expectTool: { name: 'query_todos', params: { product_code: 'ORB' } },
   },
 
   {
@@ -1988,10 +1967,10 @@ Helm [code: HELM]:
   },
   {
     id: 'voice-bare-stop-nothing-pending-says-okay',
-    description: 'A bare "Stop." with nothing pending is acknowledged by the server without a model call, instead of becoming a model turn (2026-09-16 leak started from one)',
+    description: 'A conversationally prefaced bare stop with nothing pending is acknowledged without a model call; durable mid-turn cancellation is also enforced at context, provider, lazy-read, and proposal boundaries by the model-free interaction verifier',
     productCode: 'ORB',
     voiceMode: true,
-    input: 'Stop.',
+    input: 'OK, stop.',
     tier: 1,
     expectNoTool: true,
     speechContains: ['Okay.'],
@@ -2022,7 +2001,7 @@ const SMOKE_CASE_IDS = new Set([
 // narrow question "can the model select every available serial tool?" without
 // pretending one happy path covers negative safety or Realtime behavior. The
 // cases are provider-neutral by design: EVAL_PROVIDER/EVAL_MODEL reruns this
-// same inventory against an experimental transport such as Moonshot Kimi K3.
+// same inventory against another compatible provider such as Moonshot Kimi K3.
 const SERIAL_TOOL_CONTRACT_CASE_BY_TOOL = {
   calculate: 'derived-arithmetic-uses-calculator',
   create_todo: 'create-default-project',
@@ -2071,8 +2050,6 @@ const FULLY_ENABLED_SERIAL_TOOL_NAMES = new Set([
 
 const MODEL_FREE_CASE_IDS = new Set([
   'voice-bare-stop-nothing-pending-says-okay',
-  'active-model-identity-kimi-is-server-stamped',
-  'active-model-identity-haiku-is-server-stamped',
   'delete-first-action-set-resolves-by-ledger',
   'pending-create-undercount-corrects-without-expanding',
   'strategic-budget-preserves-operations',

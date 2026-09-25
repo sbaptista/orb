@@ -13,13 +13,14 @@ import {
 } from '@/lib/orb-model/policy'
 import { startInteraction } from '@/lib/performance/telemetry'
 
-function applyModel(role: 'operational' | 'strategic' | 'evaluation', value: string, setPolicy: Dispatch<SetStateAction<OrbAiPolicy>>) {
+function applyModel(role: 'operational' | 'strategic' | 'evaluation' | 'voice', value: string, setPolicy: Dispatch<SetStateAction<OrbAiPolicy>>) {
   const [provider, ...modelParts] = value.split(':')
   const model = modelParts.join(':')
   setPolicy(current => {
     if (role === 'operational') return { ...current, operationalProvider: provider as OrbAiPolicy['operationalProvider'], operationalModel: model }
     if (role === 'strategic') return { ...current, strategicProvider: provider as OrbAiPolicy['strategicProvider'], strategicModel: model }
-    return { ...current, evaluationProvider: provider as OrbAiPolicy['evaluationProvider'], evaluationModel: model }
+    if (role === 'evaluation') return { ...current, evaluationProvider: provider as OrbAiPolicy['evaluationProvider'], evaluationModel: model }
+    return { ...current, voiceProvider: provider as OrbAiPolicy['voiceProvider'], voiceModel: model }
   })
 }
 
@@ -59,6 +60,8 @@ export default function SettingsAI() {
         strategicModel: policy.strategicModel,
         evaluationProvider: policy.evaluationProvider,
         evaluationModel: policy.evaluationModel,
+        voiceProvider: policy.voiceProvider,
+        voiceModel: policy.voiceModel,
       },
     })
     setSavingPolicy(true)
@@ -88,7 +91,7 @@ export default function SettingsAI() {
       <div className="s-card flex-col gap-lg">
         <div>
           <h2 className="s-card-title">Model Roles</h2>
-          <p className="s-card-desc">Operational handles task management and queries. Strategic handles prioritization and guidance. Evaluation runs the routine Orb eval suite. Realtime voice uses its own model (gpt-realtime) and does not route through Strategic.</p>
+          <p className="s-card-desc">Operational handles task management and queries. Strategic handles prioritization and guidance. Evaluation runs the routine Orb eval suite. Voice Transport handles live audio transcription and speech rendering.</p>
         </div>
 
         <div className="s-form" style={{ display: 'grid', gap: 'var(--sp-lg)' }}>
@@ -126,11 +129,18 @@ export default function SettingsAI() {
             </select>
             <span className="s-card-desc">Used by routine local eval commands. An explicit EVAL_PROVIDER/EVAL_MODEL pair overrides this selection for one run.</span>
           </label>
-          {(policy.operationalProvider === 'moonshot' || policy.strategicProvider === 'moonshot' || policy.evaluationProvider === 'moonshot') && (
-            <p className="s-card-desc" style={{ margin: 0 }}>
-              Kimi K3 is an experimental local candidate. Operational uses low reasoning effort; Strategic uses high. Production keeps the accepted models until Kimi completes its eval gates.
-            </p>
-          )}
+          <label>
+            <span className="label">Voice Transport Model</span>
+            <select
+              className="select"
+              style={{ minHeight: 'var(--touch)', appearance: 'auto', WebkitAppearance: 'menulist' }}
+              value={`${policy.voiceProvider}:${policy.voiceModel}`}
+              onChange={event => applyModel('voice', event.target.value, setPolicy)}
+            >
+              {ORB_MODEL_OPTIONS.voice.map(option => <option key={`${option.provider}:${option.model}`} value={`${option.provider}:${option.model}`}>{option.label}</option>)}
+            </select>
+            <span className="s-card-desc">Used for live voice transcription and exact speech rendering. New sessions use the saved selection.</span>
+          </label>
           <label className="flex-center gap-md" style={{ cursor: 'pointer' }}>
             <input
               type="checkbox"

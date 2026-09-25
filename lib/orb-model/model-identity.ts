@@ -34,7 +34,7 @@ export function activeModelIdentitySpeech(options: {
   environment: 'development' | 'production'
 }): string {
   const definition = getOrbModelDefinition(options.provider, options.model)
-  const modelName = definition?.label.replace(/\s+—\s+Experimental$/i, '') ?? options.model
+  const modelName = definition?.label ?? options.model
   const providerName = PROVIDER_DISPLAY_NAMES[options.provider]
   const roleName = options.role === 'strategic' ? 'Strategic' : 'Operational'
   const environmentName = options.environment === 'production' ? 'production' : 'development'

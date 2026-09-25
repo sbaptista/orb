@@ -53,12 +53,14 @@ import TaskChecklistView from './views/TaskChecklistView'
 import TaskKanbanView from './views/TaskKanbanView'
 import ViewSwitcher, { type ViewMode } from './views/ViewSwitcher'
 import { useSystemState } from '@/components/SystemStateProvider'
-import { startInteraction, consumePerformanceNavigationStart } from '@/lib/performance/telemetry'
+import { recordCompletedInteraction, startInteraction, consumePerformanceNavigationStart } from '@/lib/performance/telemetry'
 import { toOrbSpokenText } from '@/lib/orb-interaction/spoken-text'
 import { projectsAfterConfirmedCreation, projectsAfterConfirmedDeletion, selectedProjectAfterMutationRefresh } from '@/lib/orb-interaction/project-refresh'
 import { ORB_REALTIME_TRANSPORT_ONLY } from '@/lib/orb-interaction/runtime'
 import { isBareStopCommand, mergedTurnText, type OrbInterruptReason } from '@/lib/orb-interaction/interrupt-intent'
 import { isBareMutationAffirmation } from '@/lib/orb-model/confirmation-grammar'
+import { isRestartOnlyCommand, normalizeSpokenTurnText } from '@/lib/orb-interaction/turn-text'
+import { reconcileMessageIdentity, uniqueMessagesById } from '@/lib/orb-interaction/message-identity'
 
 const TTS_CONFIG_CHANGED_EVENT = 'orb:tts-config-changed'
 
@@ -275,9 +277,9 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const realtimeSpike = useRealtimeVoiceSpike({
     currentProjectId: selectedId,
     transportOnly: ORB_REALTIME_TRANSPORT_ONLY,
-    onUserTranscript: text => {
+    onUserTranscript: (text, turnId) => {
       if (ORB_REALTIME_TRANSPORT_ONLY) {
-        voiceSendRef.current(text)
+        voiceSendRef.current(text, turnId)
         return
       }
       setInput(text)
@@ -381,7 +383,8 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   const conversationIdRef      = useRef<string | null>(null)
   const interactionClientIdRef  = useRef<string | null>(null)
   const conversationRestoreSequenceRef = useRef(0)
-  const voiceSendRef            = useRef<(text: string) => void>(() => {})
+  const voiceSendRef            = useRef<(text: string, turnId?: string) => void>(() => {})
+  const submittedVoiceTurnIdsRef = useRef<Set<string>>(new Set())
   const messagesRef            = useRef<ConversationMessage[]>([])
   messagesRef.current = messages
   conversationIdRef.current = conversationId
@@ -691,11 +694,14 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
   // Register the send callback so the hook can submit after recognition ends.
   // Ref indirection ensures the callback always uses the latest handleSubmit
   // and voice methods, not stale closures from the initial render.
-  voiceSendRef.current = (text: string) => {
-    // No text-level duplicate filter: saying "yes" twice is two decisions, and
-    // typed input has never been filtered. The voice hook drops a redelivered
-    // provider transcript by its item id instead.
-    handleSubmit(text)
+  voiceSendRef.current = (text: string, turnId?: string) => {
+    // A provider item is normally deduplicated inside the Realtime hook. Keep
+    // this boundary too because hook remounts/replays can redeliver one durable
+    // turn later in the session. Distinct utterances have distinct turn ids,
+    // so saying “yes” twice remains two decisions.
+    if (turnId && submittedVoiceTurnIdsRef.current.has(turnId)) return
+    if (turnId) submittedVoiceTurnIdsRef.current.add(turnId)
+    void handleSubmit(text, turnId)
   }
 
   useEffect(() => {
@@ -799,14 +805,14 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       .then(async snapshot => {
         if (conversationRestoreSequenceRef.current !== restoreSequence) return
         setConversationId(snapshot.conversationId)
-        const restored: ConversationMessage[] = snapshot.messages.map(message => ({
+        const restored: ConversationMessage[] = uniqueMessagesById(snapshot.messages.map(message => ({
           id: message.eventId,
           type: message.role === 'user' ? 'user' : 'orb',
           text: message.text,
           spokenText: message.spokenText,
           insight: message.insight,
           isServiceError: message.isServiceError,
-        }))
+        })))
         if (restored.length > 0) {
           setMessages(restored)
           setConversationActive(true)
@@ -1349,9 +1355,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     }
   }
 
-  async function handleSubmit(value?: string) {
-    let text = (value ?? input).trim()
+  async function handleSubmit(value?: string, correlatedTurnId?: string) {
+    let text = normalizeSpokenTurnText(value ?? input)
     if (!text) return
+    let admittedTurnId = correlatedTurnId
     const modality = (voiceEngaged ? 'voice' : 'text') as 'text' | 'voice'
     const previousAdmission = pendingSubmissionAdmissionRef.current
     const admission = {
@@ -1371,6 +1378,20 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
     text = admission.text
     const activeRequest = activeConversationRequestRef.current
     if (activeRequest) {
+      if (isRestartOnlyCommand(text)) {
+        // A restart cue is control input, not conversation content. End the
+        // unfinished fragment and wait for the user's fresh utterance instead
+        // of sending "Let me try again" to the model or gluing it to the old
+        // transcript. The durable interrupt hides the abandoned fragment.
+        setInput('')
+        sessionStorage.removeItem(SS_INPUT)
+        await handleStop('merge')
+        setMessages(prev => prev.filter(message =>
+          message.id !== activeRequest.userEventId && message.id !== activeRequest.processingId
+        ))
+        if (pendingSubmissionAdmissionRef.current?.id === admission.id) pendingSubmissionAdmissionRef.current = null
+        return
+      }
       if (isBareStopCommand(text)) {
         // A bare stop word ends the running turn deliberately. It is not a new
         // request, so it is never sent as a turn of its own.
@@ -1397,6 +1418,10 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         text = mergedTurnText(activeRequest.text, text)
         await handleStop('merge')
         if (admission.cancelled) return
+        // The interrupted fragment and its replacement must be different
+        // durable turns. Reusing the provider correlation id here caused the
+        // merge interrupt to hide both user events during history projection.
+        admittedTurnId = genUuid()
         setMessages(prev => prev.filter(m => m.id !== activeRequest.userEventId && m.id !== activeRequest.processingId))
       } else {
         // A new request replaces the running turn without cancelling an
@@ -1470,7 +1495,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       return
     }
 
-    const turnId = genUuid()
+    const turnId = admittedTurnId ?? genUuid()
     const userEventId = genUuid()
     const processingId = genId()
     const request = {
@@ -1484,13 +1509,26 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       replyVisible: false,
     }
     activeConversationRequestRef.current = request
-    const submitMeasurement = startDashboardInteraction(
-      modality === 'voice' ? 'voice_orb_submit' : 'orb_submit',
-      { inputLength: text.length, hasPendingMutation: !!pendingMutationRef.current },
-      modality === 'voice' ? 'voice' : 'dashboard-clicks',
-    )
+    const submitMeasurement = startInteraction({
+      focus: modality === 'voice' ? 'voice' : 'dashboard-clicks',
+      flow: 'orb-conversation',
+      interaction: 'transcript_to_response',
+      surface: 'dashboard',
+      always: true,
+      correlationId: turnId,
+      metadata: {
+        turnId,
+        modality,
+        projectId: selectedId,
+        inputLength: text.length,
+        hasPendingMutation: !!pendingMutationRef.current,
+      },
+    })
     let submitMeasurementEnded = false
     let coordinatorPersistenceMs: number | undefined
+    let tracedConversationId: string | undefined
+    let tracedResponseEventId: string | undefined
+    let serverTimingRecorded = false
 
     setMessages(prev => [
       ...prev,
@@ -1590,6 +1628,31 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       let firstChunkSeen = false
       for await (const chunk of readStreamableValue(stream)) {
         if (!chunk) continue
+        if (!serverTimingRecorded && chunk.interaction?.serverTiming) {
+          serverTimingRecorded = true
+          const timing = chunk.interaction.serverTiming
+          recordCompletedInteraction({
+            focus: modality === 'voice' ? 'voice' : 'dashboard-clicks',
+            flow: 'orb-conversation',
+            interaction: 'server_turn',
+            surface: 'orb-converse',
+            correlationId: turnId,
+            durationMs: timing.durationMs,
+            stages: timing.stages,
+            success: !chunk.isServiceError,
+            failureCode: chunk.isServiceError ? 'orb_service_error' : null,
+            metadata: {
+              conversationId: chunk.interaction.conversationId,
+              turnId,
+              modality,
+              provider: timing.provider,
+              model: timing.model,
+              routeRole: timing.routeRole,
+              modelRounds: timing.modelRounds,
+              toolCalls: timing.toolCalls,
+            },
+          })
+        }
         if (request.aborted || cancelledConversationRequestIdsRef.current.has(request.id)) {
           // Presentation of this turn ended (Stop or a replacing request), but
           // the server keeps running it. Never drop a committed result: show the
@@ -1597,9 +1660,13 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           if (chunk.refresh && chunk.isStreaming === false) {
             const receiptId = chunk.interaction?.responseEventId ?? processingId
             stoppedVoiceMessageIdsRef.current.add(receiptId)
-            setMessages(prev => prev.map(m => m.id === processingId
-              ? { ...m, id: receiptId, text: chunk.speech || m.text, spokenText: undefined, isStreaming: false }
-              : m))
+            setMessages(prev => reconcileMessageIdentity(prev, processingId, m => ({
+              ...m,
+              id: receiptId,
+              text: chunk.speech || m.text,
+              spokenText: undefined,
+              isStreaming: false,
+            })))
             await applyCommittedEffects(chunk)
           }
           continue
@@ -1609,8 +1676,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
           submitMeasurement.mark('first_chunk_received')
         }
         if (chunk.speech) request.replyVisible = true
-        setMessages(prev => prev.map(m => {
-          if (m.id !== processingId) return m
+        setMessages(prev => reconcileMessageIdentity(prev, processingId, m => {
           const displayText = chunk.speech || m.text
           // Only an explicit `isStreaming: false` (the true turn-end signal from
           // stream.done()) means the turn is over. Many mid-turn progress updates
@@ -1636,18 +1702,42 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         }))
         if (chunk.interaction?.conversationId) {
           coordinatorPersistenceMs = chunk.interaction.persistenceMs ?? coordinatorPersistenceMs
+          tracedConversationId = chunk.interaction.conversationId
+          tracedResponseEventId = chunk.interaction.responseEventId ?? tracedResponseEventId
           setConversationId(chunk.interaction.conversationId)
           if (chunk.isStreaming === false && chunk.interaction.responseEventId && interactionClientIdRef.current) {
             const clientId = interactionClientIdRef.current
             const conversationId = chunk.interaction.conversationId
             const eventId = chunk.interaction.responseEventId
+            submitMeasurement.mark('acknowledgement_scheduled')
             window.requestAnimationFrame(() => {
+              const acknowledgementMeasurement = startInteraction({
+                focus: modality === 'voice' ? 'voice' : 'dashboard-clicks',
+                flow: 'orb-conversation',
+                interaction: 'response_acknowledgement',
+                surface: 'dashboard',
+                always: true,
+                correlationId: turnId,
+                metadata: { conversationId, turnId, eventId, modality },
+              })
+              acknowledgementMeasurement.mark('response_paint_frame')
               void acknowledgeOrbResponse({ conversationId, eventId, clientId })
-                .catch(error => console.error('[UnifiedDashboard] Response acknowledgement failed:', error))
+                .then(() => {
+                  acknowledgementMeasurement.mark('acknowledgement_persisted')
+                  acknowledgementMeasurement.end(true)
+                })
+                .catch(error => {
+                  acknowledgementMeasurement.end(false, 'acknowledgement_failed')
+                  console.error('[UnifiedDashboard] Response acknowledgement failed:', error)
+                })
             })
           }
         }
-        if (chunk.refresh) await applyCommittedEffects(chunk)
+        if (chunk.refresh) {
+          submitMeasurement.mark('committed_refresh_started')
+          await applyCommittedEffects(chunk)
+          submitMeasurement.mark('committed_refresh_complete')
+        }
 
         if (chunk.clientAction) {
           const action = chunk.clientAction
@@ -1696,6 +1786,7 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
         if (chunk.suggestedKnowledge) setDistillTodo(chunk.suggestedKnowledge)
         if (chunk.pendingMutation) pendingMutationRef.current = chunk.pendingMutation
         if (chunk.actionSet) rememberActionSet(chunk.actionSet)
+        if (chunk.isStreaming === false) submitMeasurement.mark('final_response_received')
       }
     } catch (err: any) {
       console.error('[orbSubmit]', err)
@@ -1741,7 +1832,14 @@ export default function UnifiedDashboard({ initialProducts, isAdmin = false, use
       cancelledConversationRequestIdsRef.current.delete(request.id)
       if (!submitMeasurementEnded) {
         if (wasCancelled) submitMeasurement.end(false, 'orb_submit_stopped')
-        else submitMeasurement.end(true, null, { voiceMode: voiceEngaged, coordinatorPersistenceMs })
+        else submitMeasurement.end(true, null, {
+          voiceMode: voiceEngaged,
+          coordinatorPersistenceMs,
+          conversationId: tracedConversationId,
+          responseEventId: tracedResponseEventId,
+          turnId,
+          modality,
+        })
       }
     }
   }
